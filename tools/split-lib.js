@@ -80,4 +80,15 @@ const innerOf = (outer) => outer.slice(outer.indexOf('>') + 1, outer.lastIndexOf
 
 const words = (text) => new Set(text.match(/[A-Za-z_$][\w$]*/g) || []);
 
-module.exports = { parse, readSource, loaderMap, topLevelFunctions, topLevelElements, innerOf, words };
+/**
+ * A top-level statement a React page replaced (src/pages/<id>/react.json "replaces"): a function
+ * declaration of that name, or a const/let/var whose every declared name is replaced (the page's
+ * own constants, e.g. BRAND_FIELDS_SERVED, which otherwise fall into core as dead code).
+ */
+function replacedStatement(node, replaced) {
+    if (node.type === 'FunctionDeclaration') return replaced.has(node.id.name);
+    if (node.type === 'VariableDeclaration') return node.declarations.every(d => d.id.type === 'Identifier' && replaced.has(d.id.name));
+    return false;
+}
+
+module.exports = { replacedStatement, parse, readSource, loaderMap, topLevelFunctions, topLevelElements, innerOf, words };

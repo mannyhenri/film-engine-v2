@@ -1,0 +1,6 @@
+{
+  "about": "This page is React (src/pages/edits/EditsPage.jsx). tools/split-map.js stops generating it, drops the legacy functions below, and fails if anything left still calls them. Rename uses a React dialog (editRenameModal) instead of window.prompt(), which Electron does not implement.",
+  "loader": "loadEditsPage",
+  "replaces": ["loadEditsPage", "editCardHtml", "importEditFile", "importEditCut", "rematchEditCut", "renameEdit", "deleteEditVersion", "scoreThisEdit", "openScoreSession"],
+  "modals": []
+}

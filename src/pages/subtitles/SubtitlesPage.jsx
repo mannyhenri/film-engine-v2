@@ -98,7 +98,7 @@ export default function SubtitlesPage() {
 
     function exportSubtitles(fmt) {
         // Opened, not fetched: the route answers with a file, and a download is what a person wants.
-        window.open(`${legacy.API_BASE}/projects/${legacy.state.currentProject.id}/subtitles/export/${fmt}`
+        window.open(`${legacy.API_BASE}/film/projects/${legacy.state.currentProject.id}/subtitles/export/${fmt}`
             + `?language=${encodeURIComponent(lang || 'en')}`, '_blank');
     }
 

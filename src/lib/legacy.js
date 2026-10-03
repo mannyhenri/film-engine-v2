@@ -24,7 +24,13 @@ export const LEGACY_GLOBALS = [
     'DRIFT',                  // which scenes' shots were written from an earlier draft (a top-level `let`)
     'updateSceneStatusIcons', // the status icon beside each scene heading in the screenplay editor
     'generateSceneDialogue',  // a scene's dialogue: one paid confirmation, then shot by shot (shared with screenplay)
+    'EDIT_CHUNK',   // the upload piece size the server accepts per PUT (edits); a top-level const
+    'MW',           // the music workstation's state: "Score this edit" sets MW.session before navigating (edits)
+    'mwTime',       // ms -> m:ss.t, as every timing in the app is shown (edits)
+    'fmtBytes',     // bytes -> "12.3 MB" (edits)
+    'checkUploadSize', // refuse a body over the server's per-request ceiling before sending it (edits)
 ];
+
 
 export const legacy = new Proxy({}, {
     get(_, name) {
