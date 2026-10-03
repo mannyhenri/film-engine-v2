@@ -18,7 +18,8 @@ commit, with the app working after every commit. Notes (`src/pages/notes/`) is t
    - A modal only this page opens becomes `<Modal id="<sameId>" title="…">` (`src/components/Modal.jsx`),
      opened and closed with `openModal(id)` / `closeModal(id)`: the legacy stack still orders it.
    - Render text as text (no `dangerouslySetInnerHTML`); React escapes it.
-3. **Write `src/pages/<id>/react.json`**: `loader`, every legacy function you `replaces`, and the
+3. **Write `src/pages/<id>/react.json`**: `loader`, every legacy function (and the page's own top-level
+   constants, so they do not fall into core as dead code) you `replaces`, and the
    `modals` you now render. Replace `index.jsx` with a one-line re-export of your component.
 4. **`npm run split`**, then `git rm src/pages/<id>/markup.html` and the modal `.html` files you took over.
    The split FAILS if any remaining legacy code still calls what you replaced (an onclick in another
@@ -46,7 +47,8 @@ commit. A page whose functions are shared with another page converts together wi
 | Page | Status | Owner |
 |---|---|---|
 | notes, renderhistory, milestones, rights, subtitles, titles, assets | done | film-engine agent |
-| brand, edits, deliverables, pipeline, exportpage, videoshots | batch 1, in progress | film-engine-v2 agent |
+| brand | done | film-engine-v2 agent |
+| edits, deliverables, pipeline, exportpage, videoshots | batch 1, in progress | film-engine-v2 agent |
 | scenes, moodboard, stylebook, marketing | batch 2 | film-engine agent |
 | consistency, jobsqueue, projects, dashboard | batch 2 | film-engine-v2 agent |
 | characters + locations + props (one chunk), shotboard, storyboard | batch 3, unclaimed: shared modals | |

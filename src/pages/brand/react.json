@@ -1,0 +1,14 @@
+{
+  "about": "This page is React (src/pages/brand/BrandPage.jsx). tools/split-map.js stops generating it, drops the legacy functions below, and fails if anything left still calls them. brandModal was built at runtime by showModalHtml (not a source modal), so it is rendered by the page and not listed under modals. BRAND_FIELDS_SERVED, BRAND_REACH_NOTE and BRAND_JSON_FIELDS are the page's own constants (now in BrandPage.jsx).",
+  "loader": "loadBrands",
+  "replaces": [
+    "loadBrands",
+    "openBrand",
+    "saveBrand",
+    "deleteBrand",
+    "BRAND_FIELDS_SERVED",
+    "BRAND_REACH_NOTE",
+    "BRAND_JSON_FIELDS"
+  ],
+  "modals": []
+}

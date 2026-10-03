@@ -16,7 +16,7 @@
  */
 const fs = require('fs');
 const path = require('path');
-const { readSource, loaderMap, parse, topLevelElements, innerOf, words } = require('./split-lib');
+const { readSource, loaderMap, parse, topLevelElements, innerOf, words, replacedStatement } = require('./split-lib');
 
 const ROOT = path.join(__dirname, '..');
 const plan = require('./port-plan.json');
@@ -140,17 +140,17 @@ function generate({ write = true } = {}) {
     let prev = 0;
     for (const s of ast.body) { segs.push({ node: s, text: src.app.slice(prev, s.end), code: appCode.slice(prev, s.end) }); prev = s.end; }
     const tail = src.app.slice(prev);
-    // Functions a React page replaces leave the legacy code entirely.
-    // A function, or a top-level let/const/var whose every declared name is replaced (the state only
-    // that page's code used), leaves with it.
-    const declaredBy = (n) => n.type === 'FunctionDeclaration' ? [n.id.name]
-        : n.type === 'VariableDeclaration' && n.declarations.every(d => d.id.type === 'Identifier') ? n.declarations.map(d => d.id.name) : [];
-    const declared = new Set(segs.flatMap(s => declaredBy(s.node)));
+    // What a React page replaces leaves the legacy code entirely: its functions, and its own
+    // constants (a const/let/var whose names are all replaced, and whose initialiser runs nothing).
+    const declared = new Set(segs.flatMap(s => s.node.type === 'FunctionDeclaration' ? [s.node.id.name]
+        : s.node.type === 'VariableDeclaration' ? s.node.declarations.filter(d => d.id.type === 'Identifier').map(d => d.id.name) : []));
     for (const [n, id] of replaced) if (!declared.has(n)) throw new Error(`src/pages/${id}/react.json replaces ${n}, which is not a top-level function or variable of the source`);
-    const isReplaced = (n) => { const names = declaredBy(n); return names.length > 0 && names.every(x => replaced.has(x)); };
-    for (const s of segs) if (s.node.type === 'VariableDeclaration' && declaredBy(s.node).some(x => replaced.has(x)) && !isReplaced(s.node))
-        throw new Error('a react.json replaces only some of the names one statement declares: ' + declaredBy(s.node).join(', '));
-    segs = segs.filter(s => !isReplaced(s.node));
+    const droppedVars = segs.filter(s => s.node.type === 'VariableDeclaration' && replacedStatement(s.node, replaced));
+    for (const s of segs) if (s.node.type === 'VariableDeclaration' && !replacedStatement(s.node, replaced)) {
+        const part = s.node.declarations.filter(d => d.id.type === 'Identifier' && replaced.has(d.id.name)).map(d => d.id.name);
+        if (part.length) throw new Error(`react.json replaces ${part.join(', ')} but not every name its declaration declares`);
+    }
+    segs = segs.filter(s => !replacedStatement(s.node, replaced));
     /*
      * Graph nodes: every top-level function declaration, class, and const/let/var
      * whose initialisers run nothing at load (functions, literals, empty
@@ -172,6 +172,9 @@ function generate({ write = true } = {}) {
             default: return false;
         }
     };
+    for (const s of droppedVars) if (!s.node.declarations.every(d => isPure(d.init))) {
+        throw new Error(`react.json replaces ${s.node.declarations.map(d => d.id.name).join(', ')}, whose initialiser runs code at load: dropping it would drop that too`);
+    }
     const declNames = (node) => {
         if (node.type === 'FunctionDeclaration' || node.type === 'ClassDeclaration') return [node.id.name];
         if (node.type === 'VariableDeclaration' && node.declarations.every(d => d.id.type === 'Identifier' && isPure(d.init))) return node.declarations.map(d => d.id.name);

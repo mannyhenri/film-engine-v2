@@ -16,6 +16,19 @@
         "assetModal"
       ]
     },
+    "brand": {
+      "loader": "loadBrands",
+      "replaces": [
+        "loadBrands",
+        "openBrand",
+        "saveBrand",
+        "deleteBrand",
+        "BRAND_FIELDS_SERVED",
+        "BRAND_REACH_NOTE",
+        "BRAND_JSON_FIELDS"
+      ],
+      "modals": []
+    },
     "milestones": {
       "loader": "loadMilestones",
       "replaces": [
@@ -353,20 +366,6 @@
       ],
       "otherStatements": 5,
       "bytes": 54756
-    },
-    "brand": {
-      "pages": [
-        "brand"
-      ],
-      "deps": [],
-      "functions": [
-        "loadBrands",
-        "openBrand",
-        "saveBrand",
-        "deleteBrand"
-      ],
-      "otherStatements": 3,
-      "bytes": 7596
     },
     "shotboard": {
       "pages": [
@@ -1393,7 +1392,7 @@
       "loader": [
         "loadBrands"
       ],
-      "chunk": "brand",
+      "chunk": null,
       "modals": []
     },
     "deliverables": {
