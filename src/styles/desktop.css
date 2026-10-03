@@ -19,3 +19,12 @@ html.fe-desktop-mac::before {
   content: ''; position: fixed; top: 0; left: 0; right: 0; height: var(--fe-gap);
   -webkit-app-region: drag; z-index: 301;
 }
+/*
+ * While a modal is open, nothing drags. A drag region is hit-tested by the window system ABOVE everything
+ * the page draws, so z-index cannot cover it: a tall modal (up to 92vh, centred) puts its header and its ×
+ * inside the bar's rectangle, and a click on × dragged the window instead — "I can't close it", with only
+ * Escape working. The bar is under the overlay anyway; dragging resumes when the last modal closes.
+ */
+html.fe-desktop-mac:has(.modal-overlay.open) .fe-top,
+html.fe-desktop-mac:has(.modal-overlay.open)::before { -webkit-app-region: no-drag; }
+html.fe-desktop-mac .modal-overlay.open { -webkit-app-region: no-drag; }

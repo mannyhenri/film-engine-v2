@@ -298,6 +298,22 @@ async function smoke(win) {
             if (/Descriptions are never rewritten|Could not compare/.test(shown)) break;
             await new Promise(r => setTimeout(r, 250));
         }
+        /*
+         * A modal can always be closed by its ×. On macOS the bar is the window's drag region, hit-tested by the
+         * window system above the page, so a tall modal's × inside the bar's rectangle dragged the window. While a
+         * modal is open nothing may drag (desktop.css); the × closes it; dragging is back once it is closed.
+         */
+        const region = `(() => { const r = (el, p) => getComputedStyle(el, p).getPropertyValue('-webkit-app-region').trim();
+            return { bar: r(document.querySelector('.fe-top')), strip: r(document.documentElement, '::before'), overlay: r(document.getElementById('syncScreenplayModal')) }; })()`;
+        const mac = await js(`document.documentElement.classList.contains('fe-desktop-mac')`);
+        await js(`document.documentElement.classList.add('fe-desktop-mac'); true`);
+        const open = await js(region);
+        await js(`document.querySelector('#syncScreenplayModal .modal-close').click(); true`);
+        const closedByX = await js(`!document.getElementById('syncScreenplayModal').classList.contains('open')`);
+        const after = await js(region);
+        if (!mac) await js(`document.documentElement.classList.remove('fe-desktop-mac'); true`);
+        const closable = open.bar === 'no-drag' && open.strip === 'no-drag' && open.overlay === 'no-drag' && closedByX && after.bar === 'drag' && after.strip === 'drag';
+        report.push({ id: 'modal closes by ×', ok: closable, want: 'modal closes by ×', active: closable ? 'modal closes by ×' : `open=${JSON.stringify(open)} closedByX=${closedByX} after=${JSON.stringify(after)}` });
         await js(`closeModal('syncScreenplayModal'); true`);
         const ok = there && /Descriptions are never rewritten/.test(shown) && errors.length === before;
         report.push({ id: 'sync screenplay', ok, want: 'sync screenplay', active: ok ? 'sync screenplay' : `inRail=${there} dialog=${shown.slice(0, 80)}` });
