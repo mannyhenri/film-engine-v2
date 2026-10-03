@@ -1,0 +1,6 @@
+{
+  "about": "This page is React (src/pages/projects/ProjectsPage.jsx). tools/split-map.js stops generating it, drops the legacy list code below, and fails if anything left still calls it. Core still calls loadProjects() by name (at boot, then applyRoute; after create/delete/import), which the React loader answers. PROJECT_LIST stays in core (a boot statement restores it from storage) and is bridged.",
+  "loader": "loadProjects",
+  "replaces": ["loadProjects", "setProjectFilter", "toggleArchivedView", "setProjectArchived", "saveProjectListPrefs", "projectDragStart", "projectDropSide", "projectDragOver", "projectDragLeave", "projectDragEnd", "projectOrderAfterDrop", "projectDrop", "projectStages", "openStagePicker", "setProjectStage"],
+  "modals": []
+}

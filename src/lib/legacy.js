@@ -35,6 +35,8 @@ export const LEGACY_GLOBALS = [
     'mediaUploadControl',    // core's upload control for footage/sound made elsewhere, by capability (videoshots)
     'loadSequences',         // the sequence list, still legacy, filled into #sequenceList (videoshots)
     'generateVideoFor', 'generateVoiceForShot', 'setClipCoverage', 'lipsyncShot', 'postShot', 'replaceBackground', 'stitchShot', // a video shot card's actions, shared with the board (videoshots)
+    'PROJECT_LIST',          // the project list's filter (stage, archived) and drag state; core restores it from storage at boot (projects)
+    'openProject', 'openNewProject', 'loadDemoProject', 'deleteProjectById', 'deleteAllProjects', // the project actions, shared with the shell (projects)
     'refreshProtectOptions', // the board and playback pickers offer the ratios this job ships (deliverables)
     'uploadReferenceImage',   // upload a reference picture: size check, the label's "Uploading…", the error left on it
     'plateSrc',               // a plate's thumbnail URL at a width (the server caches it)

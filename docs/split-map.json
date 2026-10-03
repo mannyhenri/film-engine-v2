@@ -177,6 +177,27 @@
       ],
       "modals": []
     },
+    "projects": {
+      "loader": "loadProjects",
+      "replaces": [
+        "loadProjects",
+        "setProjectFilter",
+        "toggleArchivedView",
+        "setProjectArchived",
+        "saveProjectListPrefs",
+        "projectDragStart",
+        "projectDropSide",
+        "projectDragOver",
+        "projectDragLeave",
+        "projectDragEnd",
+        "projectOrderAfterDrop",
+        "projectDrop",
+        "projectStages",
+        "openStagePicker",
+        "setProjectStage"
+      ],
+      "modals": []
+    },
     "renderhistory": {
       "loader": "loadRenderPage",
       "replaces": [
@@ -281,15 +302,6 @@
     }
   },
   "chunks": {
-    "projects": {
-      "pages": [
-        "projects"
-      ],
-      "deps": [],
-      "functions": [],
-      "otherStatements": 0,
-      "bytes": 0
-    },
     "dashboard": {
       "pages": [
         "dashboard"
@@ -1096,13 +1108,8 @@
       "loader": [
         "loadProjects"
       ],
-      "chunk": "projects",
-      "modals": [
-        "newProjectModal",
-        "folderPickerModal",
-        "productionGuideModal",
-        "projectOnboardingModal"
-      ]
+      "chunk": null,
+      "modals": []
     },
     "dashboard": {
       "loader": [
@@ -1502,6 +1509,7 @@
   },
   "core": {
     "loaderPlaceholders": [
+      "loadProjects",
       "loadDashboard",
       "loadScenes",
       "loadShotBoard",
@@ -1534,11 +1542,11 @@
       "loadMusic",
       "loadPlayback"
     ],
-    "functions": 532,
+    "functions": 517,
     "unreached": 18,
     "sharedByChunks": 3,
     "declaredTwice": [],
     "bootVendors": [],
-    "bytes": 784639
+    "bytes": 772450
   }
 }

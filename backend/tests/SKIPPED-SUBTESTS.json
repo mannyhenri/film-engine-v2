@@ -416,6 +416,18 @@
         "name": "the button is only offered where there is footage to edit",
         "reason": "REACT: reads the legacy const proActions block. Held in src/pages/videoshots/videoshots-contract.test.jsx: Background… absent on a shot with no clip, present and calling core on one with footage."
       }
+    ],
+    "project-list.test.js": [
+      {
+        "name": "the page drops a card where it was dropped, and draws the filter, archive and drag controls",
+        "reason": "REACT: looks for the legacy list onclick text (setProjectArchived(', projectDrop(event); the list is React (src/pages/projects). Held in src/pages/projects/ProjectsPage.test.jsx as behaviour: the drop order (before/after) and the reorder POST, the filter chips, archive/restore, the drag controls."
+      }
+    ],
+    "project-stage-picker.test.js": [
+      {
+        "name": "on the list, the badge opens the picker without opening the project, and a choice saves",
+        "reason": "REACT: reads the legacy card template and runs setProjectStage with injected globals; the list is React. Held in src/pages/projects/ProjectsPage.test.jsx: the badge opens the picker without opening the project, the stages are Settings own, the choice PUTs the status, updates the list and the open project, and redraws."
+      }
     ]
   }
 }

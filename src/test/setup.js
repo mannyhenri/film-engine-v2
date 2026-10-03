@@ -38,6 +38,8 @@ export function installLegacy({ routes = {}, project = { id: 'p1' } } = {}) {
         fmtBytes: (n) => `${n} B`,
         checkUploadSize: vi.fn(),
         refreshProtectOptions: vi.fn(),
+        PROJECT_LIST: { status: '', archived: false, dragId: null },
+        openProject: vi.fn(), openNewProject: vi.fn(), loadDemoProject: vi.fn(), deleteProjectById: vi.fn(), deleteAllProjects: vi.fn(),
         // As core builds it: a label + hidden file input addressed by capability (the test reads the call).
         mediaUploadControl: vi.fn((capability, media, scope, id, o = {}) => `<label class="btn btn-secondary btn-sm">${o.label || 'Upload'}<input type="file" data-import-target="${capability}-media"></label>`),
         loadSequences: vi.fn(),
