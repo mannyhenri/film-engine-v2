@@ -54,6 +54,7 @@ export const LEGACY_GLOBALS = [
     'frameSrc', 'storyboardDrawAnnotations', 'protectSelection', 'protectOverlayHTML', 'setShotAspect',
     'anchorButton', 'directShot', 'exploreAngles', 'refineFrame', 'storyboardImportButton', 'openFrameVersions',
     'frameVersionTitle', 'frameVersionLabel', 'playFromShot', 'insertShotAfter', 'storyboardFacetTags', 'storyboardDialogueHtml', 'markupToolbar',
+    'money', 'usd',          // how money is printed everywhere: $0.00, and finer under a dollar (budget, export, the confirmations)
 ];
 
 

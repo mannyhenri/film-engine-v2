@@ -97,13 +97,15 @@ test('every page loader the legacy code calls exists: declared in legacy code, o
     // held here, where both halves of the app are visible.
     const code = LEGACY_FILES.map(read).join('\n');
     const declared = new Set([...code.matchAll(/(?:async\s+)?function\s+([A-Za-z_$][\w$]*)\s*\(|(?:let|const)\s+([A-Za-z_$][\w$]*)\s*=/g)].map(m => m[1] || m[2]));
-    const reactLoaders = new Set(Object.values(REACT).map(r => r.loader));
+    const reactLoaders = new Set(Object.values(REACT).flatMap(r => [r.loader, ...(r.provides || [])]));
     const calls = [...code.matchAll(/(?:^|[^\w.$])(load[A-Z][\w$]*)\s*\(/gm)].map(m => m[1]);
     assert.ok(calls.length > 20, 'the scan found almost no loader calls: it is not reading the legacy code');
     const missing = [...new Set(calls)].filter(n => !declared.has(n) && !reactLoaders.has(n));
     assert.deepStrictEqual(missing, [], 'called and defined nowhere — a removed page is not removed until its callers go with it');
     // And a React loader core calls must really be registered by its page (else the call throws).
     for (const [id, r] of Object.entries(REACT)) {
-        if (calls.includes(r.loader)) assert.ok(new RegExp(`usePageLoader\\(\\s*'${r.loader}'`).test(jsxOf(id)), `${r.loader} is called by core and ${id} never registers it`);
+        for (const fn of [r.loader, ...(r.provides || [])]) {
+            if (calls.includes(fn)) assert.ok(new RegExp(`usePageLoader\\(\\s*'${fn}'`).test(jsxOf(id)), `${fn} is called by core and ${id} never registers it`);
+        }
     }
 });

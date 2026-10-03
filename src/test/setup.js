@@ -65,6 +65,7 @@ export function installLegacy({ routes = {}, project = { id: 'p1' } } = {}) {
         frameVersionTitle: () => 'versions title', frameVersionLabel: (f) => `v${f.asset_version || 1}`, playFromShot: vi.fn(), insertShotAfter: vi.fn(),
         storyboardFacetTags: (f) => `<span class="facet">facets ${f.shot_code}</span>`, storyboardDialogueHtml: (d) => (d && d.length ? `<p class="dlg">${d.length} lines</p>` : ''),
         markupToolbar: (id) => `<span class="markup-tools">markup ${id}</span>`,
+        money: (n) => '$' + (Number(n) || 0).toFixed(2), usd: (n) => '$' + (Number(n) || 0).toFixed(3),
     };
     const missing = LEGACY_GLOBALS.filter(n => !(n in fake));
     if (missing.length) throw new Error('the test fake lacks ' + missing.join(', ') + ' (src/test/setup.js)');

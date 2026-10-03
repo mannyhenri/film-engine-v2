@@ -1,0 +1,51 @@
+{
+  "about": "This page is React (src/pages/budget/BudgetPage.jsx and its tab components). tools/split-map.js stops generating it, drops the legacy code below, and fails if anything left still calls it. navigateTo calls loadSpend() then loadBudget(); the page registers both. money and usd stay in core (every page prints money one way).",
+  "loader": "loadBudget",
+  "provides": [
+    "loadSpend"
+  ],
+  "replaces": [
+    "CAP_COLOR",
+    "capColor",
+    "qty",
+    "currentSpend",
+    "loadSpend",
+    "renderSpendBackfill",
+    "previewBackfill",
+    "runBackfill",
+    "renderSpendHeadline",
+    "statTile",
+    "renderSpendUnits",
+    "renderSpendByCapability",
+    "renderSpendOverTime",
+    "renderSpendByModel",
+    "renderSpendByShot",
+    "renderSubscription",
+    "currentCompareCapability",
+    "loadGeneratorCompare",
+    "PROD_EST",
+    "loadProductionEstimate",
+    "prodEstSet",
+    "prodEstReset",
+    "renderProductionEstimateControls",
+    "renderProductionEstimate",
+    "renderGeneratorCompare",
+    "loadSpendRates",
+    "loadBudget",
+    "saveCostEntry",
+    "deleteCostEntry",
+    "saveBudgetLimit",
+    "currentBudgetEstimate",
+    "BUDGET_PANELS",
+    "switchBudgetTab",
+    "generateBudgetEstimate",
+    "renderBudgetEstimate",
+    "showCostInputModal",
+    "saveCostInput",
+    "exportBudgetEstimate"
+  ],
+  "modals": [
+    "budgetLimitModal",
+    "costEntryModal"
+  ]
+}
