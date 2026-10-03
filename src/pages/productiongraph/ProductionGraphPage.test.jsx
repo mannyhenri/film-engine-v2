@@ -113,3 +113,30 @@ describe('Production graph: Run what changed spends only through the shared conf
         expect(legacy.calls.filter(c => c.method === 'POST').map(c => c.path)).toEqual([`/projects/${P}/production-graph/run-changed`]);
     });
 });
+
+describe('Production graph: switching film while a graph is still loading', () => {
+    it('the new film gets its own graph (a load in flight for the old one is not handed back), and nothing of the old view carries over', async () => {
+        const B = 'b0000000-0000-4000-8000-00000000000b';
+        let releaseA = null;
+        const { legacy } = openPage({
+            // A's first read answers at once; its second (the reload in flight at the switch) answers late.
+            [`GET /projects/${P}/production-graph`]: () => releaseA === null ? (releaseA = false, GRAPH) : new Promise(r => { releaseA = () => r(GRAPH); }),
+            [`GET /projects/${B}/production-graph`]: { ...GRAPH, project_id: B },
+        });
+        await act(async () => { await window.loadProductionGraph(); });     // A's graph is on screen
+        legacy.fake.PG.queue = { items: ['A queue'] }; legacy.fake.PG.queueOpen = true;
+        legacy.fake.PG.picked = new Set(['n1']); legacy.fake.PG.busy = new Map([['n1', 'run']]); legacy.fake.PG.add = { kind: 'shot' };
+        let first;
+        act(() => { first = window.loadProductionGraph(); });               // A reloads; this answer is slow
+        window.state.currentProject = { id: B };                             // switch to B
+        await act(async () => { await window.loadProductionGraph(); });    // B asks while A is still in flight
+        expect(window.PG.graph.project_id, 'B got A\'s in-flight load back, so B was never asked for').toBe(B);
+        expect(window.PG.queue, 'A\'s queue strip carried over to B').not.toEqual({ items: ['A queue'] });
+        expect([...window.PG.picked]).toEqual([]);
+        expect([...window.PG.busy.keys()]).toEqual([]);
+        expect(window.PG.add).toBe(null);
+        expect(window.PG.queueOpen).toBe(false);
+        await act(async () => { releaseA(); await first; });                 // A's late answer changes nothing
+        expect(window.PG.graph.project_id).toBe(B);
+    });
+});

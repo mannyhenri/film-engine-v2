@@ -120,7 +120,7 @@ export default function MarketingPage() {
                             </div>
                         </div>
                         {a.image_path
-                            ? <img src={marketingImgSrc(a, legacy.state.currentProject.id)} alt="" style={{ width: '100%', borderRadius: 6, marginTop: 8, display: 'block' }} />
+                            ? <img src={marketingImgSrc(a, (legacy.state.currentProject || {}).id)} alt="" style={{ width: '100%', borderRadius: 6, marginTop: 8, display: 'block' }} />
                             : <p className="text-sm text-muted" style={{ marginTop: 8 }}>{a.prompt || 'No artwork yet.'}</p>}
                         <div style={{ marginTop: 8, display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
                             <span style={{ display: 'contents' }} dangerouslySetInnerHTML={{ __html: legacy.uploadControl('marketing-asset', `/marketing/${a.id}/import`,

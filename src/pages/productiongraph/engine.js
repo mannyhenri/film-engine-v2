@@ -147,9 +147,18 @@ async function loadProductionGraph() {
     if (!state.currentProject) return;
     // One load at a time: the side panel and the page both ask, and two renders
     // racing is how a click lands on a node that was just replaced.
-    if (PG.inflight) return PG.inflight;
-    PG.inflight = pgLoad().finally(() => { PG.inflight = null; });
-    return PG.inflight;
+    // Keyed by project: a load still in flight for the film you just LEFT is not this one's. Handing it back meant
+    // the new film's graph was never asked for (pgLoad drops the old answer), so the old graph stayed on screen.
+    const pid = state.currentProject.id;
+    if (PG.inflight && PG.inflightPid === pid) return PG.inflight;
+    const run = pgLoad().finally(() => {
+        if (PG.inflight === run) { PG.inflight = null; PG.inflightPid = null; }
+        // The film changed while this one loaded: the side panel skipped asking for the new one (one side load at a
+        // time), so ask again now, after its own flag is cleared.
+        if (state.currentProject && state.currentProject.id !== pid) setTimeout(() => { if (typeof window.pgRenderSide === 'function') pgRenderSide(); }, 0);
+    });
+    PG.inflight = run; PG.inflightPid = pid;
+    return run;
 }
 
 async function pgLoad() {
@@ -161,6 +170,8 @@ async function pgLoad() {
         // Another film: nothing about the view carries over.
         if (PG.graph && PG.graph.project_id !== pid) {
             PG.sel = null; PG.fitted = false; PG.scene = 'all'; PG.timeline = null; PG.play.index = 0; PG.drawerCache = {};
+            // ...nor the queue strip, the picked nodes, an add in progress or another film's busy markers.
+            PG.queue = null; PG.queueOpen = false; PG.picked = new Set(); PG.add = null; PG.busy = new Map();
         }
         PG.graph = g;
         PG.byKey = new Map(g.nodes.map(n => [n.key, n]));

@@ -1,4 +1,5 @@
 import { PAGES, CHUNKS, VENDORS } from '../pages/registry.js';
+import { noteOpenProject } from './project-epoch.js';
 
 const chunkOfPage = new Map(PAGES.filter(p => p.chunk).map(p => [p.id, p.chunk]));
 const loading = new Map(); // script url -> promise
@@ -28,6 +29,9 @@ function script(file) {
  * its top-level names.
  */
 async function ensure(page) {
+    // navigateTo comes through here before every page's loader: a different project than the pages were mounted
+    // for remounts them first (src/lib/project-epoch.js), so nothing of the last project is drawn or answered into.
+    noteOpenProject();
     const chunk = chunkOfPage.get(page);
     if (!chunk) return;
     for (const dep of CHUNKS[chunk].deps) for (const f of VENDORS[dep]) await script(f);

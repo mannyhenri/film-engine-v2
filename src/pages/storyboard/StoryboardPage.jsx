@@ -30,15 +30,19 @@ export function ratioOf(frame, project) {
 const Html = ({ html, as: Tag = 'span', ...rest }) => <Tag {...rest} dangerouslySetInnerHTML={{ __html: html }} />;
 
 export default function StoryboardPage() {
-    const [frames, setFrames] = useState(null);
+    const [board, setBoard] = useState(null); // { pid, list }: the frames, and whose project they are
     const [protect, setProtect] = useState('');
 
     async function loadStoryboard() {
         legacy.loadBoardLock();
         if (!legacy.state.currentProject) return;
         legacy.setStatus('Loading storyboard...');
+        const pid = legacy.state.currentProject.id;
         try {
-            const data = await legacy.api('/projects/' + legacy.state.currentProject.id + '/storyboard');
+            const data = await legacy.api('/projects/' + pid + '/storyboard');
+            // An answer for a project you have since left draws nothing and writes nothing: it would paint A's frames
+            // under B, and write A's anchor and annotation setting onto B (or, with no project open, crash the render).
+            if (!legacy.state.currentProject || legacy.state.currentProject.id !== pid) return;
             const list = data.frames || [];
             // Read from the payload that drew the frames, not a second request that could answer differently.
             const p = legacy.state.currentProject;
@@ -50,7 +54,7 @@ export default function StoryboardPage() {
             }
             legacy.ANCHOR.frames = list;
             legacy.FRAME_VIEWER.frames = list; // so the viewer can step between shots without the grid
-            setFrames(list);
+            setBoard({ pid, list });
             legacy.renderAnnotationFeedbackToggle();
             legacy.renderAnchorChip();
             legacy.setStatus(list.length + ' storyboard frame(s)');
@@ -77,7 +81,11 @@ export default function StoryboardPage() {
         }
     }
 
-    const project = (frames && legacy.state.currentProject) || {};
+    // Drawn only for the project that is open: after you leave it (or with none open) the board is empty, so no
+    // re-render calls core's frame helpers, which read the open project, against another one or none.
+    const open = board ? legacy.state.currentProject : null; // board only exists once core has loaded
+    const frames = board && open && board.pid === open.id ? board.list : null;
+    const project = (frames && open) || {};
     return (
         <div className="page" id="page-storyboard">
             <div className="flex-between mb-16">

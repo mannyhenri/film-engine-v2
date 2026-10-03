@@ -107,7 +107,7 @@ export default function ShotBoardPage() {
         } catch (err) { legacy.setStatus('Error: ' + err.message); }
     }
 
-    const pid = shots ? legacy.state.currentProject.id : '';
+    const pid = shots && legacy.state.currentProject ? legacy.state.currentProject.id : '';
     const delta = runtime ? (runtime.cut_duration_ms - runtime.target_duration_ms) / 1000 : 0;
     return (
         <div className="page" id="page-shotboard">

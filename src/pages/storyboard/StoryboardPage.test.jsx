@@ -137,3 +137,35 @@ describe('Storyboard', () => {
         release();
     });
 });
+
+describe('Storyboard: an answer for a project you have left', () => {
+    it('draws nothing and writes nothing onto the project now open', async () => {
+        let releaseA;
+        const { fake } = installLegacy({ routes: {
+            'GET /projects/p1/storyboard': () => new Promise(r => { releaseA = () => r({ frames: [{ shot_id: 's1', shot_code: '1A' }], anchor_shot_id: 's1', annotation_feedback: 1 }); }),
+        } });
+        render(<StoryboardPage />);
+        let pending;
+        act(() => { pending = window.loadStoryboard(); });
+        const B = { id: 'p2' };
+        fake.state.currentProject = B;                                        // switched while A's board was in flight
+        await act(async () => { releaseA(); await pending; });
+        expect(document.querySelectorAll('#storyboardGrid > .card').length).toBe(0);
+        expect(B.anchor_shot_id, 'A\'s anchor written onto B').toBeUndefined();
+        expect(B.annotation_feedback).toBeUndefined();
+        expect(window.BOARD_ANCHOR).toBe(null);
+    });
+
+    it('a board drawn for a project is not drawn once no project is open (nothing renders against no project)', async () => {
+        const { fake } = installLegacy({ routes: { 'GET /projects/p1/storyboard': { frames: FRAMES } } });
+        const view = render(<StoryboardPage />);
+        await act(async () => { await window.loadStoryboard(); });
+        const cards = () => document.querySelectorAll('#storyboardGrid > .card').length;
+        expect(cards()).toBe(2);
+        fake.state.currentProject = null;
+        const frameSrc = vi.fn(fake.frameSrc); window.frameSrc = frameSrc;
+        view.rerender(<StoryboardPage />);
+        expect(cards()).toBe(0);
+        expect(frameSrc).not.toHaveBeenCalled();
+    });
+});

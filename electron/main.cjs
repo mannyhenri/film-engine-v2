@@ -318,6 +318,63 @@ async function smoke(win) {
         const ok = there && /Descriptions are never rewritten/.test(shown) && errors.length === before;
         report.push({ id: 'sync screenplay', ok, want: 'sync screenplay', active: ok ? 'sync screenplay' : `inRail=${there} dialog=${shown.slice(0, 80)}` });
     }
+    /*
+     * Switching project from inside one: the user's report, "we open a storyboard/production for a project, go into
+     * another one, the previous one is opened, and then no projects load". Open A on the storyboard (the graph's side
+     * panel loads A's graph in the background), go back to the list straight away, then open B straight away. The list
+     * must show and STAY (nothing may reopen A), and B's storyboard, route and graph must all be B's.
+     */
+    if (project && !process.env.FE_SMOKE_URL && !process.env.FE_SMOKE_PAGES) {
+        current = 'switch';
+        const before = errors.length;
+        const wait = (ms) => new Promise(r => setTimeout(r, ms));
+        const ids = await js(`(async () => { try {
+            let r = await api('/projects'); let list = Array.isArray(r) ? r : (r.projects || []);
+            if (list.length < 2) { await api('/projects', { method: 'POST', body: JSON.stringify({ title: 'Smoke second project' }) }); r = await api('/projects'); list = Array.isArray(r) ? r : (r.projects || []); }
+            return list.slice(0, 2).map(p => p.id);
+        } catch (e) { return 'setup: ' + e.message; } })()`);
+        if (!Array.isArray(ids)) console.error('switch project', ids);
+        const [A, B] = Array.isArray(ids) ? ids : [];
+        // Where the app is, at each step.
+        const where = `({ project: state.currentProject && state.currentProject.id, page: state.currentPage, hash: location.hash,
+            active: document.querySelector('.page.active')?.id, cards: document.querySelectorAll('#page-projects .project-card').length,
+            graph: (typeof PG !== 'undefined' && PG.graph) ? PG.graph.project_id : null })`;
+        // The graph on (its side panel then loads the open project's graph in the background, on every switch), and
+        // A slow: every read naming A answers 1.2s late, so A's loads are still in flight when B is opened.
+        let step = 'flag';
+        const js0 = js; const jsStep = async (code) => { try { return await js0(code); } catch (e) { throw new Error(`switch project, step ${step}: ${String(code).slice(0, 80)}`); } };
+        const thrown = [];
+        const back = async () => { const r = await jsStep(`(() => { try { backToProjectList(); return true; } catch (e) { return String(e && e.stack || e); } })()`); if (r !== true) thrown.push(r); };
+        const flag = await jsStep(`api('/settings').then(r => !!(r.settings && r.settings.production_graph)).catch(() => false)`);
+        const on = await jsStep(`api('/settings', { method: 'PUT', body: JSON.stringify({ production_graph: true }) }).then(() => applyProductionFlag()).then(() => true, e => 'flag: ' + e.message)`);
+        if (on !== true) console.error('switch project', on);
+        await jsStep(`window.__feApi = window.__feApi || api; window.api = (path, ...rest) => String(path).includes(${JSON.stringify(A)})
+            ? new Promise(r => setTimeout(r, 1200)).then(() => window.__feApi(path, ...rest)) : window.__feApi(path, ...rest); true`);
+        await jsStep(`openProject(${JSON.stringify(A)}, 'productiongraph'); true`);
+        await wait(1400);                                  // A open on the graph, its graph read still in flight
+        await back();
+        await wait(2500);
+        const list = await jsStep(where);
+        await jsStep(`openProject(${JSON.stringify(B)}, 'storyboard'); true`);
+        await wait(150);
+        await back();
+        await wait(80);
+        await jsStep(`openProject(${JSON.stringify(B)}, 'storyboard'); true`);
+        await wait(2000);
+        const onBoard = await jsStep(where);
+        await jsStep(`navigateTo('productiongraph'); true`);
+        await wait(3000);
+        const onB = await jsStep(where);
+        const listOk = list.project === null && list.page === 'projects' && list.active === 'page-projects' && list.cards >= 2 && /^#\/projects/.test(list.hash);
+        const bOk = onBoard.project === B && onBoard.page === 'storyboard' && onBoard.active === 'page-storyboard' && onBoard.hash.includes(B)
+            && onB.project === B && onB.active === 'page-productiongraph' && onB.graph === B;
+        const ok = listOk && bOk && !thrown.length && errors.length === before;
+        report.push({ id: 'switch project', ok, want: 'switch project', active: ok ? 'switch project' : `list=${JSON.stringify(list)} onBoard=${JSON.stringify(onBoard)} onB=${JSON.stringify(onB)} A=${A} B=${B} errors=${errors.length - before} thrown=${thrown.join(' | ').slice(0, 600)}` });
+        await jsStep(`window.api = window.__feApi; true`);
+        await jsStep(`api('/settings', { method: 'PUT', body: JSON.stringify({ production_graph: ${flag} }) }).then(() => applyProductionFlag()).then(() => true, () => false)`);
+        await back();
+        await wait(500);
+    }
     // What the page opens: print previews stay in the app, API files download, other sites leave.
     if (!process.env.FE_SMOKE_URL && !process.env.FE_SMOKE_PAGES) {
         current = 'windows';
