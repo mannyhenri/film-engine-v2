@@ -100,6 +100,14 @@
       ],
       "modals": []
     },
+    "jobsqueue": {
+      "loader": "loadJobsQueuePage",
+      "replaces": [
+        "loadJobsQueuePage",
+        "codexStatusBadge"
+      ],
+      "modals": []
+    },
     "marketing": {
       "loader": "loadMarketing",
       "replaces": [
@@ -1028,15 +1036,6 @@
       "otherStatements": 16,
       "bytes": 182653
     },
-    "jobsqueue": {
-      "pages": [
-        "jobsqueue"
-      ],
-      "deps": [],
-      "functions": [],
-      "otherStatements": 0,
-      "bytes": 0
-    },
     "playback": {
       "pages": [
         "playback"
@@ -1497,7 +1496,7 @@
       "loader": [
         "loadJobsQueuePage"
       ],
-      "chunk": "jobsqueue",
+      "chunk": null,
       "modals": []
     }
   },
@@ -1520,6 +1519,7 @@
       "loadStyleBook",
       "loadPrevisPage",
       "loadSettings",
+      "loadJobsQueuePage",
       "loadBrands",
       "loadDeliverables",
       "loadRights",
@@ -1534,11 +1534,11 @@
       "loadMusic",
       "loadPlayback"
     ],
-    "functions": 534,
-    "unreached": 17,
+    "functions": 532,
+    "unreached": 18,
     "sharedByChunks": 3,
     "declaredTwice": [],
     "bootVendors": [],
-    "bytes": 787005
+    "bytes": 784639
   }
 }

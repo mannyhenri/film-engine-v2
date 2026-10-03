@@ -1,0 +1,6 @@
+{
+  "about": "This page is React (src/pages/jobsqueue/JobsQueuePage.jsx). tools/split-map.js stops generating it, drops the legacy code below, and fails if anything left still calls it. The nav button still calls loadJobsQueuePage() by name, which the React loader answers.",
+  "loader": "loadJobsQueuePage",
+  "replaces": ["loadJobsQueuePage", "codexStatusBadge"],
+  "modals": []
+}

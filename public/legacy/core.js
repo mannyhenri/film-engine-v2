@@ -1567,7 +1567,7 @@
     }
     // React port: page loaders that live in chunks, declared here so navigateTo's loaders map
     // evaluates before their chunk loads; each chunk's own function declaration fills its name in.
-    var loadDashboard, loadScenes, loadShotBoard, loadAssets, loadMusicCues, loadMusicWorkstation, loadMilestones, loadNotesPage, loadRenderPage, loadEditsPage, loadExportPage, loadPipeline, loadFlowsPage, loadMoodBoardPage, loadStyleBook, loadPrevisPage, loadSettings, loadBrands, loadDeliverables, loadRights, loadTitles, loadSubtitles, loadMarketing, loadConsistency, loadSpend, loadBudget, loadThreeD, loadVideoShots, loadMusic, loadPlayback;
+    var loadDashboard, loadScenes, loadShotBoard, loadAssets, loadMusicCues, loadMusicWorkstation, loadMilestones, loadNotesPage, loadRenderPage, loadEditsPage, loadExportPage, loadPipeline, loadFlowsPage, loadMoodBoardPage, loadStyleBook, loadPrevisPage, loadSettings, loadJobsQueuePage, loadBrands, loadDeliverables, loadRights, loadTitles, loadSubtitles, loadMarketing, loadConsistency, loadSpend, loadBudget, loadThreeD, loadVideoShots, loadMusic, loadPlayback;
 
 
     function navigateTo(page) {
@@ -15357,42 +15357,6 @@
         if (state.currentProject && state.currentProject.id) return state.currentProject.id;
         setStatus('Open a project first');
         return null;
-    }
-
-    function codexStatusBadge(status) {
-        const color = status === 'pass' || status === 'complete' || status === 'cleared' ? '#16a34a'
-            : status === 'fail' || status === 'failed' || status === 'blocked' ? '#dc2626'
-            : '#f59e0b';
-        return `<span style="display:inline-block;padding:2px 7px;border-radius:999px;background:${color}22;color:${color};font-size:11px;font-weight:700;">${esc(status || 'unknown')}</span>`;
-    }
-
-    async function loadJobsQueuePage() {
-        const pid = requireCurrentProjectForOps();
-        if (!pid) return;
-        const summaryEl = document.getElementById('jobsQueueSummary');
-        const listEl = document.getElementById('jobsQueueList');
-        summaryEl.innerHTML = '<div class="card">Loading queue...</div>';
-        try {
-            const data = await api(`/projects/${pid}/jobs`);
-            const s = data.summary || {};
-            summaryEl.innerHTML = `<div class="stat-grid">
-                <div class="stat-card"><div class="stat-value">${data.total || 0}</div><div class="stat-label">Total jobs</div></div>
-                <div class="stat-card"><div class="stat-value">${s.active || 0}</div><div class="stat-label">Active</div></div>
-                <div class="stat-card"><div class="stat-value">${s.failed || 0}</div><div class="stat-label">Failed</div></div>
-                <div class="stat-card"><div class="stat-value">${s.complete || 0}</div><div class="stat-label">Complete</div></div>
-            </div>`;
-            listEl.innerHTML = data.jobs.length ? data.jobs.map(job => `<div class="card mb-8">
-                <div class="flex-between">
-                    <div><strong>${esc(job.job_type)}</strong> <span class="text-sm text-muted">${esc(job.id)}</span></div>
-                    ${codexStatusBadge(job.status)}
-                </div>
-                <p class="text-sm text-muted">${esc(job.prompt || job.model || 'No prompt/model recorded')}</p>
-                ${job.error_message ? `<p class="text-sm" style="color:#dc2626;">${esc(job.error_message)}</p>` : ''}
-            </div>`).join('') : '<div class="card"><p class="text-muted">No generation jobs for this project yet.</p></div>';
-        } catch (err) {
-            summaryEl.innerHTML = `<div class="card"><p style="color:#dc2626;">${esc(err.message)}</p></div>`;
-            listEl.innerHTML = '';
-        }
     }
 
 

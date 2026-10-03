@@ -74,7 +74,7 @@ export const PAGES = [
     { id: 'pipeline', Component: PipelinePage, chunk: null },
     { id: 'stylebook', Component: StylebookPage, chunk: null },
     { id: 'settings', Component: SettingsPage, chunk: 'settings' },
-    { id: 'jobsqueue', Component: JobsqueuePage, chunk: 'jobsqueue' },
+    { id: 'jobsqueue', Component: JobsqueuePage, chunk: null },
 ];
 
 // Each chunk, and the vendored libraries it needs first.
@@ -90,7 +90,6 @@ export const CHUNKS = {
     budget: { deps: [] },
     graph: { deps: [] },
     music: { deps: [] },
-    jobsqueue: { deps: [] },
     playback: { deps: [] },
 };
 

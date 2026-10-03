@@ -69,7 +69,25 @@ function assemble() {
     const html = (f) => read(f).replace(/\n$/, '');
     // A React page's markup is what it renders before any data arrives, rendered here to static HTML,
     // so the UI tests that read controls (ids, data-field, labels) see the real React page.
-    const pageHtml = (id) => map.react && map.react[id] ? renderReactPage(id) : html(`src/pages/${id}/markup.html`);
+    /*
+     * A React page has no markup.html, so the comments that preceded it in the source (which a legacy
+     * page's markup.html keeps) would vanish, and some backend tests bound a section by them
+     * (setup-models reads the Settings page up to "CODEX:START ops-compliance-pages", which sits before
+     * Job Queue). They are taken from the pinned source itself: the same lead the split gives markup files.
+     */
+    const leadOf = (() => {
+        const mainEl = topLevelElements(src.html).find(e => e.cls === 'main');
+        const inner = innerOf(mainEl.outer);
+        const kids = topLevelElements(inner);
+        const out = {};
+        kids.forEach((e, i) => {
+            if (!(e.id || '').startsWith('page-')) return;
+            const lead = inner.slice(i ? kids[i - 1].end : 0, e.start);
+            out[e.id.slice(5)] = /<!--/.test(lead) ? lead.replace(/^\s*\n/, '').replace(/\s+$/, '') + '\n' : '';
+        });
+        return out;
+    })();
+    const pageHtml = (id) => map.react && map.react[id] ? (leadOf[id] || '') + renderReactPage(id) : html(`src/pages/${id}/markup.html`);
     const main = '<div class="main">\n' + pageIds.map(pageHtml).join('\n')
         + modals.filter(m => m.inMain).map(m => '\n' + html(`src/components/modals/${m.id}.html`)).join('') + '\n</div>';
     const body = [html('src/components/Sidebar/sidebar.html'), main, html('src/components/StatusBar/status-bar.html'),
