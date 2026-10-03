@@ -79,5 +79,29 @@
   },
   "pinToCore": {
     "twBurst": "stays next to const TYPEWRITER (core): screenplay-focus reads the typewriter's sound rules as the source text from TYPEWRITER to twBurst, which must be one script"
-  }
+  },
+  "copiedFromSource": {
+    "design_handoff_character_card/Character Card.dc.html": "design_handoff_character_card/Character Card.dc.html",
+    "design_handoff_character_card/Location Card.dc.html": "design_handoff_character_card/Location Card.dc.html",
+    "design_handoff_character_card/Prop Card.dc.html": "design_handoff_character_card/Prop Card.dc.html",
+    "design_handoff_character_card/README.md": "design_handoff_character_card/README.md",
+    "design_handoff_world_engine_previz/README.md": "design_handoff_world_engine_previz/README.md",
+    "design_handoff_world_engine_previz/World Engine Previz v2.dc.html": "design_handoff_world_engine_previz/World Engine Previz v2.dc.html",
+    "design_handoff_world_engine_previz/support.js": "design_handoff_world_engine_previz/support.js",
+    "docs/ableton-sidecar.md": "docs/ableton-sidecar.md",
+    "docs/adr/007-local-ffmpeg-for-conform.md": "docs/adr/007-local-ffmpeg-for-conform.md",
+    "docs/claude-desktop-guide.md": "docs/claude-desktop-guide.md",
+    "docs/plans/flows-canvas-interfaces.json": "docs/plans/flows-canvas-interfaces.json",
+    "docs/plans/flows-canvas-node-taxonomy.json": "docs/plans/flows-canvas-node-taxonomy.json",
+    "docs/plans/previs-camera-implementation-plan.md": "docs/plans/previs-camera-implementation-plan.md",
+    "docs/plans/previs-camera-research.md": "docs/plans/previs-camera-research.md",
+    "docs/plans/previs-camera-taxonomy.json": "docs/plans/previs-camera-taxonomy.json",
+    "docs/plans/production-graph-nodes-epic.md": "docs/plans/production-graph-nodes-epic.md",
+    "reference/fb8c770/src/index.html": "src/index.html",
+    "scripts/make-previs-people.py": "scripts/make-previs-people.py",
+    "src/assets/icon.svg": "src/assets/icon.svg",
+    "src/assets/logo.png": "src/assets/logo.png",
+    "src/vendor/splat-viewer.js": "src/vendor/splat-viewer.js"
+  },
+  "v2OwnFiles": []
 }
