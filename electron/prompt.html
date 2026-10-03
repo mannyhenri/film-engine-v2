@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<!-- The window.prompt() the page asks for: Electron has none, so main opens this (electron/main.cjs, fe-prompt). -->
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'">
+<title>Film Engine</title>
+<style>
+  html, body { margin: 0; background: #151517; color: #e8e8ea; font: 13px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+  body { padding: 18px 18px 14px; -webkit-app-region: drag; }
+  p { margin: 0 0 10px; white-space: pre-wrap; line-height: 1.4; }
+  input { width: 100%; box-sizing: border-box; padding: 8px 10px; border-radius: 8px; border: 1px solid rgba(255,255,255,.14);
+          background: #0b0b0c; color: inherit; font: inherit; outline: none; -webkit-app-region: no-drag; }
+  input:focus { border-color: #3d5bd1; }
+  .row { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
+  button { padding: 6px 14px; border-radius: 8px; border: 1px solid rgba(255,255,255,.14); background: #222226; color: inherit;
+           font: inherit; cursor: pointer; -webkit-app-region: no-drag; }
+  button.primary { background: #3d5bd1; border-color: #3d5bd1; color: #fff; }
+</style>
+</head>
+<body>
+<p id="message"></p>
+<input id="value" type="text" autofocus>
+<div class="row"><button id="cancel">Cancel</button><button id="ok" class="primary">OK</button></div>
+<script>
+  const q = new URLSearchParams(location.search);
+  document.getElementById('message').textContent = q.get('message') || '';
+  const input = document.getElementById('value');
+  input.value = q.get('value') || '';
+  input.select();
+  const answer = (v) => window.fePrompt.answer(v);
+  document.getElementById('ok').onclick = () => answer(input.value);
+  document.getElementById('cancel').onclick = () => answer(null);
+  document.addEventListener('keydown', (e) => { if (e.key === 'Enter') answer(input.value); if (e.key === 'Escape') answer(null); });
+</script>
+</body>
+</html>

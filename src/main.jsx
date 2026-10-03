@@ -9,6 +9,8 @@ import App from './App.jsx';
 
 // In the desktop app on macOS the title bar is hidden; desktop.css makes room for the window controls.
 if (window.__feDesktop && window.__feDesktop.platform === 'darwin') document.documentElement.classList.add('fe-desktop-mac');
+// Electron has no window.prompt(); the preload provides one (a small input window, synchronous).
+if (window.__fePrompt) window.prompt = (message, value) => window.__fePrompt(message, value);
 installPageLoader();
 restoreRoute();
 
