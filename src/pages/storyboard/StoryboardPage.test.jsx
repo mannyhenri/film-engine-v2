@@ -119,4 +119,21 @@ describe('Storyboard', () => {
         expect(() => setLegacy('nope', 1)).toThrow(/not in LEGACY_GLOBALS/);
         expect(() => setLegacy('api', 1)).toThrow(/a page may not replace core behaviour/);
     });
+
+    it('MOVED: a shot with its own ratio is DRAWN at that ratio; one without draws the project\'s', async () => {
+        await openPage();
+        expect(cardOf('b').querySelector('.board-ratio.own').style.aspectRatio).toBe('9/16');
+        expect(cardOf('a').querySelector('.board-ratio.project').style.aspectRatio).toBe('16/9');
+    });
+
+    it('MOVED: the frames are painted before any report is waited for (the banners are started after, never awaited)', async () => {
+        let release;
+        const legacy = installLegacy({ routes: { 'GET /projects/p1/storyboard': BOARD } });
+        legacy.fake.loadBoardBanners.mockImplementation(() => new Promise(r => { release = r; })); // a report that never lands
+        render(<StoryboardPage />);
+        await act(async () => { await window.loadStoryboard(); });
+        expect(document.querySelectorAll('#storyboardGrid > .card').length).toBe(2);
+        expect(legacy.fake.loadBoardBanners).toHaveBeenCalledTimes(1);
+        release();
+    });
 });
