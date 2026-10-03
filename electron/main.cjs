@@ -5,7 +5,7 @@
  *
  *   --smoke   visit every page and exit 1 on any console error (CI / round checks)
  */
-const { app, BrowserWindow, shell } = require('electron');
+const { app, BrowserWindow, shell, ipcMain } = require('electron');
 
 // The app's name in the menus (About / Hide / Quit Film Engine) and to the OS. Before ready, or the
 // default menu is built with "Electron". The bold app-menu title and the Dock label come from the
@@ -105,6 +105,35 @@ function guardWindow(win) {
         if (/^https?:/i.test(url)) openExternal(url);
     });
 }
+
+/*
+ * window.prompt(), which Electron does not implement. The page's call blocks on
+ * sendSync while main shows a small modal input window over it; the answer (or
+ * null for Cancel / closing it) becomes event.returnValue.
+ */
+let lastPrompt = null; // the open prompt window, for the smoke run
+ipcMain.on('fe-prompt', (event, message, value) => {
+    const parent = BrowserWindow.fromWebContents(event.sender);
+    const win = new BrowserWindow({
+        parent, modal: !!parent, width: 440, height: 170, resizable: false, minimizable: false, maximizable: false,
+        show: !SMOKE, frame: false, backgroundColor: '#151517',
+        webPreferences: { preload: path.join(__dirname, 'prompt-preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true },
+    });
+    lastPrompt = win;
+    let done = false;
+    const finish = (answer) => {
+        if (done) return;
+        done = true;
+        ipcMain.removeListener('fe-prompt-answer', onAnswer);
+        event.returnValue = answer;
+        if (!win.isDestroyed()) win.close();
+        if (lastPrompt === win) lastPrompt = null;
+    };
+    const onAnswer = (e, answer) => { if (e.sender === win.webContents) finish(answer); };
+    ipcMain.on('fe-prompt-answer', onAnswer);
+    win.on('closed', () => finish(null));
+    win.loadFile(path.join(__dirname, 'prompt.html'), { query: { message, value } });
+});
 
 async function createWindow() {
     const win = new BrowserWindow({
@@ -218,6 +247,23 @@ async function smoke(win) {
         const stayed = BrowserWindow.getAllWindows().length === before && !/example\.com/.test(win.webContents.getURL());
         const ok = printOk && stayed && leftApp.includes('https://example.com/vendor') && leftApp.includes('https://example.com/away') && downloads.some(u => u.endsWith('/api/health'));
         report.push({ id: 'window guard', ok, want: 'window guard', active: ok ? 'window guard' : `print=${printOk} stayed=${stayed} external=${JSON.stringify(leftApp)} downloads=${JSON.stringify(downloads)}` });
+    }
+    // (After the window guard, which counts windows: prompt windows close asynchronously.)
+    // window.prompt() works (Electron has none; the app provides it): OK returns the text, Cancel null.
+    if (!process.env.FE_SMOKE_URL && !process.env.FE_SMOKE_PAGES) {
+        current = 'prompt';
+        const answerWith = async (fill) => {
+            const pending = js(`window.prompt('Name this version', 'v1')`);
+            for (let t = 0; t < 40 && !(lastPrompt && !lastPrompt.webContents.isLoading()); t++) await new Promise(r => setTimeout(r, 100));
+            if (!lastPrompt) return 'no prompt window';
+            await lastPrompt.webContents.executeJavaScript(fill);
+            return pending;
+        };
+        const ok = await answerWith(`document.getElementById('value').value = 'Fine cut'; document.getElementById('ok').click();`);
+        const cancel = await answerWith(`document.getElementById('cancel').click();`);
+        const prefilled = await answerWith(`document.getElementById('ok').click();`);
+        const pass = ok === 'Fine cut' && cancel === null && prefilled === 'v1';
+        report.push({ id: 'window.prompt', ok: pass, want: 'window.prompt', active: pass ? 'window.prompt' : `ok=${ok} cancel=${cancel} prefilled=${prefilled}` });
     }
     for (const r of report) console.log(`${r.ok ? 'ok  ' : 'FAIL'} ${r.id.padEnd(16)} ${r.react ? 'react' : r.chunk ? 'chunk loaded' : 'core only'}${r.active === (r.want || 'page-' + r.id) ? '' : '  active=' + r.active}`);
     for (const e of errors) console.log(`  console error [${e.page}] ${e.message} ${e.at || ''}`);
