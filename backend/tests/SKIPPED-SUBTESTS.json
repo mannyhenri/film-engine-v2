@@ -27,10 +27,44 @@
         "reason": "reads film-engine repo file docs/adr/008-spark-lazy-splat-viewer.md"
       }
     ],
+    "background-replace.test.js": [
+      {
+        "name": "the page offers it on the shot, gated, and shows the control working",
+        "reason": "REACT: reads onclick=\"replaceBackground(\" on the card; the card is React. Held in src/pages/videoshots/videoshots-contract.test.jsx: core replaceBackground body (confirmPaidImage, background/preview, background/generate) read as here, and the card control as behaviour."
+      },
+      {
+        "name": "the button is only offered where there is footage to edit",
+        "reason": "REACT: reads the legacy const proActions block. Held in src/pages/videoshots/videoshots-contract.test.jsx: Background\u2026 absent on a shot with no clip, present and calling core on one with footage."
+      }
+    ],
     "capture-affordance.test.js": [
       {
         "name": "the iOS bundle is re-synced, or the phone runs a page without the change",
         "reason": "reads film-engine repo file ios/FilmEngine/Web/index.html"
+      }
+    ],
+    "delivery-quality.test.js": [
+      {
+        "name": "the page sets the codec, audio and drafting, applies presets through the server, and shows the delivery decision",
+        "reason": "REACT: reads loadDeliveryCheck/loadExportPage out of the page script; Export is React. Every assertion is held in src/pages/exportpage/export-contract.test.jsx: the legacy halves (Settings delivery controls, deliveryLineHtml executed, confirmPaidImage, the video-gen route) against the same reassembled page, and the delivery check as behaviour."
+      }
+    ],
+    "dialogue-audition.test.js": [
+      {
+        "name": "every scope is reachable from the page AND from an agent",
+        "reason": "REACT: finds a control only as legacy onclick text; generateAllVoices is a React button on Video Shots now. Held in full by src/pages/registry-reach.test.jsx, over DIALOGUE_SCOPES imported: the MCP tool per scope, the why_no_ui rule, and the control (legacy onclick, or a React page rendered from its reach.js and the button CLICKED, which must reach the API or core)."
+      }
+    ],
+    "drop-to-recipe.test.js": [
+      {
+        "name": "the canvas accepts dropped files, hashes them in the browser, asks /match, and opens the recipe or offers the upload",
+        "reason": "reads film-engine repo file ios/FilmEngine/Web/index.html"
+      }
+    ],
+    "edits.test.js": [
+      {
+        "name": "the page: an Edit page in Post, the score monitor follows the playhead, and a session can be opened on an edit",
+        "reason": "REACT: reads function loadEditsPage( and friends out of the page script; the Edit page is React (src/pages/edits). Every guarantee is held in src/pages/edits/edits-contract.test.jsx (nav item, loader, X-Upload-Offset, the music workstation half) and EditsPage.test.jsx (behaviour)."
       }
     ],
     "fcc-previz-capture.test.js": [
@@ -97,9 +131,21 @@
         "reason": "reads film-engine repo file docs/plans/film-engine-camera-brief.md"
       }
     ],
-    "drop-to-recipe.test.js": [
+    "flow-canvas-reach.test.js": [
       {
-        "name": "the canvas accepts dropped files, hashes them in the browser, asks /match, and opens the recipe or offers the upload",
+        "name": "with the graph on, the Flows page is reachable by address, with no back button when not arriving from the graph",
+        "reason": "reads film-engine repo file ios/FilmEngine/Web/index.html"
+      }
+    ],
+    "flow-form.test.js": [
+      {
+        "name": "the drawer renders the form, every control, and the plan it confirms carries the values",
+        "reason": "reads film-engine repo file ios/FilmEngine/Web/index.html"
+      }
+    ],
+    "flow-next-node.test.js": [
+      {
+        "name": "releasing a wire on empty canvas opens the suggestions; picking one adds the node there, wired",
         "reason": "reads film-engine repo file ios/FilmEngine/Web/index.html"
       }
     ],
@@ -115,12 +161,6 @@
         "reason": "reads film-engine repo file ios/FilmEngine/Web/index.html"
       }
     ],
-    "flow-form.test.js": [
-      {
-        "name": "the drawer renders the form, every control, and the plan it confirms carries the values",
-        "reason": "reads film-engine repo file ios/FilmEngine/Web/index.html"
-      }
-    ],
     "flow-provenance.test.js": [
       {
         "name": "the panel names the flow, and \"make another\" re-applies that flow to the shot through the apply",
@@ -130,18 +170,6 @@
     "flow-queue.test.js": [
       {
         "name": "the strip draws the paused bucket, with a way to the pick and a Cancel run on each live flow run",
-        "reason": "reads film-engine repo file ios/FilmEngine/Web/index.html"
-      }
-    ],
-    "flow-next-node.test.js": [
-      {
-        "name": "releasing a wire on empty canvas opens the suggestions; picking one adds the node there, wired",
-        "reason": "reads film-engine repo file ios/FilmEngine/Web/index.html"
-      }
-    ],
-    "flow-canvas-reach.test.js": [
-      {
-        "name": "with the graph on, the Flows page is reachable by address, with no back button when not arriving from the graph",
         "reason": "reads film-engine repo file ios/FilmEngine/Web/index.html"
       }
     ],
@@ -155,21 +183,9 @@
         "reason": "reads film-engine repo file scripts/make-canvas-guide.py"
       }
     ],
-    "graph-templates-shelf.test.js": [
-      {
-        "name": "the palette reads the shelf when it opens, and the iOS copy carries it",
-        "reason": "reads film-engine repo file ios/FilmEngine/Web/index.html"
-      }
-    ],
     "graph-add-palette.test.js": [
       {
         "name": "keyboard only: arrows move, Enter picks, Escape cancels; a double-click on empty canvas opens it; Shift+click picks shots",
-        "reason": "reads film-engine repo file ios/FilmEngine/Web/index.html"
-      }
-    ],
-    "graph-patterns.test.js": [
-      {
-        "name": "the add palette offers every pattern after the nearest shot; Enter previews for free, a second Enter creates",
         "reason": "reads film-engine repo file ios/FilmEngine/Web/index.html"
       }
     ],
@@ -179,22 +195,124 @@
         "reason": "reads film-engine repo file ios/FilmEngine/Web/index.html"
       }
     ],
-    "how-made-panel.test.js": [
-      {
-        "name": "the drawers wire it in: version drawer and shot drawer load the recipe, offer make-another and compare-with-selected",
-        "reason": "reads film-engine repo file ios/FilmEngine/Web/index.html"
-      }
-    ],
     "graph-hold.test.js": [
       {
         "name": "a held node wears a \"held\" badge; nothing else does; Ctrl+B and the menu reach the toggle",
         "reason": "reads film-engine repo file ios/FilmEngine/Web/index.html"
       }
     ],
+    "graph-patterns.test.js": [
+      {
+        "name": "the add palette offers every pattern after the nearest shot; Enter previews for free, a second Enter creates",
+        "reason": "reads film-engine repo file ios/FilmEngine/Web/index.html"
+      }
+    ],
+    "graph-templates-shelf.test.js": [
+      {
+        "name": "the palette reads the shelf when it opens, and the iOS copy carries it",
+        "reason": "reads film-engine repo file ios/FilmEngine/Web/index.html"
+      }
+    ],
+    "grid-children.test.js": [
+      {
+        "name": "the scan sees the grids and the writes into them",
+        "reason": "asserts at least 3 legacy innerHTML writes into .entity-grid containers; the pages that made them (assets, moodboard) are React and render their grids as components. The rule itself (every grid child is a card or spans the row) is enforced on EVERY React test's rendered output by the afterEach in src/test/setup.js (gridChildProblems)."
+      }
+    ],
+    "home-page.test.js": [
+      {
+        "name": "the phase fractions are declared once, and the page renders what it is served",
+        "reason": "REACT: reads the legacy home builders (function homePhasesHtml..homeRunningHtml, their onclick text, async function resumeShot) out of the page; the home page is React (src/pages/dashboard). Held in src/pages/dashboard/dashboard-contract.test.jsx (phases declared once in lib/home.js and rendered as served; every control in the home blocks does something) and DashboardPage.test.jsx (each way in; Resume goes to the board and opens the frame)."
+      },
+      {
+        "name": "every needs-you item carries a way in",
+        "reason": "REACT: reads the legacy home builders (function homePhasesHtml..homeRunningHtml, their onclick text, async function resumeShot) out of the page; the home page is React (src/pages/dashboard). Held in src/pages/dashboard/dashboard-contract.test.jsx (phases declared once in lib/home.js and rendered as served; every control in the home blocks does something) and DashboardPage.test.jsx (each way in; Resume goes to the board and opens the frame)."
+      },
+      {
+        "name": "every handler the home page calls is actually defined",
+        "reason": "REACT: reads the legacy home builders (function homePhasesHtml..homeRunningHtml, their onclick text, async function resumeShot) out of the page; the home page is React (src/pages/dashboard). Held in src/pages/dashboard/dashboard-contract.test.jsx (phases declared once in lib/home.js and rendered as served; every control in the home blocks does something) and DashboardPage.test.jsx (each way in; Resume goes to the board and opens the frame)."
+      },
+      {
+        "name": "resume opens the frame rather than silently doing nothing",
+        "reason": "REACT: reads the legacy home builders (function homePhasesHtml..homeRunningHtml, their onclick text, async function resumeShot) out of the page; the home page is React (src/pages/dashboard). Held in src/pages/dashboard/dashboard-contract.test.jsx (phases declared once in lib/home.js and rendered as served; every control in the home blocks does something) and DashboardPage.test.jsx (each way in; Resume goes to the board and opens the frame)."
+      }
+    ],
+    "how-made-panel.test.js": [
+      {
+        "name": "the drawers wire it in: version drawer and shot drawer load the recipe, offer make-another and compare-with-selected",
+        "reason": "reads film-engine repo file ios/FilmEngine/Web/index.html"
+      }
+    ],
+    "mood-board-images.test.js": [
+      {
+        "name": "the page renders the served URL, and does not hide a failure in silence",
+        "reason": "reads loadMoodBoardPage out of the page script; the Mood Board is React. src/pages/moodboard/MoodBoardPage.test.jsx holds the same on the rendered page: the <img> is built from image_url through plateSrc, and a failed load is replaced by a message, not hidden."
+      }
+    ],
+    "music-registries.test.js": [
+      {
+        "name": "every track role: stored through the tool, rendered or named a guide with its reason, documented",
+        "reason": "reads film-engine repo file docs/music-workstation.md"
+      },
+      {
+        "name": "every clip kind: stored, rendered when selected, walked by the rights lineage, documented",
+        "reason": "reads film-engine repo file docs/music-workstation.md"
+      },
+      {
+        "name": "every kind of file the workstation registers is documented",
+        "reason": "reads film-engine repo file docs/music-workstation.md"
+      },
+      {
+        "name": "every score tool reaches a route the router names and the API reference documents",
+        "reason": "reads film-engine repo file docs/api-film.md"
+      },
+      {
+        "name": "every section of the portable package is in a built manifest and in the documentation",
+        "reason": "reads film-engine repo file docs/music-workstation.md"
+      },
+      {
+        "name": "every DAW mutation has an agent tool, a page control with its portable twin, an audit record, and documentation",
+        "reason": "reads film-engine repo file docs/music-workstation.md"
+      }
+    ],
+    "page-handlers.test.js": [
+      {
+        "name": "the delivery pages reach every field their routes accept",
+        "reason": "reads the legacy saver functions (saveCredit, saveTitleCard, saveSubtitle, saveRight) out of the page script; those pages are React now. The same guarantee, derived from the same routes, runs in src/pages/delivery-fields.test.jsx: it SAVES each React form and reads the request body, and holds a page still legacy (deliverables) to this test's own rule against its chunk."
+      },
+      {
+        "name": "no page handler calls a loader that does not exist",
+        "reason": "reads the assembled page, where a React page's loader (loadScenes) is only a placeholder var while core still calls it. The same rule, over every legacy file AND the React pages' registered loaders, runs in tools/tests/react-pages.test.js."
+      }
+    ],
     "page-parses.test.js": [
       {
         "name": "ios/FilmEngine/Web/index.html: every inline script compiles",
         "reason": "reads film-engine repo file ios/FilmEngine/Web/index.html"
+      }
+    ],
+    "premiere-scenes.test.js": [
+      {
+        "name": "an agent and a person can both reach it",
+        "reason": "REACT: reads onclick=\"exportPremiereScenes()\" and its function body out of the page script; Export is React (src/pages/exportpage). Every assertion is held in src/pages/exportpage/export-contract.test.jsx (the MCP tools, and the page planning then POSTing export/premiere-scenes)."
+      }
+    ],
+    "production-graph-nodes.test.js": [
+      {
+        "name": "every picture or clip a pg* function draws goes through pgSrc/pgThumb, so it reaches the API origin",
+        "reason": "PRE-EXISTING: fails in film-engine at fb8c770 too (its scanner flags pgDrawerVersion: esc(auditionUrl), but auditionUrl is built with pgSrc one line up)"
+      }
+    ],
+    "project-list.test.js": [
+      {
+        "name": "the page drops a card where it was dropped, and draws the filter, archive and drag controls",
+        "reason": "REACT: looks for the legacy list onclick text (setProjectArchived(', projectDrop(event); the list is React (src/pages/projects). Held in src/pages/projects/ProjectsPage.test.jsx as behaviour: the drop order (before/after) and the reorder POST, the filter chips, archive/restore, the drag controls."
+      }
+    ],
+    "project-stage-picker.test.js": [
+      {
+        "name": "on the list, the badge opens the picker without opening the project, and a choice saves",
+        "reason": "REACT: reads the legacy card template and runs setProjectStage with injected globals; the list is React. Held in src/pages/projects/ProjectsPage.test.jsx: the badge opens the picker without opening the project, the stages are Settings own, the choice PUTs the status, updates the list and the open project, and redraws."
       }
     ],
     "redo-between-frames-brief.test.js": [
@@ -229,6 +347,26 @@
         "reason": "reads film-engine repo file docs/plans/redo-between-frames-epic.md"
       }
     ],
+    "room-scan.test.js": [
+      {
+        "name": "the iPhone app scans with RoomPlan and the page asks it under the same names",
+        "reason": "reads film-engine repo file ios/FilmEngine/RoomScan.swift"
+      },
+      {
+        "name": "the phone files a photo to the wall it faces, worked out from the scan (compiled and run where Swift is here)",
+        "reason": "reads film-engine repo file ios/FilmEngine/RoomScan.swift"
+      }
+    ],
+    "screenplay-drift.test.js": [
+      {
+        "name": "the scenes page shows drift beside the status, not instead of it",
+        "reason": "reads sceneDriftBadge/sceneDriftBanner/loadScenes out of the page script; the Scenes page is React. src/pages/scenes/ScenesPage.test.jsx holds the same: drift is loaded with the scenes, the badge sits BESIDE the status badge, the banner is shown."
+      },
+      {
+        "name": "the page says what re-running the breakdown actually does",
+        "reason": "reads sceneDriftBanner's text out of the page script; the Scenes page is React. src/pages/scenes/ScenesPage.test.jsx holds the same text on the rendered banner AND that routes/breakdown.js still skips a scene with shots."
+      }
+    ],
     "screenplay-port.test.js": [
       {
         "name": "the plan accounts for every element the parser can emit",
@@ -259,113 +397,41 @@
         "reason": "reads film-engine repo file docs/plans/screenplay-port.md"
       }
     ],
-    "storage-never-throws.test.js": [
-      {
-        "name": "the app injects the address by a route that cannot throw",
-        "reason": "reads film-engine repo file ios/FilmEngine/ContentView.swift"
-      }
-    ],
-    "music-registries.test.js": [
-      {
-        "name": "every track role: stored through the tool, rendered or named a guide with its reason, documented",
-        "reason": "reads film-engine repo file docs/music-workstation.md"
-      },
-      {
-        "name": "every clip kind: stored, rendered when selected, walked by the rights lineage, documented",
-        "reason": "reads film-engine repo file docs/music-workstation.md"
-      },
-      {
-        "name": "every kind of file the workstation registers is documented",
-        "reason": "reads film-engine repo file docs/music-workstation.md"
-      },
-      {
-        "name": "every score tool reaches a route the router names and the API reference documents",
-        "reason": "reads film-engine repo file docs/api-film.md"
-      },
-      {
-        "name": "every section of the portable package is in a built manifest and in the documentation",
-        "reason": "reads film-engine repo file docs/music-workstation.md"
-      },
-      {
-        "name": "every DAW mutation has an agent tool, a page control with its portable twin, an audit record, and documentation",
-        "reason": "reads film-engine repo file docs/music-workstation.md"
-      }
-    ],
-    "video-editorial-ui.test.js": [
-      {
-        "name": "desktop and packaged mobile UI compile and stay identical",
-        "reason": "reads film-engine repo file ios/FilmEngine/Web/index.html"
-      }
-    ],
-    "room-scan.test.js": [
-      {
-        "name": "the iPhone app scans with RoomPlan and the page asks it under the same names",
-        "reason": "reads film-engine repo file ios/FilmEngine/RoomScan.swift"
-      },
-      {
-        "name": "the phone files a photo to the wall it faces, worked out from the scan (compiled and run where Swift is here)",
-        "reason": "reads film-engine repo file ios/FilmEngine/RoomScan.swift"
-      }
-    ],
-    "world-blender-import.test.js": [
-      {
-        "name": "walking moves the shot's own camera, and keeping it goes through the validated proposal",
-        "reason": "PRE-EXISTING: fails in film-engine at the pinned commit too"
-      }
-    ],
     "set-build.test.js": [
       {
         "name": "the Previs Plan view edits the set: footprints out of the layout and back, then a rebuild that pins the shot",
         "reason": "PRE-EXISTING: fails in film-engine at the pinned commit too"
       }
     ],
-    "production-graph-nodes.test.js": [
+    "sheet-and-board-affordances.test.js": [
       {
-        "name": "every picture or clip a pg* function draws goes through pgSrc/pgThumb, so it reaches the API origin",
-        "reason": "PRE-EXISTING: fails in film-engine at fb8c770 too (its scanner flags pgDrawerVersion: esc(auditionUrl), but auditionUrl is built with pgSrc one line up)"
-      }
-    ],
-    "page-handlers.test.js": [
-      {
-        "name": "the delivery pages reach every field their routes accept",
-        "reason": "reads the legacy saver functions (saveCredit, saveTitleCard, saveSubtitle, saveRight) out of the page script; those pages are React now. The same guarantee, derived from the same routes, runs in src/pages/delivery-fields.test.jsx: it SAVES each React form and reads the request body, and holds a page still legacy (deliverables) to this test's own rule against its chunk."
+        "name": "every status the schema allows has a column on the board",
+        "reason": "reads the legacy board's `const columns = {...}`; the Shot Board is React. src/pages/shotboard/ShotBoardPage.test.jsx derives the statuses from the migration's own CHECK and requires COLUMNS to be exactly that set."
       },
       {
-        "name": "no page handler calls a loader that does not exist",
-        "reason": "reads the assembled page, where a React page's loader (loadScenes) is only a placeholder var while core still calls it. The same rule, over every legacy file AND the React pages' registered loaders, runs in tools/tests/react-pages.test.js."
+        "name": "a column accepts a drop, so a card can cross columns",
+        "reason": "reads the legacy `<div class=\"kanban-column\" ondrop=`; the Shot Board is React. src/pages/shotboard/ShotBoardPage.test.jsx drags a card onto every column and checks each one writes its status (and its own column writes nothing)."
       }
     ],
-    "screenplay-drift.test.js": [
+    "storage-never-throws.test.js": [
       {
-        "name": "the scenes page shows drift beside the status, not instead of it",
-        "reason": "reads sceneDriftBadge/sceneDriftBanner/loadScenes out of the page script; the Scenes page is React. src/pages/scenes/ScenesPage.test.jsx holds the same: drift is loaded with the scenes, the badge sits BESIDE the status badge, the banner is shown."
+        "name": "the app injects the address by a route that cannot throw",
+        "reason": "reads film-engine repo file ios/FilmEngine/ContentView.swift"
+      }
+    ],
+    "style-book-gaps.test.js": [
+      {
+        "name": "the reference-slot reality reaches both surfaces, from ONE source",
+        "reason": "reads styleBookNoteInto/openStyleBookModal out of the page script; the Style Book is React. src/pages/stylebook/StyleBookPage.test.jsx checks the served note is painted where visuals are added and that the page holds no copy of it."
       },
       {
-        "name": "the page says what re-running the breakdown actually does",
-        "reason": "reads sceneDriftBanner's text out of the page script; the Scenes page is React. src/pages/scenes/ScenesPage.test.jsx holds the same text on the rendered banner AND that routes/breakdown.js still skips a scene with shots."
-      }
-    ],
-    "grid-children.test.js": [
-      {
-        "name": "the scan sees the grids and the writes into them",
-        "reason": "asserts at least 3 legacy innerHTML writes into .entity-grid containers; the pages that made them (assets, moodboard) are React and render their grids as components. The rule itself (every grid child is a card or spans the row) is enforced on EVERY React test's rendered output by the afterEach in src/test/setup.js (gridChildProblems)."
-      }
-    ],
-    "mood-board-images.test.js": [
-      {
-        "name": "the page renders the served URL, and does not hide a failure in silence",
-        "reason": "reads loadMoodBoardPage out of the page script; the Mood Board is React. src/pages/moodboard/MoodBoardPage.test.jsx holds the same on the rendered page: the <img> is built from image_url through plateSrc, and a failed load is replaced by a message, not hidden."
-      }
-    ],
-    "edits.test.js": [
-      {
-        "name": "the page: an Edit page in Post, the score monitor follows the playhead, and a session can be opened on an edit",
-        "reason": "REACT: reads function loadEditsPage( and friends out of the page script; the Edit page is React (src/pages/edits). Every guarantee is held in src/pages/edits/edits-contract.test.jsx (nav item, loader, X-Upload-Offset, the music workstation half) and EditsPage.test.jsx (behaviour)."
+        "name": "the style-book entry card is in the wrapping-row denominator",
+        "reason": "reads renderStyleBook's template; the Style Book is React. src/pages/stylebook/StyleBookPage.test.jsx checks every rendered entry is an .entity-card with its own .card-actions row."
       }
     ],
     "style-book-media.test.js": [
       {
-        "name": "the page can add a visual — both ways",
+        "name": "the page can add a visual \u2014 both ways",
         "reason": "reads addStyleBookMedia/removeStyleBookMedia/link_kind out of the page script; the Style Book is React. src/pages/stylebook/StyleBookPage.test.jsx adds by link and by file (size-checked), removes, and checks each visual is drawn as what it is (embed, clip, link, picture)."
       },
       {
@@ -379,72 +445,16 @@
         "reason": "reads function loadStyleBook and applyStyleBookEntry out of the page script; both are React now (applyStyleBookEntry is PROVIDED on window, react.json). src/pages/stylebook/StyleBookPage.test.jsx checks the rail entry, the page, and applying (including on a fresh app, the bug the port had); tools/tests/react-pages.test.js checks both are registered."
       }
     ],
-    "style-book-gaps.test.js": [
+    "video-editorial-ui.test.js": [
       {
-        "name": "the reference-slot reality reaches both surfaces, from ONE source",
-        "reason": "reads styleBookNoteInto/openStyleBookModal out of the page script; the Style Book is React. src/pages/stylebook/StyleBookPage.test.jsx checks the served note is painted where visuals are added and that the page holds no copy of it."
-      },
-      {
-        "name": "the style-book entry card is in the wrapping-row denominator",
-        "reason": "reads renderStyleBook's template; the Style Book is React. src/pages/stylebook/StyleBookPage.test.jsx checks every rendered entry is an .entity-card with its own .card-actions row."
+        "name": "desktop and packaged mobile UI compile and stay identical",
+        "reason": "reads film-engine repo file ios/FilmEngine/Web/index.html"
       }
     ],
-    "premiere-scenes.test.js": [
+    "world-blender-import.test.js": [
       {
-        "name": "an agent and a person can both reach it",
-        "reason": "REACT: reads onclick=\"exportPremiereScenes()\" and its function body out of the page script; Export is React (src/pages/exportpage). Every assertion is held in src/pages/exportpage/export-contract.test.jsx (the MCP tools, and the page planning then POSTing export/premiere-scenes)."
-      }
-    ],
-    "delivery-quality.test.js": [
-      {
-        "name": "the page sets the codec, audio and drafting, applies presets through the server, and shows the delivery decision",
-        "reason": "REACT: reads loadDeliveryCheck/loadExportPage out of the page script; Export is React. Every assertion is held in src/pages/exportpage/export-contract.test.jsx: the legacy halves (Settings delivery controls, deliveryLineHtml executed, confirmPaidImage, the video-gen route) against the same reassembled page, and the delivery check as behaviour."
-      }
-    ],
-    "dialogue-audition.test.js": [
-      {
-        "name": "every scope is reachable from the page AND from an agent",
-        "reason": "REACT: finds a control only as legacy onclick text; generateAllVoices is a React button on Video Shots now. Held in full by src/pages/registry-reach.test.jsx, over DIALOGUE_SCOPES imported: the MCP tool per scope, the why_no_ui rule, and the control (legacy onclick, or a React page rendered from its reach.js and the button CLICKED, which must reach the API or core)."
-      }
-    ],
-    "background-replace.test.js": [
-      {
-        "name": "the page offers it on the shot, gated, and shows the control working",
-        "reason": "REACT: reads onclick=\"replaceBackground(\" on the card; the card is React. Held in src/pages/videoshots/videoshots-contract.test.jsx: core replaceBackground body (confirmPaidImage, background/preview, background/generate) read as here, and the card control as behaviour."
-      },
-      {
-        "name": "the button is only offered where there is footage to edit",
-        "reason": "REACT: reads the legacy const proActions block. Held in src/pages/videoshots/videoshots-contract.test.jsx: Background… absent on a shot with no clip, present and calling core on one with footage."
-      }
-    ],
-    "project-list.test.js": [
-      {
-        "name": "the page drops a card where it was dropped, and draws the filter, archive and drag controls",
-        "reason": "REACT: looks for the legacy list onclick text (setProjectArchived(', projectDrop(event); the list is React (src/pages/projects). Held in src/pages/projects/ProjectsPage.test.jsx as behaviour: the drop order (before/after) and the reorder POST, the filter chips, archive/restore, the drag controls."
-      }
-    ],
-    "project-stage-picker.test.js": [
-      {
-        "name": "on the list, the badge opens the picker without opening the project, and a choice saves",
-        "reason": "REACT: reads the legacy card template and runs setProjectStage with injected globals; the list is React. Held in src/pages/projects/ProjectsPage.test.jsx: the badge opens the picker without opening the project, the stages are Settings own, the choice PUTs the status, updates the list and the open project, and redraws."
-      }
-    ],
-    "home-page.test.js": [
-      {
-        "name": "the phase fractions are declared once, and the page renders what it is served",
-        "reason": "REACT: reads the legacy home builders (function homePhasesHtml..homeRunningHtml, their onclick text, async function resumeShot) out of the page; the home page is React (src/pages/dashboard). Held in src/pages/dashboard/dashboard-contract.test.jsx (phases declared once in lib/home.js and rendered as served; every control in the home blocks does something) and DashboardPage.test.jsx (each way in; Resume goes to the board and opens the frame)."
-      },
-      {
-        "name": "every needs-you item carries a way in",
-        "reason": "REACT: reads the legacy home builders (function homePhasesHtml..homeRunningHtml, their onclick text, async function resumeShot) out of the page; the home page is React (src/pages/dashboard). Held in src/pages/dashboard/dashboard-contract.test.jsx (phases declared once in lib/home.js and rendered as served; every control in the home blocks does something) and DashboardPage.test.jsx (each way in; Resume goes to the board and opens the frame)."
-      },
-      {
-        "name": "every handler the home page calls is actually defined",
-        "reason": "REACT: reads the legacy home builders (function homePhasesHtml..homeRunningHtml, their onclick text, async function resumeShot) out of the page; the home page is React (src/pages/dashboard). Held in src/pages/dashboard/dashboard-contract.test.jsx (phases declared once in lib/home.js and rendered as served; every control in the home blocks does something) and DashboardPage.test.jsx (each way in; Resume goes to the board and opens the frame)."
-      },
-      {
-        "name": "resume opens the frame rather than silently doing nothing",
-        "reason": "REACT: reads the legacy home builders (function homePhasesHtml..homeRunningHtml, their onclick text, async function resumeShot) out of the page; the home page is React (src/pages/dashboard). Held in src/pages/dashboard/dashboard-contract.test.jsx (phases declared once in lib/home.js and rendered as served; every control in the home blocks does something) and DashboardPage.test.jsx (each way in; Resume goes to the board and opens the frame)."
+        "name": "walking moves the shot's own camera, and keeping it goes through the validated proposal",
+        "reason": "PRE-EXISTING: fails in film-engine at the pinned commit too"
       }
     ]
   }

@@ -44,6 +44,16 @@ export const LEGACY_GLOBALS = [
     'openPlateViewer',        // the full-size plate viewer, shared by every page that shows a plate
     'uploadControl',          // the shared upload + iPhone camera control, as markup (marketing; every plate uses it)
     'confirmPaidImage',       // the one confirmation every paid generation goes through: what is sent, what it costs
+    'regenerateStoryboard',   // regenerate one shot's frame: its own confirmation, the busy veil (board, viewer, shot drawer)
+    // The storyboard board: state core shares with the frame viewer, the anchor and markup...
+    'ANCHOR', 'FRAME_VIEWER', 'BOARD_ANCHOR', 'MARKUP',
+    // ...what keeps the board's header and banners in step (core writes into them by id)...
+    'loadBoardLock', 'renderAnnotationFeedbackToggle', 'renderAnchorChip', 'loadBoardBanners', 'markupPaintAll',
+    'generateAllStoryboards', 'toggleBoardLock', 'clearAnchor',
+    // ...and each card's shared parts, used by the viewer and the Production graph too.
+    'frameSrc', 'openFrameViewer', 'storyboardDrawAnnotations', 'protectSelection', 'protectOverlayHTML', 'setShotAspect',
+    'anchorButton', 'directShot', 'exploreAngles', 'refineFrame', 'storyboardImportButton', 'openFrameVersions',
+    'frameVersionTitle', 'frameVersionLabel', 'playFromShot', 'insertShotAfter', 'storyboardFacetTags', 'storyboardDialogueHtml', 'markupToolbar',
 ];
 
 
@@ -59,3 +69,16 @@ export const legacy = new Proxy({}, {
         return v;
     },
 });
+
+/*
+ * Assign one of the listed legacy globals. A top-level `let` of a classic script (BOARD_ANCHOR) is a
+ * global binding but not a window property, so writing window[name] would create a second variable that
+ * core never reads; the assignment runs in global scope instead. Only names on the list, and only names
+ * that are not functions, so a page can set state core shares but never replace core's behaviour.
+ */
+export function setLegacy(name, value) {
+    if (!LEGACY_GLOBALS.includes(name)) throw new Error(`setLegacy: ${name} is not in LEGACY_GLOBALS (src/lib/legacy.js)`);
+    if (typeof legacy[name] === 'function') throw new Error(`setLegacy: ${name} is a function; a page may not replace core behaviour`);
+    if (Object.prototype.hasOwnProperty.call(window, name)) { window[name] = value; return; }
+    Function('v', `${name} = v;`)(value);
+}

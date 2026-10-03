@@ -618,9 +618,16 @@ function createShots(req, res) {
 }
 
 function getShotlist(req, res, projectId, query) {
-    const page = Math.max(1, parseInt(query.page) || 1);
-    const limit = Math.min(200, Math.max(1, parseInt(query.limit) || 50));
-    const offset = (page - 1) * limit;
+    /*
+     * Every shot unless a page is asked for. The default was 50, and the callers that list "the shots"
+     * (the Shot Board, scene dialogue, the subtitles picker, the export, previs, the score session) never
+     * asked for more, so a film past 50 shots lost the rest everywhere it was listed. v2 local change,
+     * declared in tools/port-plan.json; held by tests/shotlist-all.test.js.
+     */
+    const paged = query.limit !== undefined || query.page !== undefined;
+    const page = paged ? Math.max(1, parseInt(query.page) || 1) : 1;
+    const limit = paged ? Math.min(200, Math.max(1, parseInt(query.limit) || 50)) : -1; // SQLite: LIMIT -1 is no limit
+    const offset = paged ? (page - 1) * limit : 0;
 
     const rows = db.prepare(`
         SELECT

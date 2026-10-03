@@ -75,7 +75,9 @@
     "backend/lib/framing.js": "comment: SHOT_FRAMINGS now lives in public/legacy/chunks/stage3d.js",
     "backend/lib/previs-subject-path.js": "comment: subjectPoseAt's mirror now lives in public/legacy/chunks/stage3d.js",
     "backend/tests/REMOVED-TESTS.txt": "v2 only: the film-engine tests this copy does not carry, each with its reason",
-    "backend/tests/SKIPPED-SUBTESTS.json": "v2 only: sub-tests skipped by exact name, each with its reason"
+    "backend/tests/SKIPPED-SUBTESTS.json": "v2 only: sub-tests skipped by exact name, each with its reason",
+    "backend/routes/shots.js": "getShotlist answers every shot unless limit/page is given: the default of 50 cut a film past 50 shots out of every page that lists shots (Shot Board, scene dialogue, subtitles picker, export, previs, score session)",
+    "backend/tests/shotlist-all.test.js": "v2 only: holds the shot list to answering every shot unless paged"
   },
   "pinToCore": {
     "twBurst": "stays next to const TYPEWRITER (core): screenplay-focus reads the typewriter's sound rules as the source text from TYPEWRITER to twBurst, which must be one script"

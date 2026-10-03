@@ -250,6 +250,32 @@
       ],
       "modals": []
     },
+    "shotboard": {
+      "loader": "loadShotBoard",
+      "replaces": [
+        "loadShotboardRuntime",
+        "loadShotBoard",
+        "dragShotId",
+        "onShotDragStart",
+        "onShotDragEnd",
+        "onShotDragOver",
+        "onShotColumnOver",
+        "onShotColumnLeave",
+        "onShotColumnDrop",
+        "onShotDrop",
+        "openShotDetail",
+        "closeShotDetail",
+        "loadShotDetailNotes",
+        "addShotDetailNote",
+        "runShotPipeline",
+        "saveShotTransition",
+        "openABCompare",
+        "loadABCompare",
+        "updateABCrossfade",
+        "closeABCompare"
+      ],
+      "modals": []
+    },
     "stylebook": {
       "loader": "loadStyleBook",
       "replaces": [
@@ -494,35 +520,6 @@
       ],
       "otherStatements": 5,
       "bytes": 54756
-    },
-    "shotboard": {
-      "pages": [
-        "shotboard"
-      ],
-      "deps": [],
-      "functions": [
-        "loadShotboardRuntime",
-        "loadShotBoard",
-        "onShotDragStart",
-        "onShotDragEnd",
-        "onShotDragOver",
-        "onShotColumnOver",
-        "onShotColumnLeave",
-        "onShotColumnDrop",
-        "onShotDrop",
-        "openShotDetail",
-        "closeShotDetail",
-        "loadShotDetailNotes",
-        "addShotDetailNote",
-        "runShotPipeline",
-        "saveShotTransition",
-        "openABCompare",
-        "loadABCompare",
-        "updateABCrossfade",
-        "closeABCompare"
-      ],
-      "otherStatements": 1,
-      "bytes": 23650
     },
     "storyboard": {
       "pages": [
@@ -1151,26 +1148,8 @@
       "loader": [
         "loadShotBoard"
       ],
-      "chunk": "shotboard",
-      "modals": [
-        "frameViewerModal",
-        "frameVersionsModal",
-        "backgroundPickerModal",
-        "confirmGenModal",
-        "shotCardModal",
-        "entityInspectModal",
-        "characterSheetModal",
-        "subjectSheetModal",
-        "castingModal",
-        "galleryModal",
-        "characterModal",
-        "locationModal",
-        "plateViewerModal",
-        "propModal",
-        "sceneCardModal",
-        "versionDiffModal",
-        "titlePageModal"
-      ]
+      "chunk": null,
+      "modals": []
     },
     "moodboard": {
       "loader": [
@@ -1523,7 +1502,7 @@
     ],
     "functions": 517,
     "unreached": 18,
-    "sharedByChunks": 3,
+    "sharedByChunks": 0,
     "declaredTwice": [],
     "bootVendors": [],
     "bytes": 772450

@@ -54,6 +54,17 @@ export function installLegacy({ routes = {}, project = { id: 'p1' } } = {}) {
         openPlateViewer: vi.fn(),
         uploadControl: vi.fn((target, url, o) => `<label class="btn btn-secondary btn-sm">${(o && o.label) || 'Upload'}<input type="file" data-import-target="${target}" data-url="${url}"></label>`),
         confirmPaidImage: vi.fn(),
+        regenerateStoryboard: vi.fn(),
+        ANCHOR: { frames: [] }, FRAME_VIEWER: { frames: [] }, BOARD_ANCHOR: null, MARKUP: { cache: {} },
+        loadBoardLock: vi.fn(), renderAnnotationFeedbackToggle: vi.fn(), renderAnchorChip: vi.fn(), loadBoardBanners: vi.fn(), markupPaintAll: vi.fn(),
+        generateAllStoryboards: vi.fn(), toggleBoardLock: vi.fn(), clearAnchor: vi.fn(),
+        frameSrc: (f, w) => `frame:${f.shot_code}@${w}`, openFrameViewer: vi.fn(), storyboardDrawAnnotations: vi.fn(),
+        protectSelection: (v) => (v ? [v] : []), protectOverlayHTML: (r, ratios) => `<i class="protect">${ratios.join(',')}@${r.toFixed(2)}</i>`, setShotAspect: vi.fn(),
+        anchorButton: (f) => `<button class="anchor-btn">anchor ${f.shot_code}</button>`, directShot: vi.fn(), exploreAngles: vi.fn(), refineFrame: vi.fn(),
+        storyboardImportButton: (f) => `<label><input data-import-target="storyboard-image" data-shot="${f.shot_id}"></label>`, openFrameVersions: vi.fn(),
+        frameVersionTitle: () => 'versions title', frameVersionLabel: (f) => `v${f.asset_version || 1}`, playFromShot: vi.fn(), insertShotAfter: vi.fn(),
+        storyboardFacetTags: (f) => `<span class="facet">facets ${f.shot_code}</span>`, storyboardDialogueHtml: (d) => (d && d.length ? `<p class="dlg">${d.length} lines</p>` : ''),
+        markupToolbar: (id) => `<span class="markup-tools">markup ${id}</span>`,
     };
     const missing = LEGACY_GLOBALS.filter(n => !(n in fake));
     if (missing.length) throw new Error('the test fake lacks ' + missing.join(', ') + ' (src/test/setup.js)');
