@@ -1,0 +1,6 @@
+{
+  "about": "This page is React (src/pages/notes/NotesPage.jsx). tools/split-map.js stops generating it, drops the legacy functions and modals below, and fails if anything left still calls them.",
+  "loader": "loadNotesPage",
+  "replaces": ["loadNotesPage", "onNoteSceneChange", "loadShotNotes", "showAddNoteModal", "addNote", "resolveNote", "showReviewModal", "submitReview"],
+  "modals": ["addNoteModal", "reviewShotModal"]
+}

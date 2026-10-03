@@ -10,10 +10,14 @@ const { readSource, loaderMap, topLevelFunctions } = require('../split-lib');
 const ROOT = path.join(__dirname, '..', '..');
 const plan = require('../port-plan.json');
 const src = readSource(path.join(ROOT, plan.source));
-const ported = plan.rounds.slice(0, plan.currentRound).flat();
 const read = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8');
 const exists = (p) => fs.existsSync(path.join(ROOT, p));
 const map = exists('docs/split-map.json') ? JSON.parse(read('docs/split-map.json')) : null;
+// Pages rewritten as React (src/pages/<id>/react.json, mirrored in the map) have no chunk and no
+// generated markup; the legacy functions they replace are gone from every legacy file.
+const REACT = map ? (map.react || {}) : {};
+const REPLACED = new Set(Object.values(REACT).flatMap(r => r.replaces));
+const ported = plan.rounds.slice(0, plan.currentRound).flat().filter(p => !REACT[p]);
 
 const LOADERS = loaderMap(src.app);
 const pageIds = [...new Set([...src.html.matchAll(/id="page-([a-z0-9]+)"/g)].map(m => m[1]))];
@@ -21,13 +25,15 @@ const pageIds = [...new Set([...src.html.matchAll(/id="page-([a-z0-9]+)"/g)].map
 test('the source registry: 37 pages, each with a loader', () => {
     assert.strictEqual(pageIds.length, 37);
     assert.deepStrictEqual([...pageIds].sort(), Object.keys(LOADERS).sort());
-    assert.deepStrictEqual([...ported, ...plan.rounds.slice(plan.currentRound).flat()].sort(), [...pageIds].sort());
+    assert.deepStrictEqual([...ported, ...Object.keys(REACT), ...plan.rounds.slice(plan.currentRound).flat()].sort(), [...pageIds].sort());
 });
 
 test('every page has a markup component and a registry entry', () => {
     assert.ok(exists('src/pages/registry.js'), 'src/pages/registry.js missing');
     const registry = read('src/pages/registry.js');
-    const missing = pageIds.filter(id => !exists(`src/pages/${id}/index.jsx`) || !exists(`src/pages/${id}/markup.html`) || !registry.includes(`'${id}'`));
+    // A legacy page has generated markup; a React page has its react.json instead (and no markup.html left behind).
+    const missing = pageIds.filter(id => !exists(`src/pages/${id}/index.jsx`) || !registry.includes(`'${id}'`)
+        || (REACT[id] ? !exists(`src/pages/${id}/react.json`) || exists(`src/pages/${id}/markup.html`) : !exists(`src/pages/${id}/markup.html`)));
     assert.deepStrictEqual(missing, []);
 });
 
@@ -54,7 +60,9 @@ test('every ported page loads a chunk, and each chunk holds exactly its mapped f
 
 test('no code is lost or duplicated: every top-level statement of the source is in core or one chunk, once', () => {
     const norm = (code) => acorn.parse(code, { ecmaVersion: 'latest' }).body.map(n => code.slice(n.start, n.end));
-    const app = norm(src.app);
+    // Less the function declarations a React page replaced: those leave the legacy code.
+    const app = acorn.parse(src.app, { ecmaVersion: 'latest' }).body
+        .filter(n => !(n.type === 'FunctionDeclaration' && REPLACED.has(n.id.name))).map(n => src.app.slice(n.start, n.end));
     // The port adds exactly one statement: core's var placeholders for loaders that live in chunks.
     const placeholder = `var ${map.core.loaderPlaceholders.join(', ')};`;
     const port = [...norm(read('public/legacy/core.js')), ...chunkFiles().flatMap(f => norm(read(f)))].filter(t => t !== placeholder);
@@ -71,8 +79,8 @@ test('every function lives exactly once in core or one chunk', () => {
     const where = new Map();
     for (const f of [...CORE_FILES, ...chunkFiles()]) for (const fn of topLevelFunctions(read(f))) where.set(fn.name, (where.get(fn.name) || 0) + 1);
     const all = [...topLevelFunctions(src.app), ...topLevelFunctions(src.productionGraph), ...topLevelFunctions(src.shell)].map(f => f.name);
-    const count = (n) => all.filter(m => m === n).length;
-    assert.deepStrictEqual([...new Set(all)].filter(n => where.get(n) !== count(n)), []);
+    const count = (n) => REPLACED.has(n) ? 0 : all.filter(m => m === n).length;
+    assert.deepStrictEqual([...new Set(all)].filter(n => (where.get(n) || 0) !== count(n)), []);
 });
 
 test('three.js is loaded before any code that uses it', () => {
@@ -87,7 +95,11 @@ test('three.js is loaded before any code that uses it', () => {
 
 test('every id a chunk looks up with getElementById exists in the boot markup', () => {
     const comps = (d) => fs.readdirSync(path.join(ROOT, d), { recursive: true }).filter(f => f.endsWith('.html')).map(f => read(path.join(d, f)));
-    const boot = [...pageIds.map(id => read(`src/pages/${id}/markup.html`)), ...comps('src/components')].join('\n');
+    // A React page is mounted at boot too: its ids are the literal id="…" props in its own .jsx files.
+    const pageMarkup = (id) => REACT[id]
+        ? fs.readdirSync(path.join(ROOT, 'src/pages', id)).filter(f => f.endsWith('.jsx')).map(f => read(`src/pages/${id}/${f}`)).join('\n')
+        : read(`src/pages/${id}/markup.html`);
+    const boot = [...pageIds.map(pageMarkup), ...comps('src/components')].join('\n');
     const bad = [];
     for (const f of chunkFiles()) {
         for (const m of read(f).matchAll(/getElementById\('([A-Za-z0-9_-]+)'\)/g)) {

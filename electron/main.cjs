@@ -6,6 +6,11 @@
  *   --smoke   visit every page and exit 1 on any console error (CI / round checks)
  */
 const { app, BrowserWindow, shell } = require('electron');
+
+// The app's name in the menus (About / Hide / Quit Film Engine) and to the OS. Before ready, or the
+// default menu is built with "Electron". The bold app-menu title and the Dock label come from the
+// running bundle's Info.plist: tools/name-dev-electron.js renames the dev binary's (npm postinstall).
+app.setName('Film Engine');
 const { spawn } = require('child_process');
 const path = require('path');
 const http = require('http');
@@ -119,7 +124,7 @@ async function createWindow() {
 }
 
 async function smoke(win) {
-    const { PAGES: ALL, CHUNKED } = require('./smoke-pages.cjs');
+    const { PAGES: ALL, CHUNKED, REACT = {} } = require('./smoke-pages.cjs');
     const PAGES = process.env.FE_SMOKE_PAGES ? ALL.filter(p => process.env.FE_SMOKE_PAGES.split(',').includes(p)) : ALL;
     const errors = [];
     win.webContents.on('console-message', (_e, level, message, line, source) => {
@@ -154,8 +159,10 @@ async function smoke(win) {
         const state = await js(`({ active: document.querySelector('.page.active')?.id, chunk: !!(window.__fePages && window.__fePages.loaded().includes(${JSON.stringify(id)})),
             shape: (() => { const el = document.getElementById('page-' + ${JSON.stringify(id)}); return el ? { elements: el.querySelectorAll('*').length, text: el.innerText.replace(/\\s+/g, ' ').trim().length } : null; })() })`);
         shapes[id] = state.shape;
-        const ok = state.active === 'page-' + id && errors.length === before;
-        report.push({ id, ok, chunk: state.chunk, active: state.active });
+        // A React page must have registered the loader navigateTo calls, or the visit loaded nothing.
+        const reactOk = !REACT[id] || await js(`typeof window[${JSON.stringify(REACT[id])}] === 'function'`);
+        const ok = state.active === 'page-' + id && errors.length === before && reactOk;
+        report.push({ id, ok, chunk: state.chunk, active: state.active, react: !!REACT[id] });
     }
     // A launch with no address reopens the film and page you were on.
     if (project && !process.env.FE_SMOKE_URL && !process.env.FE_SMOKE_PAGES) {
@@ -209,7 +216,7 @@ async function smoke(win) {
         const ok = printOk && stayed && leftApp.includes('https://example.com/vendor') && leftApp.includes('https://example.com/away') && downloads.some(u => u.endsWith('/api/health'));
         report.push({ id: 'window guard', ok, want: 'window guard', active: ok ? 'window guard' : `print=${printOk} stayed=${stayed} external=${JSON.stringify(leftApp)} downloads=${JSON.stringify(downloads)}` });
     }
-    for (const r of report) console.log(`${r.ok ? 'ok  ' : 'FAIL'} ${r.id.padEnd(16)} ${r.chunk ? 'chunk loaded' : 'core only'}${r.active === (r.want || 'page-' + r.id) ? '' : '  active=' + r.active}`);
+    for (const r of report) console.log(`${r.ok ? 'ok  ' : 'FAIL'} ${r.id.padEnd(16)} ${r.react ? 'react' : r.chunk ? 'chunk loaded' : 'core only'}${r.active === (r.want || 'page-' + r.id) ? '' : '  active=' + r.active}`);
     for (const e of errors) console.log(`  console error [${e.page}] ${e.message} ${e.at || ''}`);
     console.log(`smoke: ${report.filter(r => r.ok).length}/${report.length} pages clean, ${errors.length} console errors, project=${project || 'none'}`);
     return errors.length === 0 && report.every(r => r.ok);

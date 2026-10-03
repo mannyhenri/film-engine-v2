@@ -2,6 +2,25 @@
   "generatedFrom": "reference/fb8c770/src/index.html",
   "sourceCommit": "fb8c7700ad1e9233f6cf50e86669d28ebeac29ef",
   "round": 3,
+  "react": {
+    "notes": {
+      "loader": "loadNotesPage",
+      "replaces": [
+        "loadNotesPage",
+        "onNoteSceneChange",
+        "loadShotNotes",
+        "showAddNoteModal",
+        "addNote",
+        "resolveNote",
+        "showReviewModal",
+        "submitReview"
+      ],
+      "modals": [
+        "addNoteModal",
+        "reviewShotModal"
+      ]
+    }
+  },
   "chunks": {
     "projects": {
       "pages": [
@@ -193,24 +212,6 @@
       ],
       "otherStatements": 0,
       "bytes": 1771
-    },
-    "notes": {
-      "pages": [
-        "notes"
-      ],
-      "deps": [],
-      "functions": [
-        "loadNotesPage",
-        "onNoteSceneChange",
-        "loadShotNotes",
-        "showAddNoteModal",
-        "addNote",
-        "resolveNote",
-        "showReviewModal",
-        "submitReview"
-      ],
-      "otherStatements": 0,
-      "bytes": 4859
     },
     "stylebook": {
       "pages": [
@@ -1379,11 +1380,8 @@
       "loader": [
         "loadNotesPage"
       ],
-      "chunk": "notes",
-      "modals": [
-        "addNoteModal",
-        "reviewShotModal"
-      ]
+      "chunk": null,
+      "modals": []
     },
     "renderhistory": {
       "loader": [

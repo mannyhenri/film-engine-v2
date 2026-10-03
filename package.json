@@ -1,5 +1,6 @@
 {
   "name": "film-engine-v2",
+  "productName": "Film Engine",
   "version": "1.0.1",
   "private": true,
   "description": "Film Engine as a React + Electron app",
@@ -10,23 +11,29 @@
     "web": "npm run split && vite",
     "build": "npm run split && vite build",
     "start": "electron .",
-    "test": "node --test tools/tests/*.test.js",
+    "test": "node --test tools/tests/*.test.js && vitest run",
     "smoke": "npm run build && electron . --smoke",
     "parity": "sh tools/parity-run.sh",
     "test:backend": "node tools/assemble-page.js && node tools/backend-tests.js",
-    "pretest": "node tools/assemble-page.js"
+    "pretest": "node tools/assemble-page.js",
+    "test:ui": "vitest run",
+    "postinstall": "node tools/name-dev-electron.js"
   },
   "dependencies": {
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },
   "devDependencies": {
+    "@testing-library/dom": "^10.4.2",
+    "@testing-library/react": "^16.3.3",
     "@vitejs/plugin-react": "^4.3.4",
     "acorn": "^8.14.0",
     "concurrently": "^9.1.0",
     "cross-env": "^7.0.3",
     "electron": "^33.2.0",
+    "jsdom": "^25.0.1",
     "vite": "^5.4.11",
+    "vitest": "^2.1.9",
     "wait-on": "^8.0.1"
   }
 }

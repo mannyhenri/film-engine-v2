@@ -7,4 +7,10 @@ export default defineConfig({
     plugins: [react()],
     server: { port: 5173, strictPort: true },
     build: { outDir: 'dist', emptyOutDir: true },
+    // React page tests (npm run test:ui): each page rendered in jsdom against a fake legacy core.
+    test: {
+        environment: 'jsdom',
+        include: ['src/**/*.test.jsx'],
+        setupFiles: ['src/test/setup.js'],
+    },
 });

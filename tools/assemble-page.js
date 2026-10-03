@@ -39,8 +39,11 @@ function assemble() {
     }
     const runs = [];
     const appAst = parse(src.app);
+    // Functions a React page replaced are in no port file, by design (src/pages/<id>/react.json).
+    const replaced = new Set(Object.values(map.react || {}).flatMap(r => r.replaces));
     let prev = 0;
     for (const n of appAst.body) {
+        if (n.type === 'FunctionDeclaration' && replaced.has(n.id.name)) { prev = n.end; continue; }
         const lead = src.app.slice(prev, n.start); // comments and blank lines before it, as in the source
         prev = n.end;
         const t = src.app.slice(n.start, n.end);
@@ -64,7 +67,10 @@ function assemble() {
     const modalsIdx = read('src/components/modals/index.js');
     const modals = [...modalsIdx.matchAll(/\{ id: '([^']+)', html: m\d+, inMain: (true|false) \}/g)].map(m => ({ id: m[1], inMain: m[2] === 'true' }));
     const html = (f) => read(f).replace(/\n$/, '');
-    const main = '<div class="main">\n' + pageIds.map(id => html(`src/pages/${id}/markup.html`)).join('\n')
+    // A React page's markup is what it renders before any data arrives, rendered here to static HTML,
+    // so the UI tests that read controls (ids, data-field, labels) see the real React page.
+    const pageHtml = (id) => map.react && map.react[id] ? renderReactPage(id) : html(`src/pages/${id}/markup.html`);
+    const main = '<div class="main">\n' + pageIds.map(pageHtml).join('\n')
         + modals.filter(m => m.inMain).map(m => '\n' + html(`src/components/modals/${m.id}.html`)).join('') + '\n</div>';
     const body = [html('src/components/Sidebar/sidebar.html'), main, html('src/components/StatusBar/status-bar.html'),
         ...modals.filter(m => !m.inMain).map(m => html(`src/components/modals/${m.id}.html`))].join('\n');
@@ -92,6 +98,30 @@ ${runs.map(r => `<script data-legacy="${r.file.replace('public/legacy/', '')}">$
 `;
     fs.writeFileSync(path.join(ROOT, 'src/index.html'), out);
     return { runs: runs.length, bytes: out.length };
+}
+
+/*
+ * A React page to static HTML, with esbuild (Vite's own) and react-dom/server: no browser, no fetch.
+ * Its first render is the page as it stands before its loader runs. Layout effects do not run on the
+ * server; React's warning that says so is the one console line silenced here.
+ */
+function renderReactPage(id) {
+    const esbuild = require('esbuild');
+    const r = esbuild.buildSync({
+        stdin: {
+            contents: `import Page from './src/pages/${id}/index.jsx';\nimport { createElement } from 'react';\nimport { renderToStaticMarkup } from 'react-dom/server';\nmodule.exports = renderToStaticMarkup(createElement(Page));\n`,
+            resolveDir: ROOT, loader: 'jsx',
+        },
+        bundle: true, platform: 'node', format: 'cjs', write: false, jsx: 'automatic', logLevel: 'error',
+        loader: { '.html': 'text' }, define: { 'process.env.NODE_ENV': '"production"' },
+    });
+    const mod = { exports: {} };
+    const quiet = console.error;
+    console.error = (...a) => { if (!/useLayoutEffect does nothing on the server/.test(String(a[0]))) quiet(...a); };
+    try { new Function('module', 'exports', 'require', r.outputFiles[0].text)(mod, mod.exports, require); }
+    finally { console.error = quiet; }
+    if (!new RegExp(`id="page-${id}"`).test(mod.exports)) throw new Error(`React page ${id} did not render id="page-${id}"`);
+    return '        ' + mod.exports;
 }
 
 module.exports = { assemble };

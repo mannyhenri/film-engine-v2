@@ -45,9 +45,41 @@ function patchNavigateTo(code) {
 }
 const placeholderStatement = (names, ind) => `${ind}// React port: page loaders that live in chunks, declared here so navigateTo's loaders map\n${ind}// evaluates before their chunk loads; each chunk's own function declaration fills its name in.\n${ind}var ${names.join(', ')};\n`;
 
+/*
+ * Pages rewritten as React declare it in their own folder (src/pages/<id>/react.json), so two
+ * people converting two pages never edit the same file. For each: the loader name navigateTo
+ * calls (the React page registers it), the legacy functions it replaces, and the modals it now
+ * renders itself.
+ */
+function readReactPages() {
+    const dir = path.join(ROOT, 'src/pages');
+    const out = {};
+    for (const id of fs.readdirSync(dir)) {
+        const f = path.join(dir, id, 'react.json');
+        if (!fs.existsSync(f)) continue;
+        const j = JSON.parse(fs.readFileSync(f, 'utf8'));
+        for (const k of ['loader', 'replaces', 'modals']) if (j[k] === undefined) throw new Error(`src/pages/${id}/react.json: no "${k}"`);
+        if (!j.replaces.includes(j.loader)) throw new Error(`src/pages/${id}/react.json: the loader ${j.loader} must be among what it replaces`);
+        out[id] = { loader: j.loader, replaces: j.replaces, modals: j.modals };
+    }
+    return out;
+}
+
+// The legacy globals React may use (src/lib/legacy.js LEGACY_GLOBALS): core roots, never moved to a chunk.
+function readLegacyGlobals() {
+    const t = fs.readFileSync(path.join(ROOT, 'src/lib/legacy.js'), 'utf8');
+    const m = /LEGACY_GLOBALS\s*=\s*\[([\s\S]*?)\];/.exec(t);
+    if (!m) throw new Error('src/lib/legacy.js: no LEGACY_GLOBALS');
+    return [...m[1].matchAll(/'([\w$]+)'/g)].map(x => x[1]);
+}
+
 function generate({ write = true } = {}) {
     const src = readSource(path.join(ROOT, plan.source));
-    const ported = new Set(plan.rounds.slice(0, plan.currentRound).flat());
+    const react = readReactPages();
+    const replaced = new Map(Object.entries(react).flatMap(([id, r]) => r.replaces.map(n => [n, id])));
+    const reactModals = new Set(Object.values(react).flatMap(r => r.modals));
+    const legacyGlobals = readLegacyGlobals();
+    const ported = new Set(plan.rounds.slice(0, plan.currentRound).flat().filter(p => !react[p]));
     const loaders = loaderMap(src.app);
     const files = {};
     const out = (f, text) => { files[f] = text; };
@@ -67,15 +99,19 @@ function generate({ write = true } = {}) {
     withLead(top, src.html);
     const pages = mainKids.filter(e => (e.id || '').startsWith('page-')).map(e => ({ id: e.id.slice(5), outer: e.outer }));
     const mainExtras = mainKids.filter(e => !(e.id || '').startsWith('page-'));
-    const modals = [...top.filter(e => /\bmodal-overlay\b/.test(e.cls)), ...mainExtras.filter(e => /\bmodal-overlay\b/.test(e.cls))];
+    const allModals = [...top.filter(e => /\bmodal-overlay\b/.test(e.cls)), ...mainExtras.filter(e => /\bmodal-overlay\b/.test(e.cls))];
+    for (const id of reactModals) if (!allModals.some(m => m.id === id)) throw new Error(`a react.json names modal ${id}, which the source does not have`);
+    const modals = allModals.filter(m => !reactModals.has(m.id)); // React pages render their own
     const sidebar = top.find(e => e.tag === 'nav' && /\bsidebar\b/.test(e.cls));
     const statusBar = top.find(e => e.id === 'statusBar');
-    const accounted = new Set([main, sidebar, statusBar, ...modals]);
+    const accounted = new Set([main, sidebar, statusBar, ...allModals]);
     const strays = [...top.filter(e => !accounted.has(e)), ...mainExtras.filter(e => !modals.includes(e))];
     if (strays.length) throw new Error('markup this tool does not place: ' + strays.map(e => e.tag + '#' + e.id).join(', '));
     if (pages.length !== Object.keys(loaders).length) throw new Error('pages and loaders disagree');
 
+    for (const id of Object.keys(react)) if (!pages.some(p => p.id === id)) throw new Error(`src/pages/${id}/react.json: the source has no page ${id}`);
     for (const p of pages) {
+        if (react[p.id]) continue; // hand-written React; its index.jsx is not generated
         const comp = componentName(p.id);
         out(`src/pages/${p.id}/markup.html`, p.outer + '\n');
         out(`src/pages/${p.id}/index.jsx`,
@@ -100,10 +136,14 @@ function generate({ write = true } = {}) {
     // Comments never run: blank them (same length, so offsets hold) before looking for names.
     let appCode = src.app;
     for (const c of comments) appCode = appCode.slice(0, c.start) + ' '.repeat(c.end - c.start) + appCode.slice(c.end);
-    const segs = [];
+    let segs = [];
     let prev = 0;
     for (const s of ast.body) { segs.push({ node: s, text: src.app.slice(prev, s.end), code: appCode.slice(prev, s.end) }); prev = s.end; }
     const tail = src.app.slice(prev);
+    // Functions a React page replaces leave the legacy code entirely.
+    const declared = new Set(segs.filter(s => s.node.type === 'FunctionDeclaration').map(s => s.node.id.name));
+    for (const [n, id] of replaced) if (!declared.has(n)) throw new Error(`src/pages/${id}/react.json replaces ${n}, which is not a top-level function of the source`);
+    segs = segs.filter(s => !(s.node.type === 'FunctionDeclaration' && replaced.has(s.node.id.name)));
     /*
      * Graph nodes: every top-level function declaration, class, and const/let/var
      * whose initialisers run nothing at load (functions, literals, empty
@@ -184,8 +224,21 @@ function generate({ write = true } = {}) {
 
     const fixedCore = [...segs.filter(s => !nodeOfSeg.has(s) && !isWiring(s)).map(s => s.code), tail,
         src.productionGraph, src.shell, stripHtmlComments(sidebar.outer), stripHtmlComments(statusBar.outer),
-        ...pages.filter(p => !ported.has(p.id)).map(p => stripHtmlComments(p.outer))].join('\n');
-    const fixedCoreWords = uses(fixedCore);
+        ...pages.filter(p => !ported.has(p.id) && !react[p.id]).map(p => stripHtmlComments(p.outer))].join('\n');
+    // What the React pages use of the legacy app is core, at boot.
+    const fixedCoreWords = new Set([...uses(fixedCore), ...legacyGlobals]);
+    for (const n of legacyGlobals) if (!nodeOfName.has(n) && !uses(fixedCore).has(n)) throw new Error(`LEGACY_GLOBALS names ${n}, which the legacy code does not define`);
+    /*
+     * Nothing left may call what a React page replaced: a leftover onclick="addNote()" or a call
+     * from another page would now throw. navigateTo's loaders map is the one allowed mention (its
+     * entry calls the name the React page registers), and it is already blanked out of s.code.
+     */
+    {
+        const rest = [...segs.map(s => s.code), tail, src.productionGraph, src.shell, sidebar.outer, statusBar.outer,
+            ...pages.filter(p => !react[p.id]).map(p => p.outer), ...modals.map(m => m.outer)].map(stripHtmlComments).join('\n');
+        const still = [...replaced.keys()].filter(n => words(rest).has(n));
+        if (still.length) throw new Error('legacy code still uses what a React page replaced: ' + still.map(n => `${n} (${replaced.get(n)})`).join(', '));
+    }
     const chunkRoots = Object.fromEntries(chunks.map(c => [c, new Set()]));
     for (const p of pages) if (ported.has(p.id)) for (const w of [...uses(stripHtmlComments(p.outer)), ...loaders[p.id]]) chunkRoots[chunkOf(p.id)].add(w);
 
@@ -253,7 +306,7 @@ function generate({ write = true } = {}) {
     const segOwner = (s) => nodeOfSeg.has(s) ? owner(nodeOfSeg.get(s)) : (wiringOwner.get(s) || 'core');
     const chunkCode = Object.fromEntries(chunks.map(c => [c, []]));
     let core = HEADER('the shared core of the app script, in source order; page-only code is in chunks/*.js');
-    const chunkLoaders = [...new Set(Object.values(loaders).flat())].filter(n => nodeOfName.has(n) && owner(nodeOfName.get(n)) !== 'core');
+    const chunkLoaders = [...new Set(Object.values(loaders).flat())].filter(n => (nodeOfName.has(n) && owner(nodeOfName.get(n)) !== 'core') || replaced.has(n));
     for (const s of segs) {
         const o = segOwner(s);
         const name = s.node.type === 'FunctionDeclaration' ? s.node.id.name : null;
@@ -280,7 +333,8 @@ function generate({ write = true } = {}) {
     const boot = [...bootVendors.flatMap(v => v.files), 'core.js', 'production-graph.js', 'shell.js'];
     out('index.html', fs.readFileSync(path.join(__dirname, 'index.template.html'), 'utf8')
         .replace('<!-- BOOT SCRIPTS -->', boot.map(f => `<script defer src="./legacy/${f}"></script>`).join('\n    ')));
-    out('electron/smoke-pages.cjs', `// GENERATED by tools/split-map.js. The pages the smoke run visits, in source order.\nexports.PAGES = ${JSON.stringify(pages.map(p => p.id))};\nexports.CHUNKED = ${JSON.stringify(pages.filter(p => ported.has(p.id)).map(p => p.id))};\n`);
+    out('electron/smoke-pages.cjs', `// GENERATED by tools/split-map.js. The pages the smoke run visits, in source order.\nexports.PAGES = ${JSON.stringify(pages.map(p => p.id))};\nexports.CHUNKED = ${JSON.stringify(pages.filter(p => ported.has(p.id)).map(p => p.id))};\n`
+        + `// React pages, and the loader each registers on window (src/pages/<id>/react.json).\nexports.REACT = ${JSON.stringify(Object.fromEntries(Object.entries(react).map(([id, r]) => [id, r.loader])))};\n`);
     out('src/pages/registry.js', `// GENERATED by tools/split-map.js. Every page, in source order. chunk: the script that loads on its first visit.\n`
         + pages.map(p => `import ${componentName(p.id)} from './${p.id}/index.jsx';`).join('\n')
         + `\n\nexport const PAGES = [\n${pages.map(p => `    { id: '${p.id}', Component: ${componentName(p.id)}, chunk: ${ported.has(p.id) ? `'${chunkOf(p.id)}'` : 'null'} },`).join('\n')}\n];\n`
@@ -288,7 +342,7 @@ function generate({ write = true } = {}) {
         + `\nexport const VENDORS = {\n${VENDORS.filter(v => !bootVendors.includes(v)).map(v => `    ${v.id}: ${JSON.stringify(v.files)},`).join('\n')}\n};\n`);
 
     // ── The map ─────────────────────────────────────────────────────────
-    const map = { generatedFrom: plan.source, sourceCommit: plan.sourceCommit, round: plan.currentRound, chunks: {}, pages: {}, core: {} };
+    const map = { generatedFrom: plan.source, sourceCommit: plan.sourceCommit, round: plan.currentRound, react, chunks: {}, pages: {}, core: {} };
     for (const c of chunks) {
         map.chunks[c] = {
             pages: pages.filter(p => ported.has(p.id) && chunkOf(p.id) === c).map(p => p.id),
