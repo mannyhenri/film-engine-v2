@@ -29,6 +29,7 @@ export const LEGACY_GLOBALS = [
     'mwTime',       // ms -> m:ss.t, as every timing in the app is shown (edits)
     'fmtBytes',     // bytes -> "12.3 MB" (edits)
     'checkUploadSize', // refuse a body over the server's per-request ceiling before sending it (edits)
+    'refreshProtectOptions', // the board and playback pickers offer the ratios this job ships (deliverables)
 ];
 
 

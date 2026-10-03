@@ -37,6 +37,7 @@ export function installLegacy({ routes = {}, project = { id: 'p1' } } = {}) {
         mwTime: (ms) => `${Math.floor((ms || 0) / 60000)}:${String(Math.floor(((ms || 0) % 60000) / 1000)).padStart(2, '0')}`,
         fmtBytes: (n) => `${n} B`,
         checkUploadSize: vi.fn(),
+        refreshProtectOptions: vi.fn(),
     };
     const missing = LEGACY_GLOBALS.filter(n => !(n in fake));
     if (missing.length) throw new Error('the test fake lacks ' + missing.join(', ') + ' (src/test/setup.js)');

@@ -64,7 +64,12 @@ const SURFACES = [
       }, 'POST /projects/p1/rights', async () => {
           fireEvent.click(screen.getByRole('button', { name: /\+/ })); type('rightSubject', 'Street');
       }) },
-    { page: 'deliverables', route: 'deliverables.js', fn: 'insertRow', saver: 'saveDeliverable' },
+    { page: 'deliverables', route: 'deliverables.js', fn: 'insertRow', saver: 'saveDeliverable',
+      body: async () => savedBody((await import('./deliverables/DeliverablesPage.jsx')).default, 'loadDeliverables', {
+          'GET /projects/p1/deliverables': { profiles: [], packages: [], deliverables: [] }, 'GET /projects/p1/deliverables/check': {},
+      }, 'POST /projects/p1/deliverables', async () => {
+          fireEvent.click(screen.getByRole('button', { name: '+ Deliverable' })); type('delKey', '30_16x9');
+      }) },
 ];
 
 describe('the delivery pages reach every field their routes accept', () => {

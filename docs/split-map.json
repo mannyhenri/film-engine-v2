@@ -29,6 +29,20 @@
       ],
       "modals": []
     },
+    "deliverables": {
+      "loader": "loadDeliverables",
+      "replaces": [
+        "loadDeliverables",
+        "renderDeliverables",
+        "loadDeliverableVerdict",
+        "applyDeliverablePackage",
+        "openDeliverable",
+        "saveDeliverable",
+        "deleteDeliverable",
+        "DELIVERABLE_SERVED"
+      ],
+      "modals": []
+    },
     "edits": {
       "loader": "loadEditsPage",
       "replaces": [
@@ -671,23 +685,6 @@
       ],
       "otherStatements": 60,
       "bytes": 295322
-    },
-    "deliverables": {
-      "pages": [
-        "deliverables"
-      ],
-      "deps": [],
-      "functions": [
-        "loadDeliverables",
-        "renderDeliverables",
-        "loadDeliverableVerdict",
-        "applyDeliverablePackage",
-        "openDeliverable",
-        "saveDeliverable",
-        "deleteDeliverable"
-      ],
-      "otherStatements": 1,
-      "bytes": 13557
     },
     "consistency": {
       "pages": [
@@ -1395,7 +1392,7 @@
       "loader": [
         "loadDeliverables"
       ],
-      "chunk": "deliverables",
+      "chunk": null,
       "modals": []
     },
     "rights": {
@@ -1583,7 +1580,7 @@
     ],
     "functions": 546,
     "unreached": 17,
-    "sharedByChunks": 9,
+    "sharedByChunks": 6,
     "declaredTwice": [],
     "bootVendors": [],
     "bytes": 813052

@@ -1,0 +1,6 @@
+{
+  "about": "This page is React (src/pages/deliverables/DeliverablesPage.jsx). tools/split-map.js stops generating it, drops the legacy code below, and fails if anything left still calls it. deliverableModal was built at runtime by showModalHtml (not a source modal): the page renders it, always, so its fields are in the static render.",
+  "loader": "loadDeliverables",
+  "replaces": ["loadDeliverables", "renderDeliverables", "loadDeliverableVerdict", "applyDeliverablePackage", "openDeliverable", "saveDeliverable", "deleteDeliverable", "DELIVERABLE_SERVED"],
+  "modals": []
+}
