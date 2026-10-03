@@ -330,6 +330,12 @@
         "name": "the delivery pages reach every field their routes accept",
         "reason": "reads the legacy saver functions (saveCredit, saveTitleCard, saveSubtitle, saveRight) out of the page script; those pages are React now. The same guarantee, derived from the same routes, runs in src/pages/delivery-fields.test.jsx: it SAVES each React form and reads the request body, and holds a page still legacy (deliverables) to this test's own rule against its chunk."
       }
+    ],
+    "edits.test.js": [
+      {
+        "name": "the page: an Edit page in Post, the score monitor follows the playhead, and a session can be opened on an edit",
+        "reason": "REACT: reads function loadEditsPage( and friends out of the page script; the Edit page is React (src/pages/edits). Every guarantee is held in src/pages/edits/edits-contract.test.jsx (nav item, loader, X-Upload-Offset, the music workstation half) and EditsPage.test.jsx (behaviour)."
+      }
     ]
   }
 }

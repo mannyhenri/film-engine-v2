@@ -47,8 +47,8 @@ commit. A page whose functions are shared with another page converts together wi
 | Page | Status | Owner |
 |---|---|---|
 | notes, renderhistory, milestones, rights, subtitles, titles, assets | done | film-engine agent |
-| brand | done | film-engine-v2 agent |
-| edits, deliverables, pipeline, exportpage, videoshots | batch 1, in progress | film-engine-v2 agent |
+| brand, edits | done | film-engine-v2 agent |
+| deliverables, pipeline, exportpage, videoshots | batch 1, in progress | film-engine-v2 agent |
 | scenes, moodboard, stylebook, marketing | batch 2 | film-engine agent |
 | consistency, jobsqueue, projects, dashboard | batch 2 | film-engine-v2 agent |
 | characters + locations + props (one chunk), shotboard, storyboard | batch 3, unclaimed: shared modals | |

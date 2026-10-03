@@ -55,7 +55,7 @@ export const PAGES = [
     { id: 'playback', Component: PlaybackPage, chunk: 'playback' },
     { id: 'notes', Component: NotesPage, chunk: null },
     { id: 'renderhistory', Component: RenderhistoryPage, chunk: null },
-    { id: 'edits', Component: EditsPage, chunk: 'edits' },
+    { id: 'edits', Component: EditsPage, chunk: null },
     { id: 'exportpage', Component: ExportpagePage, chunk: 'exportpage' },
     { id: 'brand', Component: BrandPage, chunk: null },
     { id: 'deliverables', Component: DeliverablesPage, chunk: 'deliverables' },
@@ -99,7 +99,6 @@ export const CHUNKS = {
     pipeline: { deps: [] },
     jobsqueue: { deps: [] },
     playback: { deps: [] },
-    edits: { deps: [] },
     exportpage: { deps: [] },
     marketing: { deps: [] },
 };

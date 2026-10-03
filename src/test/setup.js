@@ -25,11 +25,18 @@ export function installLegacy({ routes = {}, project = { id: 'p1' } } = {}) {
         showModal: vi.fn((id) => document.getElementById(id)?.classList.add('open')),
         closeModal: vi.fn((id) => document.getElementById(id)?.classList.remove('open')),
         navigateTo: vi.fn(),
-        API_BASE: 'http://api.test/film',
+        // Shaped like the real one: the bare origin (http://localhost:3100); routes are under /film.
+        // A fake that ended in /film hid two links the original app built without it (subtitles, edits upload).
+        API_BASE: 'http://api.test',
         DRIFT: { shots: {}, scenes: [] },
         loadScreenplayDrift: vi.fn(async () => {}),
         updateSceneStatusIcons: vi.fn(),
         generateSceneDialogue: vi.fn(),
+        EDIT_CHUNK: 4,              // tiny, so a test file travels in several pieces
+        MW: {},
+        mwTime: (ms) => `${Math.floor((ms || 0) / 60000)}:${String(Math.floor(((ms || 0) % 60000) / 1000)).padStart(2, '0')}`,
+        fmtBytes: (n) => `${n} B`,
+        checkUploadSize: vi.fn(),
     };
     const missing = LEGACY_GLOBALS.filter(n => !(n in fake));
     if (missing.length) throw new Error('the test fake lacks ' + missing.join(', ') + ' (src/test/setup.js)');

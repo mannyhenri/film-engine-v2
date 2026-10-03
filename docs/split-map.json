@@ -29,6 +29,21 @@
       ],
       "modals": []
     },
+    "edits": {
+      "loader": "loadEditsPage",
+      "replaces": [
+        "loadEditsPage",
+        "editCardHtml",
+        "importEditFile",
+        "importEditCut",
+        "rematchEditCut",
+        "renameEdit",
+        "deleteEditVersion",
+        "scoreThisEdit",
+        "openScoreSession"
+      ],
+      "modals": []
+    },
     "milestones": {
       "loader": "loadMilestones",
       "replaces": [
@@ -1054,25 +1069,6 @@
       "otherStatements": 6,
       "bytes": 47006
     },
-    "edits": {
-      "pages": [
-        "edits"
-      ],
-      "deps": [],
-      "functions": [
-        "loadEditsPage",
-        "editCardHtml",
-        "importEditFile",
-        "importEditCut",
-        "rematchEditCut",
-        "renameEdit",
-        "deleteEditVersion",
-        "scoreThisEdit",
-        "openScoreSession"
-      ],
-      "otherStatements": 0,
-      "bytes": 10309
-    },
     "exportpage": {
       "pages": [
         "exportpage"
@@ -1373,7 +1369,7 @@
       "loader": [
         "loadEditsPage"
       ],
-      "chunk": "edits",
+      "chunk": null,
       "modals": []
     },
     "exportpage": {
@@ -1587,7 +1583,7 @@
     ],
     "functions": 546,
     "unreached": 17,
-    "sharedByChunks": 11,
+    "sharedByChunks": 9,
     "declaredTwice": [],
     "bootVendors": [],
     "bytes": 813052
