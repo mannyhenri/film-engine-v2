@@ -76,5 +76,8 @@
     "backend/lib/previs-subject-path.js": "comment: subjectPoseAt's mirror now lives in public/legacy/chunks/stage3d.js",
     "backend/tests/REMOVED-TESTS.txt": "v2 only: the film-engine tests this copy does not carry, each with its reason",
     "backend/tests/SKIPPED-SUBTESTS.json": "v2 only: sub-tests skipped by exact name, each with its reason"
+  },
+  "pinToCore": {
+    "twBurst": "stays next to const TYPEWRITER (core): screenplay-focus reads the typewriter's sound rules as the source text from TYPEWRITER to twBurst, which must be one script"
   }
 }

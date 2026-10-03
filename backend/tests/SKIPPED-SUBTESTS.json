@@ -4,11 +4,11 @@
     "adr-spark.test.js": [
       {
         "name": "the record exists where a reader would look for it",
-        "reason": "reads film-engine repo file backend/tests/adr-spark.test.js:54:12)"
+        "reason": "reads film-engine repo file docs/adr/008-spark-lazy-splat-viewer.md"
       },
       {
         "name": "it carries every section the other records carry",
-        "reason": "reads film-engine repo file backend/tests/adr-spark.test.js:49:12)"
+        "reason": "reads film-engine repo file docs/adr/008-spark-lazy-splat-viewer.md"
       },
       {
         "name": "it takes a position and names what it replaces",
@@ -78,7 +78,7 @@
     "film-engine-camera-brief.test.js": [
       {
         "name": "the brief exists and carries every section the format asks for",
-        "reason": "reads film-engine repo file backend/tests/film-engine-camera-brief.test.js:33:12)"
+        "reason": "reads film-engine repo file docs/plans/film-engine-camera-brief.md"
       },
       {
         "name": "EVERY claim the brief rests on is still true of the code",
@@ -200,7 +200,7 @@
     "redo-between-frames-brief.test.js": [
       {
         "name": "the brief exists",
-        "reason": "reads film-engine repo file backend/tests/redo-between-frames-brief.test.js:137:12)"
+        "reason": "reads film-engine repo file docs/plans/redo-between-frames-brief.md"
       },
       {
         "name": "every required section is present",
@@ -214,7 +214,7 @@
     "redo-between-frames-epic.test.js": [
       {
         "name": "the epic exists",
-        "reason": "reads film-engine repo file backend/tests/redo-between-frames-epic.test.js:109:12)"
+        "reason": "reads film-engine repo file docs/plans/redo-between-frames-epic.md"
       },
       {
         "name": "every section the template mandates is present",
@@ -307,16 +307,6 @@
         "reason": "reads film-engine repo file ios/FilmEngine/RoomScan.swift"
       }
     ],
-    "screenplay-focus.test.js": [
-      {
-        "name": "every kind of key makes its own sound; shortcuts and arrows make none",
-        "reason": "PORT: slices the text from const TYPEWRITER (core) to function twBurst (screenplay chunk); in the port they are in different scripts, so the slice spans a </script> boundary"
-      },
-      {
-        "name": "switched off, the typewriter is silent",
-        "reason": "PORT: same slice as above, across the core/screenplay-chunk boundary"
-      }
-    ],
     "world-blender-import.test.js": [
       {
         "name": "walking moves the shot's own camera, and keeping it goes through the validated proposal",
@@ -327,6 +317,12 @@
       {
         "name": "the Previs Plan view edits the set: footprints out of the layout and back, then a rebuild that pins the shot",
         "reason": "PRE-EXISTING: fails in film-engine at the pinned commit too"
+      }
+    ],
+    "production-graph-nodes.test.js": [
+      {
+        "name": "every picture or clip a pg* function draws goes through pgSrc/pgThumb, so it reaches the API origin",
+        "reason": "PRE-EXISTING: fails in film-engine at fb8c770 too (its scanner flags pgDrawerVersion: esc(auditionUrl), but auditionUrl is built with pgSrc one line up)"
       }
     ]
   }

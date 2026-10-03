@@ -47,10 +47,8 @@ plate-guides.test.js  — reads ios/FilmEngine/PlateCamera.swift
 plate-lens.test.js  — reads ios/FilmEngine/PlateCamera.swift
 plate-peaking.test.js  — reads ios/FilmEngine/PlateCamera.swift
 plate-white-balance.test.js  — reads ios/FilmEngine/PlateCamera.swift
-previs-plan.test.js  — reads docs/plans/previs-camera-implementation-plan.md
 production-graph-docs.test.js  — reads CLAUDE.md
 production-graph-nodes-epic.test.js  — reads docs/plans/production-graph-nodes-epic.md
-production-graph-nodes.test.js  — reads docs/plans/production-graph-nodes-epic.md
 rbf-001-video-edit-probe.test.js  — reads docs/plans/rbf-001-video-edit-probe.md
 rbf-002-verdict-recorded.test.js  — reads docs/plans/redo-between-frames-epic.md
 readiness-brief.test.js  — reads docs/plans/pipeline-readiness-brief.md

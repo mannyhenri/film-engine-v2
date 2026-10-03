@@ -346,15 +346,6 @@
         return lines.join('\n').trim();
     }
 
-    function twBurst(ctx, at, { freq = 2600, q = 1.2, dur = 0.035, gain = 0.5 }) {
-        const src = ctx.createBufferSource(); src.buffer = TYPEWRITER.noise;
-        const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = freq; bp.Q.value = q;
-        const g = ctx.createGain();
-        g.gain.setValueAtTime(gain, at); g.gain.exponentialRampToValueAtTime(0.0008, at + dur);
-        src.connect(bp).connect(g).connect(ctx.destination);
-        src.start(at, Math.random() * 0.2); src.stop(at + dur + 0.01);
-    }
-
     function twThump(ctx, at, { freq = 140, dur = 0.06, gain = 0.35 }) {
         const o = ctx.createOscillator(); o.type = 'sine';
         o.frequency.setValueAtTime(freq, at); o.frequency.exponentialRampToValueAtTime(freq * 0.5, at + dur);

@@ -193,7 +193,8 @@ function generate({ write = true } = {}) {
     const wiringOwner = new Map(wiring.map(s => [s, null]));
     let reach;
     const computeReach = () => {
-        const roots = { core: new Set(fixedCoreWords) };
+        // Names pinned to core (tools/port-plan.json pinToCore, each with its reason) are core roots.
+        const roots = { core: new Set([...fixedCoreWords, ...Object.keys(plan.pinToCore || {})]) };
         for (const c of chunks) roots[c] = new Set(chunkRoots[c]);
         for (const [s, o] of wiringOwner) if (o) for (const w of uses(s.code)) roots[o].add(w);
         reach = new Map();

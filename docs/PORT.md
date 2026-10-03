@@ -57,6 +57,45 @@ Drafting first: this repo (split map + scaffold). Peer answers from the source a
   - Smoke deep links poll for the chunk (10 s) instead of a fixed wait.
   - Verify: `npm test` 15/15; `npm run smoke` 40/40 (37 pages, 2 cold deep links, window guard); `npm run parity` 37/37 (each page measured once it settles; a page that differs is re-measured in both apps with a 10 s settle — first-pass differences moved between pages and between apps from run to run, i.e. load timing); `npm run test:backend` 430/432 files, 4,734 sub-tests pass, 67 skipped as listed. The 2 failing files, gridlight-video (1 of 48) and flows-on-graph-e2e, fail identically in an untouched copy of film-engine at fb8c770 on this machine right now (a local stub gateway / connection reset); both passed earlier today in both repos. Not skipped: environmental, not the port.
 
+## Verification of the combined result (confer 918af916, 2026-10-03)
+
+Both repos at the commits under check: film-engine `fb8c770` (its HEAD; the working tree's only change is an uncommitted iOS `project.pbxproj`) and film-engine-v2 `react-electron-port`. Checked from both sides: film-engine side by the film-engine agent (read-only), v2 side here.
+
+| # | Contract | film-engine side | v2 side | Fits? |
+|---|---|---|---|---|
+| 1 | Page source the port is generated from | `src/index.html` at fb8c770 | `reference/fb8c770/src/index.html`, `tools/port-plan.json` `sourceCommit`; `tools/tests/backend-sync.test.js` asserts byte equality | yes |
+| 2 | Backend code (the API the page calls) | `backend/` at fb8c770 | `backend/`, byte-identical except 4 declared one-line path repoints (`backendLocalChanges`: `lib/music-approval.js:38`, `lib/graph-hold.js:61`, `lib/framing.js:23`, `lib/previs-subject-path.js:14/55`) and the test lists; enforced by `backend-sync.test.js` | yes |
+| 3 | Database | `backend/db/database.js:12`, `lib/file-storage.js:12`: `FILM_DATA_DIR` else `~/.gridlight/film-engine/data` | same lines, same default: **one shared live database** | yes, with the rule below |
+| 4 | Migrations | 125 files, up to `128_project_order_archive.sql`; the live DB has 128 rows incl. 3 applied names no file has (076, 093, 094) | same 125 files; `backend/db/schema.js:19-38` applies only files not yet recorded and never reads unknown rows, so a DB migrated AHEAD of v2 is tolerated (already true today) | yes, with the rule below |
+| 5 | Health / reuse of a running backend | `server.js:361-363` reports `{service:'film-engine', version}` from `backend/package.json` (1.0.1), no commit | `electron/main.cjs:15,54-57` reuses a server on :3100 when service = film-engine and version = 1.0.1 | yes at fb8c770; see risk R2 |
+| 6 | API base the page uses | `src/index.html:13709` `defaultApiBase`, `:13749` `window.__filmEngineApiBase \|\| feStore film_api_url \|\| DEFAULT_API_BASE` | `public/legacy/core.js:32,72-73` (identical rule); `electron/main.cjs:105` passes `--fe-api-base`, `electron/preload.cjs:6-7` exposes it, so the injected base always wins | yes; see difference D1 |
+| 7 | MCP (the agent path) | `~/Library/Application Support/Claude/claude_desktop_config.json` lines 6 and 237: both entries run `film-engine/backend/mcp-server.js` | `backend/mcp-server.js` byte-identical (unused by v2's UI) | yes at fb8c770; MCP is pinned to film-engine's copy |
+| 8 | Env vars | backend reads `FILM_DATA_DIR`, `PORT`, provider keys | Electron reads `FE_API_BASE`, `FE_DEV_URL`, `FE_NODE`, `FE_SMOKE_*`; passes `PORT` to the backend it starts; no name collides | yes |
+| 9 | Files the backend serves from outside `backend/` | `server.js:380` serves `../src/vendor/splat-viewer.js` | `src/vendor/splat-viewer.js` byte-identical | yes |
+| 10 | Tests | 5,417 tests at fb8c770: 5,410 pass, 4 fail, 3 skipped (all 4 explained below, none from the port) | `npm run test:backend`: 434/434 files, 4,781 sub-tests pass, 0 fail, 66 skipped as listed. Not carried: 57 files (`backend/tests/REMOVED-TESTS.txt`), each reading a film-engine-only file (checked one by one by the film-engine agent: 0 false). Skipped by name: 66 sub-tests (`SKIPPED-SUBTESTS.json`), 63 read film-engine-only files, 3 fail in film-engine too | yes |
+
+**Rules and risks the fit depends on**
+- **R1 — one database, two code bases.** Both apps open the same SQLite file (WAL, fine for two processes; only one server can own :3100). A newer film-engine migration that rebuilds a table or tightens a CHECK that fb8c770 code writes to would break v2. Rule: move `sourceCommit` (and `backend/`) before film-engine ships such a migration; backend-sync makes the drift visible.
+- **R2 — reuse is by version only.** `/api/health` carries no commit, and both report 1.0.1. While film-engine's dev server runs on :3100, v2 adopts it: v2's pinned page then talks to film-engine's possibly newer backend. Fine while film-engine is at fb8c770; after it moves, start v2 with `FE_API_BASE` on another port (v2 then starts its own backend) or move the pin.
+- **R3 — MCP runs film-engine's code.** Claude Desktop's config points at film-engine's `mcp-server.js`, so every agent action runs film-engine's backend code against the shared DB, whichever UI is open. It agrees with v2 at fb8c770 (identical files); a resync must keep them identical, or the config must move to v2's copy.
+
+**Differences from film-engine's behaviour (found in this check)**
+- **D1 — Settings' backend URL is ignored in v2.** Electron always injects the backend it started or checked (`electron/preload.cjs:7`), and the page's rule puts the injected base before a saved `film_api_url` (`public/legacy/core.js:72-73`). In film-engine's browser page a saved URL wins. Not changed here: in a desktop app that owns its backend this is the intended authority, but the Settings field no longer does anything in v2.
+- **D2 — backups are per copy.** `backend/routes/backups.js:20` keeps backups in `backend/data/backups` of whichever repo's backend runs, while the database is shared: each app lists only the backups its own copy made.
+
+**Fixed during this check**
+- `screenplay-focus` was skipped because the split put `twBurst` (screenplay chunk) right after `const TYPEWRITER` (core), and the test reads the text between them. `twBurst` is now pinned to core (`tools/port-plan.json` `pinToCore`, with its reason): all 4 sub-tests run again.
+- `production-graph-nodes` (16 tests, incl. "every graph picture goes through pgSrc to the API origin", which matters under Electron) and `previs-plan` (28 tests: the 18 moves, 18 shot types, 12 ratios) re-admitted by copying their three docs/plans files; one pre-existing film-engine false positive skipped by name.
+- Five skip reasons that named a stack frame now name the file.
+
+**film-engine's own 4 failures at fb8c770** (none from the port): `set-build` and `world-blender-import` (stale regexes; listed as pre-existing skips here), `ios-app` (its uncommitted `DEVELOPMENT_TEAM` in pbxproj), `production-graph-nodes` (scanner false positive on `auditionUrl`).
+
+**v2 results (this check):** `npm test` 15/15; `npm run smoke` 40/40 (own backend on a free port, page `API_BASE` = it); `npm run test:backend` 434/434 files, 4,781 sub-tests pass, 0 fail, 66 skipped as listed (gridlight-video and flows-on-graph-e2e, which failed in Revise on this machine and in an untouched film-engine copy, passed this run). Parity last ran in Revise: 37/37.
+
+**Verdict: YES, IT FITS** at film-engine `fb8c770`, under rules R1–R3, with differences D1–D2 stated above.
+
+**Unresolved blockers:** none. Open scope (not blockers): shared clusters still in core, per-page CSS, packaging, idiomatic React.
+
 ## Where to pick up next
 0. **Branch status:** all of this is on `react-electron-port` (pushed to origin). It is NOT merged into v2 `main`, which is still the initial commit `fda52df`; merging (or opening a PR) is the owner's call.
    **Staying in step with film-engine:** move the pinned commit and the backend together, never one alone: bump `sourceCommit` in `tools/port-plan.json`, refresh `reference/<short>/src/index.html` from `git -C ../film-engine show <sha>:src/index.html`, re-copy `backend/` at the same sha (keeping `backendLocalChanges` and the two test lists), then `npm run split`, `npm test` (backend-sync catches any drift), `npm run smoke`, `npm run parity`, `npm run test:backend`.

@@ -48,7 +48,6 @@
         "updateBlockStatusInfo",
         "findSpeakingCharacter",
         "getCurrentSceneFountain",
-        "twBurst",
         "twThump",
         "twBell",
         "typewriterKey",
@@ -151,7 +150,7 @@
         "acceptConversion"
       ],
       "otherStatements": 8,
-      "bytes": 137374
+      "bytes": 136833
     },
     "scenes": {
       "pages": [
@@ -1609,11 +1608,11 @@
       "loadMusic",
       "loadPlayback"
     ],
-    "functions": 545,
+    "functions": 546,
     "unreached": 16,
     "sharedByChunks": 12,
     "declaredTwice": [],
     "bootVendors": [],
-    "bytes": 812511
+    "bytes": 813052
   }
 }
