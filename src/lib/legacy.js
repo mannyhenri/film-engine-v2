@@ -51,7 +51,7 @@ export const LEGACY_GLOBALS = [
     'loadBoardLock', 'renderAnnotationFeedbackToggle', 'renderAnchorChip', 'loadBoardBanners', 'markupPaintAll',
     'generateAllStoryboards', 'toggleBoardLock', 'clearAnchor',
     // ...and each card's shared parts, used by the viewer and the Production graph too.
-    'frameSrc', 'openFrameViewer', 'storyboardDrawAnnotations', 'protectSelection', 'protectOverlayHTML', 'setShotAspect',
+    'frameSrc', 'storyboardDrawAnnotations', 'protectSelection', 'protectOverlayHTML', 'setShotAspect',
     'anchorButton', 'directShot', 'exploreAngles', 'refineFrame', 'storyboardImportButton', 'openFrameVersions',
     'frameVersionTitle', 'frameVersionLabel', 'playFromShot', 'insertShotAfter', 'storyboardFacetTags', 'storyboardDialogueHtml', 'markupToolbar',
 ];

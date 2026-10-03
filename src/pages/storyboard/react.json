@@ -1,0 +1,6 @@
+{
+  "about": "This page is React (src/pages/storyboard/StoryboardPage.jsx). tools/split-map.js stops generating it, drops the legacy functions below, and fails if anything left still calls them. loadStoryboard is called from all over core (after a regenerate, refine, pick or send) and is registered on window by the page. Every card part the frame viewer and Production graph share stays in core and is reached through src/lib/legacy.js.",
+  "loader": "loadStoryboard",
+  "replaces": ["loadStoryboard", "setAnnotationFeedback", "renderBoardProtect"],
+  "modals": []
+}

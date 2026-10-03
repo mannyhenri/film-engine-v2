@@ -276,6 +276,15 @@
       ],
       "modals": []
     },
+    "storyboard": {
+      "loader": "loadStoryboard",
+      "replaces": [
+        "loadStoryboard",
+        "setAnnotationFeedback",
+        "renderBoardProtect"
+      ],
+      "modals": []
+    },
     "stylebook": {
       "loader": "loadStyleBook",
       "replaces": [
@@ -520,18 +529,6 @@
       ],
       "otherStatements": 5,
       "bytes": 54756
-    },
-    "storyboard": {
-      "pages": [
-        "storyboard"
-      ],
-      "deps": [],
-      "functions": [
-        "setAnnotationFeedback",
-        "renderBoardProtect"
-      ],
-      "otherStatements": 0,
-      "bytes": 1756
     },
     "stage3d": {
       "pages": [
@@ -1162,26 +1159,8 @@
       "loader": [
         "loadStoryboard"
       ],
-      "chunk": "storyboard",
-      "modals": [
-        "frameViewerModal",
-        "frameVersionsModal",
-        "backgroundPickerModal",
-        "confirmGenModal",
-        "shotCardModal",
-        "entityInspectModal",
-        "characterSheetModal",
-        "subjectSheetModal",
-        "castingModal",
-        "galleryModal",
-        "characterModal",
-        "locationModal",
-        "plateViewerModal",
-        "propModal",
-        "sceneCardModal",
-        "versionDiffModal",
-        "titlePageModal"
-      ]
+      "chunk": null,
+      "modals": []
     },
     "characters": {
       "loader": [
@@ -1471,6 +1450,7 @@
       "loadDashboard",
       "loadScenes",
       "loadShotBoard",
+      "loadStoryboard",
       "loadAssets",
       "loadMusicCues",
       "loadMusicWorkstation",
@@ -1500,11 +1480,11 @@
       "loadMusic",
       "loadPlayback"
     ],
-    "functions": 517,
+    "functions": 516,
     "unreached": 18,
     "sharedByChunks": 0,
     "declaredTwice": [],
     "bootVendors": [],
-    "bytes": 772450
+    "bytes": 761772
   }
 }

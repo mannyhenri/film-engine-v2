@@ -58,7 +58,7 @@ export function installLegacy({ routes = {}, project = { id: 'p1' } } = {}) {
         ANCHOR: { frames: [] }, FRAME_VIEWER: { frames: [] }, BOARD_ANCHOR: null, MARKUP: { cache: {} },
         loadBoardLock: vi.fn(), renderAnnotationFeedbackToggle: vi.fn(), renderAnchorChip: vi.fn(), loadBoardBanners: vi.fn(), markupPaintAll: vi.fn(),
         generateAllStoryboards: vi.fn(), toggleBoardLock: vi.fn(), clearAnchor: vi.fn(),
-        frameSrc: (f, w) => `frame:${f.shot_code}@${w}`, openFrameViewer: vi.fn(), storyboardDrawAnnotations: vi.fn(),
+        frameSrc: (f, w) => `frame:${f.shot_code}@${w}`, storyboardDrawAnnotations: vi.fn(),
         protectSelection: (v) => (v ? [v] : []), protectOverlayHTML: (r, ratios) => `<i class="protect">${ratios.join(',')}@${r.toFixed(2)}</i>`, setShotAspect: vi.fn(),
         anchorButton: (f) => `<button class="anchor-btn">anchor ${f.shot_code}</button>`, directShot: vi.fn(), exploreAngles: vi.fn(), refineFrame: vi.fn(),
         storyboardImportButton: (f) => `<label><input data-import-target="storyboard-image" data-shot="${f.shot_id}"></label>`, openFrameVersions: vi.fn(),
