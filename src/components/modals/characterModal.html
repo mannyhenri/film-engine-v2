@@ -1,0 +1,72 @@
+<div class="modal-overlay" id="characterModal">
+        <div class="modal">
+            <div class="modal-header"><h3 id="characterModalTitle">New Character</h3><button class="modal-close" onclick="closeModal('characterModal')">&times;</button></div>
+            <div class="modal-body">
+                <input type="hidden" id="characterEditId">
+                <div class="form-group"><label>Name</label><input type="text" data-field="name" placeholder="Character name"></div>
+                <div class="form-group"><label>Description</label><textarea data-field="description" rows="2" placeholder="Brief description..."></textarea></div>
+                <div class="form-group"><label>Appearance Prompt</label><textarea data-field="appearance_prompt" rows="2" placeholder="Visual appearance for AI generation..."></textarea></div>
+                <div class="form-group">
+                    <label>Height &mdash; metres</label>
+                    <input type="number" step="0.01" min="0" data-field="height_m" placeholder="1.7">
+                    <p class="text-sm text-muted" style="margin-top:6px;line-height:1.5;">
+                        Nothing else tells the model how big this character is, and it is what everything
+                        else in frame is measured against.
+                    </p>
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+                    <div class="form-group"><label>Age Range</label><input type="text" data-field="age_range" placeholder="20s, 30-40"></div>
+                    <div class="form-group"><label>Gender</label>
+                        <!--
+                          A picker, not a text box.
+                          It was free text, which is why voiceGender() has to
+                          match with a regex: "F", "woman" and "female" were
+                          three values for one thing, and anything it did not
+                          recognise silently disabled gender-matched voice
+                          suggestions. These are the values the caster reads,
+                          and lib/character-sheet.js GENDERS is held to that.
+                        -->
+                        <select data-field="gender">
+                            <option value="">&mdash; not recorded &mdash;</option>
+                            <option value="female">Female</option>
+                            <option value="male">Male</option>
+                            <option value="non-binary">Non-binary</option>
+                            <option value="neutral">Neutral / not applicable</option>
+                        </select></div>
+                </div>
+                <!--
+                  These four are stored by film_characters and accepted by
+                  PUT /characters/:id, and had no control on any page — settable
+                  only from an agent or curl. A field the app persists and a
+                  person cannot type is indistinguishable from one that does not
+                  exist.
+
+                  They are NOT read by any prompt builder today (appearance_prompt
+                  is what conditions a plate), so they are grouped and labelled as
+                  what they are: the character bible, for a person to read and for
+                  whoever writes the appearance prompt to work from.
+                -->
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+                    <div class="form-group"><label>Ethnicity</label><input type="text" data-field="ethnicity" placeholder="As you would describe it in the bible"></div>
+                    <div class="form-group"><label>Build</label><input type="text" data-field="build" placeholder="Slight, heavy-set, athletic"></div>
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+                    <div class="form-group"><label>Hair</label><input type="text" data-field="hair" placeholder="Dark, cropped short"></div>
+                    <div class="form-group"><label>Distinguishing</label><input type="text" data-field="distinguishing" placeholder="Scar through the left eyebrow"></div>
+                </div>
+                <p class="text-sm text-muted" style="margin:-4px 0 12px;line-height:1.5;">
+                    These four are notes for you and are <strong>not</strong> sent to an image model &mdash;
+                    Appearance Prompt is the field that conditions every frame this character appears in.
+                </p>
+                <div class="form-group"><label>Personality Notes</label><textarea data-field="personality_notes" rows="2" placeholder="Personality traits..."></textarea></div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+                    <div class="form-group"><label>LoRA ID</label><input type="text" data-field="lora_id" placeholder="Optional LoRA model"></div>
+                    <div class="form-group"><label>TI Token</label><input type="text" data-field="ti_token" placeholder="Textual inversion token"></div>
+                </div>
+                <div class="btn-row">
+                    <button class="btn btn-primary" onclick="saveCharacter()">Save</button>
+                    <button class="btn btn-secondary" onclick="closeModal('characterModal')">Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>

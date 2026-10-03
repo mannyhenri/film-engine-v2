@@ -1,0 +1,173 @@
+<nav class="sidebar">
+        <div class="sidebar-header">
+            <div class="brand-row">
+                <img class="brand-logo" src="assets/logo.png" alt="Gridlight"
+                     onerror="this.style.display='none'">
+                <div class="brand-text">
+                    <h1>Film Engine</h1>
+                    <p>AI Production Pipeline</p>
+                </div>
+            </div>
+            <div class="sidebar-header-actions">
+                <button class="glossary-btn" onclick="showModal('glossaryModal')">&#128218; Glossary</button>
+                <button class="btn btn-secondary btn-sm guide-btn" onclick="openProductionGuide()">Production Guide</button>
+            </div>
+        </div>
+
+        <!-- State 1: Project List Mode -->
+        <div id="sidebarProjectList">
+            <button class="new-project-btn" onclick="openNewProject()">+ New Project</button>
+            <div class="sidebar-content">
+                <div class="nav-section">Projects</div>
+                <div id="sidebarProjects"></div>
+            </div>
+        </div>
+
+        <!-- State 2: Project Navigation Mode -->
+        <div id="sidebarProjectNav" class="hidden">
+            <button class="sidebar-back-btn" onclick="backToProjectList()">&#8592; All Projects</button>
+            <div class="sidebar-project-name">
+                <span class="status-dot" id="navStatusDot"></span>
+                <span id="navProjectName">Project</span>
+                <!--
+                    Which mode this project is in, where the project's name
+                    already is. The pages are NOT hidden for a film: a film can
+                    become a spot the day a client asks for one, and a menu that
+                    hides the way in makes that a support question. What was
+                    missing was simply knowing.
+                -->
+                <span id="navProjectType" class="tag" style="display:none;margin-left:6px;"></span>
+            </div>
+            <div class="sidebar-content">
+                <div class="nav-section">Production</div>
+                <button class="nav-item" data-page="dashboard" onclick="navigateTo('dashboard')" data-tooltip="Project overview with shot progress, status board, and quick navigation" data-tooltip-pos="right">
+                    <span class="nav-icon">&#128202;</span> Dashboard
+                </button>
+                <button class="nav-item" data-page="screenplay" onclick="navigateTo('screenplay')" data-tooltip="Screenplay editor with Fountain formatting and AI writing assistant" data-tooltip-pos="right">
+                    <span class="nav-icon">&#128221;</span> Screenplay
+                </button>
+                <button class="nav-item" data-page="scenes" onclick="navigateTo('scenes')" data-tooltip="Scenes extracted from your screenplay with INT/EXT headings" data-tooltip-pos="right">
+                    <span class="nav-icon">&#127916;</span> Scenes
+                </button>
+                <button class="nav-item" data-page="productiongraph" onclick="navigateTo('productiongraph')" data-tooltip="The whole Production phase as one graph: shots, sequences, sound and every version" data-tooltip-pos="right">
+                    <span class="nav-icon">&#9672;</span> Production
+                </button>
+                <button class="nav-item" data-page="shotboard" onclick="navigateTo('shotboard')" data-tooltip="Kanban board of shots organized by scene with scene cards" data-tooltip-pos="right">
+                    <span class="nav-icon">&#127919;</span> Shot Board
+                </button>
+                <button class="nav-item" data-page="moodboard" onclick="navigateTo('moodboard')" data-tooltip="Decide the look before generating: references, palette, lens and delivery specs" data-tooltip-pos="right">
+                    <span class="nav-icon">&#127912;</span> Mood Board
+                </button>
+                <button class="nav-item" data-page="storyboard" onclick="navigateTo('storyboard')" data-tooltip="AI-generated visual keyframes for each shot in your project" data-tooltip-pos="right">
+                    <span class="nav-icon">&#128444;</span> Storyboard
+                </button>
+                <div class="sidebar-divider"></div>
+                <div class="nav-section">Elements</div>
+                <button class="nav-item" data-page="characters" onclick="navigateTo('characters')" data-tooltip="Character profiles with appearance prompts, LoRA tokens, and voice settings" data-tooltip-pos="right">
+                    <span class="nav-icon">&#128100;</span> Characters
+                </button>
+                <button class="nav-item" data-page="locations" onclick="navigateTo('locations')" data-tooltip="Filming locations with lighting defaults and visual descriptions" data-tooltip-pos="right">
+                    <span class="nav-icon">&#128205;</span> Locations
+                </button>
+                <button class="nav-item" data-page="props" onclick="navigateTo('props')" data-tooltip="Physical props and set pieces with scene assignments" data-tooltip-pos="right">
+                    <span class="nav-icon">&#127917;</span> Props
+                </button>
+                <div class="sidebar-divider"></div>
+                <div class="nav-section">Media</div>
+                <button class="nav-item" data-page="assets" onclick="navigateTo('assets')" data-tooltip="Registry of all generated and imported media files" data-tooltip-pos="right">
+                    <span class="nav-icon">&#128230;</span> Assets
+                </button>
+                <button class="nav-item" data-page="threed" onclick="navigateTo('threed')" data-tooltip="Generate 3D models for characters and props via Gridlight" data-tooltip-pos="right">
+                    <span class="nav-icon">&#129513;</span> 3D Models
+                </button>
+                <button class="nav-item" data-page="videoshots" onclick="navigateTo('videoshots')" data-tooltip="Generate video clips per shot and hand off to Premiere Pro" data-tooltip-pos="right">
+                    <span class="nav-icon">&#127909;</span> Video Shots
+                </button>
+                <button class="nav-item" data-page="music" onclick="navigateTo('music')" data-tooltip="Generate score, ambient, and SFX per scene" data-tooltip-pos="right">
+                    <span class="nav-icon">&#127925;</span> Music &amp; Sound
+                </button>
+                <button class="nav-item" data-page="musiccues" onclick="navigateTo('musiccues')" data-tooltip="Score, SFX, and ambient audio cues tied to scenes" data-tooltip-pos="right">
+                    <span class="nav-icon">&#127925;</span> Music Cues
+                </button>
+                <button class="nav-item" data-page="musicws" onclick="navigateTo('musicws')" data-tooltip="The score session: tracks, clips, emotion lane and markers on one ruler, against the picture" data-tooltip-pos="right">
+                    <span class="nav-icon">&#127932;</span> Score
+                </button>
+                <div class="sidebar-divider"></div>
+                <div class="nav-section">Workflow</div>
+                <button class="nav-item" data-page="milestones" onclick="navigateTo('milestones')" data-tooltip="Production timeline tracking with target and completion dates" data-tooltip-pos="right">
+                    <span class="nav-icon">&#128203;</span> Milestones
+                </button>
+                <button class="nav-item" data-page="notes" onclick="navigateTo('notes')" data-tooltip="Direction notes, revision requests, and shot approval workflow" data-tooltip-pos="right">
+                    <span class="nav-icon">&#128221;</span> Notes & Reviews
+                </button>
+                <button class="nav-item" data-page="renderhistory" onclick="navigateTo('renderhistory')" data-tooltip="Full parameter history of every render for reproducibility" data-tooltip-pos="right">
+                    <span class="nav-icon">&#128260;</span> Render History
+                </button>
+                <!-- ==== CLAUDE:START editorial nav (gaps 3/4/5) ==== -->
+                <button class="nav-item" data-page="playback" onclick="navigateTo('playback')" data-tooltip="Watch the assembled cut and leave notes at an exact moment" data-tooltip-pos="right">
+                    <span class="nav-icon">&#9654;</span> Playback
+                </button>
+                <!-- ==== CLAUDE:END ==== -->
+                <button class="nav-item" data-page="brand" onclick="navigateTo('brand')" data-tooltip="Brand kits — they outlive a project, like the style book" data-tooltip-pos="right">
+                    <span class="nav-icon">&#127991;</span> Brand
+                </button>
+                <button class="nav-item" data-page="deliverables" onclick="navigateTo('deliverables')" data-tooltip="One row per file that leaves the job — and which ratios must be shot, not cropped" data-tooltip-pos="right">
+                    <span class="nav-icon">&#128230;</span> Deliverables
+                </button>
+                <button class="nav-item" data-page="rights" onclick="navigateTo('rights')" data-tooltip="Who cleared what — likeness, voice, music and model licences, per project" data-tooltip-pos="right">
+                    <span class="nav-icon">&#128220;</span> Rights
+                </button>
+                <button class="nav-item" data-page="titles" onclick="navigateTo('titles')" data-tooltip="Credits and title cards — what the film says over its own head and at its end" data-tooltip-pos="right">
+                    <span class="nav-icon">&#127915;</span> Titles &amp; Credits
+                </button>
+                <button class="nav-item" data-page="subtitles" onclick="navigateTo('subtitles')" data-tooltip="Subtitle cues, per language — and the SRT or VTT they export to" data-tooltip-pos="right">
+                    <span class="nav-icon">&#128172;</span> Subtitles
+                </button>
+                <button class="nav-item" data-page="marketing" onclick="navigateTo('marketing')" data-tooltip="Posters, key art and social cards — upload your own or generate them" data-tooltip-pos="right">
+                    <span class="nav-icon">&#127917;</span> Marketing
+                </button>
+                <button class="nav-item" data-page="consistency" onclick="navigateTo('consistency')" data-tooltip="Lock canonical identity (reference, seed, voice) so shots stay consistent" data-tooltip-pos="right">
+                    <span class="nav-icon">&#128274;</span> Consistency
+                </button>
+                <button class="nav-item" data-page="budget" onclick="navigateTo('budget')" data-tooltip="Cost tracking per render and API call with forecasting" data-tooltip-pos="right">
+                    <span class="nav-icon">&#128176;</span> Budget
+                </button>
+                <div class="sidebar-divider"></div>
+                <button class="nav-item" data-page="edits" onclick="navigateTo('edits')" data-tooltip="Cuts finished in Premiere, brought back — every version, which shot plays where, and a score timed to the edit" data-tooltip-pos="right">
+                    <span class="nav-icon">&#9986;</span> Edit
+                </button>
+                <button class="nav-item" data-page="exportpage" onclick="navigateTo('exportpage')" data-tooltip="Export timelines to FCPXML, EDL, Premiere XML, or FDX formats" data-tooltip-pos="right">
+                    <span class="nav-icon">&#128228;</span> Export
+                </button>
+                <button class="nav-item" data-page="pipeline" onclick="navigateTo('pipeline')" data-tooltip="Automated 9-step production pipeline from keyframe to assembly" data-tooltip-pos="right">
+                    <span class="nav-icon">&#9881;</span> Pipeline
+                </button>
+                <button class="nav-item" data-page="flows" onclick="navigateTo('flows')" data-tooltip="Visual canvas: connect prompts, models and assets into reusable flows" data-tooltip-pos="right">
+                    <span class="nav-icon">&#128279;</span> Flows
+                </button>
+                <button class="nav-item" data-page="previs" onclick="navigateTo('previs')" data-tooltip="Block a shot in 3D: place the camera, pick a lens, see the frame before you generate" data-tooltip-pos="right">
+                    <span class="nav-icon">&#127916;</span> Previs
+                </button>
+                <button class="nav-item" data-page="settings" onclick="navigateTo('settings')" data-tooltip="Resolution, frame rate, aspect ratio, color space, and delivery presets" data-tooltip-pos="right">
+                    <span class="nav-icon">&#9881;</span> Settings
+                </button>
+                <!-- ==== CODEX:START ops-compliance-nav ==== -->
+                <button class="nav-item" data-page="jobsqueue" onclick="navigateTo('jobsqueue'); loadJobsQueuePage()" data-tooltip="Unified monitor for all active generation jobs" data-tooltip-pos="right">
+                    <span class="nav-icon">&#9201;</span> Job Queue
+                </button>
+                <!-- The style book sits with the other always-available pages:
+                     it is the director's, not a film's, so it has no place in a
+                     sidebar organised by production phase. The rail button is
+                     the way in; this nav item is what makes it a PAGE to the
+                     navigation map, which reads the source for data-page. -->
+                <button class="nav-item" data-page="stylebook" onclick="navigateTo('stylebook')" data-tooltip="Your own shots — angles, lenses and references, kept across every film" data-tooltip-pos="right">
+                    <span class="nav-icon">&#9635;</span> Style Book
+                </button>
+                <!-- ==== CODEX:END ==== -->
+                <div class="sidebar-divider"></div>
+                <button class="nav-item" onclick="openProductionGuide()" data-tooltip="Open the full project guide and professional readiness checklist" data-tooltip-pos="right">
+                    <span class="nav-icon">?</span> Guide
+                </button>
+            </div>
+        </div>
+    </nav>

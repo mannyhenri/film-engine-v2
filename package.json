@@ -1,0 +1,29 @@
+{
+  "name": "film-engine-v2",
+  "version": "1.0.1",
+  "private": true,
+  "description": "Film Engine as a React + Electron app",
+  "main": "electron/main.cjs",
+  "scripts": {
+    "split": "node tools/split-map.js",
+    "dev": "npm run split && concurrently -k \"vite\" \"wait-on http://localhost:5173 && cross-env FE_DEV_URL=http://localhost:5173 electron .\"",
+    "web": "npm run split && vite",
+    "build": "npm run split && vite build",
+    "start": "electron .",
+    "test": "node --test tools/tests/*.test.js",
+    "smoke": "npm run build && electron . --smoke"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.4",
+    "acorn": "^8.14.0",
+    "concurrently": "^9.1.0",
+    "cross-env": "^7.0.3",
+    "electron": "^33.2.0",
+    "vite": "^5.4.11",
+    "wait-on": "^8.0.1"
+  }
+}

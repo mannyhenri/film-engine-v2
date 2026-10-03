@@ -1,0 +1,465 @@
+/**
+ * Which work a screenplay revision has left behind.
+ *
+ * This happens constantly in production: a scene is rewritten, and the shot
+ * list, the boards, the blocking and the generated frames for that scene are
+ * all now about the previous version of the story. On eight shots a director
+ * notices. On a feature nobody does, and the first sign is a cut that does not
+ * make sense.
+ *
+ * The engine already had artefact staleness, which answers a different
+ * question: does this generated frame still match its scene card? It cannot see
+ * a rewrite at all, because rewriting the screenplay does not touch the card —
+ * that is exactly the problem. This is the missing edge, screenplay → card, and
+ * it is deliberately a SEPARATE signal rather than folded into the artefact
+ * fingerprint: "the frame no longer matches its card" and "the card no longer
+ * matches the script" need different work, and telling a director to regenerate
+ * a frame whose card is wrong buys them a better picture of the wrong shot.
+ *
+ * It WARNS and never blocks, on the precedent previs set. A card that has
+ * diverged from the screenplay may be a deliberate choice — a director who
+ * changed the words and kept the shot — and refusing to generate would overrule
+ * them. Nothing here spends money or refuses a request.
+ */
+
+const crypto = require('crypto');
+
+function database() {
+    return require('../db/database').db;
+}
+
+/** Whether this database can answer the question at all. */
+function tracking(db) {
+    try {
+        return db.prepare("SELECT COUNT(*) c FROM pragma_table_info('film_shots') WHERE name = 'scene_fingerprint'")
+            .get().c > 0;
+    } catch (_) { return false; }
+}
+
+function hash(value) {
+    return crypto.createHash('sha256').update(JSON.stringify(value)).digest('hex').slice(0, 32);
+}
+
+/**
+ * The fingerprint of a scene AS A SOURCE FOR SHOTS.
+ *
+ * Only the fields a scene card is actually built from. The scene row carries
+ * more than that — ids, timestamps, sort order — and hashing the whole row
+ * would fire on a reorder, which changes no shot's meaning.
+ */
+function sceneFingerprint(scene) {
+    if (!scene) return null;
+    return hash({
+        int_ext: scene.int_ext || '',
+        location: scene.location || '',
+        time_of_day: scene.time_of_day || '',
+        description: scene.description || '',
+        // DIALOGUE, added after a surgical-edit test surfaced that it was
+        // missing. `film_scenes.description` holds ACTION only — the parser
+        // never put dialogue in it — so rewriting a character's lines changed
+        // nothing this function could see, and every shot in the scene went on
+        // reporting as current.
+        //
+        // That is the most consequential thing it could have missed. Dialogue is
+        // what gets rewritten most, and it is the direct input to voice
+        // generation: a line changed after the voice was cut left an audio file
+        // saying something the script no longer says, with nothing to notice.
+        dialogue: JSON.stringify(scene.dialogue || dialogueOf(scene) || []),
+    });
+}
+
+/**
+ * The dialogue a scene holds, for the fingerprint.
+ *
+ * Read from the shots' scene cards rather than from `film_scenes`, because the
+ * scenes table has no dialogue column — the parser puts dialogue on the shot
+ * card, which is what generation reads. Falls back to an empty list rather than
+ * throwing: a scene with no shots yet has no dialogue to be behind on.
+ */
+function dialogueOf(scene) {
+    if (!scene || !scene.id) return [];
+    try {
+        const db = database();
+        const script = db.prepare(
+            `SELECT fountain_content FROM film_scripts
+              WHERE project_id = ? AND fountain_content IS NOT NULL
+              ORDER BY version DESC LIMIT 1`).get(scene.project_id);
+        if (!script || !script.fountain_content) return [];
+
+        const { sceneSpans } = require('./scene-splice');
+        const fountain = String(script.fountain_content);
+        const lines = fountain.split('\n');
+        const heading = [scene.int_ext, scene.location].filter(Boolean).join('. ')
+            + (scene.time_of_day ? ' - ' + scene.time_of_day : '');
+        const spans = sceneSpans(fountain);
+        const want = heading.toUpperCase();
+        const bare = [scene.int_ext, scene.location].filter(Boolean).join('. ').toUpperCase();
+        /*
+         * POSITION FIRST when it agrees with the heading.
+         *
+         * Two scenes in this production carry the identical heading
+         * "EXT. CITY AVENUE - BATTLE - CONTINUOUS", and a heading search
+         * returns the FIRST of them for both — so scene 5 was fingerprinted
+         * against scene 3's dialogue and a resync offered to give scene 5
+         * scene 3's lines. Taking the span at the scene's own index whenever
+         * its heading matches settles it; the heading search stays for a
+         * scene that has MOVED, where position is the thing that is wrong.
+         */
+        const atIndex = spans[Number(scene.scene_number) - 1];
+        const headingOf = sp => String(sp && sp.heading || '').toUpperCase();
+        const span = (atIndex && (headingOf(atIndex) === want || headingOf(atIndex) === bare))
+            ? atIndex
+            : (spans.find(sp => headingOf(sp) === want)
+                || spans.find(sp => headingOf(sp) === bare)
+                || atIndex);
+        if (!span) return [];
+
+        const { parseFountain } = require('./fountain-parser');
+        const text = lines.slice(span.start, span.end + 1).join('\n');
+        const out = [];
+        let who = '';
+        for (const el of (parseFountain(text).elements || [])) {
+            if (el.type === 'character') who = String(el.text || '').trim();
+            else if (el.type === 'dialogue') out.push(`${who}:${String(el.text || '').trim()}`);
+        }
+        return out;
+    } catch (_) { return []; }
+}
+
+/**
+ * The fingerprint as it was computed while dialogue came from the SHOT CARDS.
+ *
+ * Kept only so the correction below does not report every scene in every
+ * existing project as rewritten — the same amnesty `legacySceneFingerprint`
+ * provides, for the same reason, one formula later.
+ */
+function emptyDialogueSceneFingerprint(scene) {
+    if (!scene) return null;
+    return hash({
+        int_ext: scene.int_ext || '',
+        location: scene.location || '',
+        time_of_day: scene.time_of_day || '',
+        description: scene.description || '',
+        dialogue: JSON.stringify([]),
+    });
+}
+
+function cardDialogueSceneFingerprint(scene) {
+    if (!scene || !scene.id) return null;
+    const out = [];
+    try {
+        const rows = database().prepare(
+            'SELECT scene_card_yaml FROM film_shots WHERE scene_id = ? ORDER BY shot_code').all(scene.id);
+        for (const r of rows) {
+            let card = {};
+            try { card = JSON.parse(r.scene_card_yaml || '{}'); } catch (_) { continue; }
+            for (const d of (Array.isArray(card.dialogue) ? card.dialogue : [])) {
+                out.push(`${(d && d.character) || ''}:${(d && d.line) || ''}`);
+            }
+        }
+    } catch (_) { /* fall through with what we have */ }
+    return hash({
+        int_ext: scene.int_ext || '',
+        location: scene.location || '',
+        time_of_day: scene.time_of_day || '',
+        description: scene.description || '',
+        dialogue: JSON.stringify(out),
+    });
+}
+
+/**
+ * The fingerprint as it was computed before dialogue was included.
+ *
+ * Kept so that widening the formula does not report every scene in every
+ * existing project as rewritten. A stored fingerprint that matches THIS is one
+ * that was stamped under the old rule and has not actually changed — it is
+ * re-stamped silently, without moving `source_changed_at`.
+ *
+ * Without it, the first save after this change would light up every board with
+ * drift warnings for work nobody touched, and a warning that fires on work
+ * nobody needs to redo is one people learn to dismiss.
+ */
+function legacySceneFingerprint(scene) {
+    if (!scene) return null;
+    return hash({
+        int_ext: scene.int_ext || '',
+        location: scene.location || '',
+        time_of_day: scene.time_of_day || '',
+        description: scene.description || '',
+    });
+}
+
+
+/**
+ * Is this stamp current for this scene?
+ *
+ * `sceneFingerprint` was widened to include dialogue, so everything stamped
+ * before that carries the pre-dialogue hash. `stampScene` already recognises
+ * that and re-baselines the SCENE silently — and the SHOTS were left holding
+ * the old value, while `drift()` compared against the new formula. Every shot
+ * in every project stamped before the widening reported as behind, permanently,
+ * and re-stamping wrote the same old value back so the warning could not be
+ * cleared by doing the work it asked for.
+ *
+ * A stamp is current if it matches the scene as it is now under EITHER formula.
+ * That is not a blanket amnesty: a scene whose action was genuinely rewritten
+ * changes both hashes, since both cover the description — so a stale stamp
+ * still matches neither.
+ *
+ * The one case it does forgive is a scene where ONLY the dialogue changed and
+ * whose shots predate the widening. Those shots were stamped by a formula that
+ * could not see dialogue, so they never had the information; reporting them is
+ * asking a director to act on a distinction the data cannot make. Once anything
+ * re-stamps them under the current formula, dialogue changes are caught
+ * normally, which is the behaviour the widening was for.
+ */
+function matchesScene(scene, stamp) {
+    if (!stamp) return false;
+    if (stamp === sceneFingerprint(scene)) return true;
+    // Only forgive the legacy hash while the SCENE itself is still on it —
+    // once a scene has been re-baselined, an old shot stamp is genuinely stale.
+    if (scene.source_fingerprint && scene.source_fingerprint === legacySceneFingerprint(scene)) {
+        return stamp === scene.source_fingerprint;
+    }
+    /*
+     * THE FORMULA USED TO DEPEND ON ITS OWN ANSWER.
+     *
+     * `dialogueOf` read the scene's dialogue from the SHOT CARDS, so a scene
+     * stamped before it had shots was hashed with no dialogue, and the act of
+     * deriving shots from it changed the very number used to judge them. Every
+     * shot in the engine was born stale: named behind a screenplay nobody had
+     * edited, on a warning no amount of re-deriving could clear, because
+     * re-stamping wrote the same unreachable value back.
+     *
+     * Dialogue now comes from the screenplay, which is the only thing a
+     * screenplay fingerprint can honestly be a function of. This branch
+     * forgives a stamp left over from that era, on the same terms as the
+     * legacy one: only while the SCENE is still carrying the old hash too, so
+     * a scene genuinely rewritten since still matches neither.
+     */
+    if (scene.source_fingerprint && scene.source_fingerprint === cardDialogueSceneFingerprint(scene)) {
+        return stamp === scene.source_fingerprint;
+    }
+    /*
+     * And the commonest shape of that era: a scene stamped while it had NO
+     * shots, hashed against an empty dialogue list, whose shots were then
+     * derived from it moments later. That is not an edge case — it is the
+     * normal order of work, script before shots, so it described every shot
+     * in every project built the recommended way.
+     */
+    if (scene.source_fingerprint && scene.source_fingerprint === emptyDialogueSceneFingerprint(scene)) {
+        return stamp === scene.source_fingerprint;
+    }
+    return false;
+}
+
+/**
+ * Record what a scene's text currently is.
+ *
+ * Called by the reconciler on every scene it writes. Never throws: a
+ * fingerprint that cannot be computed must not fail a screenplay save the user
+ * has already made.
+ */
+function stampScene(sceneId) {
+    try {
+        const db = database();
+        const scene = db.prepare('SELECT * FROM film_scenes WHERE id = ?').get(sceneId);
+        if (!scene) return null;
+        const fp = sceneFingerprint(scene);
+        if (scene.source_fingerprint === fp) return fp;
+
+        // Stamped under the pre-dialogue formula and otherwise unchanged: this
+        // is a re-baseline, not a rewrite. Update the hash and leave the
+        // timestamp alone, or widening the formula would report every scene in
+        // every existing project as behind.
+        if (scene.source_fingerprint
+            && (scene.source_fingerprint === legacySceneFingerprint(scene)
+                || scene.source_fingerprint === cardDialogueSceneFingerprint(scene)
+                || scene.source_fingerprint === emptyDialogueSceneFingerprint(scene))) {
+            db.prepare('UPDATE film_scenes SET source_fingerprint = ? WHERE id = ?').run(fp, sceneId);
+            // Carry the SHOTS with it. Migrating the scene alone leaves every
+            // shot holding a hash nothing will ever match again, which is how
+            // this became an unclearable warning in the first place. Only shots
+            // that were current under the old formula move — a genuinely stale
+            // one stays stale.
+            db.prepare('UPDATE film_shots SET scene_fingerprint = ? WHERE scene_id = ? AND scene_fingerprint = ?')
+                .run(fp, sceneId, scene.source_fingerprint);
+            return fp;
+        }
+
+        // A FIRST stamp is a baseline, not a change. Setting the timestamp here
+        // makes every scene in an existing project claim it was rewritten at the
+        // moment tracking was switched on — which is exactly what it looked
+        // like: three scenes stamped 14:27, keyframes generated at 11:42, and a
+        // report correctly saying nothing was behind. The reader is then left
+        // deciding which of the two to believe, and a timestamp that has to be
+        // explained is worse than no timestamp.
+        const firstEver = !scene.source_fingerprint;
+        if (firstEver) {
+            db.prepare('UPDATE film_scenes SET source_fingerprint = ? WHERE id = ?').run(fp, sceneId);
+        } else {
+            db.prepare("UPDATE film_scenes SET source_fingerprint = ?, source_changed_at = datetime('now') WHERE id = ?")
+                .run(fp, sceneId);
+        }
+        return fp;
+    } catch (_) { return null; }
+}
+
+/** Record which draft of its scene a shot was written from. */
+function stampShot(shotId, sceneId) {
+    try {
+        const db = database();
+        const scene = db.prepare('SELECT * FROM film_scenes WHERE id = ?').get(sceneId);
+        if (!scene) return null;
+        const fp = scene.source_fingerprint || sceneFingerprint(scene);
+        db.prepare('UPDATE film_shots SET scene_fingerprint = ? WHERE id = ?').run(fp, shotId);
+        return fp;
+    } catch (_) { return null; }
+}
+
+/**
+ * Everything a rewrite has left behind, and what to do about each piece.
+ *
+ * Reported per scene rather than per shot, because the work is per scene: you
+ * re-read the new text once and then fix every shot in it. Each shot carries
+ * what has been generated FROM it, since "this card is out of date" and "and
+ * eight frames and a blocking were built on it" are different sizes of problem.
+ */
+function drift(projectId) {
+    const db = database();
+
+    // A warning system that cannot tell you it is switched off is worse than
+    // no warning system. Without these columns every shot reads as "no draft
+    // recorded", which the report renders as a confident all-clear — the one
+    // answer it must never give when it does not know.
+    if (!tracking(db)) {
+        const err = new Error('Screenplay drift tracking is not installed on this database (migration 069).');
+        err.code = 'NOT_TRACKED';
+        throw err;
+    }
+
+    const scenes = db.prepare(
+        "SELECT * FROM film_scenes WHERE project_id = ? AND status != 'removed' ORDER BY scene_number").all(projectId);
+
+    const out = [];
+    for (const scene of scenes) {
+        const shots = db.prepare('SELECT * FROM film_shots WHERE scene_id = ? ORDER BY sort_order, shot_code')
+            .all(scene.id);
+
+        const behind = [];
+        let unknown = 0;
+        for (const shot of shots) {
+            // NULL is "written before any of this existed", which is not the
+            // same as out of date and must not be reported as though it were.
+            if (!shot.scene_fingerprint) { unknown++; continue; }
+            if (matchesScene(scene, shot.scene_fingerprint)) continue;
+            behind.push({
+                shot_id: shot.id,
+                shot_code: shot.shot_code,
+                generated: generatedFrom(db, shot.id),
+            });
+        }
+
+        if (!behind.length) continue;
+        out.push({
+            scene_id: scene.id,
+            scene_number: String(scene.scene_number),
+            heading: [scene.int_ext, scene.location, scene.time_of_day].filter(Boolean).join('. '),
+            changed_at: scene.source_changed_at || null,
+            shots_behind: behind,
+            shots_unknown: unknown,
+            // Said as work, not as a status. "3 shots are stale" sends a
+            // director to the database; this sends them to the next action.
+            next: [
+                `Re-read scene ${scene.scene_number} and update the ${behind.length} shot card(s) with shot_update,`
+                + ' or delete them with shot_delete and re-derive this one scene with breakdown_run.',
+                behind.some(b => b.generated.length)
+                    ? 'Then regenerate the frames listed against each shot — they show the previous story.'
+                    : 'Nothing has been generated from these shots yet, so fixing the cards costs nothing.',
+            ],
+        });
+    }
+    return out;
+}
+
+/** What has been built on a shot, so the size of the problem is visible. */
+function generatedFrom(db, shotId) {
+    const made = [];
+    try {
+        const assets = db.prepare(
+            'SELECT DISTINCT asset_type FROM film_assets WHERE shot_id = ?').all(shotId);
+        for (const a of assets) made.push(a.asset_type);
+    } catch (_) { /* asset registry unreadable; the shot still reports */ }
+    try {
+        const blocked = db.prepare('SELECT 1 FROM film_previs_blocking WHERE shot_id = ?').get(shotId);
+        if (blocked) made.push('previs blocking');
+    } catch (_) { /* previs not migrated */ }
+    return made;
+}
+
+/**
+ * Adopt the current draft as the baseline for work that predates tracking.
+ *
+ * Every shot written before this existed has no fingerprint, and NULL means
+ * "outside the workflow" — so those shots would never warn, and a director who
+ * revises scene 3 on an existing project gets silence, which is the exact
+ * failure this feature is for. Stamping them says "these cards match the
+ * screenplay as it stands right now", which is a claim only the director can
+ * make, so it is an explicit action rather than something that happens on read.
+ *
+ * Only touches shots that have no fingerprint. A shot already known to be
+ * behind must not be quietly declared current — that would erase the warning
+ * instead of answering it.
+ */
+function adoptBaseline(projectId) {
+    const db = database();
+    const rows = db.prepare(
+        `SELECT s.id AS shot_id, s.scene_id FROM film_shots s
+           JOIN film_scenes sc ON sc.id = s.scene_id
+          WHERE sc.project_id = ? AND s.scene_fingerprint IS NULL`).all(projectId);
+    const scenes = new Set();
+    for (const r of rows) {
+        stampScene(r.scene_id);
+        scenes.add(r.scene_id);
+    }
+    let stamped = 0;
+    for (const r of rows) if (stampShot(r.shot_id, r.scene_id)) stamped++;
+    return { shots_stamped: stamped, scenes_touched: scenes.size };
+}
+
+/**
+ * "I read the new scene, and these cards still hold."
+ *
+ * The answer to a drift warning that is NOT "edit every card". A rewrite that
+ * adds a line of weather, or fixes a name, leaves the shots it was broken into
+ * exactly as good as they were — and the only ways out used to be editing each
+ * card (to the same words) or deleting the shots and breaking the scene down
+ * again, which throws away every frame built on them. So the warning could not
+ * be cleared by a director who had done what it asked: re-read the scene.
+ *
+ * Stamps only the shots that are BEHIND, to their scene as it stands now. It
+ * is a claim only the director can make, so it is an explicit act — never a
+ * read, never a save — and it changes no card. A later revision of the scene
+ * warns again, because the stamp is to THIS draft.
+ *
+ * `opts.scene_id` limits it to one scene; `opts.shot_ids` to named shots.
+ */
+function acceptDrift(projectId, opts) {
+    const o = opts || {};
+    const scenes = drift(projectId).filter(s => !o.scene_id || s.scene_id === o.scene_id);
+    const wanted = Array.isArray(o.shot_ids) && o.shot_ids.length ? new Set(o.shot_ids) : null;
+    const accepted = [];
+    for (const scene of scenes) {
+        for (const shot of scene.shots_behind) {
+            if (wanted && !wanted.has(shot.shot_id)) continue;
+            if (stampShot(shot.shot_id, scene.scene_id)) accepted.push({ shot_id: shot.shot_id, shot_code: shot.shot_code, scene_number: scene.scene_number });
+        }
+    }
+    return { shots_accepted: accepted.length, scenes: [...new Set(accepted.map(a => a.scene_number))], accepted };
+}
+
+module.exports = {
+    acceptDrift,
+    legacySceneFingerprint,
+    cardDialogueSceneFingerprint,
+    emptyDialogueSceneFingerprint, sceneFingerprint, matchesScene, stampScene, stampShot, drift, adoptBaseline, tracking };

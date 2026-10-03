@@ -1,0 +1,27 @@
+<div class="modal-overlay" id="galleryModal">
+        <div class="modal modal-wide">
+            <div class="modal-header">
+                <h3 id="galleryTitle">Gallery</h3>
+                <button class="modal-close" onclick="closeModal('galleryModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="gal-bar">
+                    <input type="text" id="galInstruction" class="input"
+                           placeholder="A look to try — &ldquo;older, scarred&rdquo;, &ldquo;at night, wet&rdquo;">
+                    <select id="galCount">
+                        <option value="1">1</option><option value="2">2</option>
+                        <option value="3" selected>3</option><option value="4">4</option>
+                        <option value="5">5</option><option value="6">6</option>
+                    </select>
+                    <button class="btn btn-primary btn-sm" onclick="exploreSubject()">Explore</button>
+                    <button class="btn btn-sm" onclick="addInspirationPrompt()">+ Inspiration</button>
+                    <span id="galStatus" class="text-muted text-sm"></span>
+                </div>
+                <p class="text-muted text-sm" style="margin:0 0 12px;">
+                    Exploring is generated as <strong>concepts</strong> &mdash; kept side by side, and
+                    reaching no prompt until you make one the reference. The approved plate is untouched.
+                </p>
+                <div id="galleryBody"></div>
+            </div>
+        </div>
+    </div>

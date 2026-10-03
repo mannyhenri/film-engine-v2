@@ -1,0 +1,20 @@
+<div class="page" id="page-consistency">
+            <div class="flex-between mb-16">
+                <h2>Consistency Studio</h2>
+                <button class="btn btn-secondary" onclick="loadConsistency()">Refresh</button>
+            </div>
+            <p class="text-sm text-muted mb-8">Explore freely when creating. <strong>Lock</strong> one canonical reference per character/location so storyboards &amp; videos stay consistent. Locked references are injected into production generation.</p>
+            <div id="consistencyReadiness" class="mb-16"></div>
+            <div class="tab-bar mb-16" id="consistencyTabs">
+                <button class="tab-btn active" data-ctab="characters" onclick="switchConsistencyTab('characters')">Characters</button>
+                <button class="tab-btn" data-ctab="locations" onclick="switchConsistencyTab('locations')">Locations</button>
+                <button class="tab-btn" data-ctab="props" onclick="switchConsistencyTab('props')">Props</button>
+                <button class="tab-btn" data-ctab="audit" onclick="switchConsistencyTab('audit')">Shot Audit</button>
+                <button class="tab-btn" data-ctab="verify" onclick="switchConsistencyTab('verify')">Verify</button>
+            </div>
+            <div id="consistencyCharacters" class="consistency-tab entity-grid" style="grid-template-columns:repeat(auto-fill,minmax(300px,1fr));"></div>
+            <div id="consistencyLocations" class="consistency-tab entity-grid" style="grid-template-columns:repeat(auto-fill,minmax(300px,1fr));display:none;"></div>
+            <div id="consistencyProps" class="consistency-tab entity-grid" style="grid-template-columns:repeat(auto-fill,minmax(300px,1fr));display:none;"></div>
+            <div id="consistencyAudit" class="consistency-tab" style="display:none;"></div>
+            <div id="consistencyVerify" class="consistency-tab" style="display:none;"></div>
+        </div>

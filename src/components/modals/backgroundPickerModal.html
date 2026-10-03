@@ -1,0 +1,19 @@
+<div class="modal-overlay" id="backgroundPickerModal">
+        <div class="modal" style="max-width:900px;width:94vw;">
+            <div class="modal-header">
+                <h3 id="backgroundPickerTitle">Which background goes behind them?</h3>
+                <button class="modal-close" onclick="backgroundPickerResolve(null)">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p class="text-sm text-muted" style="line-height:1.5;">
+                    These are the views of this location you have photographed. The performance,
+                    framing and wardrobe stay as they are &mdash; only what is behind them changes.
+                </p>
+                <div id="backgroundPickerChoices"
+                     style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px;"></div>
+                <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px;">
+                    <button class="btn btn-secondary" onclick="backgroundPickerResolve(null)">Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>

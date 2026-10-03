@@ -1,0 +1,26 @@
+<div class="modal-overlay" id="budgetLimitModal">
+        <div class="modal">
+            <div class="modal-header"><h3>Set Budget Limit</h3><button class="modal-close" onclick="closeModal('budgetLimitModal')">&times;</button></div>
+            <div class="modal-body">
+                <div class="form-group"><label>Budget Limit</label><input type="number" data-field="budget_limit" min="0" step="0.01" placeholder="0.00"></div>
+                <div class="form-group">
+                    <label>Currency</label>
+                    <select data-field="budget_currency">
+                        <option value="">Leave as it is</option>
+                        <option value="USD">USD — US dollar</option>
+                        <option value="EUR">EUR — euro</option>
+                        <option value="GBP">GBP — pound sterling</option>
+                        <option value="CAD">CAD — Canadian dollar</option>
+                        <option value="AUD">AUD — Australian dollar</option>
+                        <option value="JPY">JPY — yen</option>
+                    </select>
+                    <span class="text-sm text-muted">The provider rate book is priced in USD, so a limit set in another
+                        currency is compared against converted spend — it does not re-price what generation costs.</span>
+                </div>
+                <div class="btn-row">
+                    <button class="btn btn-primary" onclick="saveBudgetLimit()">Save</button>
+                    <button class="btn btn-secondary" onclick="closeModal('budgetLimitModal')">Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>

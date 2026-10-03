@@ -1,0 +1,24 @@
+<div class="modal-overlay onboarding-dock" id="projectOnboardingModal">
+        <div class="modal onboarding-panel">
+            <div class="modal-header">
+                <h3>Project Guide</h3>
+                <div class="onboarding-header-actions">
+                    <button class="onboarding-side-btn" id="onboardingSideBtn"
+                            onclick="toggleOnboardingSide()"
+                            title="Move to the other side">&#8646;</button>
+                    <button class="modal-close" onclick="dismissProjectOnboarding()">&times;</button>
+                </div>
+            </div>
+            <div class="modal-body">
+                <div class="onboarding-stepper" id="onboardingStepper"></div>
+                <div id="onboardingContent"></div>
+                <div class="onboarding-actions">
+                    <button class="btn btn-secondary" onclick="dismissProjectOnboarding()">Skip</button>
+                    <div class="btn-row">
+                        <button class="btn btn-secondary" onclick="previousOnboardingStep()">Back</button>
+                        <button class="btn btn-primary" id="onboardingNextBtn" onclick="nextOnboardingStep()">Next</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>

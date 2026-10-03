@@ -1,0 +1,15 @@
+<div class="modal-overlay" id="confirmGenModal">
+        <div class="modal" style="max-width:820px;width:94vw;">
+            <div class="modal-header">
+                <h3 id="confirmGenTitle">Before we spend a credit</h3>
+                <button class="modal-close" onclick="confirmGenResolve(false)">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div id="confirmGenBody"></div>
+                <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px;">
+                    <button class="btn btn-secondary" onclick="confirmGenResolve(false)">Cancel</button>
+                    <button class="btn btn-primary" id="confirmGenGo" onclick="confirmGenResolve(true)">Generate</button>
+                </div>
+            </div>
+        </div>
+    </div>

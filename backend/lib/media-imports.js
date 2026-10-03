@@ -1,0 +1,953 @@
+/** Persistent, non-generative media imports used by Storyboard and Previs. */
+
+const fs = require('fs');
+const path = require('path');
+const { db, generateId } = require('../db/database');
+const { saveFile, getFileUrl } = require('./file-storage');
+const { parseGlb } = require('./glb-parser');
+
+/*
+ * What a person can actually hand us. PNG is what this engine generates; JPEG
+ * is what a camera, a phone and every hosted image tool produce.
+ */
+const IMAGE_MIMES = Object.freeze(['image/png', 'image/jpeg', 'image/jpg']);
+// Production documentation, deliberately outside the two asset types selected
+// by gatherShotReferences. A floor diagram must never condition a movie frame.
+const ORIENTATION_ASSET_TYPE = 'other';
+
+/*
+ * What a person actually exports. Browsers label these inconsistently and some
+ * label nothing at all, so octet-stream is accepted and the BYTES decide — the
+ * same allowance the GLB import needed.
+ */
+const VIDEO_MIMES = Object.freeze([
+    'video/mp4', 'video/quicktime', 'video/webm', 'video/x-matroska', 'application/octet-stream']);
+const AUDIO_MIMES = Object.freeze([
+    'audio/wav', 'audio/x-wav', 'audio/wave', 'audio/mpeg', 'audio/mp3',
+    'audio/mp4', 'audio/x-m4a', 'audio/aac', 'audio/flac', 'application/octet-stream']);
+
+/**
+ * One import target per orchestrated media capability, built from the registry
+ * the generator itself reads.
+ *
+ * Scope comes from MEDIA_KINDS (which takes it from PIPELINE_STEPS), so a
+ * scene-wide music bed is scene-scoped and a clip is shot-scoped without this
+ * file having an opinion — an importer that disagreed would attach a scene bed
+ * to a single shot and nothing would report it.
+ */
+/**
+ * Why a capability's media is NOT photographed in the world.
+ *
+ * The epic's rule — "a target gets the camera if what it holds is PHOTOGRAPHED
+ * IN THE WORLD" — reaches these six through their capability rather than one by
+ * one. Sound has no picture at all; a lip-synced clip and a graded master are
+ * DERIVED from footage that was already shot, so pointing a lens at the world
+ * cannot produce either.
+ *
+ * A capability absent from here and not `video` THROWS at load, on the
+ * `flow-cost.js` precedent: an unanswered capability would silently inherit an
+ * answer, and the failure — a camera offered on something it cannot fill, or
+ * withheld from something it can — is invisible until somebody presses it.
+ */
+const NOT_PHOTOGRAPHED = Object.freeze({
+    voice: 'dialogue is a recording, not a picture — a camera cannot fill it',
+    music: 'a score is a recording, not a picture — a camera cannot fill it',
+    sfx: 'an effect is a recording, not a picture — a camera cannot fill it',
+    ambient: 'a bed is a recording, not a picture — a camera cannot fill it',
+    lipsync: 'a synced clip is GENERATED from a clip and its dialogue, so there is nothing in '
+        + 'the world to point a lens at',
+    post: 'a finished master is GENERATED — an upscale, a grade, a composite of footage already '
+        + 'shot',
+});
+
+function mediaImportTargets() {
+    const { MEDIA_KINDS } = require('./media-kinds');
+    const out = {};
+    for (const [capability, spec] of Object.entries(MEDIA_KINDS)) {
+        if (spec.media === 'image') continue;      // the storyboard frame, already imported
+        /*
+         * `video` is the one capability whose media a camera SHOOTS. Stated as
+         * an answered question rather than a default, so a capability added
+         * later cannot inherit one.
+         */
+        const photographed = capability === 'video';
+        /*
+         * FOOTAGE IS PHOTOGRAPHED AND THE CAMERA NOW DELIVERS IT.
+         *
+         * FCC-012 left this surface on the system camera and marked it
+         * `camera_pending`, because the controlled camera recorded a take and
+         * nothing uploaded it — routing it then would have traded a working
+         * path for a better-looking one that loses the take. FCC-014 built the
+         * delivery, so the marker is gone rather than left reading as an open
+         * gap. A gap that is closed and still announced is the same lie as one
+         * that is open and silent.
+         */
+        if (!photographed && !NOT_PHOTOGRAPHED[capability]) {
+            throw new Error(`media-imports: ${capability} does not say whether its media is `
+                + 'photographed in the world, so the camera affordance would be decided by '
+                + 'accident');
+        }
+        out[`${capability}-media`] = Object.freeze({
+            kind: spec.media,                      // 'video' | 'audio'
+            capability,
+            photographed,
+            ...(photographed ? {} : { photographed_why: NOT_PHOTOGRAPHED[capability] }),
+            shotScoped: spec.scope === 'shot',
+            sceneScoped: spec.scope === 'scene',
+            subdir: spec.subdir,
+            serveDir: spec.serveDir,
+            assetType: spec.assetType,
+            ext: spec.ext,
+            mimes: spec.media === 'video' ? VIDEO_MIMES : AUDIO_MIMES,
+        });
+    }
+    return out;
+}
+
+/**
+ * WHERE a capture for this target is going, and therefore which ceiling binds
+ * it.
+ *
+ * The vocabulary is `capture-policy`'s own DESTINATIONS, so the two cannot
+ * drift: a target that resolved to a name the policy does not declare would be
+ * bound by nothing. `footage` is the default because it is what every target
+ * but one is — a take that reaches this engine and stops here — and inventing
+ * `world` by accident would silently shorten every take by a third.
+ */
+function captureDestination(target) {
+    const spec = MEDIA_IMPORTS[target];
+    return (spec && spec.destination) || 'footage';
+}
+
+/**
+ * Does this target get the CONTROLLED camera?
+ *
+ * Two clauses, and both are necessary. What it holds must be photographed in
+ * the world — the epic's own rule — AND the controlled camera must be able to
+ * finish the act. A camera that opens, records, and cannot deliver the take is
+ * worse than the OS picker it replaced, so a target waiting on its delivery
+ * says which task closes it rather than being quietly dropped from the set.
+ */
+function shootsWithCamera(target) {
+    const spec = MEDIA_IMPORTS[target];
+    return !!(spec && spec.photographed && !spec.camera_pending);
+}
+
+const MEDIA_IMPORTS = Object.freeze({
+    'storyboard-image': Object.freeze({
+        photographed: true,   // FCC-012: a board frame can be a photograph of the real place
+        kind: 'image', shotScoped: true, subdir: 'storyboards', mimes: ['image/png'],
+        assetType: 'storyboard', metaKind: 'storyboard_import',
+        /*
+         * PNG only, and this is the reason rather than an oversight: the live
+         * frame lives at a FIXED path, `{project}/{shot_code}.png`, derived
+         * independently in thirteen places — the board, the viewer, previs, the
+         * version archive and the video pass's init_image among them. Accepting
+         * a JPEG means changing every one of those or storing a JPEG under a
+         * .png name, and the second is a lie a decoder will eventually call.
+         *
+         * Stated here so the gap cannot be quietly re-labelled as a decision:
+         * a plate accepts JPEG, a storyboard frame does not YET.
+         */
+        pngOnly: 'the live frame is addressed as {shot_code}.png in thirteen places',
+    }),
+    // reference_image is already catalogued and served from refsheets by Previs.
+    'previs-image': Object.freeze({
+        photographed: false,
+        photographed_why: 'a previs image is RENDERED from a staged 3D camera, so there is nothing in the world to point a lens at',
+        kind: 'image', shotScoped: true, subdir: 'refsheets', mimes: ['image/png'],
+        assetType: 'reference_image', metaKind: 'previs_image',
+        pngOnly: 'stands in the previs stage beside storyboard frames, which are PNG',
+    }),
+    // Previs's geometry parser and textured viewer both consume GLB. Advertising
+    // formats they cannot stage would turn a successful upload into a broken picker.
+    'three-d-model': Object.freeze({ photographed: false, photographed_why: 'a mesh is generated or scanned by a tool, not photographed — a camera cannot produce a .glb', kind: 'model', shotScoped: false, subdir: '3d', mimes: ['model/gltf-binary', 'application/octet-stream'], assetType: 'other', metaKind: 'model_3d' }),
+
+    /*
+     * A WORLD CAPTURE: the environment itself, shot rather than imagined.
+     *
+     * Three media under one target because they are ONE ACT by the director —
+     * stand in the room, capture it, attach it to the location — and Marble
+     * takes all three: a 360 panorama (its own docs call this the most accurate
+     * spatial representation), a short orbit clip, or a LiDAR scan as a GLB.
+     * Three separate targets would mean three routes and three controls to keep
+     * in step, and this registry exists because that drifts.
+     *
+     * The kind comes from the BYTES. A phone names a clip IMG_0431.MOV and a
+     * still IMG_0430.HEIC, and storing a clip as an image is a file that never
+     * decodes again.
+     *
+     * Each kind lands in a subdir that is ALREADY SERVED rather than a new one:
+     * a world input nothing can fetch is an upload that succeeded and reaches
+     * no provider.
+     */
+    'world-capture': Object.freeze({
+        photographed: true,   // the whole point: a real room, stood in and shot
+        /*
+         * WHERE THIS GOES, and therefore which ceiling binds it. The only
+         * target handed to a reconstruction service: World Labs caps a video at
+         * 100MB, so a walkthrough is budgeted against Marble rather than
+         * against the body this engine accepts. Everything else stops here and
+         * is bound by the transport — see `captureDestination`.
+         */
+        destination: 'world',
+        /*
+         * `kind` is the DEFAULT medium and `kinds` is what is accepted. Seventeen
+         * consumers read `spec.kind` as a scalar and `spec.subdir` as a string;
+         * making those polymorphic broke sixteen tests for no gain. A capture's
+         * default is the panorama — Marble's own docs call it the most accurate
+         * spatial representation — and the override map carries the other two.
+         */
+        kind: 'image',
+        kinds: ['image', 'video', 'model'],
+        shotScoped: false,
+        subdir: 'refsheets',
+        subdirByKind: Object.freeze({ video: 'video', model: '3d' }),
+        mimes: Object.freeze([...IMAGE_MIMES, ...VIDEO_MIMES, 'model/gltf-binary', 'application/octet-stream']),
+        assetType: 'other',
+        metaKind: 'world_capture',
+    }),
+
+    /*
+     * REFERENCE PLATES, from outside.
+     *
+     * "Everywhere I can generate plates or boards, I should be able to upload
+     * one too, say I'm working outside of film engine."
+     *
+     * Every reference in this pipeline could only be born inside it, which is a
+     * strange constraint for a tool whose job is keeping a film consistent with
+     * itself: the most authoritative picture of a place is usually a photograph
+     * of it, and the most authoritative picture of a character is often the one
+     * the art department already made.
+     *
+     * `subjectKind` links the target back to PLATE_KINDS / the character sheet,
+     * so an uploaded plate lands in the same table column, under the same
+     * filename, with the same per-view replacement as a generated one — which
+     * is what makes gatherShotReferences pick it up without knowing where it
+     * came from. A plate that lists and never reaches a payload is a picture in
+     * a folder.
+     *
+     * JPEG as well as PNG. Everything this engine generates is PNG, so PNG was
+     * the only thing the validator knew — but "outside Film Engine" means
+     * Midjourney exports and phone photographs, and refusing those would make
+     * the feature look broken for its most common case.
+     */
+    'character-plate': Object.freeze({ photographed: true, kind: 'image', shotScoped: false, subdir: 'refsheets', subjectKind: 'character', mimes: IMAGE_MIMES }),
+    'location-plate': Object.freeze({ photographed: true, kind: 'image', shotScoped: false, subdir: 'refsheets', subjectKind: 'location', mimes: IMAGE_MIMES }),
+    'prop-plate': Object.freeze({ photographed: true, kind: 'image', shotScoped: false, subdir: 'refsheets', subjectKind: 'prop', mimes: IMAGE_MIMES }),
+    'orientation-plan': Object.freeze({ photographed: false, photographed_why: 'a floor plan is DRAWN or authored — photographing a room does not produce a plan of it', kind: 'image', shotScoped: false, subdir: 'refsheets', mimes: IMAGE_MIMES, assetType: ORIENTATION_ASSET_TYPE, metaKind: 'orientation_plan' }),
+    // The look has no subject table by design (KIND_SOURCE calls it `project`),
+    // so a board image is stored and linked by the mood-board row instead.
+    'mood-board-image': Object.freeze({ photographed: true, kind: 'image', shotScoped: false, subdir: 'refsheets', subjectKind: null, mimes: IMAGE_MIMES }),
+
+    /*
+     * THE TWO IMAGE SURFACES THAT COULD ONLY BE POINTED AT, NOT UPLOADED.
+     *
+     * Both `film_continuity_refs` and `film_marketing_assets` carry an
+     * `image_path` column that could only be set by POSTing a STRING — a path
+     * on the server's own disk. From a browser that is unusable, so in practice
+     * neither surface could hold a picture at all, and both are surfaces whose
+     * whole content is a picture.
+     *
+     * They are also the two where an upload is the NORMAL case rather than the
+     * escape hatch. A continuity reference is a photograph of what was actually
+     * shot. A poster is made in Photoshop — and `POST /marketing/:id/generate`
+     * generates nothing at all: it sets the status to 'generating' and returns
+     * a hint telling you to call an image API yourself, which it has done since
+     * the day it shipped.
+     */
+    'continuity-ref': Object.freeze({ photographed: true, kind: 'image', shotScoped: false, subdir: 'refsheets', subjectKind: null, mimes: IMAGE_MIMES }),
+
+    /*
+     * A poster, key art or social card.
+     *
+     * `film_marketing_assets.image_path` had the same defect the continuity
+     * board did — settable only by POSTing a path on the server's own disk —
+     * and it stayed unregistered while the SPA had no marketing page at all,
+     * because an import target with no control behind it reports a feature as
+     * complete when nothing can reach it. The page exists now.
+     */
+    'marketing-asset': Object.freeze({ photographed: false, photographed_why: 'a poster is AUTHORED artwork — type, layout and a key image composed together, not a frame off a lens', kind: 'image', shotScoped: false, subdir: 'refsheets', subjectKind: null, mimes: IMAGE_MIMES }),
+
+    /*
+     * FOOTAGE AND SOUND, from outside.
+     *
+     * "Are we able to upload videos if we generate outside... we need to be
+     * able to easily add assets from external sources if we want to."
+     *
+     * A clip cut in Runway or Kling, dialogue recorded properly, a music bed
+     * somebody licensed — every one of these could only be born inside the
+     * engine, exactly as every reference could. Derived from MEDIA_KINDS, the
+     * same registry the orchestrator uses to decide where a GENERATED file
+     * goes, so an uploaded clip lands in the identical directory with the
+     * identical asset_type and every reader picks it up unchanged.
+     *
+     * `image` is excluded because it arrives as the storyboard frame, which had
+     * an import already and is addressed at a fixed {shot_code}.png path.
+     */
+    ...mediaImportTargets(),
+});
+
+/**
+ * Bytes and their type, from EITHER form a caller may send.
+ *
+ * A data URI is what a browser produces from a FileReader; raw bytes are what a
+ * native client or a `curl --data-binary` sends, and they cost a third less to
+ * transport because nothing is base64-encoded. Accepting both here rather than
+ * at each route is what stops one import path learning the cheaper form and the
+ * other five not.
+ */
+function bytesFrom(input) {
+    const i = input || {};
+    if (i.bytes) {
+        const bytes = Buffer.isBuffer(i.bytes) ? i.bytes : Buffer.from(i.bytes);
+        if (!bytes.length) throw new Error('invalid import: empty file');
+        return { mime: String(i.mime || 'application/octet-stream').split(';')[0].trim(), bytes };
+    }
+    return decodeDataUri(i.data);
+}
+
+function decodeDataUri(data) {
+    const match = String(data || '').match(/^data:([^;,]+);base64,([A-Za-z0-9+/=\s]+)$/);
+    if (!match) throw new Error('invalid import data: expected a base64 data URI');
+    return { mime: match[1].toLowerCase(), bytes: Buffer.from(match[2].replace(/\s/g, ''), 'base64') };
+}
+
+/**
+ * Which medium these BYTES are, bounded by what the target declares.
+ *
+ * Every entry but one has a single `kind`, and for those this returns it
+ * unchanged — seventeen entries predate multi-kind imports and none of them had
+ * to be edited. A world capture is the exception: a director shoots a panorama,
+ * an orbit clip or a LiDAR scan in one act, onto one location, and which of the
+ * three it is has to come from the file itself. A phone hands over IMG_0431.MOV
+ * and IMG_0430.HEIC; trusting either name is how a clip gets stored as an image
+ * and never decodes again.
+ */
+function resolveImportKind(spec, bytes, name) {
+    const allowed = spec.kinds || [spec.kind];
+    if (allowed.length === 1) return allowed[0];
+    const b = Buffer.isBuffer(bytes) ? bytes : Buffer.from(bytes || []);
+    let seen = null;
+    if (b.length > 8 && b.subarray(0, 8).equals(Buffer.from('89504e470d0a1a0a', 'hex'))) seen = 'image';
+    else if (b.length > 3 && b[0] === 0xFF && b[1] === 0xD8 && b[2] === 0xFF) seen = 'image';
+    else if (b.length > 12 && b.subarray(4, 8).toString('latin1') === 'ftyp') seen = 'video';
+    else if (b.length > 4 && b.subarray(0, 4).toString('latin1') === 'glTF') seen = 'model';
+    if (!seen) {
+        throw new Error(`${name || 'That file'} is not a recognised panorama, clip or scan. `
+            + 'A capture must be a PNG or JPEG panorama, an MP4/MOV clip, or a GLB scan.');
+    }
+    if (!allowed.includes(seen)) {
+        throw new Error(`a ${seen} is not accepted here; this import takes ${allowed.join(', ')}`);
+    }
+    return seen;
+}
+
+function validateBytes(spec, mime, bytes, kind) {
+    if (!spec.mimes.includes(mime)) throw new Error(`unsupported import type ${mime}`);
+    // A multi-kind entry validates against the kind these bytes actually are.
+    const k = kind || spec.kind;
+    if (!bytes.length) throw new Error('invalid import: empty file');
+    const isPng = k === 'image'
+        && bytes.subarray(0, 8).equals(Buffer.from('89504e470d0a1a0a', 'hex'));
+    const isJpeg = k === 'image'
+        && bytes.length > 3 && bytes[0] === 0xFF && bytes[1] === 0xD8 && bytes[2] === 0xFF;
+    if (k === 'image' && !isPng && !isJpeg) {
+        throw new Error('This file is not a PNG or a JPEG. Export it as one and try again.');
+    }
+    /*
+     * A JPEG is walked by its segment markers the way a PNG is walked by its
+     * chunks. Checking only the two-byte SOI would accept any file that happens
+     * to start 0xFFD8FF, and the point of validating at all is that a plate
+     * which cannot be decoded later is a shot that generates with no reference
+     * and no error.
+     */
+    if (isJpeg) {
+        let offset = 2, sawFrame = false, sawScan = false;
+        while (offset + 4 <= bytes.length) {
+            if (bytes[offset] !== 0xFF) throw new Error('invalid JPEG: expected a segment marker');
+            const marker = bytes[offset + 1];
+            if (marker === 0xD9) break;                       // end of image
+            if (marker === 0xD8 || (marker >= 0xD0 && marker <= 0xD7)) { offset += 2; continue; }
+            const length = bytes.readUInt16BE(offset + 2);
+            if (length < 2 || offset + 2 + length > bytes.length) throw new Error('invalid JPEG segment length');
+            // SOF0..SOF15, skipping the four markers in that range that are not
+            // start-of-frame.
+            if (marker >= 0xC0 && marker <= 0xCF && ![0xC4, 0xC8, 0xCC].includes(marker)) {
+                const height = bytes.readUInt16BE(offset + 5);
+                const width = bytes.readUInt16BE(offset + 7);
+                if (!width || !height || width * height > 100_000_000) throw new Error('invalid JPEG dimensions');
+                sawFrame = true;
+            }
+            if (marker === 0xDA) { sawScan = true; break; }   // entropy-coded data follows
+            offset += 2 + length;
+        }
+        if (!sawFrame || !sawScan) throw new Error('invalid or incomplete JPEG');
+    }
+    if (isPng) {
+        let offset = 8, sawIhdr = false, sawIdat = false, sawIend = false;
+        while (offset + 12 <= bytes.length) {
+            const length = bytes.readUInt32BE(offset);
+            const end = offset + 12 + length;
+            if (end > bytes.length) throw new Error('invalid PNG chunk length');
+            const type = bytes.toString('ascii', offset + 4, offset + 8);
+            if (type === 'IHDR') {
+                if (sawIhdr || length !== 13) throw new Error('invalid PNG header');
+                const width = bytes.readUInt32BE(offset + 8), height = bytes.readUInt32BE(offset + 12);
+                if (!width || !height || width * height > 100_000_000) throw new Error('invalid PNG dimensions');
+                sawIhdr = true;
+            } else if (type === 'IDAT') sawIdat = true;
+            else if (type === 'IEND') { sawIend = length === 0; offset = end; break; }
+            offset = end;
+        }
+        if (!sawIhdr || !sawIdat || !sawIend || offset !== bytes.length) throw new Error('invalid or incomplete PNG');
+    }
+    /*
+     * A clip and a bed are told apart by their BYTES, never their extension.
+     *
+     * A renamed file passes any name check, and a clip that cannot be decoded
+     * is a shot that plays black in the cut — with no error anywhere, because
+     * nothing downstream opens it until an editor does. Browsers also label
+     * these inconsistently and sometimes not at all, which is why the mime list
+     * allows octet-stream and this is what actually decides.
+     */
+    if (k === 'video' || k === 'audio') {
+        const ascii = (from, len) => bytes.toString('ascii', from, from + len);
+        const isMp4 = bytes.length > 12 && ascii(4, 4) === 'ftyp';
+        const isMatroska = bytes.length > 4 && bytes[0] === 0x1A && bytes[1] === 0x45
+            && bytes[2] === 0xDF && bytes[3] === 0xA3;                       // WebM / MKV
+        const isRiff = bytes.length > 12 && ascii(0, 4) === 'RIFF';
+        const isWav = isRiff && ascii(8, 4) === 'WAVE';
+        const isMp3 = bytes.length > 3
+            && (ascii(0, 3) === 'ID3' || (bytes[0] === 0xFF && (bytes[1] & 0xE0) === 0xE0));
+        const isFlac = bytes.length > 4 && ascii(0, 4) === 'fLaC';
+        const isOgg = bytes.length > 4 && ascii(0, 4) === 'OggS';
+
+        if (k === 'video') {
+            // An .mp4 container carries audio-only files too, but every one we
+            // could receive here is meant to be a picture; a bare WAV or MP3 is
+            // refused outright because attaching one as a clip is silent
+            // failure at the worst possible moment.
+            if (isWav || isMp3 || isFlac) {
+                throw new Error('This is an audio file, not a video. Upload it where the sound goes.');
+            }
+            if (!isMp4 && !isMatroska) {
+                throw new Error('This is not a video file. MP4, MOV, WebM and MKV are accepted — '
+                    + 're-export it as one of those.');
+            }
+        } else {
+            if (isMatroska) throw new Error('This is a video file, not audio. Upload it where the picture goes.');
+            /*
+             * An MP4 container holds audio-only files too, and telling them
+             * apart properly means walking the moov atom for track types. The
+             * brand is the cheap discriminator: .m4a and .m4b declare `M4A `
+             * and `M4B `, while `isom`, `mp42`, `mp41` and `avc1` are the video
+             * brands. Accepting those as audio — which an earlier version did,
+             * on `mp42` — attaches a silent video file as a music bed and the
+             * failure surfaces as a scene with no score.
+             *
+             * An audio-only `isom` file is rare and gets a clear message rather
+             * than being guessed at; re-exporting as WAV or M4A is one step,
+             * and a wrong guess here is a bed nobody hears.
+             */
+            const isM4a = isMp4 && /^(M4A|M4B)/.test(ascii(8, 4));
+            if (!isWav && !isMp3 && !isFlac && !isOgg && !isM4a) {
+                throw new Error('This is not an audio file. WAV, MP3, M4A, FLAC and OGG are accepted — '
+                    + 're-export it as one of those.');
+            }
+        }
+    }
+    if (k === 'model') {
+        if (bytes.length < 12 || bytes.toString('ascii', 0, 4) !== 'glTF' || bytes.readUInt32LE(4) !== 2
+            || bytes.readUInt32LE(8) !== bytes.length) throw new Error('invalid GLB signature or length');
+        // Validate with the same parser Previs uses. A header-only GLB or a
+        // scene without drawable triangles is an upload that succeeds and a
+        // stage object that can never render.
+        let geometry;
+        try { geometry = parseGlb(bytes); }
+        catch (err) {
+            /*
+             * The parser's reason, kept and made actionable.
+             *
+             * "invalid GLB" alone is why two imports read as a broken importer:
+             * the file was refused for a nameable reason (compression, an
+             * external .bin, an extension) and the user was told only that it
+             * did not work, on a status bar at the bottom of the screen.
+             */
+            throw new Error(`This GLB could not be read — ${String(err.message).replace(/^glb:\s*/, '')}.`);
+        }
+        if (!geometry.vertices.length || !geometry.triangles.length) {
+            throw new Error('This GLB has no drawable triangle geometry — it may be a points or lines '
+                + 'export, or contain only cameras and lights. Re-export it as a triangle mesh.');
+        }
+    }
+}
+
+/** Where a subject-scoped import belongs: its project, and the row to link to. */
+function subjectOwnerFor(spec, input) {
+    const { PLATE_KINDS } = require('./reference-plates');
+    // Characters are not in PLATE_KINDS — they have their own three-view route —
+    // so the table and link column are named here for that one kind only, and
+    // read from the shared registry for the rest.
+    const TABLES = {
+        character: { table: 'film_characters', fkColumn: 'character_id', assetType: 'character_sheet' },
+        location: PLATE_KINDS.location,
+        prop: PLATE_KINDS.prop,
+    };
+    const t = TABLES[spec.subjectKind];
+    if (!t) throw new Error(`unsupported subject kind ${spec.subjectKind}`);
+    const row = require('../db/database').db
+        .prepare(`SELECT id, project_id, name FROM ${t.table} WHERE id = ?`).get(input.subjectId);
+    if (!row) throw new Error(`${spec.subjectKind} not found`);
+    return { projectId: row.project_id, subject: row, ...t };
+}
+
+/** A scene-scoped import (a music bed, an ambient bed) belongs to a scene. */
+function sceneOwnerFor(input) {
+    const row = db.prepare(
+        'SELECT id, project_id, scene_number FROM film_scenes WHERE id = ?').get(input.sceneId);
+    if (!row) throw new Error('Scene not found');
+    return { projectId: row.project_id, sceneId: row.id, sceneNumber: row.scene_number };
+}
+
+function ownerFor(target, input) {
+    if (MEDIA_IMPORTS[target].shotScoped) {
+        const row = db.prepare(`SELECT sh.id AS shot_id, sh.shot_code, sc.project_id
+            FROM film_shots sh JOIN film_scenes sc ON sc.id = sh.scene_id WHERE sh.id = ?`).get(input.shotId);
+        if (!row) throw new Error('Shot not found');
+        return { projectId: row.project_id, shotId: row.shot_id, shotCode: row.shot_code };
+    }
+    const project = db.prepare('SELECT id FROM film_projects WHERE id = ?').get(input.projectId);
+    if (!project) throw new Error('Project not found');
+    return { projectId: project.id, shotId: null, shotCode: null };
+}
+
+function archiveCurrentStoryboard(projectId, shotId, shotCode, currentPath) {
+    if (!fs.existsSync(currentPath)) return;
+    const latest = db.prepare("SELECT id, version FROM film_assets WHERE shot_id = ? AND asset_type = 'storyboard' ORDER BY version DESC LIMIT 1")
+        .get(shotId);
+    if (!latest) return;
+    const dir = path.join(path.dirname(currentPath), 'versions');
+    fs.mkdirSync(dir, { recursive: true });
+    const archived = path.join(dir, `${shotCode}_v${latest.version}.png`);
+    fs.copyFileSync(currentPath, archived);
+    db.prepare('UPDATE film_assets SET file_path = ?, file_name = ? WHERE id = ?')
+        .run(archived, path.basename(archived), latest.id);
+}
+
+function safeStem(name) {
+    return path.basename(String(name || 'import'), path.extname(String(name || '')))
+        .replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 80) || 'import';
+}
+
+/**
+ * A reference plate supplied from outside, stored exactly where a generated one
+ * would be.
+ *
+ * Same table column, same filename from plateFileName, same per-view
+ * replacement — so gatherShotReferences picks it up without knowing where it
+ * came from, and a shot naming a view gets the uploaded one for that view.
+ * Anything else would be a picture that lists and never reaches a prompt.
+ *
+ * Deliberately NOT fingerprinted. artefact-fingerprint stamps a plate with the
+ * payload it was generated from; this one was not generated from anything, so
+ * stamping it would mark it stale the moment somebody edits the subject's
+ * description and ask the director to regenerate over their own photograph.
+ * NULL means "outside the workflow", which is precisely what an upload is —
+ * the same explicit exception a recomposed frame documents.
+ */
+function importSubjectPlate(spec, target, input) {
+    const { plateFileName } = require('./reference-plates');
+    const owner = subjectOwnerFor(spec, input);
+    // `bytesFrom`, so a plate can arrive as bytes too. Three sites decoded an
+    // upload and only one went through the shared accessor — see the note in
+    // importCapabilityMedia. `decodeDataUri` now has exactly one caller.
+    const { mime, bytes } = bytesFrom(input);
+    validateBytes(spec, mime, bytes);
+
+    const view = String(input.view || '').trim();
+    const capture = require('./capture-settings').captureSettings(input.capture);
+    const kindForName = spec.subjectKind === 'character' ? 'character' : spec.subjectKind;
+    /*
+     * A character sheet is named per VIEW (front/side/back) by its own route,
+     * and a plate is named per view by plateFileName. One naming rule for both,
+     * or an uploaded front view lands beside the generated one instead of
+     * replacing it and the gather picks whichever is newest.
+     */
+    const generatedName = spec.subjectKind === 'character'
+        ? `${String(owner.subject.name || 'character').replace(/[^a-zA-Z0-9_-]/g, '_')}_${view || 'front'}.png`
+        : plateFileName(kindForName, owner.subject.name, view);
+
+    /*
+     * The extension follows the BYTES.
+     *
+     * plateFileName always ends `.png` because everything this engine generates
+     * is a PNG. Writing an uploaded JPEG under that name is the same lie the
+     * storyboard target refuses to tell: the file decodes by sniffing and fails
+     * anywhere that trusts the name.
+     */
+    const stem = generatedName.replace(/\.png$/i, '');
+    const fileName = `${stem}.${mime === 'image/png' ? 'png' : 'jpg'}`;
+
+    /*
+     * Replace THIS view, never the whole set — the reason a location could only
+     * ever have one plate in the first place — and replace it across
+     * EXTENSIONS. Scoped to the exact filename, an uploaded JPEG would land
+     * beside the generated PNG of the same view rather than replacing it, and
+     * the gather would pick whichever row came back first.
+     */
+    const stale = db.prepare(
+        `SELECT id, file_path FROM film_assets
+          WHERE project_id = ? AND ${owner.fkColumn} = ? AND asset_type = ?
+            AND (file_name = ? OR file_name = ? OR file_name = ?)`)
+        .all(owner.projectId, owner.subject.id, owner.assetType,
+            `${stem}.png`, `${stem}.jpg`, `${stem}.jpeg`);
+
+    const filePath = saveFile(owner.projectId, spec.subdir, fileName, bytes);
+
+    for (const row of stale) {
+        // Never unlink the file we have just written — a re-upload of the same
+        // format resolves to the same path.
+        if (row.file_path && path.resolve(row.file_path) !== path.resolve(filePath)) {
+            try { fs.unlinkSync(row.file_path); } catch (_) { /* already gone is fine */ }
+        }
+        db.prepare('DELETE FROM film_assets WHERE id = ?').run(row.id);
+    }
+
+    const assetId = generateId();
+    db.prepare(`INSERT INTO film_assets
+        (id, project_id, ${owner.fkColumn}, asset_type, file_path, file_name, format, mime_type,
+         size_bytes, version, metadata)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)`)
+        .run(assetId, owner.projectId, owner.subject.id, owner.assetType,
+            filePath, fileName, mime === 'image/png' ? 'png' : 'jpg', mime, bytes.length,
+            JSON.stringify({
+                kind: `${kindForName}_plate`,
+                imported: true,           // so it never looks generated
+                style_applied: false,     // the film's look was not applied to it
+                ...(view ? { view } : {}),
+                /*
+                 * What it was shot at, where the camera reported it. Spread so
+                 * ABSENT STAYS ABSENT: an empty `capture` key would claim the
+                 * settings were recorded and were none, which is a different
+                 * and false statement from "not recorded" — and it is what
+                 * every plate uploaded from the photo library would carry.
+                 *
+                 * captureSettings never throws and never refuses the whole
+                 * upload: a malformed field is dropped and the photograph is
+                 * kept, because the photograph is the thing that cannot be
+                 * retaken.
+                 */
+                ...(capture ? { capture } : {}),
+            }));
+
+    return {
+        target, asset_id: assetId, project_id: owner.projectId,
+        subject_id: owner.subject.id, subject: owner.subject.name,
+        view: view || null, file_name: fileName, file_path: filePath, version: 1,
+        // Reported so a caller can see WHICH settings survived. Silent dropping
+        // is how a director believes a field was recorded when it was not.
+        capture: capture || null,
+        // NOT busted: this url is resolved back to a path on disk by the
+        // import contract, and a query string makes that lookup fail. An
+        // import lands under a new name anyway, so there is no stale copy.
+        url: getFileUrl(spec.subdir, owner.projectId, fileName),
+        note: 'Uploaded, not generated: the film\u2019s style preset was not applied to it, and it is '
+            + 'not tracked against the description, so editing that description will not mark it stale.',
+    };
+}
+
+/**
+ * A clip or a bed made outside Film Engine, stored where a generated one goes.
+ *
+ * Same directory, same asset_type, same filename convention as the
+ * orchestrator's own output — read from MEDIA_KINDS rather than restated — so
+ * the timeline, the conform, the NLE export and the QA checks all pick it up
+ * without knowing it was uploaded.
+ *
+ * NOT fingerprinted, for the reason an uploaded plate is not: a fingerprint
+ * says "generated from that payload", and this was not. Stamping it would mark
+ * it stale the moment the scene card changes and tell the director to
+ * regenerate over footage they shot.
+ */
+function importCapabilityMedia(spec, target, input) {
+    const owner = spec.sceneScoped ? sceneOwnerFor(input) : ownerFor(target, input);
+    /*
+     * `bytesFrom`, never `decodeDataUri`. This path read the data URI directly
+     * — a SECOND copy of the rule the shared accessor exists to state once —
+     * so footage and sound could arrive only base64-encoded, a third larger
+     * than the file, on the paths built for the largest files there are. That
+     * is precisely the drift `bytesFrom`'s own comment predicted, found when a
+     * take recorded on the phone had nowhere to land.
+     */
+    const { mime, bytes } = bytesFrom(input);
+    validateBytes(spec, mime, bytes);
+
+    /*
+     * The extension follows the BYTES, not the registry's default.
+     *
+     * MEDIA_KINDS says a clip is written as .mp4 because that is what the
+     * generators return. A director uploading a .mov or a .webm must not have
+     * it stored under a name that lies about it — the mistake the plate upload
+     * made with JPEG, and the one the storyboard target refuses to make.
+     */
+    const ext = extensionFor(spec, mime, bytes) || spec.ext;
+    const label = spec.shotScoped
+        ? owner.shotCode
+        : `scene_${String(owner.sceneNumber || 'x').replace(/[^a-zA-Z0-9_-]/g, '_')}`;
+    const stem = `${label}_${spec.capability}`;
+
+    const scopeColumn = spec.shotScoped ? 'shot_id' : 'scene_id';
+    const scopeValue = spec.shotScoped ? owner.shotId : owner.sceneId;
+
+    /*
+     * A CLIP IS A TAKE. A BED IS REPLACED.
+     *
+     * This path used to delete the shot's existing clip and insert the new one
+     * at version 1, so importing a second take of a shot DESTROYED the first —
+     * on a shot where `lib/repair-run.js` and `lib/video-edit.js` have always
+     * registered their output as `MAX(version) + 1` beside what was there. One
+     * capability, two opposite answers to "what happens to the previous clip",
+     * and the destructive one was the path a person reaches through the app.
+     *
+     * The comment that stood here justified replacing by saying an uploaded
+     * .mov beside a generated .mp4 "leaves two current clips and the readers
+     * pick whichever row comes back first". That was true when it was written
+     * and is not now: `pickAsset` in lib/timeline.js resolves the shot's
+     * pointer and otherwise takes the HIGHEST version, so a second clip is
+     * chosen deterministically rather than by row order. Versioning is what
+     * that selection rule was built for.
+     *
+     * The version spans the video types rather than this one asset_type, for
+     * the reason repair-run does it: a raw clip, a lip-synced one and a graded
+     * one are attempts at the same shot, and numbering them per type would put
+     * two different clips at version 1.
+     *
+     * AUDIO STILL REPLACES, and that is not an oversight. The dialogue lane is
+     * assembled by FILENAME — `lib/timeline.js` gathers a shot's lines and
+     * dedupes them, newest row per name winning — so a versioned name is a new
+     * name, and a corrected take would play as an EXTRA line rather than in
+     * place of the one it corrects. Giving beds takes means giving that lane a
+     * selection rule first.
+     */
+    const VIDEO_TYPES = ['video_final', 'video_synced', 'video_raw'];
+    let version = 1;
+    if (spec.kind === 'video') {
+        const prior = db.prepare(
+            `SELECT COALESCE(MAX(version), 0) AS v FROM film_assets
+              WHERE ${scopeColumn} = ? AND asset_type IN (${VIDEO_TYPES.map(() => '?').join(', ')})`)
+            .get(scopeValue, ...VIDEO_TYPES);
+        version = Number((prior && prior.v) || 0) + 1;
+    }
+
+    /*
+     * Version 1 keeps the plain name, so a project with one clip per shot is
+     * byte-identical to what it was and nothing that already points at
+     * `<shot>_video.mp4` moves.
+     */
+    const fileName = version > 1 ? `${stem}_v${version}.${ext}` : `${stem}.${ext}`;
+    const filePath = saveFile(owner.projectId, spec.subdir, fileName, bytes);
+
+    if (spec.kind !== 'video') {
+        const stale = db.prepare(
+            `SELECT id, file_path, file_name FROM film_assets
+              WHERE project_id = ? AND ${scopeColumn} = ? AND asset_type = ?`)
+            .all(owner.projectId, scopeValue, spec.assetType)
+            .filter(r => String(r.file_name || '').startsWith(`${stem}.`)
+                || String(r.file_path || '').includes(`${path.sep}${stem}.`));
+        for (const row of stale) {
+            if (row.file_path && path.resolve(row.file_path) !== path.resolve(filePath)) {
+                try { fs.unlinkSync(row.file_path); } catch (_) { /* already gone is fine */ }
+            }
+            db.prepare('DELETE FROM film_assets WHERE id = ?').run(row.id);
+        }
+    }
+
+    /*
+     * How long it actually is, measured once, here.
+     *
+     * The timeline held every clip for the duration its CARD asked for, so a
+     * ten-second upload played for four seconds and cut to the next still.
+     * Measured at import rather than probed at assembly, because the timeline
+     * repaints on every scrub and a subprocess in that loop is not a fix.
+     *
+     * Failure is silent BY DESIGN: a clip that will not probe is still a clip
+     * the director paid for and wants on the board, and it falls back to the
+     * card's duration exactly as before. The same rule stampAsset documents.
+     */
+    let durationMs = 0;
+    if (spec.kind === 'video' || spec.kind === 'audio') {
+        try { durationMs = measureDurationMs(filePath); } catch (_) { durationMs = 0; }
+    }
+
+    const assetId = generateId();
+    db.prepare(`INSERT INTO film_assets
+        (id, project_id, shot_id, scene_id, asset_type, file_path, file_name, format, mime_type,
+         size_bytes, duration_ms, version, license_source, license_status, metadata)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'external', 'unknown', ?)`)
+        .run(assetId, owner.projectId,
+            spec.shotScoped ? owner.shotId : null,
+            spec.sceneScoped ? owner.sceneId : (owner.sceneId || null),
+            spec.assetType, filePath, fileName, ext, mime, bytes.length, durationMs, version,
+            JSON.stringify({
+                capability: spec.capability,
+                imported: true,
+                source: 'external',
+                original_name: String(input.name || '').slice(0, 200) || null,
+            }));
+
+    return {
+        target, asset_id: assetId, project_id: owner.projectId,
+        shot_id: spec.shotScoped ? owner.shotId : null,
+        scene_id: spec.sceneScoped ? owner.sceneId : null,
+        asset_type: spec.assetType, capability: spec.capability,
+        duration_ms: durationMs,
+        file_name: fileName, file_path: filePath, version,
+        /*
+         * The SERVING subdir, which is `subdir` and not `serveDir`.
+         *
+         * `serveDir` is what persistProviderMedia calls the gateway's own
+         * directory ('videos', 'audio', 'music'); the HTTP route is
+         * /film/{subdir}/... — /film/video/, singular. Built from serveDir this
+         * returned /film/videos/... which is a perfectly good string and a 404,
+         * so the upload succeeded and the clip would not play. Exactly the
+         * mistake servedUrlFor made once already, which is why the test now
+         * FETCHES this URL rather than asserting it is non-null.
+         */
+        // NOT busted: this url is resolved back to a path on disk by the
+        // import contract, and a query string makes that lookup fail. An
+        // import lands under a new name anyway, so there is no stale copy.
+        url: getFileUrl(spec.subdir, owner.projectId, fileName),
+        note: `Stored as ${spec.assetType}, exactly where a generated one goes. It is marked as `
+            + 'coming from outside, so editing the scene card will not tell you to regenerate over it. '
+            + "Its rights are recorded as unknown \u2014 set them before you deliver.",
+    };
+}
+
+/**
+ * The real length of a media file, in milliseconds.
+ *
+ * Read from the encoder rather than from any header we parse ourselves: a
+ * duration decoded from an MP4 header we wrote a reader for would be wrong for
+ * exactly the containers we did not anticipate, and a wrong duration is worse
+ * than none — it silently truncates a clip in the cut.
+ */
+function measureDurationMs(filePath) {
+    /*
+     * THROUGH THE ONE INSPECTOR (RBF-005). This carried its own copy of the
+     * `Duration:` parse — one of four in lib/ at the time — and the lesson its
+     * old comment records is now enforced there instead: `ffmpeg -i` with no
+     * output SUCCEEDS on some paths and fails on others, so stderr is read
+     * regardless of the exit code. A fourth copy is how one of them acquires a
+     * fix the others do not, which RBF-003 spent a dispatch undoing for frames.
+     */
+    const { inspectMedia } = require('./ffmpeg');
+    const seen = inspectMedia(filePath);
+    if (!seen.ok || !(seen.durationSeconds > 0)) return 0;
+    return Math.round(seen.durationSeconds * 1000);
+}
+
+/** The extension the bytes actually justify. */
+function extensionFor(spec, mime, bytes) {
+    const ascii = (from, len) => bytes.toString('ascii', from, from + len);
+    if (spec.kind === 'video') {
+        // WebM and Matroska share the EBML header; the browser's declared MIME
+        // is the only distinction available without walking the whole header.
+        // Saving an MKV as .webm asks browsers/editors to use the wrong demuxer.
+        if (bytes.length > 4 && bytes[0] === 0x1A && bytes[1] === 0x45) {
+            return mime === 'video/x-matroska' ? 'mkv' : 'webm';
+        }
+        if (bytes.length > 12 && ascii(4, 4) === 'ftyp') {
+            return /^qt/.test(ascii(8, 4)) ? 'mov' : 'mp4';
+        }
+        return null;
+    }
+    if (spec.kind === 'audio') {
+        if (bytes.length > 12 && ascii(0, 4) === 'RIFF') return 'wav';
+        if (bytes.length > 4 && ascii(0, 4) === 'fLaC') return 'flac';
+        if (bytes.length > 4 && ascii(0, 4) === 'OggS') return 'ogg';
+        if (bytes.length > 12 && ascii(4, 4) === 'ftyp') return 'm4a';
+        if (bytes.length > 3 && (ascii(0, 3) === 'ID3' || bytes[0] === 0xFF)) return 'mp3';
+        return null;
+    }
+    return null;
+}
+
+function importMedia(target, input) {
+    const spec = MEDIA_IMPORTS[target];
+    if (!spec) throw new Error(`unsupported import target ${target}`);
+    // A board image belongs to the PROJECT — the look has no subject table by
+    // design (KIND_SOURCE calls it `project`) — so it falls through to the
+    // ordinary project-scoped path below.
+    if (spec.subjectKind) return importSubjectPlate(spec, target, input || {});
+    // Footage and sound, landing where the orchestrator would have written it.
+    if (spec.capability) return importCapabilityMedia(spec, target, input || {});
+    const owner = ownerFor(target, input || {});
+    const { mime, bytes } = bytesFrom(input);
+    // Multi-kind targets resolve from the bytes; single-kind ones return their
+    // own kind, so nothing that predates this changed.
+    const kind = resolveImportKind(spec, bytes, input && input.name);
+    validateBytes(spec, mime, bytes, kind);
+
+    const imageFormat = /^image\/jpe?g$/i.test(mime) ? 'jpg' : 'png';
+    const videoFormat = (/^video\/(mp4|quicktime|webm|x-matroska)$/i.exec(mime) || [, 'mp4'])[1]
+        .replace('quicktime', 'mov').replace('x-matroska', 'mkv');
+    const storedFormat = kind === 'model' ? 'glb' : kind === 'image' ? imageFormat : videoFormat;
+    // A per-kind subdir, or the single one — every value already has a serving
+    // route, because a world input nothing can fetch reaches no provider.
+    const subdir = (spec.subdirByKind && spec.subdirByKind[kind]) || spec.subdir;
+    let filename;
+    if (target === 'storyboard-image') filename = `${owner.shotCode}.png`;
+    else filename = `${safeStem(input.name)}_${generateId().slice(0, 8)}.${storedFormat}`;
+
+    const prospective = path.join(require('./file-storage').dirFor(owner.projectId, subdir), filename);
+    if (target === 'storyboard-image') archiveCurrentStoryboard(owner.projectId, owner.shotId, owner.shotCode, prospective);
+    const filePath = saveFile(owner.projectId, subdir, filename, bytes);
+
+    const prior = target === 'storyboard-image'
+        ? db.prepare("SELECT MAX(version) AS version FROM film_assets WHERE shot_id = ? AND asset_type = 'storyboard'").get(owner.shotId)
+        : null;
+    const version = prior && prior.version ? prior.version + 1 : 1;
+    const assetId = generateId();
+    /*
+     * DECLARED, not compared. This was a chain of `target === '...'` ternaries,
+     * and adding a fourth medium to it is how a registry becomes decorative —
+     * the entry would carry the truth and the call site would keep deciding.
+     */
+    const assetType = spec.assetType || 'other';
+    const metadata = {
+        kind: spec.metaKind,
+        imported: true,
+        // Only what this target actually owns. A location id on an entry that
+        // has no location is a column nobody can interpret later.
+        ...(input.locationId ? { location_id: input.locationId } : {}),
+        ...(spec.metaKind === 'model_3d' ? { subject_kind: 'imported', subject_name: safeStem(input.name) } : {}),
+        // A capture is three media, so the record has to say which arrived.
+        ...(spec.kinds ? { capture_kind: kind } : {}),
+    };
+    db.prepare(`INSERT INTO film_assets
+        (id, project_id, shot_id, location_id, asset_type, file_path, file_name, format, mime_type, size_bytes, version, metadata)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+        .run(assetId, owner.projectId, owner.shotId,
+            target === 'orientation-plan' ? input.locationId : null,
+            assetType, filePath, filename,
+            storedFormat, mime, bytes.length, version, JSON.stringify(metadata));
+
+    if (target === 'orientation-plan') {
+        // The new row/file is durable before the prior scan is archived. A
+        // failed upload can therefore never destroy the only plan somebody had.
+        require('./orientation-plans').replaceOrientationPlan(input.locationId, assetId);
+    }
+
+    if (target === 'storyboard-image') {
+        db.prepare('UPDATE film_shots SET current_frame_version = NULL WHERE id = ?').run(owner.shotId);
+    }
+    return {
+        target, asset_id: assetId, project_id: owner.projectId, shot_id: owner.shotId,
+        file_name: filename, file_path: filePath, version,
+        url: getFileUrl(spec.subdir, owner.projectId, filename),
+    };
+}
+
+module.exports = {
+    shootsWithCamera, captureDestination, MEDIA_IMPORTS, ORIENTATION_ASSET_TYPE, importMedia, decodeDataUri, bytesFrom, validateBytes, resolveImportKind, measureDurationMs };

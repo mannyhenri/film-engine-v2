@@ -1,0 +1,12 @@
+<div class="modal-overlay" id="frameVersionsModal" onclick="closeFrameVersions()">
+        <div class="modal-content" style="max-width:900px;" onclick="event.stopPropagation()">
+            <div class="flex-between mb-16">
+                <h2 id="frameVersionsTitle">Attempts</h2>
+                <button class="modal-close" onclick="closeFrameVersions()">&times;</button>
+            </div>
+            <p class="text-sm text-muted" id="frameVersionsNote" style="margin:0 0 12px;line-height:1.5;"></p>
+            <div id="frameVersionsBody"
+                 style="display:grid;gap:12px;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));
+                        max-height:66vh;overflow:auto;"></div>
+        </div>
+    </div>

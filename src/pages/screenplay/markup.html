@@ -1,0 +1,331 @@
+<div class="page" id="page-screenplay">
+            <div class="page-header">
+                <h2>Screenplay</h2>
+                <div id="scriptVersionSelector" style="margin-left: auto;"></div>
+            </div>
+
+            <div class="screenplay-editor-container">
+                <!-- Left Toolbar Panel -->
+                <div class="screenplay-toolbar-panel collapsed" id="leftToolbarPanel">
+                    <button class="panel-toggle-btn" onclick="toggleLeftPanel()" title="Toggle Panel">▶</button>
+                    <div class="section-label">Element Type</div>
+                    <select id="elementTypeSelector" onchange="setElementType(this.value)">
+                        <option value="action">Action</option>
+                        <option value="scene-heading">Scene Heading</option>
+                        <option value="character">Character</option>
+                        <option value="dialogue">Dialogue</option>
+                        <option value="parenthetical">Parenthetical</option>
+                        <option value="transition">Transition</option>
+                        <option value="centered">Centered</option>
+                        <option value="dual-dialogue">Dual Dialogue</option>
+                        <option value="lyrics">Lyrics</option>
+                        <option value="note">Note</option>
+                    </select>
+
+                    <div class="section-label mt-16">Navigation</div>
+                    <button class="btn btn-outline" onclick="toggleSceneNavigator()" title="Ctrl+Shift+O" style="width:100%;font-size:11px;">
+                        Scene Navigator
+                    </button>
+                    <div id="sceneNavigator" class="scene-navigator" style="display:none;">
+                        <div id="sceneNavStats" class="scene-nav-stats"></div>
+                        <div id="sceneNavList" class="scene-nav-list"></div>
+                    </div>
+
+                    <div class="section-label mt-16">Actions</div>
+                    <button class="btn btn-primary" onclick="saveScreenplay()" style="width:100%;font-size:11px;">
+                        Save Script
+                    </button>
+                </div>
+
+                <!-- Main Editor Panel -->
+                <div class="screenplay-main-panel">
+                    <!-- Toolbar -->
+                    <div class="screenplay-toolbar">
+                        <button class="toolbar-btn" onclick="formatBold()" data-tooltip="Bold text (Ctrl+B)"><b>B</b></button>
+                        <button class="toolbar-btn" onclick="formatItalic()" data-tooltip="Italic text (Ctrl+I)"><i>I</i></button>
+                        <button class="toolbar-btn" onclick="formatUnderline()" data-tooltip="Underline text (Ctrl+U)"><u>U</u></button>
+                        <div class="toolbar-divider"></div>
+                        <span id="currentSceneNum" style="font-size:11px;color:var(--gl-text-muted);">Scene: —</span>
+                        <button class="toolbar-btn" id="lockSceneNumsBtn" onclick="toggleLockSceneNumbers()" data-tooltip="Lock scene numbers to prevent reflow during editing">
+                            🔓
+                        </button>
+                        <div class="toolbar-stats">
+                            <span id="editorPageCount">Pages: 0</span>
+                            <span id="editorWordCount">Words: 0</span>
+                        </div>
+                        <div class="toolbar-divider"></div>
+                        <span id="saveStatusIndicator" class="save-status saved">Saved</span>
+                        <div class="toolbar-divider"></div>
+                        <button class="toolbar-btn" id="aiChatToggle" onclick="toggleAIChat()" data-tooltip="Open AI writing assistant for brainstorming and rewriting (Ctrl+Shift+A)">AI Chat</button>
+                        <button class="toolbar-btn" onclick="openTitlePageModal()" data-tooltip="Edit screenplay title page metadata (title, author, draft date)">Title Page</button>
+                        <!-- FILM-130: Export Dropdown -->
+                        <div class="export-dropdown" id="exportDropdown">
+                            <button class="toolbar-btn" onclick="toggleExportDropdown()" data-tooltip="Export screenplay as Fountain, plain text, PDF, or Final Draft FDX">Export</button>
+                            <div class="export-dropdown-content">
+                                <button class="export-dropdown-item" onclick="exportToFountain()">
+                                    Fountain <small>.fountain</small>
+                                </button>
+                                <button class="export-dropdown-item" onclick="exportToPlainText()">
+                                    Plain Text <small>.txt</small>
+                                </button>
+                                <button class="export-dropdown-item" onclick="exportToPDF()">
+                                    PDF <small>Print/Save as PDF</small>
+                                </button>
+                            </div>
+                        </div>
+                        <!-- FILM-131: Import Button -->
+                        <button class="toolbar-btn" onclick="openImportModal()" data-tooltip="Import a Final Draft (.fdx) or Fountain (.fountain) screenplay file">Import</button>
+                        <button class="toolbar-btn" onclick="openTextConvertModal()" data-tooltip="Convert plain text or prose into properly formatted Fountain screenplay">Convert</button>
+                        <button class="toolbar-btn suggestions-btn" id="suggestionsBtn" onclick="openSuggestionsPanel()" data-tooltip="Auto-detected character and location names from your screenplay" style="display:none;">
+                            <span id="suggestionsBadge" class="suggestions-badge">0</span>
+                        </button>
+                        <button class="toolbar-btn" onclick="toggleWriterFocus()" data-tooltip="Distraction-free: the page alone, full screen (Ctrl+Shift+F; Esc leaves)">Focus</button>
+                        <button class="toolbar-btn" id="typewriterBtn" onclick="toggleTypewriterSound()" data-tooltip="Typewriter sound as you type">Typewriter</button>
+                        <button class="toolbar-btn" onclick="toggleShortcutHelp()" data-tooltip="Show keyboard shortcut reference (Ctrl+/)">?</button>
+                        <!-- FILM-129: Revision Indicator -->
+                        <div class="revision-indicator" id="revisionIndicator" style="display:none;">
+                            <span class="revision-dot" id="revisionDot"></span>
+                            <span id="revisionLabel">Draft</span>
+                        </div>
+                        <label class="mark-revision-toggle" id="markRevisionToggle" style="display:none;">
+                            <input type="checkbox" id="markAsRevisionCheckbox">
+                            Mark as Revision
+                        </label>
+                        <!-- FILM-127: View Mode Toggle -->
+                        <div class="view-mode-toggle" style="margin-left:auto;">
+                            <button class="view-mode-btn active" onclick="setViewMode('editor')" id="viewModeEditor">Editor</button>
+                            <button class="view-mode-btn" onclick="setViewMode('cards')" id="viewModeCards">Index Cards</button>
+                            <button class="view-mode-btn" onclick="setViewMode('treatment')" id="viewModeTreatment">Treatment</button>
+                            <button class="view-mode-btn" onclick="setViewMode('analysis')" id="viewModeAnalysis">Analysis</button>
+                        </div>
+                    </div>
+
+                    <!-- Editor Container -->
+                    <div class="screenplay-scroll-container" id="editorViewContainer">
+                        <div class="sp-focus-bar">
+                            <span id="focusWordCount"></span>
+                            <button id="typewriterFocusBtn" onclick="toggleTypewriterSound()">Typewriter</button>
+                            <button onclick="toggleWriterFocus(false)">Leave focus (Esc)</button>
+                        </div>
+                        <button type="button" class="title-page-card" id="titlePageCard" onclick="openTitlePageModal()"
+                            title="Edit the title page: title, credit, author, source, draft date, contact, copyright, notes. It prints as the first page of the PDF.">
+                            <span class="tpc-label">Title page</span><span class="tpc-edit">Edit</span></button>
+                        <div class="screenplay-page"
+                             id="screenplayEditor"
+                             contenteditable="true"
+                             spellcheck="true"
+                             oninput="onEditorInput()"
+                             onkeydown="onEditorKeydown(event)"
+                             onclick="onEditorSelectionChange()"
+                             onkeyup="onEditorSelectionChange()">
+                        </div>
+                    </div>
+
+                    <!-- FILM-127: Index Cards View -->
+                    <div class="index-cards-view" id="indexCardsView">
+                        <div class="index-cards-toolbar">
+                            <button class="btn btn-sm" onclick="addIndexCard()">+ Scene</button>
+                            <span class="text-muted text-sm">Click a card to edit it &middot; drag to reorder &middot; double-click to jump to it in the script</span>
+                        </div>
+                        <div class="index-cards-grid" id="indexCardsGrid"></div>
+                    </div>
+
+                    <!-- The treatment: prose before the screenplay. -->
+                    <div class="index-cards-view" id="treatmentView">
+                        <div class="index-cards-toolbar">
+                            <button class="btn btn-sm btn-primary" onclick="saveTreatment()">Save treatment</button>
+                            <span id="treatmentMeta" class="text-muted text-sm"></span>
+                        </div>
+                        <p class="text-muted text-sm" style="margin:0 0 10px;">
+                            What happens, in order &mdash; no dialogue, no format. This is what the
+                            screenplay gets written <em>from</em>. Ask Claude to draft the script from it:
+                            it reads this, writes the Fountain and saves it as a new version.
+                        </p>
+                        <textarea id="treatmentText" class="treatment-text"
+                                  placeholder="Act one opens on&hellip;"></textarea>
+                    </div>
+
+                    <!-- The last reading of the screenplay. -->
+                    <div class="index-cards-view" id="analysisView">
+                        <div class="index-cards-toolbar">
+                            <button class="btn btn-sm" onclick="loadAnalysis()">Refresh</button>
+                            <span class="text-muted text-sm">Ask Claude: <em>read my screenplay and store the analysis</em>.
+                            It uses <code>analysis_brief</code> then <code>analysis_write</code>.</span>
+                        </div>
+                        <div id="analysisBody"></div>
+                    </div>
+
+                    <!-- Import Section (Collapsible) -->
+                    <div class="screenplay-import-section">
+                        <div class="screenplay-import-toggle" onclick="toggleImportSection()">
+                            <span id="importToggleIcon">▶</span>
+                            <span>Import Text / Upload</span>
+                        </div>
+                        <div class="screenplay-import-content" id="importContent">
+                            <p class="text-sm text-muted mb-8">Paste your screenplay (INT./EXT. scene headings). Scenes are auto-extracted.</p>
+                            <textarea class="script-area" id="scriptInput" placeholder="INT. COFFEE SHOP - DAY&#10;&#10;SARAH sits alone at a corner table...&#10;&#10;EXT. CITY STREET - NIGHT&#10;&#10;Sarah walks through the rain."></textarea>
+                            <div class="btn-row mt-16">
+                                <button class="btn btn-primary" onclick="uploadScreenplay()">Upload & Extract Scenes</button>
+                                <button class="btn btn-outline" onclick="importToEditor()">Load into Editor</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- FILM-116: Script Stats Card -->
+                    <div class="script-stats-section">
+                        <div class="script-stats-toggle" onclick="toggleScriptStats()">
+                            <span id="statsToggleIcon">▶</span>
+                            <span>Script Statistics</span>
+                            <span class="script-stats-summary" id="scriptStatsSummary"></span>
+                        </div>
+                        <div class="script-stats-content" id="scriptStatsContent">
+                            <!-- FILM-126: Tabbed stats dashboard -->
+                            <div class="stats-dashboard-tabs">
+                                <button class="stats-tab active" onclick="switchStatsTab('overview')">Overview</button>
+                                <button class="stats-tab" onclick="switchStatsTab('dialogue')">Dialogue</button>
+                                <button class="stats-tab" onclick="switchStatsTab('scenes')">Scenes</button>
+                                <button class="stats-tab" onclick="switchStatsTab('characters')">Characters</button>
+                            </div>
+
+                            <!-- Overview Tab -->
+                            <div class="stats-tab-content active" id="statsTabOverview">
+                                <div class="stats-runtime" id="statRuntime">Est. Runtime: —</div>
+                                <div class="stats-runtime-note">Based on ~1 minute per screenplay page</div>
+                                <div class="script-stats-grid" style="margin-top:12px;">
+                                    <div class="stat-item">
+                                        <div class="stat-value" id="statTotalWords">—</div>
+                                        <div class="stat-label">Words</div>
+                                    </div>
+                                    <div class="stat-item">
+                                        <div class="stat-value" id="statPageCount">—</div>
+                                        <div class="stat-label">Pages</div>
+                                    </div>
+                                    <div class="stat-item">
+                                        <div class="stat-value" id="statSceneCount">—</div>
+                                        <div class="stat-label">Scenes</div>
+                                    </div>
+                                    <div class="stat-item">
+                                        <div class="stat-value" id="statDialoguePct">—</div>
+                                        <div class="stat-label">Dialogue</div>
+                                    </div>
+                                    <div class="stat-item">
+                                        <div class="stat-value" id="statActionPct">—</div>
+                                        <div class="stat-label">Action</div>
+                                    </div>
+                                    <div class="stat-item">
+                                        <div class="stat-value" id="statAvgSceneLen">—</div>
+                                        <div class="stat-label">Avg Scene</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Dialogue Tab -->
+                            <div class="stats-tab-content" id="statsTabDialogue">
+                                <div class="stats-donut-container">
+                                    <div class="stats-donut">
+                                        <svg viewBox="0 0 100 100" width="100" height="100">
+                                            <circle class="stats-donut-ring bg" cx="50" cy="50" r="40"/>
+                                            <circle class="stats-donut-ring dialogue" id="donutDialogue" cx="50" cy="50" r="40"
+                                                stroke-dasharray="0 251.2"/>
+                                        </svg>
+                                        <div class="stats-donut-label">
+                                            <div class="stats-donut-label-value" id="donutPctLabel">—%</div>
+                                            <div class="stats-donut-label-text">Dialogue</div>
+                                        </div>
+                                    </div>
+                                    <div class="stats-donut-legend">
+                                        <div class="stats-legend-item">
+                                            <span class="stats-legend-dot dialogue"></span>
+                                            <span>Dialogue: <strong id="statDialogueWords">—</strong> words</span>
+                                        </div>
+                                        <div class="stats-legend-item">
+                                            <span class="stats-legend-dot action"></span>
+                                            <span>Action: <strong id="statActionWords">—</strong> words</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Scenes Tab -->
+                            <div class="stats-tab-content" id="statsTabScenes">
+                                <div class="script-stats-details" style="border:none;padding:0;">
+                                    <div class="stats-detail-row">
+                                        <span class="stats-detail-label">Longest Scene:</span>
+                                        <span id="statLongestScene">—</span>
+                                    </div>
+                                    <div class="stats-detail-row">
+                                        <span class="stats-detail-label">Shortest Scene:</span>
+                                        <span id="statShortestScene">—</span>
+                                    </div>
+                                </div>
+                                <div class="stats-ratio-bars">
+                                    <div class="stats-ratio-bar">
+                                        <div class="stats-ratio-bar-label">
+                                            <span>INT / EXT Distribution</span>
+                                        </div>
+                                        <div class="stats-ratio-bar-track" id="intExtBar"></div>
+                                    </div>
+                                    <div class="stats-ratio-bar">
+                                        <div class="stats-ratio-bar-label">
+                                            <span>Time of Day</span>
+                                        </div>
+                                        <div class="stats-ratio-bar-track" id="timeOfDayBar"></div>
+                                    </div>
+                                </div>
+                                <h5 style="margin:16px 0 8px;font-size:11px;color:var(--gl-text-muted);">Scene Lengths</h5>
+                                <div class="stats-scene-bars" id="sceneLengthBars"></div>
+                            </div>
+
+                            <!-- Characters Tab -->
+                            <div class="stats-tab-content" id="statsTabCharacters">
+                                <div class="stats-character-breakdown" id="statsCharacterBreakdown"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right Sidebar Panel - Script Versions -->
+                <div class="screenplay-sidebar-panel collapsed" id="rightSidebarPanel">
+                    <button class="panel-toggle-btn" onclick="toggleRightPanel()" title="Toggle Panel">◀</button>
+                    <div class="section-label">Script Versions</div>
+                    <div id="scriptVersions"></div>
+                </div>
+
+                <!-- FILM-111: AI Chat Panel -->
+                <div class="ai-chat-panel" id="aiChatPanel">
+                    <div class="ai-chat-header">
+                        <h4>AI Assistant</h4>
+                        <select class="ai-chat-mode-select" id="aiChatMode">
+                            <option value="brainstorm">Brainstorm</option>
+                            <option value="write-scene">Write Scene</option>
+                            <option value="rewrite">Rewrite</option>
+                            <option value="convert">Convert</option>
+                        </select>
+                        <button class="ai-analyze-btn" onclick="runAIScriptAnalysis()" title="AI Script Analysis">Analyze</button>
+                        <button class="ai-chat-close" onclick="toggleAIChat()" title="Close">×</button>
+                    </div>
+                    <!-- Which path this panel's requests take. MCP is the default
+                         when a host is attached; these HTTP routes are the fallback
+                         and they spend this project's own API key. Shown rather than
+                         assumed, because a writer cannot otherwise tell that the
+                         same work is available for nothing. -->
+                    <div id="aiPathBadge" class="text-sm"
+                         style="display:none;padding:6px 10px;border-bottom:1px solid var(--gl-border-subtle);"></div>
+                    <div class="ai-chat-messages" id="aiChatMessages">
+                        <div class="ai-chat-message assistant">
+                            Hi! I can help you brainstorm ideas, write scenes, rewrite dialogue, or convert content to screenplay format. What would you like to work on?
+                        </div>
+                    </div>
+                    <div class="ai-chat-input-area">
+                        <textarea id="aiChatInput" placeholder="Ask me anything about your screenplay..." onkeydown="handleAIChatKeydown(event)"></textarea>
+                        <div class="send-row">
+                            <label class="ai-context-toggle" title="Include the current scene text as context for more relevant responses">
+                                <input type="checkbox" id="aiIncludeSceneContext" checked>
+                                <span>Scene context</span>
+                            </label>
+                            <button class="send-btn" onclick="sendAIMessage()" id="aiSendBtn">Send</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>

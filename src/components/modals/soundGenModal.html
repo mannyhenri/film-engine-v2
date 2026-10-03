@@ -1,0 +1,43 @@
+<div class="modal-overlay" id="soundGenModal">
+            <div class="modal" style="max-width:560px;">
+                <div class="modal-header">
+                    <h3>Generate a sound</h3>
+                    <button class="modal-close" onclick="closeModal('soundGenModal')">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <label class="text-sm text-muted">What is the sound?</label>
+                    <textarea id="soundGenPrompt" class="ss-input" rows="3"
+                              placeholder="a screen door two streets over, closing slowly"></textarea>
+
+                    <div style="display:flex;gap:10px;margin-top:12px;">
+                        <div style="flex:1;">
+                            <label class="text-sm text-muted">Kind</label>
+                            <select id="soundGenKind" class="ss-input">
+                                <option value="sfx">Effect</option>
+                                <option value="ambient">Room tone</option>
+                                <option value="music">Score</option>
+                            </select>
+                        </div>
+                        <div style="width:120px;">
+                            <label class="text-sm text-muted">Seconds</label>
+                            <input id="soundGenSeconds" class="ss-input" type="number" min="1" max="30" value="5">
+                        </div>
+                    </div>
+
+                    <label class="text-sm text-muted" style="display:block;margin-top:12px;">
+                        In a shot <span class="text-muted">(optional — adds that shot's location, hour and action to the prompt)</span>
+                    </label>
+                    <select id="soundGenShot" class="ss-input" onchange="soundGenPreview()">
+                        <option value="">&mdash; no shot, just the prompt &mdash;</option>
+                    </select>
+
+                    <p class="text-sm text-muted" style="margin-top:12px;">What will be sent:</p>
+                    <pre id="soundGenPreviewOut" class="text-sm"
+                         style="white-space:pre-wrap;background:var(--gl-bg-surface);padding:10px;border-radius:6px;margin:0;max-height:150px;overflow:auto;">&nbsp;</pre>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" onclick="soundGenPreview()">Preview (free)</button>
+                    <button class="btn btn-primary" onclick="runSoundGenerate(this)">Generate</button>
+                </div>
+            </div>
+        </div>

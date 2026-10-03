@@ -1,0 +1,17 @@
+<div class="modal-overlay" id="folderPickerModal">
+        <div class="modal" style="max-width:560px;">
+            <div class="modal-header"><h3>Choose a folder</h3><button class="modal-close" onclick="closeModal('folderPickerModal')">&times;</button></div>
+            <div class="modal-body">
+                <div style="display:flex;gap:6px;align-items:center;margin-bottom:8px;">
+                    <button type="button" class="btn btn-secondary btn-sm" id="folderPickerUp" onclick="folderPickerUp()">&uarr; Up</button>
+                    <input type="text" id="folderPickerPath" style="flex:1;" onchange="loadFolderPicker(this.value)">
+                </div>
+                <div id="folderPickerList" style="max-height:320px;overflow:auto;border:1px solid var(--border,#333);border-radius:6px;"></div>
+                <p class="text-sm text-muted" style="margin-top:8px;">The project gets its own folder <em>inside</em> the one you choose.</p>
+                <div class="btn-row">
+                    <button class="btn btn-primary" onclick="folderPickerChoose()">Use this folder</button>
+                    <button class="btn btn-secondary" onclick="closeModal('folderPickerModal')">Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>

@@ -1,0 +1,27 @@
+<div class="modal-overlay" id="milestoneModal">
+        <div class="modal">
+            <div class="modal-header"><h3>New Milestone</h3><button class="modal-close" onclick="closeModal('milestoneModal')">&times;</button></div>
+            <div class="modal-body">
+                <div class="form-group"><label>Title</label><input type="text" data-field="title" placeholder="Milestone title"></div>
+                <div class="form-group"><label>Phase</label>
+                    <select data-field="phase">
+                        <option value="concept">Concept</option>
+                        <option value="script">Script</option>
+                        <option value="pre-production">Pre-Production</option>
+                        <option value="storyboard">Storyboard</option>
+                        <option value="production">Production</option>
+                        <option value="post-production">Post-Production</option>
+                        <option value="review">Review</option>
+                        <option value="export">Export</option>
+                        <option value="complete">Complete</option>
+                    </select>
+                </div>
+                <div class="form-group"><label>Target Date</label><input type="date" data-field="target_date"></div>
+                <div class="form-group"><label>Description</label><textarea data-field="description" rows="2"></textarea></div>
+                <div class="btn-row">
+                    <button class="btn btn-primary" onclick="createMilestone()">Create</button>
+                    <button class="btn btn-secondary" onclick="closeModal('milestoneModal')">Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>

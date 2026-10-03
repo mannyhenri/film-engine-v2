@@ -1,0 +1,31 @@
+<div class="modal-overlay" id="suggestionsModal">
+        <div class="modal modal-md">
+            <div class="modal-header">
+                <h3>Entity Suggestions</h3>
+                <button class="modal-close" onclick="closeSuggestionsPanel()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p class="text-sm text-muted mb-16">These characters and locations were detected in your screenplay but don't exist in your project yet.</p>
+
+                <div class="suggestions-section" id="characterSuggestionsSection">
+                    <div class="suggestions-section-header">
+                        <h4>Characters <span class="suggestion-count" id="charSuggestionCount">(0)</span></h4>
+                        <button class="btn btn-sm btn-outline" onclick="createAllCharacters()">Create All</button>
+                    </div>
+                    <div class="suggestions-list" id="characterSuggestionsList"></div>
+                </div>
+
+                <div class="suggestions-section" id="locationSuggestionsSection">
+                    <div class="suggestions-section-header">
+                        <h4>Locations <span class="suggestion-count" id="locSuggestionCount">(0)</span></h4>
+                        <button class="btn btn-sm btn-outline" onclick="createAllLocations()">Create All</button>
+                    </div>
+                    <div class="suggestions-list" id="locationSuggestionsList"></div>
+                </div>
+
+                <div class="btn-row mt-16">
+                    <button class="btn btn-secondary" onclick="closeSuggestionsPanel()">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>

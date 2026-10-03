@@ -1,0 +1,24 @@
+<div class="page" id="page-pipeline">
+            <div class="flex-between mb-16">
+                <h2>Pipeline</h2>
+                <button class="btn btn-secondary" onclick="loadPipeline()">Refresh</button>
+            </div>
+            <div class="card mb-16">
+                <h3 class="mb-8">Run scene → final</h3>
+                <p class="text-sm text-muted mb-8" id="pipelineProviders"></p>
+                <div id="pipelineReadiness" class="mb-8"></div>
+                <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                    <select id="pipelineShotSelect" style="min-width:240px;"></select>
+                    <button class="btn btn-primary" onclick="runPipelineLive()">Run shot (live)</button>
+                    <button class="btn btn-secondary" onclick="runPipelineScope('scene')">Run scene</button>
+                    <button class="btn btn-secondary" onclick="runPipelineScope('project')">Run project</button>
+                    <label class="text-sm" style="display:flex;align-items:center;gap:4px;cursor:pointer;" title="Refuse to run any shot whose in-frame subjects are not locked for consistency">
+                        <input type="checkbox" id="pipelineStrict"> Strict consistency
+                    </label>
+                </div>
+                <div id="pipelineLive" style="margin-top:14px;"></div>
+            </div>
+            <div id="pipelineActive" class="mb-16"></div>
+            <h3 class="mb-8">Recent Runs</h3>
+            <div id="pipelineHistory"></div>
+        </div>

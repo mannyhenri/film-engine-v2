@@ -1,0 +1,19 @@
+<div class="page" id="page-rights">
+            <div class="flex-between mb-16">
+                <h2>Rights</h2>
+                <div>
+                    <select id="rightsFilter" onchange="loadRights()" style="width:auto;display:inline-block;min-width:150px;margin-right:8px;">
+                        <option value="">All statuses</option>
+                    </select>
+                    <button class="btn btn-primary" onclick="openRight()">+ Record</button>
+                </div>
+            </div>
+            <p class="text-sm text-muted mb-8">
+                What has been cleared, by whom, where and until when. Recorded, never enforced:
+                nothing here blocks a generation or an export. It is what a delivery has to be able
+                to answer, and the moment to write it down is while you know the answer rather than
+                at delivery.
+            </p>
+            <div id="rightsSummary" class="mb-8"></div>
+            <div id="rightsList"></div>
+        </div>

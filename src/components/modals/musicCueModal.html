@@ -1,0 +1,90 @@
+<div class="modal-overlay" id="musicCueModal">
+        <div class="modal">
+            <div class="modal-header"><h3>New Music Cue</h3><button class="modal-close" onclick="closeModal('musicCueModal')">&times;</button></div>
+            <div class="modal-body">
+                <div class="form-group"><label>Title</label><input type="text" data-field="title" placeholder="Cue title"></div>
+                <div class="form-group"><label>Cue Type</label>
+                    <select data-field="cue_type">
+                        <option value="score">Score</option>
+                        <option value="source">Source</option>
+                        <option value="sfx">SFX</option>
+                        <option value="ambient">Ambient</option>
+                        <option value="transition">Transition</option>
+                    </select>
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+                    <div class="form-group"><label>Mood</label><input type="text" data-field="mood" placeholder="Tense, Upbeat..."></div>
+                    <div class="form-group"><label>Genre</label><input type="text" data-field="genre" placeholder="Orchestral, Electronic..."></div>
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+                    <div class="form-group"><label>Tempo (BPM)</label><input type="number" data-field="tempo_bpm" placeholder="120"></div>
+                    <div class="form-group"><label>Key</label><input type="text" data-field="key_signature" placeholder="D minor"></div>
+                </div>
+                <!--
+                  instruments and key_signature were READ BY THE PROMPT and had
+                  no control — a field the generator uses that nobody can set is
+                  the same gap as a control that reaches nothing, seen from the
+                  other side.
+                -->
+                <div class="form-group"><label>Instruments</label>
+                    <input type="text" data-field="instruments" placeholder="solo cello, brushed kit, upright bass">
+                    <p class="text-sm text-muted" style="margin-top:6px;">Comma separated. These reach the generator.</p>
+                </div>
+                <div class="form-group"><label>Sounds like</label>
+                    <input type="text" data-field="reference_track" placeholder="Blade Runner end titles">
+                    <p class="text-sm text-muted" style="margin-top:6px;">
+                        Sent as a style to match, not a track to copy &mdash; the clearest music note
+                        there is, and it was stored and read by nothing until now.
+                    </p>
+                </div>
+                <div class="form-group"><label>Description &mdash; what the cue does</label>
+                    <textarea data-field="description" rows="3" placeholder="Holds under the dialogue, lifts when she stands, out on the door."></textarea>
+                    <p class="text-sm text-muted" style="margin-top:6px;">
+                        This is the free text that reaches the prompt. Say what the music DOES against
+                        the scene, not only what it sounds like.
+                    </p>
+                </div>
+                <div class="form-group"><label>Not this &mdash; what it must never be</label>
+                    <input type="text" data-field="negative_prompt" placeholder="vocals, drums, sentimental strings">
+                    <p class="text-sm text-muted" style="margin-top:6px;">
+                        Sent to the generator as a negative. A note a composer gives constantly.
+                    </p>
+                </div>
+                <div class="form-group"><label>Length &mdash; seconds</label>
+                    <input type="number" step="0.5" min="0" data-field="duration_s" placeholder="leave blank to match the cut">
+                    <p class="text-sm text-muted" style="margin-top:6px;">
+                        Blank scores the measured length of this scene's footage. Set it only to run
+                        deliberately past or under the cut.
+                    </p>
+                </div>
+
+                <!--
+                  SECTIONS — the cue over its own length.
+                  A film cue is sparse under the argument and opens out at the
+                  reveal; one description for three minutes cannot ask for that.
+                  Each section carries its own direction and its own length and
+                  the generator honours the lengths. Empty means one prompt for
+                  the whole cue, exactly as before.
+                -->
+                <div class="form-group">
+                    <label>Sections &mdash; how the cue changes as it plays</label>
+                    <div id="cueSections"></div>
+                    <div class="btn-row" style="margin-top:8px;">
+                        <button class="btn btn-secondary btn-sm" onclick="cueAddSection()">+ Section</button>
+                        <button class="btn btn-secondary btn-sm" onclick="cueClearSections()">Clear</button>
+                        <span class="text-sm text-muted" id="cueSectionTotal"></span>
+                    </div>
+                    <p class="text-sm text-muted" style="margin-top:6px;">
+                        Leave empty and the cue is one prompt for its whole length. With sections the
+                        cue is the <strong>sum of its parts</strong> and the length above is ignored.
+                        Each part runs 3&ndash;120 seconds &mdash; the generator's own limits.
+                    </p>
+                </div>
+
+                <div class="btn-row">
+                    <button class="btn btn-primary" onclick="createMusicCue()">Create</button>
+                    <button class="btn btn-secondary" onclick="closeModal('musicCueModal')">Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>

@@ -1,0 +1,9 @@
+{
+  "source": "../film-engine/src/index.html",
+  "currentRound": 1,
+  "rounds": [
+    ["projects", "dashboard", "screenplay", "scenes", "moodboard", "characters", "locations", "props", "notes", "stylebook", "settings", "brand"],
+    ["shotboard", "storyboard", "previs", "deliverables", "consistency", "milestones", "budget", "productiongraph", "flows", "videoshots", "music", "musicws", "musiccues", "threed", "pipeline", "jobsqueue"],
+    ["assets", "playback", "renderhistory", "edits", "exportpage", "rights", "titles", "subtitles", "marketing"]
+  ]
+}

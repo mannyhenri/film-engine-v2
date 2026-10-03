@@ -1,0 +1,20 @@
+<div class="modal-overlay cs-overlay" id="characterSheetModal">
+        <div class="modal cs-modal">
+            <div class="cs-head">
+                <div class="cs-head-left">
+                    <h2 id="csName">CHARACTER</h2>
+                    <div class="cs-chips" id="csChips"></div>
+                </div>
+                <div class="cs-head-right">
+                    <button class="btn btn-primary btn-sm" onclick="generateOfficialViews()">Generate views</button>
+                    <!-- Not in the reference: the design has no way to change
+                         anything. Styled as the other header actions so it does
+                         not read as a different kind of control. -->
+                    <button class="btn btn-sm" id="csModeBtn" onclick="toggleSheetMode()">Edit</button>
+                    <button class="btn btn-sm" onclick="exportCharacterSheet()">Export sheet</button>
+                    <button class="modal-close" onclick="closeModal('characterSheetModal')">&times;</button>
+                </div>
+            </div>
+            <div class="cs-body" id="csBody"></div>
+        </div>
+    </div>

@@ -1,0 +1,644 @@
+{
+  "generatedFrom": "../film-engine/src/index.html",
+  "round": 1,
+  "pages": {
+    "projects": {
+      "loader": [
+        "loadProjects"
+      ],
+      "chunk": true,
+      "functions": [],
+      "modals": [
+        "newProjectModal",
+        "folderPickerModal",
+        "productionGuideModal",
+        "projectOnboardingModal"
+      ],
+      "bytes": 0
+    },
+    "dashboard": {
+      "loader": [
+        "loadDashboard"
+      ],
+      "chunk": true,
+      "functions": [
+        "loadHomePanels",
+        "loadDashboard",
+        "homeGreetingHtml",
+        "homeResumeHtml",
+        "homeNeedsHtml",
+        "capitalise",
+        "homePhasesHtml",
+        "homeActivityHtml",
+        "homeRunningHtml",
+        "resumeShot"
+      ],
+      "modals": [
+        "frameViewerModal",
+        "frameVersionsModal",
+        "backgroundPickerModal",
+        "confirmGenModal",
+        "shotCardModal",
+        "entityInspectModal",
+        "characterSheetModal",
+        "subjectSheetModal",
+        "castingModal",
+        "galleryModal",
+        "characterModal",
+        "locationModal",
+        "plateViewerModal",
+        "propModal",
+        "sceneCardModal",
+        "versionDiffModal",
+        "titlePageModal"
+      ],
+      "bytes": 8766
+    },
+    "screenplay": {
+      "loader": [
+        "loadScreenplayPage"
+      ],
+      "chunk": true,
+      "functions": [
+        "uploadScreenplay",
+        "restoreCursorPath",
+        "editorUndo",
+        "editorRedo",
+        "navigateAutocomplete",
+        "onEditorSelectionChange",
+        "updateCurrentSceneDisplay",
+        "updateBlockStatusInfo",
+        "findSpeakingCharacter",
+        "getCurrentSceneFountain",
+        "twBurst",
+        "twThump",
+        "twBell",
+        "typewriterKey",
+        "toggleTypewriterSound",
+        "onEditorKeydown",
+        "extractTextAfterCaret",
+        "getContextualTabCycle",
+        "detectElementTypeImmediate",
+        "toggleDualDialogue",
+        "undualDialogue",
+        "saveTreatment",
+        "addIndexCard",
+        "createIndexCard",
+        "toggleExportDropdown",
+        "exportToFountain",
+        "exportToPlainText",
+        "fountainToPlainText",
+        "downloadBlob",
+        "openImportModal",
+        "resetImportModal",
+        "handleDragEnter",
+        "handleDragLeave",
+        "handleDragOver",
+        "handleFileDrop",
+        "handleFileSelect",
+        "processImportFile",
+        "readFileAsText",
+        "importFDXContent",
+        "importFountainContent",
+        "showImportSuccess",
+        "showImportError",
+        "toggleLeftPanel",
+        "toggleRightPanel",
+        "toggleSceneNavigator",
+        "toggleAIChat",
+        "loadAIChatHistory",
+        "saveAIChatHistory",
+        "renderAIChatMessages",
+        "handleAIChatKeydown",
+        "streamPostSSE",
+        "showTypingIndicator",
+        "removeTypingIndicator",
+        "copyAIMessage",
+        "insertAITextAtCursor",
+        "aiPathBadge",
+        "sendAIMessage",
+        "getSelectedEditorContent",
+        "generateDiffView",
+        "acceptRewrite",
+        "rejectRewrite",
+        "insertAIContent",
+        "insertAIContentAtCursor",
+        "appendAIContent",
+        "replaceCurrentScene",
+        "toggleShortcutHelp",
+        "formatBold",
+        "formatItalic",
+        "formatUnderline",
+        "setElementType",
+        "toggleImportSection",
+        "toggleScriptStats",
+        "switchStatsTab",
+        "runAIScriptAnalysis",
+        "importToEditor",
+        "openTextConvertModal",
+        "closeTextConvertModal",
+        "openSuggestionsPanel",
+        "closeSuggestionsPanel",
+        "renderSuggestions",
+        "createSuggestedCharacter",
+        "createSuggestedLocation",
+        "createAllCharacters",
+        "createAllLocations",
+        "resetConvertModal",
+        "handleConvertFileUpload",
+        "detectChapters",
+        "renderChaptersList",
+        "toggleChapter",
+        "selectAllChapters",
+        "deselectAllChapters",
+        "chunkText",
+        "formatDuration",
+        "setConversionProgress",
+        "buildConversionQueue",
+        "readConversionResponse",
+        "runConversionQueue",
+        "convertFullDocument",
+        "cancelConversion",
+        "startConversion",
+        "showConversionResults",
+        "backToConvertStep1",
+        "acceptConversion"
+      ],
+      "modals": [
+        "confirmGenModal",
+        "entityInspectModal",
+        "characterSheetModal",
+        "subjectSheetModal",
+        "castingModal",
+        "galleryModal",
+        "characterModal",
+        "locationModal",
+        "plateViewerModal",
+        "propModal",
+        "sceneCardModal",
+        "newSceneCardModal",
+        "textConvertModal",
+        "suggestionsModal",
+        "versionDiffModal",
+        "titlePageModal",
+        "importScriptModal"
+      ],
+      "bytes": 110828
+    },
+    "scenes": {
+      "loader": [
+        "loadScenes"
+      ],
+      "chunk": true,
+      "functions": [
+        "selectAllScenes",
+        "deleteSelectedScenes",
+        "breakdownAllScenes"
+      ],
+      "modals": [
+        "confirmGenModal"
+      ],
+      "bytes": 2979
+    },
+    "shotboard": {
+      "loader": [
+        "loadShotBoard"
+      ],
+      "chunk": false,
+      "functions": [],
+      "modals": [],
+      "bytes": 0
+    },
+    "moodboard": {
+      "loader": [
+        "loadMoodBoardPage"
+      ],
+      "chunk": true,
+      "functions": [
+        "loadMoodBoardPage",
+        "moodSpecValues",
+        "uploadMoodBoardImage",
+        "moodBoardAdd",
+        "moodBoardDelete",
+        "moodBoardCompose"
+      ],
+      "modals": [
+        "confirmGenModal",
+        "entityInspectModal",
+        "characterSheetModal",
+        "subjectSheetModal",
+        "castingModal",
+        "galleryModal",
+        "characterModal",
+        "locationModal",
+        "plateViewerModal",
+        "propModal",
+        "sceneCardModal",
+        "versionDiffModal",
+        "titlePageModal"
+      ],
+      "bytes": 4932
+    },
+    "storyboard": {
+      "loader": [
+        "loadStoryboard"
+      ],
+      "chunk": false,
+      "functions": [],
+      "modals": [],
+      "bytes": 0
+    },
+    "characters": {
+      "loader": [
+        "loadCharacters"
+      ],
+      "chunk": true,
+      "functions": [],
+      "modals": [
+        "confirmGenModal",
+        "entityInspectModal",
+        "characterSheetModal",
+        "subjectSheetModal",
+        "castingModal",
+        "galleryModal",
+        "characterModal",
+        "locationModal",
+        "plateViewerModal",
+        "propModal",
+        "sceneCardModal",
+        "versionDiffModal",
+        "titlePageModal"
+      ],
+      "bytes": 0
+    },
+    "locations": {
+      "loader": [
+        "loadLocations"
+      ],
+      "chunk": true,
+      "functions": [],
+      "modals": [
+        "confirmGenModal",
+        "entityInspectModal",
+        "characterSheetModal",
+        "subjectSheetModal",
+        "castingModal",
+        "galleryModal",
+        "characterModal",
+        "locationModal",
+        "plateViewerModal",
+        "propModal",
+        "sceneCardModal",
+        "versionDiffModal",
+        "titlePageModal"
+      ],
+      "bytes": 0
+    },
+    "props": {
+      "loader": [
+        "loadProps"
+      ],
+      "chunk": true,
+      "functions": [],
+      "modals": [
+        "confirmGenModal",
+        "entityInspectModal",
+        "characterSheetModal",
+        "subjectSheetModal",
+        "castingModal",
+        "galleryModal",
+        "characterModal",
+        "locationModal",
+        "plateViewerModal",
+        "propModal",
+        "sceneCardModal",
+        "versionDiffModal",
+        "titlePageModal"
+      ],
+      "bytes": 0
+    },
+    "assets": {
+      "loader": [
+        "loadAssets"
+      ],
+      "chunk": false,
+      "functions": [],
+      "modals": [],
+      "bytes": 0
+    },
+    "musicws": {
+      "loader": [
+        "loadMusicWorkstation"
+      ],
+      "chunk": false,
+      "functions": [],
+      "modals": [],
+      "bytes": 0
+    },
+    "musiccues": {
+      "loader": [
+        "loadMusicCues"
+      ],
+      "chunk": false,
+      "functions": [],
+      "modals": [],
+      "bytes": 0
+    },
+    "milestones": {
+      "loader": [
+        "loadMilestones"
+      ],
+      "chunk": false,
+      "functions": [],
+      "modals": [],
+      "bytes": 0
+    },
+    "playback": {
+      "loader": [
+        "loadPlayback"
+      ],
+      "chunk": false,
+      "functions": [],
+      "modals": [],
+      "bytes": 0
+    },
+    "notes": {
+      "loader": [
+        "loadNotesPage"
+      ],
+      "chunk": true,
+      "functions": [
+        "loadNotesPage",
+        "onNoteSceneChange",
+        "loadShotNotes",
+        "showAddNoteModal",
+        "addNote",
+        "resolveNote",
+        "showReviewModal",
+        "submitReview"
+      ],
+      "modals": [
+        "addNoteModal",
+        "reviewShotModal"
+      ],
+      "bytes": 4859
+    },
+    "renderhistory": {
+      "loader": [
+        "loadRenderPage"
+      ],
+      "chunk": false,
+      "functions": [],
+      "modals": [],
+      "bytes": 0
+    },
+    "edits": {
+      "loader": [
+        "loadEditsPage"
+      ],
+      "chunk": false,
+      "functions": [],
+      "modals": [],
+      "bytes": 0
+    },
+    "exportpage": {
+      "loader": [
+        "loadExportPage"
+      ],
+      "chunk": false,
+      "functions": [],
+      "modals": [],
+      "bytes": 0
+    },
+    "brand": {
+      "loader": [
+        "loadBrands"
+      ],
+      "chunk": true,
+      "functions": [
+        "loadBrands",
+        "openBrand",
+        "saveBrand",
+        "deleteBrand"
+      ],
+      "modals": [],
+      "bytes": 6694
+    },
+    "deliverables": {
+      "loader": [
+        "loadDeliverables"
+      ],
+      "chunk": false,
+      "functions": [],
+      "modals": [],
+      "bytes": 0
+    },
+    "rights": {
+      "loader": [
+        "loadRights"
+      ],
+      "chunk": false,
+      "functions": [],
+      "modals": [],
+      "bytes": 0
+    },
+    "titles": {
+      "loader": [
+        "loadTitles"
+      ],
+      "chunk": false,
+      "functions": [],
+      "modals": [],
+      "bytes": 0
+    },
+    "subtitles": {
+      "loader": [
+        "loadSubtitles"
+      ],
+      "chunk": false,
+      "functions": [],
+      "modals": [],
+      "bytes": 0
+    },
+    "marketing": {
+      "loader": [
+        "loadMarketing"
+      ],
+      "chunk": false,
+      "functions": [],
+      "modals": [],
+      "bytes": 0
+    },
+    "consistency": {
+      "loader": [
+        "loadConsistency"
+      ],
+      "chunk": false,
+      "functions": [],
+      "modals": [],
+      "bytes": 0
+    },
+    "budget": {
+      "loader": [
+        "loadSpend",
+        "loadBudget"
+      ],
+      "chunk": false,
+      "functions": [],
+      "modals": [],
+      "bytes": 0
+    },
+    "threed": {
+      "loader": [
+        "loadThreeD"
+      ],
+      "chunk": false,
+      "functions": [],
+      "modals": [],
+      "bytes": 0
+    },
+    "videoshots": {
+      "loader": [
+        "loadVideoShots"
+      ],
+      "chunk": false,
+      "functions": [],
+      "modals": [],
+      "bytes": 0
+    },
+    "music": {
+      "loader": [
+        "loadMusic"
+      ],
+      "chunk": false,
+      "functions": [],
+      "modals": [],
+      "bytes": 0
+    },
+    "productiongraph": {
+      "loader": [
+        "loadProductionGraph"
+      ],
+      "chunk": false,
+      "functions": [],
+      "modals": [],
+      "bytes": 0
+    },
+    "flows": {
+      "loader": [
+        "loadFlowsPage"
+      ],
+      "chunk": false,
+      "functions": [],
+      "modals": [],
+      "bytes": 0
+    },
+    "previs": {
+      "loader": [
+        "loadPrevisPage"
+      ],
+      "chunk": false,
+      "functions": [],
+      "modals": [],
+      "bytes": 0
+    },
+    "pipeline": {
+      "loader": [
+        "loadPipeline"
+      ],
+      "chunk": false,
+      "functions": [],
+      "modals": [],
+      "bytes": 0
+    },
+    "stylebook": {
+      "loader": [
+        "loadStyleBook"
+      ],
+      "chunk": true,
+      "functions": [
+        "loadStyleBook",
+        "styleBookTags",
+        "styleBookNoteInto",
+        "renderStyleBook",
+        "newStyleBookEntry",
+        "editStyleBookEntry",
+        "openStyleBookModal",
+        "saveStyleBookEntry",
+        "addStyleBookMedia",
+        "removeStyleBookMedia",
+        "styleBookMediaTile",
+        "refreshStyleBookMedia",
+        "deleteStyleBookEntry"
+      ],
+      "modals": [
+        "plateViewerModal",
+        "styleBookModal"
+      ],
+      "bytes": 14948
+    },
+    "settings": {
+      "loader": [
+        "loadSettings"
+      ],
+      "chunk": true,
+      "functions": [
+        "loadProjectFolder",
+        "moveProjectFolder",
+        "loadBackupSettings",
+        "saveBackupSettings",
+        "runBackupNow",
+        "saveProjectsRoot",
+        "deleteCurrentProject",
+        "loadSettingsBrands",
+        "loadSettings",
+        "loadAppSettings",
+        "saveGridlightEnabled",
+        "saveAppSettings",
+        "loadProviders",
+        "refreshModelMenu",
+        "pickImageTier",
+        "saveProviderKey",
+        "saveProviderFields",
+        "checkProviderKey",
+        "connectProviderOAuth",
+        "disconnectProvider",
+        "releaseRegisteredClient",
+        "clearProviderKey",
+        "saveProviderConfig",
+        "saveSettings",
+        "resetSettings",
+        "saveProjectSettings",
+        "applyDeliveryPreset",
+        "onAspectRatioChange",
+        "updateAspectPreview",
+        "parseAspectRatio",
+        "loadTechnicalSettings",
+        "saveTechnicalSettings"
+      ],
+      "modals": [
+        "newProjectModal",
+        "folderPickerModal",
+        "productionGuideModal",
+        "projectOnboardingModal"
+      ],
+      "bytes": 51392
+    },
+    "jobsqueue": {
+      "loader": [
+        "loadJobsQueuePage"
+      ],
+      "chunk": false,
+      "functions": [],
+      "modals": [],
+      "bytes": 0
+    }
+  },
+  "core": {
+    "functions": 1166,
+    "unreached": 39,
+    "sharedByPages": 1,
+    "declaredTwice": [],
+    "bytes": 1614082
+  }
+}

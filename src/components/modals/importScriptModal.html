@@ -1,0 +1,46 @@
+<div class="modal-overlay" id="importScriptModal">
+        <div class="modal modal-md">
+            <div class="modal-header">
+                <h3>Import Script</h3>
+                <button class="modal-close" onclick="closeModal('importScriptModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <!-- Dropzone -->
+                <div class="import-dropzone" id="importDropzone"
+                     onclick="document.getElementById('importFileInput').click()"
+                     ondragenter="handleDragEnter(event)"
+                     ondragleave="handleDragLeave(event)"
+                     ondragover="handleDragOver(event)"
+                     ondrop="handleFileDrop(event)">
+                    <div class="import-dropzone-icon">📄</div>
+                    <div class="import-dropzone-text">
+                        Drop a file here or click to browse
+                    </div>
+                    <div class="import-dropzone-hint">
+                        Supported: Final Draft (.fdx), Fountain (.fountain)
+                    </div>
+                </div>
+                <input type="file" id="importFileInput" class="import-file-input"
+                       accept=".fdx,.xml,.fountain,.txt"
+                       onchange="handleFileSelect(event)">
+
+                <!-- Progress -->
+                <div class="import-progress" id="importProgress">
+                    <div class="import-progress-spinner"></div>
+                    <div id="importProgressText">Importing...</div>
+                </div>
+
+                <!-- Result -->
+                <div class="import-result" id="importResult">
+                    <div id="importResultIcon"></div>
+                    <div id="importResultMessage"></div>
+                    <div class="import-stats" id="importStats"></div>
+                    <div class="import-warnings" id="importWarnings" style="display:none;"></div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-outline" onclick="resetImportModal()">Import Another</button>
+                <button class="btn btn-secondary" onclick="closeModal('importScriptModal')">Close</button>
+            </div>
+        </div>
+    </div>

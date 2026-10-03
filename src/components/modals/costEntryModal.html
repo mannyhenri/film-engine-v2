@@ -1,0 +1,30 @@
+<div class="modal-overlay" id="costEntryModal">
+        <div class="modal">
+            <div class="modal-header"><h3>Add Cost Entry</h3><button class="modal-close" onclick="closeModal('costEntryModal')">&times;</button></div>
+            <div class="modal-body">
+                <div class="form-group"><label>Cost Type</label>
+                    <select data-field="cost_type">
+                        <option value="render_gpu">Render GPU</option>
+                        <option value="image_generation">Image Generation</option>
+                        <option value="video_generation">Video Generation</option>
+                        <option value="voice_synthesis">Voice Synthesis</option>
+                        <option value="music_generation">Music Generation</option>
+                        <option value="api_call">API Call</option>
+                        <option value="storage">Storage</option>
+                        <option value="license">License</option>
+                        <option value="other">Other</option>
+                    </select>
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+                    <div class="form-group"><label>Amount ($)</label><input type="number" data-field="amount" min="0" step="0.01" placeholder="0.00"></div>
+                    <div class="form-group"><label>GPU Seconds</label><input type="number" data-field="gpu_seconds" min="0" placeholder="0"></div>
+                </div>
+                <div class="form-group"><label>Description</label><input type="text" data-field="description" placeholder="What was this for?"></div>
+                <div class="form-group"><label>Model Used</label><input type="text" data-field="model_used" placeholder="e.g. SDXL, GPT-4"></div>
+                <div class="btn-row">
+                    <button class="btn btn-primary" onclick="saveCostEntry()">Save</button>
+                    <button class="btn btn-secondary" onclick="closeModal('costEntryModal')">Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>

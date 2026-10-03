@@ -1,0 +1,17 @@
+<div class="page" id="page-scenes">
+            <div class="page-header">
+                <h2>Scenes</h2>
+                <button class="btn btn-primary" onclick="breakdownAllScenes()" id="breakdownAllBtn" style="display:none;">
+                    &#9881; Break Down All New Scenes
+                </button>
+            </div>
+            <!-- Appears only with a selection, so the destructive control is
+                 not sitting on screen during normal use. -->
+            <div id="sceneBulkBar" class="scene-bulk-bar hidden">
+                <span id="sceneBulkCount">0 selected</span>
+                <button class="btn btn-secondary btn-sm" onclick="selectAllScenes(true)">Select all</button>
+                <button class="btn btn-secondary btn-sm" onclick="selectAllScenes(false)">Clear</button>
+                <button class="btn btn-danger btn-sm" onclick="deleteSelectedScenes()">Delete selected</button>
+            </div>
+            <div id="scenesList"></div>
+        </div>

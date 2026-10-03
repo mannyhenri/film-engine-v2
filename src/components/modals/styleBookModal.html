@@ -1,0 +1,71 @@
+<div class="modal-overlay" id="styleBookModal">
+        <div class="modal">
+            <div class="modal-header"><h3 id="styleBookModalTitle">New shot</h3><button class="modal-close" onclick="closeModal('styleBookModal')">&times;</button></div>
+            <div class="modal-body">
+                <input type="hidden" id="styleBookEditId">
+                <div class="form-group"><label>Name</label><input type="text" data-field="name" placeholder="Ozu tatami low-angle"></div>
+                <div class="form-group"><label>Description</label><textarea data-field="description" rows="2" placeholder="What this shot is for, and when you reach for it..."></textarea></div>
+                <div class="form-group"><label>Tags</label><input type="text" data-field="tags" placeholder="interior, conversation, static, formal">
+                    <p class="text-sm text-muted" style="margin-top:6px;">Free text &mdash; whatever you would actually search for.</p>
+                </div>
+                <div class="form-group"><label>Kept in</label>
+                    <select data-field="scope">
+                        <option value="library">My library &mdash; every film</option>
+                        <option value="project">This film only</option>
+                    </select>
+                </div>
+                <h4 class="mb-8" style="font-size:12px;text-transform:uppercase;letter-spacing:1px;color:var(--gl-text-muted);">Camera &mdash; all optional</h4>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+                    <div class="form-group"><label>Framing</label><input type="text" data-field="shot_type" placeholder="close-up, wide, two-shot"></div>
+                    <div class="form-group"><label>Movement</label><input type="text" data-field="movement" placeholder="static, push-in, orbit"></div>
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+                    <div class="form-group"><label>Lens</label><input type="text" data-field="lens" placeholder="40mm anamorphic"></div>
+                    <div class="form-group"><label>Sensor</label><input type="text" data-field="sensor" placeholder="super35, fullframe"></div>
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;">
+                    <div class="form-group"><label>Aperture</label><input type="number" step="0.1" min="0" data-field="aperture" placeholder="2.8"></div>
+                    <div class="form-group"><label>Height &mdash; m</label><input type="number" step="0.05" min="0" data-field="height_m" placeholder="0.4"></div>
+                    <div class="form-group"><label>Focus &mdash; m</label><input type="number" step="0.1" min="0" data-field="focus_distance_m" placeholder="1.2"></div>
+                </div>
+                <p class="text-sm text-muted" style="margin:-4px 0 12px;line-height:1.5;">
+                    Height is what makes a shot read as low or high angle &mdash; <strong>0.4m</strong> is
+                    tatami level, <strong>1.6m</strong> is eye level. Leave anything blank you do not know.
+                </p>
+                <div class="form-group"><label>Note to yourself</label><textarea data-field="note" rows="2" placeholder="Why this works, what it needs..."></textarea></div>
+
+                <!--
+                  VISUALS — a file or a link, because a reference lives in both
+                  places: a frame grab on this machine, and a clip that shows a
+                  move a still cannot. Only offered on a SAVED entry: an
+                  attachment needs something to attach to, and uploading into an
+                  entry that is then cancelled would orphan the file.
+                -->
+                <div id="styleBookMediaSection" style="display:none;">
+                    <h4 class="mb-8" style="font-size:12px;text-transform:uppercase;letter-spacing:1px;color:var(--gl-text-muted);">Visuals</h4>
+                    <div id="styleBookMediaList" class="mb-8"></div>
+                    <div class="form-group">
+                        <label>Add a picture or clip</label>
+                        <input type="file" id="styleBookMediaFile" accept="image/*,video/*">
+                    </div>
+                    <div class="form-group">
+                        <label>&hellip;or paste a link</label>
+                        <input type="text" id="styleBookMediaUrl" placeholder="https://youtube.com/watch?v=… or a direct image/clip URL">
+                    </div>
+                    <div class="form-group">
+                        <label>What it shows</label>
+                        <input type="text" id="styleBookMediaNote" placeholder="The push-in at 1:24">
+                    </div>
+                    <div class="btn-row" style="margin-bottom:12px;">
+                        <button class="btn btn-secondary btn-sm" id="styleBookAddMediaBtn">Add visual</button>
+                    </div>
+                    <p class="text-sm text-muted" id="styleBookMediaNote_" style="margin:-4px 0 12px;line-height:1.5;"></p>
+                </div>
+
+                <div class="btn-row">
+                    <button class="btn btn-primary" onclick="saveStyleBookEntry()">Save</button>
+                    <button class="btn btn-secondary" onclick="closeModal('styleBookModal')">Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>

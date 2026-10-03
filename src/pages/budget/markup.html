@@ -1,0 +1,107 @@
+<div class="page" id="page-budget">
+            <div class="flex-between mb-16">
+                <h2>Budget</h2>
+                <div class="tab-bar" id="budgetTabs">
+                    <button class="tab-btn active" data-tab="spend" onclick="switchBudgetTab('spend')">AI Spend</button>
+                    <button class="tab-btn" data-tab="film" onclick="switchBudgetTab('film')">Film Estimate</button>
+                    <button class="tab-btn" data-tab="tracking" onclick="switchBudgetTab('tracking')">Ledger</button>
+                    <button class="tab-btn" data-tab="compare" onclick="switchBudgetTab('compare')">Compare Generators</button>
+                    <button class="tab-btn" data-tab="rates" onclick="switchBudgetTab('rates')">Rates</button>
+                    <button class="tab-btn" data-tab="estimation" onclick="switchBudgetTab('estimation')">Live-action Estimate</button>
+                </div>
+            </div>
+
+            <!-- AI Spend Tab — what the pipeline actually costs -->
+            <div id="budgetTabSpend" class="budget-tab-content">
+                <div class="flex-between mb-16">
+                    <div id="spendNote" class="text-sm text-muted"></div>
+                    <div>
+                        <button class="btn btn-secondary" onclick="showModal('budgetLimitModal')" style="margin-right:8px;">Set Limit</button>
+                        <button class="btn btn-secondary" onclick="loadSpend()">Refresh</button>
+                    </div>
+                </div>
+                <div id="spendBackfillBanner" class="mb-16"></div>
+                <div id="spendHeadline" class="mb-16"></div>
+                <div id="spendUnits" class="mb-16"></div>
+                <div id="spendSubscription" class="mb-16"></div>
+                <div id="spendByCapability" class="mb-16"></div>
+                <div id="spendOverTime" class="mb-16"></div>
+                <div id="spendByModel" class="mb-16"></div>
+                <div id="spendByShot" class="mb-16"></div>
+            </div>
+
+            <!-- Film Estimate Tab — plates, storyboard and footage for THIS film, priced before anything is made -->
+            <div id="budgetTabFilm" class="budget-tab-content" style="display:none;">
+                <p class="text-sm text-muted mb-16">What the plates, the storyboard and the footage of this film will cost, counted from the project and priced on the generator each would use, at the project's resolution. Change the resolution or a generator to see the difference. Free: nothing is generated.</p>
+                <div id="prodEstControls" class="mb-16"></div>
+                <div id="prodEstResult"></div>
+            </div>
+
+            <!-- Compare Tab — which generator to use, priced per unit of real work -->
+            <div id="budgetTabCompare" class="budget-tab-content" style="display:none;">
+                <div class="flex-between mb-16" style="flex-wrap:wrap;gap:8px;">
+                    <div class="tab-bar" id="compareCapTabs">
+                        <button class="tab-btn active" data-cap="image" onclick="loadGeneratorCompare('image')">Images</button>
+                        <button class="tab-btn" data-cap="video" onclick="loadGeneratorCompare('video')">Video</button>
+                    </div>
+                    <div id="compareClipWrap" style="display:none;align-items:center;gap:6px;">
+                        <label class="text-sm text-muted" for="compareClipSeconds">Clip length</label>
+                        <input id="compareClipSeconds" type="number" min="1" max="60" step="1" value="5"
+                               style="width:64px;" onchange="loadGeneratorCompare('video')">
+                        <span class="text-sm text-muted">s</span>
+                    </div>
+                </div>
+                <div id="generatorCompare"></div>
+            </div>
+
+            <!-- Rates Tab — where every number comes from -->
+            <div id="budgetTabRates" class="budget-tab-content" style="display:none;">
+                <p class="text-sm text-muted mb-16">Published provider rates, with the source and the date each was checked. A rate you override applies to calls made from now on — past events keep the rate they were priced at, so a correction never rewrites history.</p>
+                <div id="spendRates"></div>
+            </div>
+
+            <!-- Cost Ledger Tab -->
+            <div id="budgetTabTracking" class="budget-tab-content" style="display:none;">
+                <div class="flex-between mb-16">
+                    <div></div>
+                    <div>
+                        <button class="btn btn-secondary" onclick="showModal('budgetLimitModal')" style="margin-right:8px;">Set Limit</button>
+                        <button class="btn btn-primary" onclick="showModal('costEntryModal')">+ Cost Entry</button>
+                    </div>
+                </div>
+                <div id="budgetSummary" class="mb-16"></div>
+                <div id="budgetBreakdown" class="mb-16"></div>
+                <h3 class="mb-8">Cost Ledger</h3>
+                <div id="budgetLedger"></div>
+            </div>
+
+            <!-- Budget Estimation Tab -->
+            <div id="budgetTabEstimation" class="budget-tab-content" style="display:none;">
+                <div class="flex-between mb-16">
+                    <div>
+                        <label class="text-sm text-muted" style="margin-right:8px;">Template:</label>
+                        <select id="budgetTemplateSelect" onchange="generateBudgetEstimate()" style="padding:6px 12px;background:var(--gl-bg-surface);border:1px solid var(--gl-border-subtle);border-radius:var(--gl-radius-md);color:var(--gl-text-primary);">
+                            <option value="micro">Micro Budget (&lt;$100K)</option>
+                            <option value="indie" selected>Indie ($100K-$1M)</option>
+                            <option value="low">Low Budget ($1M-$5M)</option>
+                            <option value="mid">Mid Budget ($5M-$20M)</option>
+                            <option value="studio">Studio ($20M+)</option>
+                            <option value="custom">Custom</option>
+                        </select>
+                    </div>
+                    <div>
+                        <button class="btn btn-secondary" onclick="generateBudgetEstimate()" style="margin-right:8px;">Refresh Estimate</button>
+                        <button class="btn btn-primary" onclick="exportBudgetEstimate()">Export CSV</button>
+                    </div>
+                </div>
+
+                <!-- Project Analysis Summary -->
+                <div id="budgetAnalysisSummary" class="mb-16"></div>
+
+                <!-- Missing Data Cards -->
+                <div id="budgetMissingData" class="mb-16"></div>
+
+                <!-- Budget Breakdown -->
+                <div id="budgetEstimateBreakdown"></div>
+            </div>
+        </div>

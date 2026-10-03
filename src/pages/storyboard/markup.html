@@ -1,0 +1,89 @@
+<div class="page" id="page-storyboard">
+            <div class="flex-between mb-16">
+                <h2>Storyboard</h2>
+                <div style="display:flex;align-items:center;gap:12px;">
+                    <!--
+                        The protect frame. Drawn OVER the boards rather than
+                        replacing them: the question is what a placement would
+                        keep, and the answer is only readable against the whole
+                        frame it is cut from. A 9:16 crop of a 16:9 board keeps
+                        32% of its width, which is a number nobody believes
+                        until they see it over their own shot.
+                    -->
+                    <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;"
+                           title="Draw what a vertical or square placement would keep, over every tile">
+                        Protect
+                        <select id="boardProtectRatio" onchange="renderBoardProtect()"
+                                style="width:auto;display:inline-block;min-width:90px;">
+                            <option value="">off</option>
+                            <option value="9:16">9:16</option>
+                            <option value="4:5">4:5</option>
+                            <option value="1:1">1:1</option>
+                            <option value="16:9">16:9</option>
+                        </select>
+                    </label>
+                    <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;">
+                        <input type="checkbox" id="useReferencesToggle" style="cursor:pointer;">
+                        Use References
+                    </label>
+                    <!-- PAR-026. Off by default, and the label says which of the two
+                         things markup currently is, because "notation for me" and
+                         "instructions the model follows" are different features
+                         wearing the same arrows. -->
+                    <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;"
+                           id="annotFeedbackLabel"
+                           title="When on, every mark carrying a note is added to this shot's prompt each time it is generated, until you delete the mark.">
+                        <input type="checkbox" id="annotFeedbackToggle" style="cursor:pointer;"
+                               onchange="setAnnotationFeedback(this.checked)">
+                        <span id="annotFeedbackText">Marks are notes only</span>
+                    </label>
+                    <!-- The frame currently being shot from. Not a checkbox: setting an
+                         anchor IS turning it on, and a pinned frame that reached nothing
+                         while a checkbox elsewhere sat clear is the state nobody can hold
+                         in their head. Hidden entirely when no anchor is set, so the
+                         chrome only appears while the tool is in your hand. -->
+                    <span id="anchorChip" style="display:none;align-items:center;gap:6px;font-size:13px;
+                          padding:3px 8px;border-radius:999px;border:1px solid var(--gl-brand-pink,#ec4899);">
+                        <span id="anchorChipText"></span>
+                        <button class="btn btn-sm" style="padding:0 6px;" onclick="clearAnchor()"
+                                title="Put the anchor down — shots go back to generating from their plates">clear</button>
+                    </span>
+                    <button class="btn btn-primary" onclick="generateAllStoryboards()">Generate All</button>
+                    <button class="btn btn-secondary" id="boardLockBtn" onclick="toggleBoardLock()"
+                            title="Lock the board when you are happy with it — nothing that replaces a frame will run until you unlock">Lock board</button>
+                </div>
+            </div>
+            <div id="storyboardProgress" style="display:none;" class="card mb-16">
+                <div class="flex-between mb-8">
+                    <span id="storyboardProgressLabel">Generating storyboards...</span>
+                    <span id="storyboardProgressPct">0%</span>
+                </div>
+                <div style="background:var(--gl-border-subtle);border-radius:4px;height:8px;overflow:hidden;margin-bottom:8px;">
+                    <div id="storyboardProgressBar" style="background:linear-gradient(90deg,#e91e63,#2196f3);height:100%;width:0%;transition:width 0.3s ease;border-radius:4px;"></div>
+                </div>
+                <div id="storyboardImageProgress" style="display:none;">
+                    <div class="flex-between" style="font-size:12px;color:var(--gl-text-muted);margin-bottom:4px;">
+                        <span id="storyboardImageLabel">Loading model...</span>
+                        <span id="storyboardImageStep"></span>
+                    </div>
+                    <div style="background:rgba(255,255,255,0.1);border-radius:4px;height:6px;overflow:hidden;">
+                        <div id="storyboardImageBar" style="width:0%;height:100%;background:linear-gradient(90deg,#7c4dff,#ab47bc);border-radius:4px;transition:width 0.2s ease;"></div>
+                    </div>
+                </div>
+            </div>
+            <!-- 340px, not 260: the card carries six controls now (anchor, refine,
+                 versions, regen, direct, add) and at 260 the last one overflowed off
+                 the card, so the way to add a shot was invisible rather than absent. -->
+            <!--
+                Drift and impact banners, OUTSIDE the grid.
+                `.entity-grid` is a real CSS grid, so every direct child takes a
+                cell — an empty one included. Written as the grid's first child
+                this took the first cell and pushed the top row of frames one
+                column across, which is what "why is there space on the left"
+                was. Out here it is also no longer destroyed when the grid
+                repaints, which matters because these reports arrive a second
+                later, asynchronously and by design.
+            -->
+            <div id="boardBanners"></div>
+            <div id="storyboardGrid" class="entity-grid" style="grid-template-columns:repeat(auto-fill,minmax(340px,1fr));"></div>
+        </div>

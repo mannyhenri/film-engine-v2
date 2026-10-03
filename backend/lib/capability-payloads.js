@@ -1,0 +1,1549 @@
+/**
+ * Shared provider-payload construction (Phase 0).
+ *
+ * Before this module there were two ways a generation request got built:
+ *
+ *   the per-domain route  -> loaded context, called a prompt builder, applied
+ *                            consistency, sent a real payload
+ *   the orchestrator      -> sent { shot_id, scene_id, project_id, step }
+ *
+ * The second one is not a shortcut, it is a defect: routes/pipeline.js was
+ * asking image/video/voice generators to produce a shot from four ids and no
+ * prompt. Every capability now builds through CAPABILITY_BUILDERS here, so the
+ * orchestrator, the routes, and (in Phase 2) the flow canvas cannot drift.
+ *
+ * Three asymmetries are deliberate and must not be flattened:
+ *
+ *   cardinality  voice and sfx are one-context-to-many-payloads and return
+ *                ARRAYS. Returning a single object silently drops every
+ *                dialogue line after the first.
+ *   scope        music and ambient are scene-scoped and build with no shot in
+ *                context; requiring one forces callers to pick arbitrarily.
+ *   sub-types    post has four (upscale, face_restore, color_grade, composite)
+ *                and the orchestrated step names none, so it defaults.
+ *
+ * A builder takes a CONTEXT, never an id, so it is exercisable without a
+ * database. Anything that reads the DB (loadShotContext, consistency lookups)
+ * lazy-requires it, keeping `require('./capability-payloads')` side-effect free.
+ */
+
+const { buildStoryboardPrompt, rankContributions, trimToAllowance } = require('./storyboard-prompt');
+const { buildVideoPayload } = require('./video-prompt');
+const { extractDialogue, buildVoicePayload } = require('./dialogue-builder');
+const { buildMusicPrompt, buildSFXPrompts, buildAmbientPrompt } = require('./music-prompt');
+
+// Applying an already-built consistency context is pure, so it imports directly.
+// consistency-context.js itself requires db/database at module scope and is
+// pulled in only where a profile actually has to be read (loadShotContext).
+const { applyConsistencyToImagePayload, applyConsistencyToVoicePayload } = require('./consistency-apply');
+const consistency = () => require('./consistency-context');
+const storage = () => require('./file-storage');
+
+// Defaults lifted verbatim from routes/storyboard.js:callImageGen so the
+// extraction is behaviour-preserving rather than an opportunity to retune.
+// The strictest ceiling any image adapter here declares (OpenAI's 1536x1024).
+// Used only when the provider is unknown at build time.
+const DEFAULT_MAX_IMAGE_PIXELS = 1536 * 1024;
+
+/*
+ * NO DEFAULT MODEL, and this one mattered more than it looks.
+ *
+ * It named a model none of the image providers wired here offers, so every
+ * provider fell through to its own default — on Meshy that is nano-banana-pro
+ * at 9 credits, the most expensive model it sells. Worse, it made the quality
+ * tier INERT on the main board path: withTierModel returns early when the
+ * payload already names a model, so Draft, Standard and Precision all generated
+ * on the same expensive model while the picker showed three choices.
+ *
+ * The provider names its own model; the tier names one when a project has
+ * chosen a quality. Nothing is guessed here.
+ */
+const IMAGE_DEFAULTS = { width: 1024, height: 1024, steps: 30, guidance_scale: 7.5 };
+
+const LIPSYNC_DEFAULTS = { model: 'wav2lip', quality: 'high' };
+
+// Which post sub-type the single orchestrated `post` step runs. Composite is the
+// existing full pipeline, so an unconfigured run keeps doing what it did.
+const DEFAULT_POST_JOB_TYPE = 'composite';
+
+/**
+ * Put a locked contract in the prompt once, at the priority this shot gives it.
+ *
+ * Real consistency contracts are commonly exact copies of the registry visual
+ * brief. Passing both unchanged made every locked subject appear twice: once
+ * in buildStoryboardPrompt's appearance block and again in the consistency
+ * appendix. Ranking the appendix therefore changed a synthetic fixture while
+ * the full 1,936-character sedan still survived through the base prompt.
+ *
+ * Exact matches are projected into the registry copy after ranking/capping and
+ * removed only from the appendix used for this build. The original consistency
+ * context is left untouched so the preview can attribute how much of each
+ * director contract actually survived in the final prompt.
+ */
+function projectLockedContracts(ctx, shot) {
+    const cc = ctx && ctx.consistency;
+    const items = cc && Array.isArray(cc.prompt_addition_items)
+        ? cc.prompt_addition_items : [];
+    if (!items.length) return null;
+
+    const ranked = rankContributions(items.map(item => ({
+        subject: item.subject_name,
+        kind: item.profile_type,
+        chars: String(item.text || '').length,
+        item,
+    })), shot);
+    const byName = new Map();
+    for (const rankedItem of ranked) {
+        const item = rankedItem.item;
+        const original = String(item && item.text || '');
+        const text = rankedItem.chars < original.length
+            ? trimToAllowance(original, rankedItem.chars) : original;
+        byName.set(String(item && item.subject_name || '').trim().toUpperCase(), { item, text });
+    }
+
+    const consumed = new Set();
+    const characters = (ctx.characters || []).map(character => {
+        const found = byName.get(String(character && character.name || '').trim().toUpperCase());
+        if (!found || String(character.appearance_prompt || '') !== String(found.item.text || '')) return character;
+        consumed.add(found.item);
+        return { ...character, appearance_prompt: found.text };
+    });
+    const props = (ctx.props || []).map(prop => {
+        const found = byName.get(String(prop && prop.name || '').trim().toUpperCase());
+        if (!found || String(prop.visual_prompt || '') !== String(found.item.text || '')) return prop;
+        consumed.add(found.item);
+        return { ...prop, visual_prompt: found.text };
+    });
+    let location = ctx.location || null;
+    if (location) {
+        const found = byName.get(String(location.name || '').trim().toUpperCase());
+        const field = String(location.visual_prompt || '') === String(found && found.item.text || '')
+            ? 'visual_prompt'
+            : String(location.description || '') === String(found && found.item.text || '') ? 'description' : null;
+        if (found && field) {
+            consumed.add(found.item);
+            location = { ...location, [field]: found.text };
+        }
+    }
+
+    const remaining = items.filter(item => !consumed.has(item));
+    return {
+        characters,
+        props,
+        location,
+        consistency: { ...cc, prompt_addition_items: remaining,
+            prompt_additions: remaining.map(item => item.text) },
+    };
+}
+
+/** Fail with a message that names the capability and what was missing. */
+function requireCtx(ctx, fields, capability) {
+    const ambiguous = ctx && (ctx.referenceDiagnostics || []).find(d => d.code === 'LOCATION_AMBIGUOUS');
+    if (ambiguous && ['image', 'video'].includes(capability)) {
+        const error = new Error(`Ambiguous scene location ${ambiguous.name}. ${ambiguous.action}`);
+        error.code = 'LOCATION_AMBIGUOUS'; throw error;
+    }
+    const missing = fields.filter(f => !ctx || !ctx[f]);
+    if (missing.length) {
+        throw new Error(`cannot build ${capability} payload: context is missing ${missing.join(', ')}`);
+    }
+}
+
+/**
+ * A step cannot be built because an upstream artefact does not exist yet — no
+ * rendered video to lip-sync, no dialogue track to sync against.
+ *
+ * Tagged distinctly from a malformed context because callers should treat the
+ * two differently: a broken context is a bug worth failing and retrying, while
+ * a missing prerequisite is simply work that is not ready. The orchestrator
+ * skips these rather than burning three retries with exponential backoff on a
+ * condition no retry can change.
+ */
+function preconditionError(message) {
+    const err = new Error(message);
+    err.code = 'PRECONDITION';
+    return err;
+}
+
+/**
+ * Shape an /image request. Shared by the `image` capability builder and by the
+ * storyboard route, so there is exactly one definition of the request body.
+ */
+/**
+ * Pixel dimensions for a project's delivery aspect, at roughly the pixel count
+ * IMAGE_DEFAULTS was tuned for.
+ *
+ * The defaults were a fixed 1024x1024, so a 2.39:1 production got square
+ * keyframes -- and a keyframe is the init_image for the video pass, so the
+ * wrong frame shape propagates into every clip. A storyboard's whole job is to
+ * show what will be in frame, which a square cannot do for a scope film.
+ */
+/**
+ * THE SHAPE IS THE POINT, AND ROUNDING EACH EDGE DESTROYED IT.
+ *
+ * This computed each edge from a pixel budget and then rounded it to a multiple
+ * of eight INDEPENDENTLY. Two independent roundings do not preserve a ratio: a
+ * 16:9 project asked for 1368x768, which is 1.781:1. Not 16:9. The function
+ * named for the aspect ratio was the thing breaking it.
+ *
+ * It does not stay a rounding error either. The board frame is what gets sent
+ * to the video model as a keyframe, and Seedance derives its OUTPUT raster from
+ * the keyframe it is given rather than from the `aspect_ratio` field alongside
+ * it — so an off-ratio board becomes off-ratio footage. Measured on this
+ * project: boards at 1376x768 produced clips at 1926x1076, while the two shots
+ * whose frames were uploaded at a true 1920x1080 produced exactly 1920x1080.
+ * Three legs of one sequence came back in two different rasters.
+ *
+ * An 8-pixel grid and an exact ratio are not in conflict — they only look it.
+ * 16:9 lands exactly on the grid at 1280x720, 1408x792, 1920x1080. So instead
+ * of rounding a float, this finds the SMALLEST frame of exactly this ratio that
+ * sits on the grid, and multiplies it up as far as the budget allows.
+ */
+function gridUnitFor(a, b) {
+    const gcd = (x, y) => (y ? gcd(y, x % y) : x);
+    // Whole numbers first: 2.39:1 is 239:100, and a float ratio cannot be
+    // scaled to integers without reintroducing the rounding this exists to
+    // avoid.
+    let scale = 1;
+    while ((!Number.isInteger(a * scale) || !Number.isInteger(b * scale)) && scale <= 1000) scale *= 10;
+    let w = Math.round(a * scale), h = Math.round(b * scale);
+    const g = gcd(w, h) || 1;
+    w /= g; h /= g;
+    // The coarsest grid this ratio can actually sit on, preferring 8.
+    for (const grid of [8, 4, 2, 1]) {
+        for (let k = 1; k <= 64; k++) {
+            if ((w * k) % grid === 0 && (h * k) % grid === 0) return { w: w * k, h: h * k, grid };
+        }
+    }
+    return { w, h, grid: 1 };
+}
+
+function dimensionsForAspect(aspect, fallbackW, fallbackH) {
+    const m = String(aspect || '').match(/^\s*(\d+(?:\.\d+)?)\s*[:x/]\s*(\d+(?:\.\d+)?)\s*$/i);
+    if (!m) return { width: fallbackW, height: fallbackH };
+    const a = Number(m[1]), b = Number(m[2]);
+    if (!(a > 0) || !(b > 0)) return { width: fallbackW, height: fallbackH };
+
+    const unit = gridUnitFor(a, b);
+    const targetPixels = fallbackW * fallbackH;
+    // The largest whole multiple of the unit that fits the budget — never zero,
+    // because a frame smaller than its own unit is still that unit.
+    const k = Math.max(1, Math.floor(Math.sqrt(targetPixels / (unit.w * unit.h))));
+    return { width: unit.w * k, height: unit.h * k };
+}
+
+/**
+ * THE PROJECT'S DELIVERY SIZE, CLAMPED TO WHAT A PROVIDER CAN MAKE.
+ *
+ * The board frame was sized from a fixed 1024x1024 budget, so a project set to
+ * 4K and a project set to 720p boarded at exactly the same size — the delivery
+ * size a director chose reached the footage and nothing else.
+ *
+ * The other half is a ceiling that must not be papered over: no generator here
+ * produces 4K. Asking for more than a provider allows is a rejection that costs
+ * a generation and returns nothing, so the request is clamped — preserving the
+ * SHAPE, since a clamp that changes the aspect would put the board and the
+ * footage back out of step — and the clamp is reported. "I set the project to
+ * 4K" and "my boards are 4K" are different claims, and a director who is not
+ * told will believe the second because they did the first.
+ *
+ * The route to an actual 4K deliverable is the upscale in post, not a bigger
+ * ask here.
+ */
+function imageBudget(aspect, resolution, maxPixels) {
+    const res = String(resolution || '').match(/^\s*(\d+)\s*x\s*(\d+)\s*$/i);
+    const base = res
+        ? { width: Number(res[1]), height: Number(res[2]) }
+        : { width: IMAGE_DEFAULTS.width, height: IMAGE_DEFAULTS.height };
+
+    const shaped = dimensionsForAspect(aspect, base.width, base.height);
+    /*
+     * An unknown provider gets the STRICT default, not none.
+     *
+     * Over-asking is a rejection at the provider that costs a generation and
+     * returns nothing; under-asking is a smaller picture, generated here, where
+     * the clamp can be reported. The same asymmetry that decides promptLimit
+     * and maxReferenceImages when an adapter declares nothing.
+     */
+    const cap = Number(maxPixels) > 0 ? Number(maxPixels) : DEFAULT_MAX_IMAGE_PIXELS;
+    const asked = shaped.width * shaped.height;
+    if (!cap || asked <= cap) return { ...shaped, clamped: false };
+
+    /*
+     * Scale down so the shape survives EXACTLY — the comment always said so and
+     * the code did not: two independent round8 calls put the clamped frame back
+     * off-ratio, which is the same defect one line further down.
+     *
+     * `dimensionsForAspect` already returns a whole multiple of the smallest
+     * on-grid frame of this ratio, so stepping DOWN in whole units is the only
+     * move that keeps the ratio and the grid at once.
+     */
+    const unit = gridUnitFor(...(() => {
+        const m = String(aspect || '').match(/^\s*(\d+(?:\.\d+)?)\s*[:x/]\s*(\d+(?:\.\d+)?)\s*$/i);
+        return m ? [Number(m[1]), Number(m[2])] : [16, 9];
+    })());
+    const k = Math.max(1, Math.floor(Math.sqrt(cap / (unit.w * unit.h))));
+    return {
+        width: unit.w * k, height: unit.h * k,
+        clamped: true, asked_width: shaped.width, asked_height: shaped.height,
+    };
+}
+
+/**
+ * The 4K board frame, clamped to a provider that cannot make one.
+ *
+ * No ceiling stated means the house provider's own, which serves 4K — the
+ * strict fallback in imageBudget exists for an UNKNOWN provider, and the frame
+ * size here is the standard's, not a guess about who is generating.
+ */
+function standardBoardBudget(aspect, maxPixels, targetResolution) {
+    const want = require('./image-standard').storyboardSize(aspect, targetResolution);
+    const cap = Number(maxPixels) > 0 ? Number(maxPixels) : null;
+    if (!cap || want.width * want.height <= cap) return { ...want, clamped: false };
+    const d = imageBudget(aspect, `${want.width}x${want.height}`, cap);
+    return { ...d, clamped: true, asked_width: want.width, asked_height: want.height };
+}
+
+function imageRequestPayload(fields) {
+    const f = fields || {};
+    // An explicit width/height still wins; otherwise the HOUSE STANDARD: a board
+    // frame is 4K in the shot's own shape, whatever the project delivers at
+    // (lib/image-standard.js). The provider's ceiling still clamps, and says so.
+    const dims = (f.width && f.height)
+        ? { width: f.width, height: f.height }
+        : standardBoardBudget(f.aspect_ratio, f.max_image_pixels, f.target_resolution);
+    if (dims.clamped && f.__onClamp) f.__onClamp(dims);
+
+    const payload = {
+        prompt: f.prompt,
+        negative_prompt: f.negative_prompt,
+        model: f.model || IMAGE_DEFAULTS.model,
+        width: dims.width,
+        height: dims.height,
+        steps: f.steps || IMAGE_DEFAULTS.steps,
+        guidance_scale: f.guidance_scale || IMAGE_DEFAULTS.guidance_scale,
+        seed: f.seed === undefined ? null : f.seed,
+        stream: false,
+    };
+
+    if (f.ip_adapter_image) {
+        payload.ip_adapter_image = f.ip_adapter_image;
+        payload.ip_adapter_weight = f.ip_adapter_weight || 0.7;
+    }
+    if (Array.isArray(f.reference_images) && f.reference_images.length > 0) {
+        payload.reference_images = f.reference_images;
+    }
+    if (Array.isArray(f.input_refs) && f.input_refs.length > 0) {
+        payload.input_refs = f.input_refs;
+    }
+    return payload;
+}
+
+/** Local asset URL, preferring a path the asset row already carries. */
+function assetUrl(asset, subdir, projectId) {
+    if (asset.file_path) return asset.file_path;
+    return storage().getFileUrl(subdir, projectId, asset.file_name);
+}
+
+function projectIdOf(ctx) {
+    if (ctx.scene && ctx.scene.project_id) return ctx.scene.project_id;
+    if (ctx.project && ctx.project.id) return ctx.project.id;
+    return null;
+}
+
+// ── Builders ────────────────────────────────────────────────────────────
+// Each takes ctx and returns a payload (or an array of payloads).
+
+/**
+ * How much prompt the provider that will run this project's images accepts.
+ *
+ * Undeclared providers fall back to the strict default rather than to
+ * unlimited: guessing high produces a rejected request or a silent truncation
+ * at the provider's end, which is worse than trimming here where it can be
+ * reported.
+ */
+/** The optics chosen on this project's look board, or {} if none. */
+function filmOpticsFor(project) {
+    try {
+        const { filmOptics } = require('./look-development');
+        return filmOptics(require('../db/database').db, project && project.id);
+    } catch (_) { return {}; }
+}
+
+/**
+ * The model a project's footage will actually be generated with.
+ *
+ * THE MISSING LINK in the draft path. `draftFrameFor` is keyed by model, and a
+ * video payload carries `model` only when a caller passes `opts.model` -- so
+ * the lookup was handed `undefined` on every ordinary generation, missed the
+ * floor for the resolved provider entirely and fell to DEFAULT_FLOOR. On a
+ * Seedance project that meant drafting reported itself active while the request
+ * went to the 720p endpoint at twice the draft rate, silently.
+ *
+ * Resolved from the ADAPTER rather than mapped provider-to-model here: a table
+ * in this file would be a second statement of which model a provider runs, and
+ * the two would disagree the first time a default changed. Follows
+ * imagePromptLimit exactly -- lazy require to avoid a cycle, guarded, and
+ * undefined on failure, because a draft floor that cannot be resolved must
+ * never take down a generation.
+ */
+function videoAdapterFor(project, overrides) {
+    try {
+        const { resolveGenerator } = require('./providers');
+        let config = {};
+        try { config = JSON.parse((project && project.provider_config) || '{}'); } catch (_) { config = {}; }
+        const o = overrides || {};
+        if (o.provider) config = { ...config, video: o.provider };
+        return resolveGenerator('video', config);
+    } catch (_) {
+        return null;
+    }
+}
+
+function videoDraftModel(project) {
+    try {
+        const { resolveGenerator } = require('./providers');
+        let config = {};
+        try { config = JSON.parse((project && project.provider_config) || '{}'); } catch (_) { config = {}; }
+        const adapter = resolveGenerator('video', config);
+        return (adapter && adapter.defaultModel) || undefined;
+    } catch (_) {
+        return undefined;
+    }
+}
+
+/**
+ * The reference contract of the adapter that will actually run.
+ *
+ * `videoRef.contractFor()` is keyed by RUNWAY's model catalogue — `hailuo3`,
+ * `seedance2_5` — and MuAPI names the same model `seedance-2.5-image-to-video-480p`,
+ * with the resolution in the id. The lookup is exact, so it missed, fell to
+ * KEYFRAME_ONLY, and every character, location, prop and in-between reference
+ * was dropped with "this model takes no X reference" — on the one provider that
+ * documents room for thirty of them.
+ *
+ * The adapter already declares its own `referenceContract` for exactly this
+ * reason, and routes/sequences.js already prefers it. This is that same rule,
+ * applied on the shared payload path, so the board and the sequence agree about
+ * what a model will be shown.
+ *
+ * Resolved from the ADAPTER rather than mapped provider-to-model here, and
+ * guarded: an unresolvable contract falls through to the catalogue exactly as
+ * before, because a reference package that cannot be worked out must never take
+ * down a generation.
+ */
+/** The video adapter this project actually resolves to, or null. */
+function videoAdapter(project) {
+    try {
+        const { resolveGenerator } = require('./providers');
+        let config = {};
+        try { config = JSON.parse((project && project.provider_config) || '{}'); } catch (_) { config = {}; }
+        return resolveGenerator('video', config) || null;
+    } catch (_) {
+        return null;
+    }
+}
+
+
+function imagePromptLimit(project) {
+    try {
+        const { resolveGenerator } = require('./providers');
+        let config = {};
+        try { config = JSON.parse((project && project.provider_config) || '{}'); } catch (_) { config = {}; }
+        const adapter = resolveGenerator('image', config);
+        return (adapter && Number(adapter.promptLimit) > 0) ? Number(adapter.promptLimit) : undefined;
+    } catch (_) {
+        return undefined;
+    }
+}
+
+/**
+ * The pictures a shot already has, restated as video reference ROLES.
+ *
+ * Deliberately reuses what the image path gathered (`ctx.references`), rather
+ * than gathering again: two gatherers is how two surfaces come to disagree
+ * about who is in a shot, which this codebase has paid for more than once.
+ */
+function referencesToRoles(ctx) {
+    const KIND_TO_ROLE = { anchor: 'keyframe', character: 'character', location: 'location', prop: 'prop', style: 'style' };
+    const out = [];
+    if (ctx && ctx.initImage) out.push({ assetId: 'keyframe', role: 'keyframe', sourceType: 'image', uri: ctx.initImage });
+    for (const ref of (ctx && ctx.references) || []) {
+        const role = KIND_TO_ROLE[ref.kind];
+        if (!role || role === 'keyframe') continue;      // the board is the init_image, not a reference
+        out.push({
+            assetId: ref.id || ref.assetId || ref.tag || role,
+            role, subject: ref.name || ref.subject || undefined,
+            sourceType: 'image', uri: ref.uri, priority: ref.priority || 0,
+        });
+    }
+    return out;
+}
+
+const CAPABILITY_BUILDERS = {
+    image(ctx) {
+        requireCtx(ctx, ['sceneCard', 'project'], 'image');
+        const overrides = ctx.overrides || {};
+        const cc = ctx.consistency || null;
+        const promptLimit = Number(ctx.imagePromptLimit) > 0
+            ? Number(ctx.imagePromptLimit)
+            : imagePromptLimit(ctx.project);
+        const shotPriority = { framingSubject: (ctx.sceneCard && ctx.sceneCard.framing_subject) || null,
+            card: ctx.sceneCard || {} };
+        const projected = projectLockedContracts(ctx, shotPriority);
+        const promptCharacters = projected ? projected.characters : ctx.characters;
+        const promptProps = projected ? projected.props : ctx.props;
+        const promptLocation = projected ? projected.location : ctx.location;
+        const promptConsistency = projected ? projected.consistency : cc;
+
+        // Blocking shapes the keyframe, not only the clip. Passing it here is
+        // what makes the frame a director approves the frame they staged.
+        const base = buildStoryboardPrompt(ctx.sceneCard, promptCharacters, promptLocation,
+            ctx.project.style_preset, {
+                // Which job the director is doing. Defaults to `action`, so a
+                // caller that says nothing gets exactly what it got before.
+                directionMode: ctx.directionMode || 'action',
+                anchorCovers: ctx.anchorAttached ? (ctx.anchorCovers || []) : [],
+                previs: ctx.previs || undefined,
+                // Resolved here rather than passed in, so the orchestrator and
+                // the per-domain route cannot disagree about how much prompt a
+                // provider accepts — the same reason this file exists at all.
+                maxPromptChars: promptLimit,
+                // The production's own optics, for shots nobody has blocked.
+                filmOptics: filmOpticsFor(ctx.project),
+                // Declared dimensions, so the prompt can say how big things are
+                // relative to the frame and to each other.
+                props: promptProps || [],
+                // PAR-026: markup reaches the prompt only when this shot's
+                // project has opted in, or a caller has said so for this one
+                // generation. Undefined otherwise — which is what keeps the
+                // payload, and therefore the artefact fingerprint, byte-identical
+                // for every project that has not turned it on.
+                annotations: ctx.useAnnotations ? (ctx.annotations || []) : undefined,
+                // The plates loadShotContext gathered, and whether this
+                // provider lets the prompt name them. Undefined on a
+                // hand-built context, which is what keeps every payload the
+                // parity suite compares byte-identical.
+                references: (ctx.references && ctx.references.length) ? ctx.references : undefined,
+                tagged: ctx.tagged,
+                // Two facts: whether the frame is in the payload (which licenses
+                // the prompt to talk about it) and whether this provider can
+                // read a tag (which decides how it is addressed).
+                anchorAttached: ctx.anchorAttached || undefined,
+                anchorTag: ctx.anchorTag || undefined,
+                /*
+                 * Whether a generation plate is in the payload.
+                 *
+                 * The picture alone is not enough: a flat grey render arriving
+                 * as reference 0 with nothing said about it reads as a STYLE
+                 * reference, and the model returns a grey frame. It ranks
+                 * first, so — exactly as the anchor does — it is addressed by
+                 * position where the provider cannot read a tag.
+                 */
+                plateAttached: (ctx.references || []).some(r => r && r.kind === 'plate') || undefined,
+            });
+
+        const payload = imageRequestPayload({
+            prompt: base.prompt,
+            negative_prompt: base.negative_prompt,
+            seed: overrides.seed,
+            model: overrides.model,
+            width: overrides.width,
+            height: overrides.height,
+            steps: overrides.steps,
+            guidance_scale: overrides.guidance_scale,
+            ip_adapter_image: overrides.ip_adapter_image,
+            ip_adapter_weight: overrides.ip_adapter_weight,
+            /*
+             * A SHOT's own ratio outranks the project's.
+             *
+             * A spot is not shot entirely vertical: it has a handful of shots
+             * that carry the product and the CTA, and those are generated at
+             * 9:16 because a crop to it keeps 32% of the width. Empty inherits
+             * the project's, which is what every existing shot does.
+             *
+             * The board and the footage must agree about this or the keyframe a
+             * clip is generated FROM is a different shape than the clip — so
+             * the same field feeds both, and `spec-consumption` holds them to it.
+             */
+            aspect_ratio: (ctx.sceneCard && ctx.sceneCard.aspect_ratio) || ctx.project.aspect_ratio,
+            // The delivery size the director set, and the ceiling of whoever is
+            // generating. A board sized from a constant made a 4K project and a
+            // 720p project board identically.
+            target_resolution: require('./image-standard').projectResolution(ctx.project),
+            max_image_pixels: ctx.maxImagePixels || null,
+            __onClamp: d => {
+                ctx.__clamp = {
+                    asked: `${d.asked_width}x${d.asked_height}`,
+                    generating: `${d.width}x${d.height}`,
+                    why: 'the image provider cannot produce a picture that large; the shape is '
+                        + 'unchanged. Upscale in post for a larger deliverable.',
+                };
+            },
+            // The pictures themselves. Without this the prompt above could emit
+            // @maya with nothing for it to point at, which is strictly worse
+            // than having used prose.
+            reference_images: ctx.references,
+        });
+
+        // The ceiling goes WITH the additions, because they are part of the
+        // prompt the provider receives — enforcing it before they are appended
+        // measures the wrong string.
+        ctx.__budget = base.budget || null;
+        return cc
+            ? applyConsistencyToImagePayload(payload, promptConsistency, {
+                maxPromptChars: promptLimit,
+                // Subjects standing in the attached frame keep their name and
+                // lose their paragraph — but only when the frame really is in
+                // this payload, since shortening against a picture that did not
+                // travel is the failure the contract shortening was reverted for.
+                anchorCovers: ctx.anchorAttached ? (ctx.anchorCovers || []) : [],
+                // What this shot is OF, so priority can govern allocation once
+                // the ceiling stops binding. Without it the longest contract
+                // wins and a parked car outweighs the protagonist.
+                shot: shotPriority,
+            })
+            : payload;
+    },
+
+    video(ctx) {
+        requireCtx(ctx, ['sceneCard', 'project'], 'video');
+        const overrides = ctx.overrides || {};
+        const cc = ctx.consistency || {};
+
+        /*
+         * The reference package, chosen by the MODEL's own contract.
+         *
+         * This is not a return of the plates that were removed. That removal
+         * stands and is why the default here is keyframe-only: on Gen-4.5 the
+         * keyframe IS the init_image and was already generated from the plates,
+         * so re-sending them asks the model which picture is the truth.
+         *
+         * What changed is that H3 and Seedance 2.5 can be told what each
+         * picture is FOR. A named reference is a different thing from a pile of
+         * them — recompose proved that — and on H3 nine of them cost 18
+         * credits, which is why the package is worth assembling at all.
+         *
+         * An unknown model resolves to the keyframe-only contract, so every
+         * existing shot builds byte-identically.
+         */
+        const videoRef = require('./video-reference');
+        // The ADAPTER's own contract first, then Runway's catalogue — the two
+        // name the same models differently and only the adapter knows which one
+        // it is about to call.
+        const adapter = videoAdapter(ctx.project);
+        /*
+         * ONLY WHEN THE MODEL IS THAT ADAPTER'S. A request that names a model
+         * from another provider's catalogue — gen4.5 is Runway's — must keep
+         * that model's own contract; applying the resolved adapter's gave
+         * Gen-4.5 a thirty-reference package it does not take, re-sending the
+         * plates its keyframe was already generated from.
+         */
+        const ownModels = adapter ? (require('./providers').modelIdsFor(adapter, 'video') || []) : [];
+        const adapterOwnsModel = !overrides.model || ownModels.includes(overrides.model);
+        const contract = (adapterOwnsModel && adapter && adapter.referenceContract)
+            || videoRef.contractFor(overrides.model);
+        const offered = referencesToRoles(ctx);
+        const picked = videoRef.selectReferences(offered, contract);
+
+        const built = buildVideoPayload(ctx.sceneCard, ctx.characters, ctx.location, ctx.project.style_preset, {
+            init_image: ctx.initImage || undefined,
+            audio: overrides.audio,
+            seed: overrides.seed !== undefined ? overrides.seed : cc.locked_seed,
+            model: overrides.model,
+            prompt_additions: cc.prompt_additions,
+            negative_additions: cc.negative_additions,
+            // No reference plates. Deliberate, and a REMOVAL rather than a fix.
+            //
+            // These were being sent as consistency rows carrying `file_path`
+            // and no `uri`, so every adapter dropped them silently — and the
+            // repair would have been the wrong move. This is image-to-video:
+            // the keyframe is the init_image, and that frame was already
+            // generated FROM the plates, so everything they contribute is baked
+            // into it. Sending them again puts a T-pose studio photograph on a
+            // seamless backdrop beside a composed street, and asks the model
+            // which one is the truth.
+            //
+            // What the clip is conditioned on is the board and the blocking:
+            // the frame below, the camera path from previs, and the director's
+            // markup — which is the one thing the picture cannot carry, because
+            // an arrow means "then dolly past the mailbox" rather than anything
+            // visible in a still.
+            input_refs: cc.input_refs,
+            // Phase 3: previs travels the ONE payload path, so the orchestrator
+            // and the per-domain route cannot describe the same shot
+            // differently. Undefined when unblocked, which is what keeps the
+            // payload byte-identical for every shot nobody has blocked.
+            previs: ctx.previs || undefined,
+            filmOptics: filmOpticsFor(ctx.project),
+            props: ctx.props || [],
+            // The direction drawn on the board. A still can only show a state;
+            // an arrow is about what happens next, which is exactly what a clip
+            // has room for and a frame does not.
+            annotations: ctx.useAnnotations ? (ctx.annotations || []) : undefined,
+            // The delivery frame rate and size, so generation targets what the
+            // film is actually delivered at rather than a constant.
+            project: ctx.project,
+            /*
+             * WHOSE CEILING, AND WHOSE SHAPE.
+             *
+             * The motion compiler takes a `limit` and a provider SHAPE, and
+             * this passed neither. `opts.promptLimit` arrived undefined, so
+             * `buildMotionPrompt` fell to its conservative 1000-character
+             * default and the shape fell to `default` -- on a project running
+             * Seedance, which declares 16,000 characters and has a
+             * subject-first shape of its own.
+             *
+             * Measured on Northline 1A: 1000 produced 589 characters with the
+             * spatial locks cut off the end, 16,000 produced 1035 with them
+             * intact. The guards were written, reported as sent, and dropped
+             * between the two -- silently, because dropping the tail is what
+             * the compiler is SUPPOSED to do when it runs out of room. Nothing
+             * was broken; it was simply told the wrong room.
+             */
+            promptLimit: adapter && Number(adapter.promptLimit) > 0
+                ? Number(adapter.promptLimit) : undefined,
+            provider: (adapter && adapter.id) || undefined,
+        });
+
+        /*
+         * Attached AFTER the build, not passed into it: buildVideoPayload
+         * assembles its payload from the fields it knows about and silently
+         * drops anything else, so passing the package in as an option left it
+         * reaching nothing while every source check said it was wired.
+         *
+         * Only when the model takes more than its keyframe, so a Gen-4.5
+         * payload gains no new field at all and stays byte-identical.
+         */
+        if (picked.selected.length > 1) {
+            built.video_references = picked.selected;
+            /*
+             * AND under the name an adapter actually reads.
+             *
+             * `video_references` is this engine's word for the package;
+             * lib/providers/* collect `reference_images`. Nothing translated
+             * between the two, so a package that video_preview reported as
+             * "sending 3" reached the provider as nothing at all — the clip was
+             * conditioned on its keyframe alone while the report said otherwise.
+             */
+            built.reference_images = picked.selected
+                .filter(r => r && r.role !== 'keyframe')
+                .map(r => r.uri || r.url || r.file_path)
+                .filter(Boolean);
+        }
+        if (picked.dropped.length) built.references_dropped = picked.dropped;
+
+        /*
+         * THE SHOT'S OWN DIALOGUE, AS AN AUDIO REFERENCE — asked for per
+         * generation (`use_dialogue_audio`), because it changes what the model
+         * is conditioned on. Seedance 2.5 takes up to ten audio clips (MuAPI
+         * omni-reference `audios_list`, Runway seedance2_5 `referenceAudio`);
+         * a model that takes none is refused by name rather than ignored.
+         * Local paths here: the adapter hosts them, since the builder stays pure.
+         */
+        if (ctx.useDialogueAudio) {
+            const lines = ctx.dialogueAudio || [];
+            const maxAudio = Number(contract.maxAudio) || Number(videoRef.contractFor(built.model).maxAudio) || 0;
+            if (!lines.length) {
+                built.audio_refused = 'This shot has no recorded dialogue yet. Upload it as the shot\'s voice (media_upload, or Upload on the shot) first.';
+            } else if (!maxAudio) {
+                built.audio_refused = `${built.model || 'This model'} takes no audio reference. Seedance 2.5 does: on MuAPI, or seedance2_5 on Runway.`;
+            } else {
+                built.audio_references = lines.slice(0, maxAudio)
+                    .map(a => ({ role: 'audio', asset_id: a.id, file_path: a.file_path, file_name: a.file_name, duration_ms: a.duration_ms || null }));
+                if (lines.length > maxAudio) built.audio_dropped = lines.slice(maxAudio).map(a => a.file_name);
+            }
+        }
+
+        /*
+         * DRAFT WHILE WORKING, FINISH AT THE END.
+         *
+         * Most generated clips are thrown away — an angle is tried, watched and
+         * generated again — so paying delivery rates for them is the largest
+         * avoidable cost here. On Seedance a draft second is $0.17 against
+         * $0.85 at 1080p.
+         *
+         * Asked for as the smallest raster THE RESOLVED MODEL DOCUMENTS, and
+         * the `resolution` KEYWORD only where the adapter reads one: Seedance
+         * builds the model into its URL, so a keyword it does not know is a 404
+         * rather than a field quietly ignored, and Runway takes no such field
+         * at all. On Runway the floor is 720p, which is exactly what this
+         * engine already sent — so a Runway project generates identically and
+         * `video_draft` defaulting to on is safe rather than presumptuous.
+         *
+         * The shot keeps the SHAPE it will be finished in. A vertical shot
+         * drafted landscape is a different shot, not a cheap one.
+         */
+        if (require('./draft-video').draftOn(ctx.project)) {
+            const { draftFrameFor } = require('./draft-video');
+            // The stated aspect, so two projects with the same shape and
+            // different delivery rasters draft to the SAME frame.
+            const stated = String((ctx.sceneCard && ctx.sceneCard.aspect_ratio)
+                || ctx.project.aspect_ratio || '').match(/^\s*(\d+(?:\.\d+)?)\s*[:x/]\s*(\d+(?:\.\d+)?)\s*$/);
+            const ratioHint = stated ? Number(stated[1]) / Number(stated[2]) : null;
+            /*
+             * The model, in precedence order: what this generation explicitly
+             * asked for, then what the project's own resolved provider runs.
+             * Without the last term the floor for the resolved provider is
+             * never consulted at all.
+             */
+            const draftModel = built.model || overrides.model || videoDraftModel(ctx.project);
+            const draft = draftFrameFor(draftModel, {
+                width: built.width, height: built.height,
+            }, ratioHint);
+            built.width = draft.width;
+            built.height = draft.height;
+            if (draft.resolution) built.resolution = draft.resolution;
+            // Said on the payload, so every preview and the ledger can report
+            // it: a clip that is 480p because it is a draft and one that is
+            // 480p because somebody set it are different facts.
+            built.draft = { active: true, note: draft.note, why: draft.why };
+        }
+        /*
+         * WHAT WILL ACTUALLY BE DELIVERED. The project's size is what is asked;
+         * the resolved generator says what it will render for that ask — its
+         * best at or below it — and a shortfall is said here, on the payload
+         * every preview and confirmation reads, before anything is bought.
+         */
+        built.delivery = require('./delivery-quality').deliveryDecision(
+            videoAdapterFor(ctx.project, overrides), { ...built, target_resolution: built.target_resolution || ctx.project.target_resolution });
+        return built;
+    },
+
+    /** One payload per dialogue line. An empty dialogue array yields none. */
+    voice(ctx) {
+        requireCtx(ctx, ['sceneCard'], 'voice');
+        const cc = ctx.consistency || null;
+        const characters = ctx.characters || [];
+        const voiceProfiles = ctx.voiceProfiles || [];
+
+        return extractDialogue(ctx.sceneCard).map(line => {
+            const character = characters.find(
+                c => c.name && c.name.toUpperCase() === line.character.toUpperCase()
+            ) || null;
+            const voiceProfile = character
+                ? voiceProfiles.find(vp => vp.character_id === character.id) || null
+                : null;
+
+            // The scene's own direction, so the orchestrator and the flow
+            // canvas ask for the same performance the per-domain route does.
+            const payload = buildVoicePayload(line, voiceProfile, character, {
+                scene: { delivery: (ctx.scene && ctx.scene.delivery_direction) || '' },
+            });
+            return cc ? applyConsistencyToVoicePayload(payload, cc, line.character) : payload;
+        });
+    },
+
+    lipsync(ctx) {
+        if (!ctx || !ctx.videoAsset) {
+            throw preconditionError('cannot build lipsync payload: no rendered video asset for this shot (generate video first)');
+        }
+        if (!ctx.audioAsset) {
+            throw preconditionError('cannot build lipsync payload: no dialogue audio asset for this shot (generate voice first)');
+        }
+        const overrides = ctx.overrides || {};
+        const projectId = projectIdOf(ctx);
+
+        return {
+            video_url: assetUrl(ctx.videoAsset, 'video', projectId),
+            audio_url: assetUrl(ctx.audioAsset, 'audio', projectId),
+            model: overrides.model || LIPSYNC_DEFAULTS.model,
+            quality: overrides.quality || LIPSYNC_DEFAULTS.quality,
+            output_format: 'mp4',
+            stream: false,
+        };
+    },
+
+    /** Scene-scoped: builds with no shot in context. */
+    music(ctx) {
+        requireCtx(ctx, ['scene'], 'music');
+        const cue = ctx.musicCue || (ctx.overrides && ctx.overrides.cue) || null;
+        return buildMusicPrompt(cue, ctx.scene, ctx.project);
+    },
+
+    /** One payload per declared cue. No cues yields none. */
+    sfx(ctx) {
+        requireCtx(ctx, ['sceneCard', 'scene'], 'sfx');
+        return buildSFXPrompts(ctx.sceneCard, ctx.scene);
+    },
+
+    /** Scene-scoped. Emits a loop plus the bed length it must cover. */
+    ambient(ctx) {
+        requireCtx(ctx, ['scene'], 'ambient');
+        // The scene's own ambient direction and the location's sound notes —
+        // the orchestrator and the flow canvas must describe the bed the same
+        // way the per-domain route does, which is the whole point of this file.
+        return buildAmbientPrompt(ctx.scene, ctx.location, ctx.ambient || {});
+    },
+
+    post(ctx) {
+        if (!ctx || !ctx.videoAsset) {
+            throw preconditionError('cannot build post payload: no source video asset for this shot (generate video first)');
+        }
+        const overrides = ctx.overrides || {};
+        const jobType = overrides.job_type || DEFAULT_POST_JOB_TYPE;
+        const projectId = projectIdOf(ctx);
+
+        const base = {
+            input_url: assetUrl(ctx.videoAsset, 'video', projectId),
+            output_format: 'mp4',
+            stream: false,
+            /*
+             * THE SOURCE'S OWN LENGTH, carried because some post providers bill
+             * it rather than the duration asked for. RBF-001 measured exactly
+             * that on Seedance's video-edit tier: `duration` is ignored and the
+             * clip handed in is what is charged. Without this the adapter has
+             * nothing to price with and correctly refuses to quote — which is
+             * honest and useless, since the number is sitting on the asset row.
+             */
+            ...(Number(ctx.videoAsset.duration_ms) > 0
+                ? { source_seconds: Number(ctx.videoAsset.duration_ms) / 1000 } : {}),
+        };
+
+        if (jobType === 'upscale') {
+            /*
+             * THE FACTOR IS DERIVED FROM THE DELIVERY SIZE, not a constant.
+             *
+             * It was `scale_factor: 2` regardless of what was being scaled, so
+             * a 480p draft finished at 960x540 — not a deliverable, and it
+             * looks like a successful post pass. This is the finishing half of
+             * "draft while working, finish at the end": most clips are thrown
+             * away, so they are generated cheap, and the ones that survive are
+             * brought up to what the project is actually delivered at.
+             *
+             * An explicit scale_factor still wins, and a project with no
+             * delivery size falls back to 2x rather than inventing a target —
+             * which is what every project did before this existed.
+             */
+            const { upscaleTargetFor, upscaleFactorFor } = require('./draft-video');
+            const source = (ctx.videoAsset && ctx.videoAsset.width && ctx.videoAsset.height)
+                ? { width: ctx.videoAsset.width, height: ctx.videoAsset.height }
+                : null;
+            const plan = upscaleFactorFor(source, upscaleTargetFor(ctx.project));
+            return {
+                ...base, type: 'upscale',
+                model: overrides.model || 'realesrgan-video',
+                scale_factor: overrides.scale_factor || (plan.needed ? plan.factor : 2),
+                // Carried so a preview and the ledger can say what this pass
+                // will actually reach — and, when one pass cannot get there,
+                // that it will not.
+                upscale_plan: plan,
+            };
+        }
+        if (jobType === 'face_restore') {
+            return {
+                ...base, type: 'face_restore',
+                face_restoration: {
+                    enabled: true,
+                    model: overrides.face_model || 'codeformer',
+                    weight: overrides.face_weight || 0.7,
+                },
+            };
+        }
+        if (jobType === 'color_grade') {
+            return {
+                ...base, type: 'color_grade',
+                color_grade: {
+                    lut_preset: overrides.lut_preset || 'cinematic_warm',
+                    film_grain: overrides.film_grain || 0.15,
+                },
+            };
+        }
+        return base;
+    },
+};
+
+/**
+ * Build the complete image payload for the adapter that will receive it.
+ *
+ * This deliberately starts from structured shot context on every call. A
+ * finished prompt cannot be safely adapted to a smaller provider: its
+ * contributor boundaries and priority information are already gone. Providers
+ * that fold the negative into the positive also need that text reserved inside
+ * their declared prompt ceiling before either prompt assembly or consistency
+ * contracts are budgeted.
+ */
+function buildImagePayloadForAdapter(ctx, adapter) {
+    const declared = Number(adapter && adapter.promptLimit) || imagePromptLimit(ctx && ctx.project);
+    // The same route the prompt ceiling takes: the adapter's own limit, applied
+    // where the payload is built for it, so the frame is as large as this
+    // provider can actually make and no larger.
+    const pixels = Number(adapter && adapter.maxImagePixels) || null;
+    let referenceContext = {};
+    if (ctx && ctx.shot && ctx.shot.id && ctx.scene && ctx.project) {
+        const { db } = require('../db/database');
+        const refs = require('./shot-references');
+        const gathered = refs.shotReferencesFor(db, {
+            projectId: ctx.project.id,
+            support: { canAttach: !!adapter.supportsReferenceImages, canTag: !!adapter.supportsReferenceTags,
+                maxReferenceImages: adapter.maxReferenceImages },
+            characters: refs.matchCharacters(ctx.sceneCard.characters, ctx.characters),
+            location: ctx.location, props: refs.matchProps(ctx.sceneCard, ctx.props),
+            anchor: ctx.anchorAttached ? require('./shot-anchor').activeAnchorFor(db, ctx.shot.id) : null,
+            locationView: ctx.sceneCard.location_view || '', shotId: ctx.shot.id,
+            keepPlates: [...new Set([...(ctx.keepPlates || []), ...require('./shot-anchor').platesForcedBy(ctx.sceneCard)])],
+        });
+        referenceContext = { references: gathered.references, tagged: gathered.tagged,
+            anchorAttached: gathered.anchorAttached, anchorTag: gathered.anchorTag,
+            referenceDiagnostics: [...(ctx.referenceDiagnostics || []).filter(d => ['LOCATION_AMBIGUOUS', 'REFERENCE_LOOKUP'].includes(d.code)), ...(gathered.diagnostics || [])] };
+    }
+    const firstCtx = { ...(ctx || {}), ...referenceContext, imagePromptLimit: declared, maxImagePixels: pixels };
+    const first = CAPABILITY_BUILDERS.image(firstCtx);
+    // Who got what, carried back to the caller's context so a preview built
+    // through this function can show the budget of the prompt really sent.
+    if (ctx && typeof ctx === 'object') { ctx.__budget = firstCtx.__budget || null; ctx.referenceDiagnostics = firstCtx.referenceDiagnostics || []; ctx.references = firstCtx.references; }
+    const firstPayload = Array.isArray(first) ? first[0] : first;
+    const negative = String((firstPayload && firstPayload.negative_prompt) || '').trim();
+    const reserve = adapter && adapter.supportsNegativePrompt === 'folded' && negative
+        ? negative.length + '\n\nAvoid: '.length
+        : 0;
+    const available = declared ? Math.max(1, declared - reserve) : declared;
+    if (!declared || available === declared) return withTierModel(firstPayload, ctx, adapter);
+
+    const rebuiltCtx = { ...firstCtx, imagePromptLimit: available, maxImagePixels: pixels };
+    const rebuilt = CAPABILITY_BUILDERS.image(rebuiltCtx);
+    if (ctx && typeof ctx === 'object') ctx.__budget = rebuiltCtx.__budget || null;
+    return withTierModel(Array.isArray(rebuilt) ? rebuilt[0] : rebuilt, ctx, adapter);
+}
+
+/**
+ * Name the MODEL the chosen quality tier wants from this provider.
+ *
+ * Resolving a tier to a provider is only half of it. Standard and Precision
+ * both land on Google — the difference between them IS the model, so a tier
+ * that reached the provider and not the model would make the two settings
+ * generate identically while the UI showed a choice. That is the failure this
+ * whole feature is meant to avoid, one level further down than the config.
+ *
+ * An explicit `image_model` still wins: the Advanced selector exists so a
+ * director who has learned that one model handles their subject is not
+ * overruled by a table.
+ */
+function withTierModel(payload, ctx, adapter) {
+    if (!payload || typeof payload !== 'object') return payload;
+    const base = (ctx && ctx.project && providerConfigOf(ctx.project)) || {};
+    // A per-generation choice outranks the project's standing tier: the
+    // director is looking at this frame, not at the settings page.
+    const cfg = (ctx && ctx.tierOverride) ? { ...base, ...ctx.tierOverride } : base;
+    /*
+     * A CHOSEN MODEL IS THE MODEL ASKED FOR — the project's pin, or a
+     * per-generation choice from the confirmation dialog — on every provider
+     * that offers it, the house vendors included. Nano Banana Pro is the
+     * default for when nobody named one, not a lock. Marked `__model_explicit`
+     * so the fallback walk neither renames it nor carries it to a vendor that
+     * would sell a different picture under the same request.
+     *
+     * Checked against what the provider offers HERE, not only where it is
+     * saved: a per-generation override never passes through the settings
+     * route, and an unknown name sent on falls back to the provider's own
+     * default — on Meshy its dearest model, three times what was asked for. An
+     * unknown name falls through to the tier instead; an adapter that declares
+     * no model list (the local gateway) cannot be checked, so it is passed.
+     */
+    const offered = cfg.image_model && adapter && adapter.id
+        && require('./providers').modelIdsFor(adapter, 'image');
+    if (cfg.image_model && adapter && adapter.id && (!offered || offered.includes(cfg.image_model))) {
+        payload.model = cfg.image_model;
+        for (const [k, v] of [['__model_for', adapter.id], ['__model_explicit', true]]) {
+            Object.defineProperty(payload, k, { value: v, enumerable: false, configurable: true, writable: true });
+        }
+        return payload;
+    }
+    /*
+     * THE HOUSE STANDARD OUTRANKS EVERYTHING ELSE BELOW IT — a stated model on
+     * the payload, a tier. With no model chosen every image is Nano Banana Pro;
+     * on a vendor that sells it the model is named here.
+     */
+    const house = require('./image-standard').standardModelFor(adapter && adapter.id);
+    if (house) {
+        payload.model = house;
+        Object.defineProperty(payload, '__model_for', {
+            value: adapter.id, enumerable: false, configurable: true, writable: true,
+        });
+        return payload;
+    }
+    if (payload.model) return payload;                       // already stated
+    if (!adapter || !adapter.id) return payload;
+    try {
+        const { resolveTier } = require('./quality-tiers');
+        // Defaults when the project has said nothing, so a frame is never
+        // generated on whatever model a provider happens to prefer — Meshy's
+        // own default is nano-banana-pro at three times the credits of
+        // nano-banana-2, which is a real bill nobody chose.
+        const chosen = resolveTier(cfg.image_quality || undefined, cfg, ctx && ctx.tierRequest);
+        // Only when the tier actually landed on the adapter being built for:
+        // naming Google's model on a request going to OpenAI is a rejected call.
+        if (chosen && chosen.provider === adapter.id && chosen.model) {
+            payload.model = chosen.model;
+            /*
+             * Which adapter this model was chosen FOR, stamped non-enumerably
+             * so it never serialises into a request body. The fallback chain
+             * walks past a provider that declines, so the adapter changes while
+             * the payload does not — and most adapters guard against a foreign
+             * model name, but the local gateway passes `p.model` straight
+             * through by design. Marking the owner lets the chain strip it
+             * without every adapter having to defend itself.
+             */
+            Object.defineProperty(payload, '__model_for', {
+                value: adapter.id, enumerable: false, configurable: true, writable: true,
+            });
+        }
+    } catch (_) { /* a broken tier must never block a generation */ }
+    return payload;
+}
+
+/**
+ * Build the provider payload for a capability.
+ *
+ * @param {string} capability
+ * @param {object} ctx - { project, scene, shot, sceneCard, characters, location,
+ *                         voiceProfiles, videoAsset, audioAsset, keyframeAsset,
+ *                         musicCue, ambient, initImage, consistency, overrides }
+ * @returns {{ payload: object|object[], meta: object }}
+ */
+/**
+ * Mark a payload (or every payload in a fan-out array) with what it is for, so
+ * the usage meter can attribute the call without the caller passing anything.
+ */
+function tagSpend(payload, attribution) {
+    if (!payload) return payload;
+    const list = Array.isArray(payload) ? payload : [payload];
+    for (const one of list) {
+        if (one && typeof one === 'object') {
+            Object.defineProperty(one, '__meter', {
+                value: attribution, enumerable: false, writable: true, configurable: true,
+            });
+        }
+    }
+    return payload;
+}
+
+function buildCapabilityPayload(capability, ctx) {
+    const builder = CAPABILITY_BUILDERS[capability];
+    if (!builder) {
+        throw new Error(`no payload builder registered for capability '${capability}'`);
+    }
+
+    const context = ctx || {};
+    // The image builder reports how the prompt budget was spent; captured here
+    // so `shot_prompt` can show it without rebuilding the prompt a second time
+    // and risking a different answer.
+    context.__budget = null;
+    const payload = builder(context);
+
+    /*
+     * THE PROMPT A DIRECTOR EDITED, applied on the ONE payload path.
+     *
+     * It was read in `routes/storyboard.js` and applied after the builder, so
+     * only the board honoured it: the orchestrator and the flow canvas built
+     * the same generation and silently ignored the override. That is the exact
+     * divergence this module exists to prevent — one construction path, so the
+     * three callers cannot describe the same generation differently.
+     *
+     * An override is the WHOLE prompt. Nothing is appended after it, which is
+     * the contract generation-override.js already states: a director who edits
+     * the text and then finds the style preset stapled on has approved
+     * something other than what was sent, and that is worse than not offering
+     * the control at all.
+     *
+     * Applied to every payload with a prompt, including each element of an
+     * array — voice and sfx are one-context-to-many, and an override that
+     * reached only the first line would be a control that half works.
+     */
+    const override = typeof context.promptOverride === 'string' && context.promptOverride.trim()
+        ? context.promptOverride.trim() : null;
+    if (override) {
+        for (const one of (Array.isArray(payload) ? payload : [payload])) {
+            if (one && typeof one.prompt === 'string') one.prompt = override;
+            if (one && typeof one.motion_prompt === 'string') one.motion_prompt = override;
+        }
+    }
+
+    // Which shot this spend belongs to, carried on the payload itself.
+    //
+    // The meter already knows the project (it rides in on the provider config);
+    // the shot does not, and "which shot cost the most" is the question a
+    // per-shot budget is for. Attached NON-ENUMERABLY so it cannot leak into a
+    // provider request body — adapters pick fields explicitly, but a payload
+    // that grows an unexpected key is exactly how a 400 arrives from a provider
+    // for a reason nobody can see.
+    tagSpend(payload, {
+        projectId: projectIdOf(context),
+        sceneId: context.scene ? context.scene.id : null,
+        shotId: context.shot ? context.shot.id : null,
+    });
+
+    return {
+        payload,
+        meta: {
+            capability,
+            budget: context.__budget || [],
+            revision: context.generationRevision || null,
+            reference_diagnostics: context.referenceDiagnostics || (context.references && context.references.diagnostics) || [],
+            previs_application: context.previsApplication || null,
+            cardinality: Array.isArray(payload) ? 'many' : 'one',
+            count: Array.isArray(payload) ? payload.length : 1,
+            project_id: projectIdOf(context),
+            scene_id: context.scene ? context.scene.id : null,
+            shot_id: context.shot ? context.shot.id : null,
+            /*
+             * If the delivery size was larger than the provider can produce,
+             * say so. Silently generating a smaller picture would let a
+             * director believe their 4K project is being boarded at 4K, which
+             * they would only discover in the cut.
+             */
+            ...(context.__clamp ? { resolution_clamped: context.__clamp } : {}),
+        },
+    };
+}
+
+/**
+ * Load everything a shot-scoped builder needs, in one place.
+ *
+ * The DB is required here rather than at module scope so that building a
+ * payload from an already-loaded context needs no database at all.
+ */
+function loadShotContext(shotId, opts) {
+    const fs = require('fs');
+    const { db } = require('../db/database');
+    const { getFilePath } = storage();
+
+    const shot = db.prepare('SELECT * FROM film_shots WHERE id = ?').get(shotId);
+    if (!shot) return null;
+
+    const scene = db.prepare('SELECT * FROM film_scenes WHERE id = ?').get(shot.scene_id);
+    if (!scene) return null;
+
+    let sceneCard = {};
+    try { sceneCard = JSON.parse(shot.scene_card_yaml || '{}'); } catch (_) { sceneCard = {}; }
+
+    /*
+     * A SHOT's own ratio, from its column rather than its card.
+     *
+     * It is a column because it is a production decision about how this shot is
+     * SHOT — a vertical hero or product shot is generated at 9:16 because a
+     * crop to it keeps 32% of the width — rather than something the writing
+     * says. Carried onto the card so the image builder and the video builder
+     * read it from the same place: two answers to "what shape is this shot"
+     * gives a keyframe of one shape and a clip of another, which is the exact
+     * defect the board/footage reconciliation was written to end.
+     *
+     * Empty inherits the project's, which is what every existing shot does.
+     */
+    if (shot.aspect_ratio) sceneCard.aspect_ratio = shot.aspect_ratio;
+
+    const project = db.prepare('SELECT * FROM film_projects WHERE id = ?').get(scene.project_id);
+    const characters = db.prepare('SELECT * FROM film_characters WHERE project_id = ?').all(scene.project_id);
+
+    // Prop rows, for their declared dimensions. The prompt builder has never
+    // been handed props — they reach the prompt through the consistency
+    // contract, which carries no measurements — so nothing could say how big
+    // an object in the frame is.
+    let props = [];
+    try { props = db.prepare('SELECT * FROM film_props WHERE project_id = ?').all(scene.project_id); }
+    catch (_) { props = []; }
+    const locationDiagnostics = [];
+    const location = scene.location_id
+        ? db.prepare('SELECT * FROM film_locations WHERE id = ?').get(scene.location_id)
+        : require('./shot-references').matchLocation(scene.location, db.prepare('SELECT * FROM film_locations WHERE project_id = ?').all(scene.project_id), locationDiagnostics);
+    const voiceProfiles = db.prepare(
+        'SELECT vp.* FROM film_voice_profiles vp JOIN film_characters c ON c.id = vp.character_id WHERE c.project_id = ?'
+    ).all(scene.project_id);
+
+    const keyframeAsset = require('./selected-frame').selectedFrame(db, shotId);
+
+    const videoAsset = db.prepare(
+        "SELECT * FROM film_assets WHERE shot_id = ? AND asset_type IN ('video_raw', 'video_synced', 'video_final') ORDER BY created_at DESC LIMIT 1"
+    ).get(shotId);
+
+    const audioAsset = db.prepare(
+        "SELECT * FROM film_assets WHERE shot_id = ? AND asset_type = 'audio_dialogue' ORDER BY created_at DESC LIMIT 1"
+    ).get(shotId);
+    /*
+     * Every recorded or generated line of this shot, in the order it is said:
+     * one file per line, the newest row for a file name winning (a line redone
+     * writes over its own file and adds a row).
+     */
+    const dialogueAudio = (() => {
+        const rows = db.prepare(`SELECT id, file_path, file_name, duration_ms, created_at FROM film_assets
+            WHERE shot_id = ? AND asset_type = 'audio_dialogue' ORDER BY created_at DESC`).all(shotId);
+        const seen = new Map();
+        for (const r of rows) if (!seen.has(r.file_name)) seen.set(r.file_name, r);
+        const idx = n => { const m = /_(\d+)\.[a-z0-9]+$/i.exec(n || ''); return m ? Number(m[1]) : 0; };
+        return [...seen.values()].sort((a, b) => idx(a.file_name) - idx(b.file_name) || String(a.file_name).localeCompare(String(b.file_name)));
+    })();
+
+    const musicCue = db.prepare(
+        'SELECT * FROM film_music_cues WHERE scene_id = ? ORDER BY start_ms LIMIT 1'
+    ).get(scene.id);
+
+    /*
+     * The scene's ambient direction, if anyone has written one.
+     *
+     * An ambient cue is an ordinary film_music_cues row with cue_type
+     * 'ambient'. Read here so the orchestrator and the flow canvas describe the
+     * bed the same way the per-domain route does — the whole reason this file
+     * exists.
+     */
+    const ambientCue = db.prepare(
+        "SELECT * FROM film_music_cues WHERE scene_id = ? AND cue_type = 'ambient' ORDER BY start_ms LIMIT 1"
+    ).get(scene.id);
+    const ambient = {
+        direction: String((ambientCue && ambientCue.description) || '').trim(),
+        negative_prompt: String((ambientCue && ambientCue.negative_prompt) || '').trim(),
+    };
+
+    /*
+     * The keyframe, as a DATA URI.
+     *
+     * This produced a bare base64 string, which is not a URL, not a data URI
+     * and not a provider handle — so `promptImage` was rejected as invalid
+     * input and EVERY second of footage in this project was blocked by it. The
+     * reference plates one file over have always been correct
+     * (`data:${mime};base64,…` in lib/reference-images.js); the keyframe, which
+     * every image-to-video call depends on, never was.
+     *
+     * Built HERE rather than at a call site: the per-domain route, the
+     * orchestrator and the flow canvas all read ctx.initImage, and patching one
+     * of them would leave the other two sending a bare blob.
+     */
+    let initImage = null;
+    if (keyframeAsset && keyframeAsset.file_name) {
+        try {
+            const imgPath = keyframeAsset.file_path || getFilePath(scene.project_id, 'storyboards', keyframeAsset.file_name);
+            if (fs.existsSync(imgPath)) {
+                const mime = /\.jpe?g$/i.test(imgPath) ? 'image/jpeg'
+                    : /\.webp$/i.test(imgPath) ? 'image/webp' : 'image/png';
+                initImage = `data:${mime};base64,${fs.readFileSync(imgPath).toString('base64')}`;
+                /*
+                 * Too big to send inline — a 4K board frame is ~10MB of PNG
+                 * against a 5MB ceiling. Hand the video model the same frame
+                 * as a 1920 JPEG instead (lib/thumbnails.videoKeyframeFor):
+                 * refusing the clip, or sending it with no frame, is worse.
+                 */
+                const media = require('./provider-media');
+                if (media.tooLargeForDataUri(initImage, media.DATA_URI_LIMIT)) {
+                    const small = require('./thumbnails').videoKeyframeFor(imgPath, 1920);
+                    if (small) initImage = `data:image/jpeg;base64,${fs.readFileSync(small).toString('base64')}`;
+                }
+            }
+        } catch (_) { initImage = null; }
+    }
+
+    let consistencyContext = null;
+    try {
+        consistencyContext = consistency().buildShotReferencePayload(shot, scene, project);
+    } catch (_) { consistencyContext = null; }
+
+    // Markup on the frame. Always READ, never automatically applied: whether it
+    // reaches the prompt is `useAnnotations` below, and a caller that wants to
+    // preview the marks without generating from them needs them present either
+    // way.
+    let annotations = [];
+    try {
+        annotations = db.prepare(
+            'SELECT * FROM film_storyboard_annotations WHERE shot_id = ? ORDER BY created_at').all(shotId)
+            .map(r => {
+                let points = [];
+                try { const v = JSON.parse(r.points_json || '[]'); if (Array.isArray(v)) points = v; } catch (_) { points = []; }
+                return { id: r.id, kind: r.kind, points, text: r.text, color: r.color, created_at: r.created_at };
+            });
+    } catch (_) { annotations = []; }
+
+    // 3D blocking, when the shot has any. Null rather than absent so a caller
+    // can tell "not blocked" from "context built before previs existed".
+    let previs = null;
+    let previsApplication = null;
+    try {
+        const row = db.prepare('SELECT * FROM film_previs_blocking WHERE shot_id = ?').get(shotId);
+        if (row) {
+            const { applicationFingerprints } = require('./decision-contract');
+            const applicationNow = applicationFingerprints(row, sceneCard, {
+                knownNames: [...characters, ...props].map(subject => subject.name),
+            });
+            const stageMoved = applicationNow.stage !== row.applied_fingerprint;
+            const cardMoved = applicationNow.card !== row.applied_card_fingerprint;
+            const applicationState = !row.applied_fingerprint || !row.applied_card_fingerprint ? 'staged'
+                : stageMoved && cardMoved ? 'conflict'
+                    : stageMoved ? 'staged' : cardMoved ? 'card_ahead' : 'applied';
+            previs = {
+                camera: JSON.parse(row.camera_json || '{}'),
+                director: JSON.parse(row.director_json || '{}'),
+                subject: JSON.parse(row.subject_json || '{}'),
+                stage: JSON.parse(row.stage_json || '{}'),
+                rig: row.rig,
+                movement: row.movement,
+                application: {
+                    state: applicationState,
+                    applied: applicationState === 'applied',
+                    staged: applicationState === 'staged',
+                    card_ahead: applicationState === 'card_ahead',
+                    conflict: applicationState === 'conflict',
+                    applied_at: row.applied_at || null,
+                },
+                // The legs, not just the single movement column. A compound
+                // move is what was blocked; collapsing it to one word before it
+                // reaches a prompt loses the half a director spent time on.
+                moves: JSON.parse(row.moves_json || '[]'),
+                cameraKeys: JSON.parse(row.camera_keys_json || '[]'),
+                // What is ON the stage, not just where the camera is. Without
+                // this the loader carried the whole camera and dropped the
+                // blocking, so a scene arranged in 3D reached generation as
+                // silence — the exact gap staging exists to close, one layer
+                // below where it was closed.
+                subjects: JSON.parse(row.subjects_json || '[]'),
+                path: JSON.parse(row.path_json || '[]'),
+            };
+            previsApplication = previs.application;
+            // Durable generation consumes only decisions the director applied.
+            // Previs's free what-if previews opt into staged blocking explicitly.
+            const mode = (opts && opts.previsMode) || 'applied';
+            if (mode === 'none' || (mode === 'applied' && !previs.application.applied)) previs = null;
+        }
+    } catch (_) { previs = null; }
+
+    /**
+     * The plates this shot generates with — gathered HERE, where the reading
+     * happens, not in the payload builder.
+     *
+     * This is the gap that made the shared payload path a partial one. The
+     * board routes gathered tagged, inlined plates and the orchestrator
+     * gathered nothing, so a pipeline run generated keyframes with no
+     * conditioning at all while the board conditioned correctly — the same
+     * shape of divergence `regenerateShot` already shipped once. Every
+     * reference feature added since (character and location plates, prop
+     * plates, mood-board style images, the scene anchor) reached three paths
+     * out of four.
+     *
+     * `tagged` travels with them because they are two different questions: a
+     * provider may take pictures and still be unable to read `@maya` from the
+     * prompt, and emitting the tag there replaces the appearance with a token
+     * meaning nothing.
+     */
+    const keepPlates = [...new Set([...(opts && Array.isArray(opts.keepPlates) ? opts.keepPlates : []), ...require('./shot-anchor').platesForcedBy(sceneCard)])];
+    let references = [], tagged = false, anchorTag = null, anchorAttached = false, anchorCovers = [], referenceDiagnostics = [...locationDiagnostics];
+    try {
+        const { shotReferencesFor, matchCharacters, matchLocation, matchProps } =
+            require('./shot-references');
+        const locations = db.prepare('SELECT * FROM film_locations WHERE project_id = ?').all(scene.project_id);
+        const anchor = require('./shot-anchor').activeAnchorFor(db, shotId);
+        /*
+         * Plates that must travel even though the anchor names their subject.
+         * An anchor covers where a subject STANDS; it covers who they ARE only
+         * if it shows them, and a wide with someone's back to camera shows no
+         * face at all. A close-up built on that has nothing to go on.
+         */
+        const gathered = shotReferencesFor(db, {
+            projectId: scene.project_id,
+            providerConfig: (opts && opts.providerConfig) || providerConfigOf(project),
+            support: opts && opts.referenceSupport,
+            characters: matchCharacters(sceneCard.characters, characters),
+            location: matchLocation(scene.location, locations),
+            props: matchProps(sceneCard, props),
+            anchor: anchor.shot ? anchor : null,
+            keepPlates,
+            // Which view of the location this shot is pointed at.
+            locationView: sceneCard.location_view || '',
+            /*
+             * The generation plate, which ranks FIRST when one exists.
+             *
+             * Passed HERE and not only from the board routes, because this is
+             * the shared path: `shot_prompt`, the orchestrator and the flow
+             * canvas all build through it. Wiring the three storyboard call
+             * sites and leaving this one is exactly the divergence this module
+             * exists to prevent — the board would generate against the plate
+             * and every other path would silently generate without it.
+             */
+            shotId,
+        });
+        anchorCovers = anchor.shot
+            ? [...require('./shot-anchor').subjectsCoveredBy(db, anchor, keepPlates)] : [];
+        references = gathered.references;
+        referenceDiagnostics.push(...(gathered.diagnostics || []));
+        tagged = gathered.tagged;
+        anchorTag = gathered.anchorTag;
+        anchorAttached = gathered.anchorAttached;
+    } catch (error) {
+        referenceDiagnostics.push({ code: 'REFERENCE_LOOKUP', message: error.message, action: 'Repair the reference lookup before generating.' });
+        // A project with no plates, or a provider that cannot be resolved,
+        // generates exactly as it did before rather than failing to build a
+        // payload at all.
+        references = []; tagged = false; anchorTag = null; anchorAttached = false; anchorCovers = [];
+    }
+
+    return {
+        shot, scene, project, sceneCard, characters, location, voiceProfiles, props,
+        keyframeAsset, videoAsset, audioAsset, dialogueAudio, musicCue, ambient, initImage,
+        consistency: consistencyContext,
+        previs,
+        // State is useful for disclosure even when the durable payload rightly
+        // excludes the unapplied blocking itself.
+        previsApplication,
+        references, tagged, anchorTag, anchorAttached, anchorCovers, referenceDiagnostics, keepPlates,
+        generationRevision: require('./generation-revision').generationRevision(db, shotId),
+        annotations,
+        // The project's standing answer to PAR-026. A route may override it per
+        // request; nothing else may, because a default that turns itself on is
+        // the failure this column exists to prevent.
+        useAnnotations: !!(project && project.annotation_feedback),
+        overrides: {},
+    };
+}
+
+/**
+ * Parsed per-project provider_config, for resolve()/resolveGenerator().
+ *
+ * Delegates to lib/provider-config.js, which also tags the object with the
+ * project id — that is what lets resolve() attribute what a call spends
+ * without any of its callers changing shape.
+ */
+function providerConfigOf(project) {
+    return require('./provider-config').providerConfigOf(project);
+}
+
+/**
+ * Persist a provider result for a capability under the conventional directory.
+ * Thin wrapper so node handlers (Phase 2) do not each re-derive the mapping.
+ */
+async function persistCapabilityResult(capability, result, ctx, filename) {
+    const { persistProviderMedia } = require('./provider-media');
+    // Where this capability's output lives, and where it is served from — read
+    // from the one registry rather than restated here. This was a third copy of
+    // a fact routes/pipeline.js held twice.
+    const { SUBDIR, SERVE_DIR } = require('./media-kinds');
+    const subdir = SUBDIR[capability];
+    if (!subdir) throw new Error(`no storage mapping for capability '${capability}'`);
+
+    const projectId = projectIdOf(ctx || {});
+    /*
+     * BYTES IF THERE ARE BYTES, OTHERWISE THE RESULT ITSELF.
+     *
+     * This passed `result.data` and nothing else, which silently assumed every
+     * adapter returns a buffer. Seedance returns `{ ok, url }` and no buffer --
+     * so `persistProviderMedia` received `undefined`, found neither bytes nor a
+     * URL in it, and threw on a clip that had rendered and been billed. Handing
+     * it the result object instead lets `extractMediaUrl` find the `url` that
+     * was there all along; a buffer still takes the buffer path unchanged.
+     */
+    const payload = (result && result.data) || result || null;
+    const keepAudio = typeof (result && result.audio) === 'boolean' ? result.audio : payload && payload.audio;
+    const path = await persistProviderMedia(projectId, subdir, filename, payload, {
+        serveDir: SERVE_DIR[capability],
+        ...(capability === 'video' && typeof keepAudio === 'boolean' ? { keepAudio } : {}),
+    });
+    return { path, subdir };
+}
+
+module.exports = {    imageBudget,
+    imagePromptLimit,
+    buildImagePayloadForAdapter,
+    withTierModel,
+    dimensionsForAspect,
+    IMAGE_DEFAULTS,
+    gridUnitFor,
+    CAPABILITY_BUILDERS,
+    buildCapabilityPayload,
+    loadShotContext,
+    persistCapabilityResult,
+    imageRequestPayload,
+    providerConfigOf,};

@@ -1,0 +1,12 @@
+<div class="page active" id="page-projects">
+            <div class="flex-between mb-16">
+                <h2>Projects</h2>
+                <div>
+                    <input type="file" id="projectBundleInput" accept=".tar.gz,.tgz" style="display:none" onchange="importBundle(this)">
+                    <button class="btn btn-secondary" onclick="document.getElementById('projectBundleInput').click()" style="margin-right:8px;">Import Bundle</button>
+                    <button class="btn btn-primary" onclick="openNewProject()">+ New Project</button>
+                </div>
+            </div>
+            <div id="projectImportStatus" class="text-sm mb-8" style="display:none;"></div>
+            <div id="projectList"></div>
+        </div>

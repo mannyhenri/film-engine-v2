@@ -1,0 +1,35 @@
+<div class="modal-overlay" id="addNoteModal">
+        <div class="modal">
+            <div class="modal-header"><h3>Add Note</h3><button class="modal-close" onclick="closeModal('addNoteModal')">&times;</button></div>
+            <div class="modal-body">
+                <div class="form-group"><label>Note Type</label>
+                    <select data-field="note_type">
+                        <option value="general">General</option>
+                        <option value="direction">Direction</option>
+                        <option value="revision">Revision</option>
+                        <option value="camera">Camera</option>
+                        <option value="lighting">Lighting</option>
+                        <option value="performance">Performance</option>
+                        <option value="continuity">Continuity</option>
+                        <option value="vfx">VFX</option>
+                        <option value="audio">Audio</option>
+                        <option value="color">Color</option>
+                    </select>
+                </div>
+                <div class="form-group"><label>Priority</label>
+                    <select data-field="priority">
+                        <option value="normal">Normal</option>
+                        <option value="low">Low</option>
+                        <option value="high">High</option>
+                        <option value="critical">Critical</option>
+                    </select>
+                </div>
+                <div class="form-group"><label>Content</label><textarea data-field="content" rows="3" placeholder="Note content..."></textarea></div>
+                <div class="form-group"><label>Author</label><input type="text" data-field="author" placeholder="Director"></div>
+                <div class="btn-row">
+                    <button class="btn btn-primary" onclick="addNote()">Add Note</button>
+                    <button class="btn btn-secondary" onclick="closeModal('addNoteModal')">Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>

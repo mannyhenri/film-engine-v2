@@ -1,0 +1,200 @@
+/**
+ * FILM-022-028: Dialogue Builder
+ *
+ * Pure functions for extracting dialogue from scene cards and building
+ * voice synthesis payloads. No DB dependency.
+ */
+
+const VALID_EMOTIONS = [
+    'neutral', 'happy', 'sad', 'angry', 'surprised', 'fearful',
+    'disgusted', 'contemptuous', 'excited', 'tender', 'whispered',
+    'shouting', 'sarcastic', 'pleading',
+];
+
+/**
+ * Extract dialogue entries from a parsed scene card.
+ *
+ * @param {object} sceneCard - Parsed scene_card_yaml
+ * @returns {Array<{ character: string, line: string, emotion: string, index: number }>}
+ */
+function extractDialogue(sceneCard) {
+    if (!sceneCard || !Array.isArray(sceneCard.dialogue)) return [];
+
+    return sceneCard.dialogue
+        .filter(dl => dl && dl.character && dl.line)
+        .map((dl, index) => ({
+            character: dl.character,
+            line: dl.line,
+            emotion: VALID_EMOTIONS.includes(dl.emotion) ? dl.emotion : 'neutral',
+            // The writer's own delivery note, carried whole. What it MEANS is
+            // decided by lib/dialogue-delivery.js, which refuses what it does
+            // not recognise rather than inventing a tag the model would speak.
+            direction: typeof dl.direction === 'string' ? dl.direction : null,
+            index,
+        }));
+}
+
+/**
+ * Build a payload for the POST /voice endpoint.
+ *
+ * @param {object} dialogueLine - { character, line, emotion, index }
+ * @param {object|null} voiceProfile - film_voice_profiles row
+ * @param {object|null} character - film_characters row
+ * @returns {object} Payload for POST /voice
+ */
+/**
+ * @param {object} dialogueLine   the line, and its own parenthetical
+ * @param {object} voiceProfile   who it is cast as
+ * @param {object} character      the standing delivery for that person
+ * @param {{scene?: {delivery?: string}}} [context]
+ *        THE SCENE'S OWN DIRECTION — how this scene is played, for every line
+ *        in it that does not say otherwise. This function took no scene at all,
+ *        so "the details of the scene" reached nothing and a line in a tense
+ *        scene was read exactly as neutrally as a line in a calm one unless the
+ *        writer had put a parenthetical on it.
+ */
+function buildVoicePayload(dialogueLine, voiceProfile, character, context) {
+    const payload = {
+        text: dialogueLine.line,
+        model: 'qwen3-tts',
+        language: 'en',
+        /*
+         * `emotion` is NOT sent — ElevenLabs has no such field, and it was set
+         * here for four phases and dropped one function short of the request.
+         * The direction now goes through applyDelivery below, which turns it
+         * into what the provider actually reads: an audio tag on a model that
+         * understands one, and the style and stability dials on every model.
+         */
+        speed: 1.0,
+        /*
+         * 48k, NOT 24k — and this key is the only one that counts.
+         *
+         * Two things were wrong here and they hid each other. `sample_rate` was
+         * 24000: telephone grade, for dialogue that then goes through a mix, a
+         * loudness pass and a delivery encode, against a picture running at 48k.
+         * And it was invisible, because the adapter did not understand 'wav' at
+         * all (item 32) and fell back to 128 kbps MP3 — so the number never
+         * reached anything and nobody could hear it being wrong.
+         *
+         * Fixing the adapter would have made a dormant mistake real: 'wav' now
+         * resolves to a `pcm_*` tier, and this would have started delivering
+         * genuine, uncompressed, 24 kHz dialogue.
+         *
+         * There is also only ONE of these keys now. A second `output_format`
+         * and `sample_rate` pair was added at the top of this object during that
+         * fix, which JavaScript silently resolves in favour of whichever comes
+         * LAST — so the earlier one was dead the moment it was written, and the
+         * audit that looked for "does voice ask for a format" found two answers
+         * and believed the wrong one.
+         */
+        output_format: 'wav',
+        sample_rate: 48000,
+        stream: true,
+    };
+
+    if (voiceProfile) {
+        let voiceParams = {};
+        try { voiceParams = JSON.parse(voiceProfile.voice_params || '{}'); } catch (_) { voiceParams = {}; }
+        if (voiceProfile.voice_id) payload.voice_id = voiceProfile.voice_id;
+        if (!payload.voice_id && voiceParams.voice_id) payload.voice_id = voiceParams.voice_id;
+        if (voiceProfile.speaker_embedding) payload.speaker_embedding = voiceProfile.speaker_embedding;
+        if (voiceProfile.model) payload.model = voiceProfile.model;
+        if (voiceProfile.tts_model) payload.model = voiceProfile.tts_model;
+        if (voiceParams.model) payload.model = voiceParams.model;
+        if (voiceProfile.language) payload.language = voiceProfile.language;
+        if (voiceProfile.speed) payload.speed = voiceProfile.speed;
+        if (voiceParams.speed) payload.speed = voiceParams.speed;
+        if (voiceParams.stability) payload.stability = voiceParams.stability;
+        if (voiceParams.similarity_boost) payload.similarity_boost = voiceParams.similarity_boost;
+    }
+
+    /*
+     * The writer's own direction, carried to something that uses it.
+     *
+     * `(quietly)` is the delivery note in the screenplay and the parser already
+     * extracts it. Applied AFTER the voice profile, so a character's default
+     * settings are the baseline and the line's own direction overrides them —
+     * which is the right precedence: a cast voice is how they always sound, a
+     * parenthetical is how they say THIS line.
+     */
+    const { applyDelivery } = require('./dialogue-delivery');
+
+    /*
+     * The character's standing delivery, then the line's own.
+     *
+     * A cast voice is how somebody ALWAYS sounds — RAY is weary in every scene
+     * — and a parenthetical is how they say THIS line. So the profile's
+     * delivery is the baseline and the line's direction overrides it, which is
+     * the same precedence the camera facets follow: staged beats written beats
+     * the film's default.
+     */
+    if (voiceProfile) {
+        let vp = {};
+        try { vp = JSON.parse(voiceProfile.voice_params || '{}') || {}; } catch (_) { vp = {}; }
+        if (vp.delivery) Object.assign(payload, applyDelivery(payload, vp.delivery));
+    }
+    // The character's standing delivery, from the character row rather than
+    // only the voice profile — a character can be cast before a profile exists.
+    if (character && character.delivery) {
+        Object.assign(payload, applyDelivery(payload, character.delivery));
+    }
+    /*
+     * THEN THE SCENE, then the line.
+     *
+     * A cast voice is how somebody always sounds; a scene direction is how this
+     * scene is played; a parenthetical is how they say THIS line. Each beats
+     * the one behind it — the same precedence the camera facets follow, and the
+     * reason the scene sits between them rather than at either end: it is more
+     * specific than a person and less specific than a line.
+     *
+     * An empty direction applies nothing, so a project that has never written
+     * one builds byte-identical payloads.
+     */
+    const sceneDirection = context && context.scene && context.scene.delivery;
+    if (sceneDirection && String(sceneDirection).trim()) {
+        Object.assign(payload, applyDelivery(payload, sceneDirection));
+    }
+    Object.assign(payload, applyDelivery(payload, dialogueLine.direction || dialogueLine.emotion));
+
+    if (character && character.name) {
+        payload.character_name = character.name;
+    }
+
+    return payload;
+}
+
+/**
+ * Build a filename for a dialogue audio clip.
+ *
+ * @param {string} shotCode
+ * @param {string} characterName
+ * @param {number} lineIndex
+ * @returns {string} e.g. '1A_JOHN_0.wav'
+ */
+function dialogueFilename(shotCode, characterName, lineIndex) {
+    const safeName = characterName.replace(/[^a-zA-Z0-9_-]/g, '_').toUpperCase();
+    return `${shotCode}_${safeName}_${lineIndex}.wav`;
+}
+
+/**
+ * Calculate total expected dialogue duration based on text length.
+ * Rough estimate: ~150 words per minute, ~5 chars per word.
+ *
+ * @param {string} text
+ * @param {number} [speed=1.0]
+ * @returns {number} Estimated duration in ms
+ */
+function estimateDialogueDuration(text, speed) {
+    const s = speed || 1.0;
+    const words = text.split(/\s+/).length;
+    const durationSec = (words / 150) * 60 / s;
+    return Math.max(500, Math.round(durationSec * 1000));
+}
+
+module.exports = {
+    extractDialogue,
+    buildVoicePayload,
+    dialogueFilename,
+    estimateDialogueDuration,
+    VALID_EMOTIONS,
+};

@@ -1,0 +1,59 @@
+<div class="modal-overlay" id="shotCardModal">
+        <div class="modal" style="max-width:820px;width:92vw;">
+            <div class="modal-header">
+                <h3 id="shotCardTitle">Direct shot</h3>
+                <button class="modal-close" onclick="closeModal('shotCardModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group" id="shotCardModeRow">
+                    <label>When you regenerate, what are you directing?</label>
+                    <div style="display:flex;flex-direction:column;gap:6px;">
+                        <label style="display:flex;gap:8px;align-items:flex-start;cursor:pointer;">
+                            <input type="radio" name="shotCardMode" value="action" checked style="margin-top:3px;">
+                            <span class="text-sm"><strong>The action</strong>
+                                <span class="text-muted">&mdash; build the scene from this card. Every subject is
+                                described, so the whole frame is open to change.</span></span>
+                        </label>
+                        <label style="display:flex;gap:8px;align-items:flex-start;cursor:pointer;">
+                            <input type="radio" name="shotCardMode" value="camera" style="margin-top:3px;">
+                            <span class="text-sm"><strong>The camera</strong>
+                                <span class="text-muted">&mdash; keep the anchored frame's scene exactly (same street,
+                                same dressing, same light, same people) and change only where the camera is.
+                                Needs an anchor.</span></span>
+                        </label>
+                    </div>
+                    <div class="text-sm text-muted" id="shotCardModeHint" style="line-height:1.45;"></div>
+                </div>
+
+                <h4 style="margin:14px 0 8px;">Blocking <span class="text-muted text-sm" style="font-weight:normal;">&mdash; who and what is in the shot</span></h4>
+                <div id="shotCardBlockingPanel"></div>
+                <h4 style="margin:14px 0 8px;">Cinematography <span class="text-muted text-sm" style="font-weight:normal;">&mdash; where the camera is</span></h4>
+                <div id="shotCardDirectingPanel"></div>
+                <p class="text-sm text-muted" style="margin:-4px 0 12px;line-height:1.5;">
+                    Movement also becomes the clip's <code>camera_control</code>. Blocking a shot in
+                    Previs overrides framing, lens and movement &mdash; what was staged beats what was
+                    written &mdash; and staging subjects there says where they stand in this frame.
+                </p>
+                <h4 style="margin:14px 0 8px;">Style <span class="text-muted text-sm" style="font-weight:normal;">&mdash; the film&rsquo;s look, as this shot sends it</span></h4>
+                <div class="form-group">
+                    <textarea id="shotCardStyle" rows="4" style="width:100%;line-height:1.5;font-family:inherit;"
+                        oninput="shotCardStyleEdited()"
+                        placeholder="No style for this shot"></textarea>
+                    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:6px;">
+                        <button class="btn btn-sm btn-secondary" type="button" onclick="shotCardStyleUseFilm()">Use the film style</button>
+                        <button class="btn btn-sm btn-secondary" type="button" onclick="shotCardStyleNone()">No style for this shot</button>
+                        <span class="text-sm text-muted" id="shotCardStyleState"></span>
+                    </div>
+                </div>
+                <div id="shotCardPreview" style="margin:10px 0;"></div>
+                <div id="shotCardWarning" class="text-sm" style="display:none;margin-bottom:10px;"></div>
+                <div style="display:flex;gap:8px;justify-content:flex-end;">
+                    <button class="btn btn-secondary" onclick="closeModal('shotCardModal')">Cancel</button>
+                    <button class="btn btn-secondary" onclick="previewShotPrompt()"
+                            title="See exactly what would be sent — the words, the plates, and whether anything was cut. Costs nothing.">Check first</button>
+                    <button class="btn btn-secondary" onclick="saveShotCard(false)">Save</button>
+                    <button class="btn btn-primary" onclick="saveShotCard(true)" title="Save and generate this frame again — costs credits">Save &amp; regenerate</button>
+                </div>
+            </div>
+        </div>
+    </div>

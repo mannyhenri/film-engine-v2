@@ -1,0 +1,72 @@
+<div class="modal-overlay" id="textConvertModal">
+        <div class="modal modal-lg">
+            <div class="modal-header">
+                <h3>Convert Text to Screenplay</h3>
+                <button class="modal-close" onclick="closeTextConvertModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div id="convertStep1">
+                    <div class="form-group">
+                        <label>Source Text</label>
+                        <p class="text-sm text-muted mb-8">Paste prose/novel text, or upload a Word document (.docx) or plain text file (.txt). Chapters will be auto-detected.</p>
+                        <div class="text-convert-input-row">
+                            <textarea id="convertSourceText" rows="10" placeholder="Paste your prose text here...&#10;&#10;Chapter 1&#10;&#10;Sarah walked into the coffee shop, her hands shaking..."></textarea>
+                            <div class="text-convert-upload">
+                                <input type="file" id="convertFileInput" accept=".txt,.docx" onchange="handleConvertFileUpload(event)">
+                                <label for="convertFileInput" class="btn btn-outline btn-sm">Upload .txt or .docx</label>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="form-group" id="chaptersDetectedGroup" style="display:none;">
+                        <label>Detected Chapters</label>
+                        <div class="chapters-list" id="chaptersList"></div>
+                        <div class="chapter-actions">
+                            <button class="btn btn-sm btn-outline" onclick="selectAllChapters()">Select All</button>
+                            <button class="btn btn-sm btn-outline" onclick="deselectAllChapters()">Deselect All</button>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Style Notes (Optional)</label>
+                        <textarea id="convertStyleNotes" rows="2" placeholder="e.g., Film noir style, sparse dialogue, visual storytelling..."></textarea>
+                    </div>
+                    <div class="convert-estimate" id="convertEstimate" style="display:none;font-size:11px;color:var(--gl-text-muted);margin-bottom:12px;"></div>
+                    <div class="btn-row">
+                        <button class="btn btn-primary" onclick="detectChapters()">Detect Chapters</button>
+                        <button class="btn btn-secondary" onclick="startConversion()">Convert Selected</button>
+                        <button class="btn btn-outline" onclick="convertFullDocument()">Convert Full Document</button>
+                    </div>
+                </div>
+
+                <div id="convertStep2" style="display:none;">
+                    <div class="convert-progress">
+                        <div class="convert-progress-label" id="convertProgressLabel">Converting...</div>
+                        <div class="convert-progress-bar">
+                            <div class="convert-progress-fill" id="convertProgressFill"></div>
+                        </div>
+                        <div class="convert-progress-status" id="convertProgressStatus">0 / 0 chunks</div>
+                        <div class="convert-progress-eta" id="convertProgressETA" style="font-size:11px;color:var(--gl-text-muted);margin-top:8px;"></div>
+                        <button class="btn btn-outline btn-sm" onclick="cancelConversion()" style="margin-top:16px;">Cancel</button>
+                    </div>
+                </div>
+
+                <div id="convertStep3" style="display:none;">
+                    <div class="convert-preview-container">
+                        <div class="convert-preview-pane">
+                            <div class="preview-header">Original Text</div>
+                            <div class="preview-content" id="convertOriginalPreview"></div>
+                        </div>
+                        <div class="convert-preview-pane">
+                            <div class="preview-header">Converted Screenplay</div>
+                            <textarea class="preview-content editable" id="convertResultPreview"></textarea>
+                        </div>
+                    </div>
+                    <div class="convert-results-summary" id="convertResultsSummary"></div>
+                    <div class="btn-row">
+                        <button class="btn btn-primary" onclick="acceptConversion()">Accept & Insert</button>
+                        <button class="btn btn-outline" onclick="backToConvertStep1()">Back</button>
+                        <button class="btn btn-secondary" onclick="closeTextConvertModal()">Cancel</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
