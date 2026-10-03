@@ -77,7 +77,9 @@
     "backend/tests/REMOVED-TESTS.txt": "v2 only: the film-engine tests this copy does not carry, each with its reason",
     "backend/tests/SKIPPED-SUBTESTS.json": "v2 only: sub-tests skipped by exact name, each with its reason",
     "backend/routes/shots.js": "getShotlist answers every shot unless limit/page is given: the default of 50 cut a film past 50 shots out of every page that lists shots (Shot Board, scene dialogue, subtitles picker, export, previs, score session)",
-    "backend/tests/shotlist-all.test.js": "v2 only: holds the shot list to answering every shot unless paged"
+    "backend/tests/shotlist-all.test.js": "v2 only: holds the shot list to answering every shot unless paged",
+    "backend/server.js": "routes shot-audit and shots-resync to handleProductionReports: the handler served them but server.js never routed them, so they answered 405 (Resync, the MCP shots_resync tool, Sync screenplay); held by backend/tests/report-routes-reachable.test.js",
+    "backend/tests/report-routes-reachable.test.js": "v2 only: every report production-reports.js serves is routed to it by server.js"
   },
   "pinToCore": {
     "twBurst": "stays next to const TYPEWRITER (core): screenplay-focus reads the typewriter's sound rules as the source text from TYPEWRITER to twBurst, which must be one script"

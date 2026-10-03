@@ -261,6 +261,22 @@ async function smoke(win) {
         report.push({ id: 'deeplink→' + deep, ok, chunk: st.chunk, active: st.active, want: 'page-' + deep });
     }
     if (process.env.FE_SMOKE_SHAPES) require('fs').writeFileSync(process.env.FE_SMOKE_SHAPES, JSON.stringify(shapes, null, 1));
+    // The top bar's Sync screenplay: present in the rail, and its dialog compares (a dry run) when pressed.
+    if (project && !process.env.FE_SMOKE_URL && !process.env.FE_SMOKE_PAGES) {
+        current = 'sync';
+        const before = errors.length;
+        const there = await js(`!!document.querySelector('.fe-top .fe-rail #syncScreenplayBtn')`);
+        await js(`document.getElementById('syncScreenplayBtn').click(); true`);
+        let shown = '';
+        for (let t = 0; t < 40; t++) {
+            shown = await js(`(() => { const m = document.getElementById('syncScreenplayModal'); return m && m.classList.contains('open') ? m.querySelector('.modal-body').textContent : ''; })()`);
+            if (/Descriptions are never rewritten|Could not compare/.test(shown)) break;
+            await new Promise(r => setTimeout(r, 250));
+        }
+        await js(`closeModal('syncScreenplayModal'); true`);
+        const ok = there && /Descriptions are never rewritten/.test(shown) && errors.length === before;
+        report.push({ id: 'sync screenplay', ok, want: 'sync screenplay', active: ok ? 'sync screenplay' : `inRail=${there} dialog=${shown.slice(0, 80)}` });
+    }
     // What the page opens: print previews stay in the app, API files download, other sites leave.
     if (!process.env.FE_SMOKE_URL && !process.env.FE_SMOKE_PAGES) {
         current = 'windows';
