@@ -59,7 +59,7 @@ describe('Consistency Studio', () => {
         await openPage();
         expect(within(card('c1')).getByText('Maya <lead>')).toBeTruthy();
         expect(within(card('c1')).getByText('not locked')).toBeTruthy();
-        expect(card('c1').querySelector('img').getAttribute('src')).toBe('http://api.test/film/refs/maya.png');
+        expect(card('c1').querySelector('img').getAttribute('src')).toBe('plate:/film/refs/maya.png@480'); // a card asks for the thumbnail
         expect(within(card('c1')).getByText('Lock for production')).toBeTruthy();          // a sheet by character_id
         expect(within(card('c2')).getByText('Lock (needs reference)').disabled).toBe(true);
         expect(within(card('c2')).getByText(/No reference image yet — generate a reference image on the Characters page/)).toBeTruthy();

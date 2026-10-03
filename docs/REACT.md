@@ -54,6 +54,24 @@ imports the backend registry and, for an entry whose control is React, renders t
 CLICKS the button, which must reach the API or core. Converting a page with such a control means writing its
 `reach.js`; the shared test is not edited.
 
+## React components (code that is not a page)
+
+A modal or sheet that every page opens (the gallery, casting, the subject sheets) is not a page: it has no
+loader and navigateTo never shows it. It converts as a COMPONENT, `src/components/<Name>/<Name>.jsx` plus
+`src/components/<Name>/react.json` with `provides`, `replaces` and `modals` (no `loader`).
+
+- App mounts it once, at boot, from the generated `src/components/react-components.js`; it registers each
+  provided name with `usePageLoader`, so core can call it by name.
+- Each listed modal is always rendered, hidden (`<Modal id=…>`); `assemble-page` fails if one is missing or
+  open in the static render, and `src/App.test.jsx` checks it in the mounted App.
+- `replaces` is cut from every script the split emits (core, production-graph.js, shell.js), and the
+  "still used" check reads all of them.
+- One owner per name and per modal, across pages and components (the split fails otherwise).
+- A React-registered name called while a legacy script LOADS fails the split unless
+  `tools/split-lib.js LOAD_TIME_CALLS` names it, with why it is safe.
+- Pictures: every `src={…}` on an `<img>` asks for a size or is named in
+  `tools/tests/react-image-weight.test.js` with why not.
+
 ## Who is converting what
 
 Each page is converted by one person at a time; claim it in this table before starting, in its own

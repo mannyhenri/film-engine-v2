@@ -39,7 +39,7 @@ function Greeting({ g }) {
 function Resume({ r, onResume }) {
     if (!r) return <><div className="k">Pick up where you left off</div><div className="home-empty">Nothing worked on yet.</div></>;
     const src = r.has_keyframe && legacy.state.currentProject
-        ? `${legacy.API_BASE}/film/storyboards/${legacy.state.currentProject.id}/${encodeURIComponent(r.shot_code)}.png` : '';
+        ? `${legacy.API_BASE}/film/storyboards/${legacy.state.currentProject.id}/${encodeURIComponent(r.shot_code)}.png?w=480` : ''; // a card: the server's thumbnail, not the full keyframe
     return (
         <>
             <div className="k">Pick up where you left off</div>

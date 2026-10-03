@@ -124,7 +124,7 @@ function SubjectGrid({ type, subjects, data, act }) {
                 <div className="flex-between"><strong style={{ fontSize: 13 }}>{s.name}</strong>
                     {locked ? <span className="tag" style={GREEN}>🔒 locked</span> : prof ? <span className="tag">draft</span> : <span className="tag">not locked</span>}</div>
                 {s.reference_image_url
-                    ? <img src={legacy.API_BASE + s.reference_image_url} style={{ width: '100%', borderRadius: 6, marginTop: 8, maxHeight: 200, objectFit: 'cover' }} onError={e => { e.currentTarget.style.display = 'none'; }} />
+                    ? <img src={legacy.plateSrc(s.reference_image_url, 480)} style={{ width: '100%', borderRadius: 6, marginTop: 8, maxHeight: 200, objectFit: 'cover' }} onError={e => { e.currentTarget.style.display = 'none'; }} />
                     : <p className="text-sm text-muted" style={{ marginTop: 8 }}>No reference image yet — generate a reference image on the {PAGE_OF[type]} page to explore, then lock one here.</p>}
                 <div style={{ marginTop: 8 }}>
                     {locked ? <button className="btn btn-secondary btn-sm" onClick={() => act.unlockConsistency(prof.id)}>Unlock</button>

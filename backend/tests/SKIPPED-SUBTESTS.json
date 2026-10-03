@@ -610,6 +610,12 @@
         "name": "every subject kind opens the same workspace",
         "reason": "counts function galCardHtml( in the page; the gallery is a React component. src/components/Gallery/Gallery.test.jsx holds openGallery('<kind>' in core for every SUBJECT_KINDS kind, one card renderer, and each kind's gallery drawn through it."
       }
+    ],
+    "image-weight.test.js": [
+      {
+        "name": "the page has served images at all \u2014 the scan is not blind",
+        "reason": "a floor on <img src=\"${...}\"> template strings in the assembled page; each page converted to React moves its pictures out of that scan (the gallery took it to 29 of 30). The two sub-tests that check the pictures still run on what is legacy; tools/tests/react-image-weight.test.js holds the React half: every src={...} on an <img> asks for a size or is named with why, with its own not-blind floor."
+      }
     ]
   }
 }

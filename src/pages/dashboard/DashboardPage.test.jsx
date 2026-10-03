@@ -45,7 +45,7 @@ describe('Home', () => {
     it('the greeting, resume (with its frame), needs, phases, activity and running, as text', async () => {
         await openPage();
         expect(el('homeGreeting').textContent).toBe('Good morning, MannyFrom <the> Mist · 1 shot across 3 scenes · last opened yesterday');
-        expect(el('homeResume').querySelector('img').getAttribute('src')).toBe('http://api.test/film/storyboards/p1/2B.png');
+        expect(el('homeResume').querySelector('img').getAttribute('src')).toBe('http://api.test/film/storyboards/p1/2B.png?w=480'); // a card asks for the thumbnail
         expect(el('homeResume').textContent).toMatch(/Shot 2BShe turnsframe ready · 2h ago/);
         expect([...el('homeNeeds').querySelectorAll('.home-need')].map(n => n.textContent)).toEqual(['Lock MAYAPlan', 'No voiceOpen']);
         expect([...el('homePhases').querySelectorAll('.home-phase')].map(p => [p.querySelector('.frac').textContent, p.querySelector('.fill').style.width])).toEqual([['3/4', '75%'], ['0/0', '0%']]);
