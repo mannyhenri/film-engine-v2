@@ -12,7 +12,8 @@
     "start": "electron .",
     "test": "node --test tools/tests/*.test.js",
     "smoke": "npm run build && electron . --smoke",
-    "parity": "sh tools/parity-run.sh"
+    "parity": "sh tools/parity-run.sh",
+    "test:backend": "sh tools/backend-tests.sh"
   },
   "dependencies": {
     "react": "^18.3.1",

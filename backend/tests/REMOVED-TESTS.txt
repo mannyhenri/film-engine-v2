@@ -1,4 +1,4 @@
-# Tests removed from this copy of the backend
+# Tests removed from this copy of the backend (film-engine-v2). set-build and room-scan were among them, so their exemptions left tests/ffmpeg-stdin.test.js too.
 # They assert on film-engine/src/index.html, the one-file page this app replaces. They stay in film-engine as the reference suite; tools/tests/parity.test.js covers the port.
 act-structure.test.js
 adr-spark.test.js
@@ -209,3 +209,59 @@ explore-shot-panel.test.js
 nothing-covers-the-page.test.js
 previs-board-view.test.js
 project-list.test.js
+
+# Also removed (round 3): they assert on film-engine's own repo files (docs/plans, epics, briefs, ios/, CLAUDE.md, gridlight.json, scripts/), not on the backend's behaviour. They stay in film-engine.
+ableton-sidecar.test.js
+ai-tools-api-brief.test.js
+ai-tools-epic.test.js
+cinematography.test.js
+comfyui-epic.test.js
+conform-contract.test.js
+e2e-first-film-plan.test.js
+epic-scoping-copy.test.js
+fcc-audio.test.js
+fcc-epic-record.test.js
+fcc-external-storage.test.js
+fcc-format-picker.test.js
+fcc-hardware-tier.test.js
+fcc-locks.test.js
+fcc-log.test.js
+fcc-on-device-proof.test.js
+fcc-parity-brief.test.js
+fcc-prores.test.js
+fcc-recording.test.js
+fcc-transport.test.js
+flow-graph.test.js
+flows-canvas-plan.test.js
+flows-node-taxonomy.test.js
+mcp-guide.test.js
+music-docs-ops.test.js
+music-workstation-epic-scope.test.js
+music-workstation-research-brief.test.js
+phase0-spec-coverage.test.js
+phase6-live-runs.test.js
+plate-capture-settings.test.js
+plate-clipping.test.js
+plate-exposure.test.js
+plate-focus.test.js
+plate-frames.test.js
+plate-lens.test.js
+plate-peaking.test.js
+plate-white-balance.test.js
+previs-library.test.js
+previs-plan.test.js
+previs-to-video.test.js
+production-graph-docs.test.js
+rbf-001-video-edit-probe.test.js
+rbf-002-verdict-recorded.test.js
+readiness-brief.test.js
+runway-parity-brief.test.js
+runway-parity-epic.test.js
+seedance-video-edit-retired.test.js
+self-hosted-models-plan.test.js
+style-book-qa.test.js
+version.test.js
+world-engine.test.js
+
+# Also removed (round 3): reads src/index.html through lib/music-approval.js SCORE_CONSUMERS (a list only tests read).
+approved-score.test.js

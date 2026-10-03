@@ -76,17 +76,18 @@ async function smoke(win) {
         const ok = state.active === 'page-' + id && errors.length === before;
         report.push({ id, ok, chunk: state.chunk, active: state.active });
     }
-    // Cold start on a deep link to a chunked page: the chunk must load before its loader runs.
-    const deep = PAGES.find(p => p !== 'projects' && p !== 'dashboard' && CHUNKED.includes(p));
-    if (project && deep && !process.env.FE_SMOKE_URL) {
+    // Cold starts on deep links to chunked pages: the chunk (and its libraries) must load before its loader runs.
+    const deeps = [PAGES.find(p => p !== 'projects' && p !== 'dashboard' && CHUNKED.includes(p)), CHUNKED.includes('previs') && 'previs'].filter(Boolean);
+    for (const deep of (project && !process.env.FE_SMOKE_URL) ? deeps : []) {
         current = 'deeplink:' + deep;
         const before = errors.length;
         const url = new URL(win.webContents.getURL());
         url.hash = `#/${project}/${deep}`;
         await win.loadURL(url.href);
-        await new Promise(r => setTimeout(r, 3500));
-        const st = await js(`({ active: document.querySelector('.page.active')?.id, chunk: !!(window.__fePages && window.__fePages.loaded().includes(${JSON.stringify(deep)})) })`);
-        report.push({ id: 'deeplink→' + deep, ok: st.active === 'page-' + deep && st.chunk && errors.length === before, chunk: st.chunk, active: st.active, want: 'page-' + deep });
+        await new Promise(r => setTimeout(r, 4000));
+        const st = await js(`({ active: document.querySelector('.page.active')?.id, chunk: !!(window.__fePages && window.__fePages.loaded().includes(${JSON.stringify(deep)})), three: typeof THREE !== 'undefined' })`);
+        const ok = st.active === 'page-' + deep && st.chunk && errors.length === before && (deep !== 'previs' || st.three);
+        report.push({ id: 'deeplink→' + deep, ok, chunk: st.chunk, active: st.active, want: 'page-' + deep });
     }
     if (process.env.FE_SMOKE_SHAPES) require('fs').writeFileSync(process.env.FE_SMOKE_SHAPES, JSON.stringify(shapes, null, 1));
     for (const r of report) console.log(`${r.ok ? 'ok  ' : 'FAIL'} ${r.id.padEnd(16)} ${r.chunk ? 'chunk loaded' : 'core only'}${r.active === (r.want || 'page-' + r.id) ? '' : '  active=' + r.active}`);
