@@ -1,0 +1,6 @@
+{
+  "about": "The subject gallery is React (src/components/Gallery/Gallery.jsx), a component mounted once at boot. tools/split-map.js drops the legacy code and modal below and fails if anything left still calls them. The character, location and prop sheets (core) open it by name: openGallery is PROVIDED, registered on window when App mounts.",
+  "provides": ["openGallery"],
+  "replaces": ["GAL", "openGallery", "loadGallery", "galCardHtml", "setGalleryRole", "removeGalleryImage", "exploreSubject", "addInspirationPrompt"],
+  "modals": ["galleryModal"]
+}

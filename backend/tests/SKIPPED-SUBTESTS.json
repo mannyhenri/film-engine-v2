@@ -40,7 +40,7 @@
       },
       {
         "name": "the button is only offered where there is footage to edit",
-        "reason": "REACT: reads the legacy const proActions block. Held in src/pages/videoshots/videoshots-contract.test.jsx: Background… absent on a shot with no clip, present and calling core on one with footage."
+        "reason": "REACT: reads the legacy const proActions block. Held in src/pages/videoshots/videoshots-contract.test.jsx: Background\u2026 absent on a shot with no clip, present and calling core on one with footage."
       }
     ],
     "capture-affordance.test.js": [
@@ -79,7 +79,7 @@
     ],
     "director-controls.test.js": [
       {
-        "name": "A5 · playback can regenerate a scene's dialogue, and says what that costs",
+        "name": "A5 \u00b7 playback can regenerate a scene's dialogue, and says what that costs",
         "reason": "reads onclick=\"pbRegenerateDialogue(\" and the function text out of the legacy Playback page source; Playback is React. Held in src/pages/playback: PlaybackControls.test.jsx (the button calls pbRegenerateDialogue) and PlaybackPage.test.jsx (it goes through confirmPaidImage, spends nothing before it, and every shot is bought with regenerate: true)"
       }
     ],
@@ -220,7 +220,7 @@
     "generator-costs.test.js": [
       {
         "name": "the page renders the PRICE per model, not the conversion factor",
-        "reason": "reads the legacy Rates template (${rate.models.length} model rate(s) … m.usd_per_native); Budget is React. src/pages/budget/BudgetPage.test.jsx renders a model rate and requires its price ('$0.12 per call'), not the conversion factor."
+        "reason": "reads the legacy Rates template (${rate.models.length} model rate(s) \u2026 m.usd_per_native); Budget is React. src/pages/budget/BudgetPage.test.jsx renders a model rate and requires its price ('$0.12 per call'), not the conversion factor."
       },
       {
         "name": "the comparison is reachable from the page",
@@ -358,7 +358,7 @@
     "playback-start.test.js": [
       {
         "name": "there is a way to play from a specific shot deliberately",
-        "reason": "reads the legacy template text playFromShot('${f.shot_id}'); the Storyboard is React. src/pages/storyboard/StoryboardPage.test.jsx clicks ▶ on a card and checks playFromShot is called with that card's shot."
+        "reason": "reads the legacy template text playFromShot('${f.shot_id}'); the Storyboard is React. src/pages/storyboard/StoryboardPage.test.jsx clicks \u25b6 on a card and checks playFromShot is called with that card's shot."
       }
     ],
     "premiere-scenes.test.js": [
@@ -370,7 +370,7 @@
     "production-estimate.test.js": [
       {
         "name": "the route, the tool and the Budget tab serve it, free",
-        "reason": "ends with a regex over the legacy page (film: 'budgetTabFilm', prodEstSet('resolution'…). Its backend half (the route answers free at the asked resolution; the budget_production_estimate tool serves it) is kept verbatim in backend/tests/budget-backend-halves.test.js; the page half (the tab prices on open, a resolution or generator choice re-prices with its query) runs in src/pages/budget/BudgetPage.test.jsx."
+        "reason": "ends with a regex over the legacy page (film: 'budgetTabFilm', prodEstSet('resolution'\u2026). Its backend half (the route answers free at the asked resolution; the budget_production_estimate tool serves it) is kept verbatim in backend/tests/budget-backend-halves.test.js; the page half (the tab prices on open, a resolution or generator choice re-prices with its query) runs in src/pages/budget/BudgetPage.test.jsx."
       }
     ],
     "production-graph-nodes.test.js": [
@@ -575,7 +575,7 @@
     ],
     "style-book-media.test.js": [
       {
-        "name": "the page can add a visual — both ways",
+        "name": "the page can add a visual \u2014 both ways",
         "reason": "reads addStyleBookMedia/removeStyleBookMedia/link_kind out of the page script; the Style Book is React. src/pages/stylebook/StyleBookPage.test.jsx adds by link and by file (size-checked), removes, and checks each visual is drawn as what it is (embed, clip, link, picture)."
       },
       {
@@ -599,6 +599,16 @@
       {
         "name": "walking moves the shot's own camera, and keeping it goes through the validated proposal",
         "reason": "PRE-EXISTING: fails in film-engine at the pinned commit too"
+      }
+    ],
+    "subject-gallery.test.js": [
+      {
+        "name": "a served path is made absolute against the API, not the page",
+        "reason": "reads the legacy card renderer's body (function galCardHtml); the gallery is a React component. src/components/Gallery/Gallery.test.jsx holds gallerySrc (API_BASE + a served path; an absolute link left alone) and the rendered picture's URL."
+      },
+      {
+        "name": "every subject kind opens the same workspace",
+        "reason": "counts function galCardHtml( in the page; the gallery is a React component. src/components/Gallery/Gallery.test.jsx holds openGallery('<kind>' in core for every SUBJECT_KINDS kind, one card renderer, and each kind's gallery drawn through it."
       }
     ]
   }

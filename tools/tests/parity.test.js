@@ -16,7 +16,8 @@ const map = exists('docs/split-map.json') ? JSON.parse(read('docs/split-map.json
 // Pages rewritten as React (src/pages/<id>/react.json, mirrored in the map) have no chunk and no
 // generated markup; the legacy functions they replace are gone from every legacy file.
 const REACT = map ? (map.react || {}) : {};
-const REPLACED = new Set(Object.values(REACT).flatMap(r => r.replaces));
+// And React components (src/components/<Name>/react.json, map.reactComponents) replace core code the same way.
+const REPLACED = new Set([...Object.values(REACT), ...Object.values(map ? (map.reactComponents || {}) : {})].flatMap(r => r.replaces));
 const ported = plan.rounds.slice(0, plan.currentRound).flat().filter(p => !REACT[p]);
 
 const LOADERS = loaderMap(src.app);
@@ -72,7 +73,11 @@ test('no code is lost or duplicated: every top-level statement of the source is 
     for (const t of port) portSet.set(t, (portSet.get(t) || 0) + 1);
     const missing = app.filter(t => !t.startsWith('function navigateTo(') && !portSet.get(t));
     assert.deepStrictEqual(missing.map(t => t.slice(0, 60)), []);
-    for (const f of ['productionGraph', 'shell']) assert.ok(read(CORE_FILES[f === 'shell' ? 2 : 1]).includes(src[f]));
+    // The other two boot scripts are emitted whole, less what React replaced from them, statement for statement.
+    for (const [f, file] of [['productionGraph', CORE_FILES[1]], ['shell', CORE_FILES[2]]]) {
+        const want = acorn.parse(src[f], { ecmaVersion: 'latest' }).body.filter(n => !replacedStatement(n, REPLACED)).map(n => src[f].slice(n.start, n.end));
+        assert.deepStrictEqual(norm(read(file)), want, `${file}: not the source less what React replaced`);
+    }
 });
 
 test('every function lives exactly once in core or one chunk', () => {

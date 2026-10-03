@@ -104,4 +104,67 @@ function replacedStatement(node, replaced) {
     return false;
 }
 
-module.exports = { replacedStatement, parse, readSource, loaderMap, topLevelFunctions, topLevelElements, innerOf, words };
+/**
+ * A whole classic script less what React replaced: each top-level statement replacedStatement() matches
+ * leaves together with the text that leads into it (its comments), exactly as the app script's
+ * statements do. Used for every script the split emits whole (production-graph.js, shell.js), so a
+ * react.json can replace code wherever the source keeps it. Returns the text and the names it declares.
+ */
+function cutScript(code, replaced) {
+    const ast = parse(code);
+    let out = '', prev = 0;
+    const declared = new Set();
+    for (const n of ast.body) {
+        if (n.type === 'FunctionDeclaration') declared.add(n.id.name);
+        if (n.type === 'VariableDeclaration') for (const d of n.declarations) if (d.id.type === 'Identifier') declared.add(d.id.name);
+        if (!replacedStatement(n, replaced)) out += code.slice(prev, n.end);
+        prev = n.end;
+    }
+    return { code: out + code.slice(prev), declared };
+}
+
+/**
+ * Calls of `names` that run while a script LOADS: its top-level statements, and the body of a function
+ * it calls on the spot (an IIFE; shell.js is one). A call inside any other function body runs later,
+ * when something calls that function. A React page or component registers what it provides when it
+ * mounts, so a load-time call is the one kind that could find the name missing.
+ * Returns [{ name, at }] (at: the character offset of the call).
+ */
+function loadTimeCalls(code, names) {
+    const want = names instanceof Set ? names : new Set(names);
+    const found = [];
+    const isFn = (n) => n && /^(FunctionExpression|ArrowFunctionExpression)$/.test(n.type);
+    const calledName = (c) => c.type === 'Identifier' ? c.name
+        : c.type === 'MemberExpression' && !c.computed && c.object.type === 'Identifier' && c.object.name === 'window' ? c.property.name : null;
+    const visit = (n) => {
+        if (!n || typeof n.type !== 'string') return;
+        if (n.type === 'FunctionDeclaration' || isFn(n) || n.type === 'ClassDeclaration' || n.type === 'ClassExpression') return;
+        if (n.type === 'CallExpression' || n.type === 'NewExpression') {
+            const name = calledName(n.callee);
+            if (name && want.has(name)) found.push({ name, at: n.start });
+            // An IIFE: its body runs now.
+            const callee = n.callee.type === 'ParenthesizedExpression' ? n.callee.expression : n.callee;
+            if (isFn(callee)) visit(callee.body);
+        }
+        for (const k of Object.keys(n)) {
+            if (k === 'type' || k === 'start' || k === 'end') continue;
+            const v = n[k];
+            if (Array.isArray(v)) v.forEach(visit);
+            else if (v && typeof v.type === 'string') visit(v);
+        }
+    };
+    visit(parse(code));
+    return found;
+}
+
+/*
+ * The calls of a React-registered name that the legacy code makes while it LOADS, each with why it is
+ * safe: main.jsx mounts App synchronously before any legacy script, and registration is a layout effect
+ * (tools/tests/react-pages.test.js holds both). Any other load-time call fails the split: a new one is a
+ * decision, made here, not an accident.
+ */
+const LOAD_TIME_CALLS = {
+    loadProjects: 'core INIT: loadProjects().then(applyRoute) restores the route at boot (ProjectsPage registers it)',
+};
+
+module.exports = { LOAD_TIME_CALLS, cutScript, loadTimeCalls, replacedStatement, parse, readSource, loaderMap, topLevelFunctions, topLevelElements, innerOf, words };

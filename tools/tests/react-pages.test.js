@@ -1,5 +1,6 @@
-// Every page rewritten as React (src/pages/<id>/react.json) is held to the same rules, so a page
-// converted halfway fails here. Set-based over the react.json files that exist.
+// Every page rewritten as React (src/pages/<id>/react.json), and every React component that took code
+// over from core (src/components/<Name>/react.json: no loader, mounted once at boot), is held to the
+// same rules, so one converted halfway fails here. Set-based over the react.json files that exist.
 const test = require('node:test');
 const assert = require('node:assert');
 const fs = require('fs');
@@ -12,7 +13,18 @@ const PAGES_DIR = 'src/pages';
 const REACT = Object.fromEntries(fs.readdirSync(path.join(ROOT, PAGES_DIR))
     .filter(id => exists(`${PAGES_DIR}/${id}/react.json`))
     .map(id => [id, JSON.parse(read(`${PAGES_DIR}/${id}/react.json`))]));
-const jsxOf = (id) => fs.readdirSync(path.join(ROOT, PAGES_DIR, id)).filter(f => f.endsWith('.jsx') && !f.includes('.test.')).map(f => read(`${PAGES_DIR}/${id}/${f}`)).join('\n');
+const COMPONENTS_DIR = 'src/components';
+const COMPONENTS = Object.fromEntries(fs.readdirSync(path.join(ROOT, COMPONENTS_DIR))
+    .filter(n => exists(`${COMPONENTS_DIR}/${n}/react.json`))
+    .map(n => [n, JSON.parse(read(`${COMPONENTS_DIR}/${n}/react.json`))]));
+const sourceOf = (dir) => fs.readdirSync(path.join(ROOT, dir)).filter(f => /\.jsx?$/.test(f) && !f.includes('.test.') && f !== 'reach.js').map(f => read(`${dir}/${f}`)).join('\n');
+const jsxOf = (id) => sourceOf(`${PAGES_DIR}/${id}`);
+/** Every owner of legacy code, pages and components alike: what it registers on window, replaces and renders. */
+const OWNERS = [
+    ...Object.entries(REACT).map(([id, r]) => ({ owner: `page ${id}`, src: () => jsxOf(id), registers: [r.loader, ...(r.provides || [])], ...r })),
+    ...Object.entries(COMPONENTS).map(([n, r]) => ({ owner: `component ${n}`, src: () => sourceOf(`${COMPONENTS_DIR}/${n}`), registers: r.provides || [], ...r })),
+];
+const registersOn = (src, fn) => new RegExp(`usePageLoader\\(\\s*'${fn}'`).test(src);
 const LEGACY_FILES = ['public/legacy/core.js', 'public/legacy/production-graph.js', 'public/legacy/shell.js',
     ...fs.readdirSync(path.join(ROOT, 'public/legacy/chunks')).map(f => `public/legacy/chunks/${f}`)];
 const identifiers = (code) => new Set(code.match(/[A-Za-z_$][\w$]*/g) || []);
@@ -62,10 +74,10 @@ test('nothing in the legacy code still defines or calls what a React page replac
         const text = read(f).replace(/const loaders = \{[\s\S]*?\n\s*\};/, '').replace(/var [\w$, ]+;/g, '');
         const ids = identifiers(text);
         // A loader may be CALLED (the React page registers it on window before core runs); never defined.
-        for (const [id, r] of Object.entries(REACT)) for (const n of r.replaces) {
-            if (n === r.loader || (r.provides || []).includes(n) ? new RegExp(`function\\s+${n}\\s*\\(`).test(text) : ids.has(n)) bad.push(`${f} still uses ${n} (${id})`);
+        for (const o of OWNERS) for (const n of o.replaces) {
+            if (o.registers.includes(n) ? new RegExp(`function\\s+${n}\\s*\\(`).test(text) : ids.has(n)) bad.push(`${f} still uses ${n} (${o.owner})`);
         }
-        for (const [id, r] of Object.entries(REACT)) for (const m of r.modals) if (text.includes(`id="${m}"`)) bad.push(`${f} still has modal ${m} (${id})`);
+        for (const o of OWNERS) for (const m of o.modals) if (text.includes(`id="${m}"`)) bad.push(`${f} still has modal ${m} (${o.owner})`);
     }
     assert.deepStrictEqual(bad, []);
 });
@@ -97,15 +109,102 @@ test('every page loader the legacy code calls exists: declared in legacy code, o
     // held here, where both halves of the app are visible.
     const code = LEGACY_FILES.map(read).join('\n');
     const declared = new Set([...code.matchAll(/(?:async\s+)?function\s+([A-Za-z_$][\w$]*)\s*\(|(?:let|const)\s+([A-Za-z_$][\w$]*)\s*=/g)].map(m => m[1] || m[2]));
-    const reactLoaders = new Set(Object.values(REACT).flatMap(r => [r.loader, ...(r.provides || [])]));
+    const reactLoaders = new Set(OWNERS.flatMap(o => o.registers));
     const calls = [...code.matchAll(/(?:^|[^\w.$])(load[A-Z][\w$]*)\s*\(/gm)].map(m => m[1]);
     assert.ok(calls.length > 20, 'the scan found almost no loader calls: it is not reading the legacy code');
     const missing = [...new Set(calls)].filter(n => !declared.has(n) && !reactLoaders.has(n));
     assert.deepStrictEqual(missing, [], 'called and defined nowhere — a removed page is not removed until its callers go with it');
     // And a React loader core calls must really be registered by its page (else the call throws).
-    for (const [id, r] of Object.entries(REACT)) {
-        for (const fn of [r.loader, ...(r.provides || [])]) {
-            if (calls.includes(fn)) assert.ok(new RegExp(`usePageLoader\\(\\s*'${fn}'`).test(jsxOf(id)), `${fn} is called by core and ${id} never registers it`);
+    for (const o of OWNERS) for (const fn of o.registers) {
+        if (calls.includes(fn)) assert.ok(registersOn(o.src(), fn), `${fn} is called by core and ${o.owner} never registers it`);
+    }
+});
+
+/* ── React components that took code over from core ─────────────────────────────────────────── */
+
+test('there is at least one React component with a react.json (the scan found it)', () => {
+    assert.ok(Object.keys(COMPONENTS).length >= 1, `no ${COMPONENTS_DIR}/*/react.json found: the scan is broken`);
+});
+
+test('every React component: no loader, mounted by App through the generated list, registers what it provides, renders its modals', () => {
+    const list = read(`${COMPONENTS_DIR}/react-components.js`);
+    const map = JSON.parse(read('docs/split-map.json'));
+    const bad = [];
+    for (const [n, r] of Object.entries(COMPONENTS)) {
+        const src = sourceOf(`${COMPONENTS_DIR}/${n}`);
+        if ('loader' in r) bad.push(`${n}: a component has no loader (navigateTo never shows it); only provides`);
+        for (const k of ['provides', 'replaces', 'modals']) if (!Array.isArray(r[k])) bad.push(`${n}: react.json has no "${k}" list`);
+        if (!new RegExp(`from './${n}/${n}\\.jsx'`).test(list)) bad.push(`${n}: not in ${COMPONENTS_DIR}/react-components.js (run npm run split)`);
+        if (!map.reactComponents || !map.reactComponents[n]) bad.push(`${n}: the split map does not list it (run npm run split)`);
+        for (const fn of r.provides || []) {
+            if (!registersOn(src, fn)) bad.push(`${n}: never registers ${fn}`);
+            if (!r.replaces.includes(fn)) bad.push(`${n}: provides ${fn} but react.json does not list it in replaces`);
+        }
+        for (const m of r.modals || []) if (!new RegExp(`<Modal\\s+id="${m}"`).test(src)) bad.push(`${n}: does not render modal ${m}`);
+    }
+    assert.match(read('src/App.jsx'), /REACT_COMPONENTS\.map/, 'App does not mount the React components');
+    assert.deepStrictEqual(bad, []);
+});
+
+test('no name and no modal has two owners, across pages and components', () => {
+    const seen = new Map();
+    const bad = [];
+    for (const o of OWNERS) {
+        for (const [kind, list] of [['replaces', o.replaces], ['registers', o.registers], ['modal', o.modals]]) {
+            for (const n of new Set(list)) {
+                const key = `${kind === 'modal' ? 'modal' : 'name'}:${n}`;
+                if (kind === 'registers' && o.replaces.includes(n)) continue; // the same name, already counted under replaces
+                if (seen.has(key) && seen.get(key) !== o.owner) bad.push(`${n}: owned by ${seen.get(key)} and ${o.owner}`);
+                seen.set(key, o.owner);
+            }
         }
     }
+    assert.ok(seen.size > 20, 'the scan found almost no owned names');
+    assert.deepStrictEqual(bad, []);
+});
+
+/*
+ * BOOT ORDER. A name React registers (a loader, or something provided) exists once the page or component
+ * has MOUNTED. Core may call one while it loads only because of three facts, each held here: the module
+ * script that mounts App comes before the legacy scripts; main.jsx renders App synchronously (flushSync);
+ * and registration is a LAYOUT effect, done by the end of that synchronous render. And each such call is
+ * named below, so a new one is a decision, not an accident.
+ */
+const { LOAD_TIME_CALLS } = require('../split-lib'); // one list, read by the split too
+
+test('boot order: App is mounted, synchronously, with every registration in place, before any legacy script runs', () => {
+    const boot = read('index.html');
+    const mod = boot.indexOf('src="/src/main.jsx"');
+    const firstLegacy = boot.search(/src="\.\/legacy\//);
+    assert.ok(mod > -1 && firstLegacy > -1 && mod < firstLegacy, 'main.jsx no longer comes before the legacy scripts');
+    assert.match(read('src/main.jsx'), /flushSync\(\(\) => root\.render\(<App \/>\)\)/, 'App is no longer rendered synchronously');
+    assert.match(read('src/lib/usePageLoader.js'), /useLayoutEffect\(\(\) => \{[\s\S]*?window\[loaderName\] = fn;/, 'registration is no longer a layout effect');
+});
+
+test('every load-time call of a React-registered name is named, and its owner registers it at mount', () => {
+    const { loadTimeCalls } = require('../split-lib');
+    const owned = new Map(OWNERS.flatMap(o => o.registers.map(n => [n, o])));
+    const bad = [];
+    for (const f of LEGACY_FILES) {
+        for (const c of loadTimeCalls(read(f), new Set(owned.keys()))) {
+            if (!LOAD_TIME_CALLS[c.name]) bad.push(`${f}: ${c.name}() runs at load; React registers it at mount. Move the call into a function, or name it in LOAD_TIME_CALLS with why it is safe`);
+            else if (!registersOn(owned.get(c.name).src(), c.name)) bad.push(`${c.name}: called at load and ${owned.get(c.name).owner} does not register it with usePageLoader`);
+        }
+    }
+    for (const n of Object.keys(LOAD_TIME_CALLS)) if (!owned.has(n)) bad.push(`LOAD_TIME_CALLS names ${n}, which no React page or component registers: remove it`);
+    assert.deepStrictEqual(bad, []);
+});
+
+test('loadTimeCalls finds what runs at load and nothing that runs later', () => {
+    const { loadTimeCalls } = require('../split-lib');
+    const code = 'a(); window.b(); function f() { a(); } const g = () => a(); (function () { c(); })(); x.on("e", () => a()); const v = d();';
+    assert.deepStrictEqual(loadTimeCalls(code, ['a', 'b', 'c', 'd']).map(x => x.name), ['a', 'b', 'c', 'd']);
+});
+
+test('cutScript drops what React replaced from a whole script, with its lead comment, and keeps the rest byte for byte', () => {
+    const { cutScript } = require('../split-lib');
+    const code = '// a\nfunction a() {}\n/* b: replaced */\nfunction b() { a(); }\nwindow.b = b;\nlet B_STATE = { x: 1 };\nconst keep = 2;\n';
+    const r = cutScript(code, new Set(['b', 'B_STATE']));
+    assert.strictEqual(r.code, '// a\nfunction a() {}\nconst keep = 2;\n');
+    assert.deepStrictEqual([...r.declared].sort(), ['B_STATE', 'a', 'b', 'keep']);
 });

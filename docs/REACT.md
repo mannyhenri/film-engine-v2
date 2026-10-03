@@ -66,7 +66,9 @@ commit. A page whose functions are shared with another page converts together wi
 | scenes, moodboard, stylebook, marketing | batch 2 | film-engine agent |
 | consistency, jobsqueue, projects, dashboard | done | film-engine-v2 agent |
 | characters + locations + props (stage 1: the lists and their forms; the subjects chunk is gone) | done | film-engine-v2 agent |
-| subject sheets, casting, gallery (core, opened from the board, graph and viewer) | stage 2, next | film-engine-v2 agent |
+| subject sheets, casting, gallery (core, opened from the board, graph and viewer) | stage 2, next: gallery, casting, subject sheet, character sheet, in that order; needs React components with a react.json outside src/pages (proposed) | film-engine-v2 agent |
+| productiongraph | batch 4 | film-engine agent |
+| flows | batch 4, after subjects stage 2 (shares the graph chunk) | film-engine-v2 agent |
 | shotboard, storyboard | done | |
 | budget, settings, playback, productiongraph + flows | batch 4, one owner each | |
 | screenplay, music + musicws + musiccues, threed + previs | batch 5, the big three, one owner each | |

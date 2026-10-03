@@ -577,6 +577,26 @@
       "provides": []
     }
   },
+  "reactComponents": {
+    "Gallery": {
+      "provides": [
+        "openGallery"
+      ],
+      "replaces": [
+        "GAL",
+        "openGallery",
+        "loadGallery",
+        "galCardHtml",
+        "setGalleryRole",
+        "removeGalleryImage",
+        "exploreSubject",
+        "addInspirationPrompt"
+      ],
+      "modals": [
+        "galleryModal"
+      ]
+    }
+  },
   "chunks": {
     "screenplay": {
       "pages": [
@@ -1495,11 +1515,11 @@
       "loadMusic",
       "loadPlayback"
     ],
-    "functions": 502,
+    "functions": 495,
     "unreached": 19,
     "sharedByChunks": 0,
     "declaredTwice": [],
     "bootVendors": [],
-    "bytes": 741082
+    "bytes": 732692
   }
 }
