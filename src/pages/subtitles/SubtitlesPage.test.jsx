@@ -88,7 +88,7 @@ describe('Subtitles', () => {
         expect(put).toMatchObject({ start_ms: 61500, end_ms: 63250, position: 'top', shot_id: 'sh1', speaker: 'RAY' });
     });
 
-    it('export opens the file route for the viewed language', async () => {
+    it('FIX: export opens the file route under /film (the legacy page left /film out of the URL, so the download 404d)', async () => {
         await openPage();
         const open = vi.spyOn(window, 'open').mockImplementation(() => null);
         fireEvent.click(screen.getByRole('button', { name: 'Export VTT' }));

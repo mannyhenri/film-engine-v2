@@ -246,7 +246,11 @@ function generate({ write = true } = {}) {
     {
         const rest = [...segs.map(s => s.code), tail, src.productionGraph, src.shell, sidebar.outer, statusBar.outer,
             ...pages.filter(p => !react[p.id]).map(p => p.outer), ...modals.map(m => m.outer)].map(stripHtmlComments).join('\n');
-        const still = [...replaced.keys()].filter(n => words(rest).has(n));
+        // A React page's LOADER may still be called (core refreshes a page after work it did): the page
+        // registers it on window before core runs, and core keeps its placeholder var. It may not be DEFINED.
+        const loaders = new Set(Object.values(react).map(r => r.loader));
+        const defined = (n) => new RegExp(`function\\s+${n}\\s*\\(`).test(rest);
+        const still = [...replaced.keys()].filter(n => loaders.has(n) ? defined(n) : words(rest).has(n));
         if (still.length) throw new Error('legacy code still uses what a React page replaced: ' + still.map(n => `${n} (${replaced.get(n)})`).join(', '));
     }
     const chunkRoots = Object.fromEntries(chunks.map(c => [c, new Set()]));

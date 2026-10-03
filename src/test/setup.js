@@ -38,6 +38,9 @@ export function installLegacy({ routes = {}, project = { id: 'p1' } } = {}) {
         fmtBytes: (n) => `${n} B`,
         checkUploadSize: vi.fn(),
         refreshProtectOptions: vi.fn(),
+        uploadReferenceImage: vi.fn(),
+        plateSrc: (url, w) => `plate:${url}@${w}`,
+        openPlateViewer: vi.fn(),
     };
     const missing = LEGACY_GLOBALS.filter(n => !(n in fake));
     if (missing.length) throw new Error('the test fake lacks ' + missing.join(', ') + ' (src/test/setup.js)');
@@ -45,4 +48,27 @@ export function installLegacy({ routes = {}, project = { id: 'p1' } } = {}) {
     return { calls, status, fake };
 }
 
-afterEach(() => { cleanup(); for (const n of LEGACY_GLOBALS) delete window[n]; });
+/*
+ * A grid child that is not a card takes a card's place (the backend's grid-children rule, which reads
+ * legacy writes and so cannot see a React page). `.entity-grid` is a real CSS grid: every direct child
+ * occupies a cell, so anything that is not a card must span the whole row or it pushes the cards across.
+ * Checked after EVERY React test, on whatever it rendered, so each page is held to it with nothing to remember.
+ */
+const GRID_ITEM = /(^|\s)(card|entity-card|empty-state|home-panel)(\s|$)/;
+export function gridChildProblems(root = document) {
+    const bad = [];
+    for (const grid of root.querySelectorAll('.entity-grid')) {
+        for (const el of grid.children) {
+            if (GRID_ITEM.test(el.className) || /^1\s*\/\s*-1$/.test(el.style.gridColumn)) continue;
+            bad.push(`#${grid.id || '(grid)'} > <${el.tagName.toLowerCase()} class="${el.className}">${el.textContent.slice(0, 40)}`);
+        }
+    }
+    return bad;
+}
+
+afterEach(() => {
+    const bad = gridChildProblems();
+    cleanup();
+    for (const n of LEGACY_GLOBALS) delete window[n];
+    if (bad.length) throw new Error('a direct child of a CSS grid is neither a card nor full-width, so it takes a card\'s cell:\n  ' + bad.join('\n  '));
+});

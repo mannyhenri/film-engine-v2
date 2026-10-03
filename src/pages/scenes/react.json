@@ -1,0 +1,6 @@
+{
+  "about": "This page is React (src/pages/scenes/ScenesPage.jsx). tools/split-map.js stops generating it, drops the legacy functions below, and fails if anything left still calls them. The drift report, scene dialogue and screenplay status icons stay in core (other pages share them) and are reached through src/lib/legacy.js.",
+  "loader": "loadScenes",
+  "replaces": ["loadScenes", "toggleScene", "breakdownScene", "breakdownAllScenes", "selectAllScenes", "deleteSelectedScenes", "updateSceneSelection", "deleteScene", "sceneDriftBadge", "sceneDriftBanner"],
+  "modals": []
+}

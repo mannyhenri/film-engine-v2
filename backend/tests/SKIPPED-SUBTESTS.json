@@ -329,6 +329,32 @@
       {
         "name": "the delivery pages reach every field their routes accept",
         "reason": "reads the legacy saver functions (saveCredit, saveTitleCard, saveSubtitle, saveRight) out of the page script; those pages are React now. The same guarantee, derived from the same routes, runs in src/pages/delivery-fields.test.jsx: it SAVES each React form and reads the request body, and holds a page still legacy (deliverables) to this test's own rule against its chunk."
+      },
+      {
+        "name": "no page handler calls a loader that does not exist",
+        "reason": "reads the assembled page, where a React page's loader (loadScenes) is only a placeholder var while core still calls it. The same rule, over every legacy file AND the React pages' registered loaders, runs in tools/tests/react-pages.test.js."
+      }
+    ],
+    "screenplay-drift.test.js": [
+      {
+        "name": "the scenes page shows drift beside the status, not instead of it",
+        "reason": "reads sceneDriftBadge/sceneDriftBanner/loadScenes out of the page script; the Scenes page is React. src/pages/scenes/ScenesPage.test.jsx holds the same: drift is loaded with the scenes, the badge sits BESIDE the status badge, the banner is shown."
+      },
+      {
+        "name": "the page says what re-running the breakdown actually does",
+        "reason": "reads sceneDriftBanner's text out of the page script; the Scenes page is React. src/pages/scenes/ScenesPage.test.jsx holds the same text on the rendered banner AND that routes/breakdown.js still skips a scene with shots."
+      }
+    ],
+    "grid-children.test.js": [
+      {
+        "name": "the scan sees the grids and the writes into them",
+        "reason": "asserts at least 3 legacy innerHTML writes into .entity-grid containers; the pages that made them (assets, moodboard) are React and render their grids as components. The rule itself (every grid child is a card or spans the row) is enforced on EVERY React test's rendered output by the afterEach in src/test/setup.js (gridChildProblems)."
+      }
+    ],
+    "mood-board-images.test.js": [
+      {
+        "name": "the page renders the served URL, and does not hide a failure in silence",
+        "reason": "reads loadMoodBoardPage out of the page script; the Mood Board is React. src/pages/moodboard/MoodBoardPage.test.jsx holds the same on the rendered page: the <img> is built from image_url through plateSrc, and a failed load is replaced by a message, not hidden."
       }
     ],
     "edits.test.js": [

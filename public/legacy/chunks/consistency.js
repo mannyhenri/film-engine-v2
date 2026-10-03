@@ -356,3 +356,9 @@
                 + ' <span class="text-sm">' + pct + '%</span>';
         return '<div style="display:flex;align-items:center;gap:6px;padding:2px 0;"><span class="text-sm" style="min-width:120px;">' + name + role + '</span>' + bar + '</div>';
     }
+
+    function parseJsonArray(val) {
+        if (Array.isArray(val)) return val;
+        if (typeof val === 'string') { try { const p = JSON.parse(val); return Array.isArray(p) ? p : []; } catch(e) { return []; } }
+        return [];
+    }

@@ -30,6 +30,9 @@ export const LEGACY_GLOBALS = [
     'fmtBytes',     // bytes -> "12.3 MB" (edits)
     'checkUploadSize', // refuse a body over the server's per-request ceiling before sending it (edits)
     'refreshProtectOptions', // the board and playback pickers offer the ratios this job ships (deliverables)
+    'uploadReferenceImage',   // upload a reference picture: size check, the label's "Uploading…", the error left on it
+    'plateSrc',               // a plate's thumbnail URL at a width (the server caches it)
+    'openPlateViewer',        // the full-size plate viewer, shared by every page that shows a plate
 ];
 
 
