@@ -2,10 +2,15 @@ import { createRoot } from 'react-dom/client';
 import { flushSync } from 'react-dom';
 import './styles/base.css';
 import './styles/redesign.css';
+import './styles/desktop.css';
 import { installPageLoader } from './lib/pages.js';
+import { restoreRoute } from './lib/remember-route.js';
 import App from './App.jsx';
 
+// In the desktop app on macOS the title bar is hidden; desktop.css makes room for the window controls.
+if (window.__feDesktop && window.__feDesktop.platform === 'darwin') document.documentElement.classList.add('fe-desktop-mac');
 installPageLoader();
+restoreRoute();
 
 // Synchronously: the legacy core (a deferred script right after this module)
 // looks its elements up by id the moment it runs.

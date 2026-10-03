@@ -101,7 +101,8 @@
     "scripts/make-previs-people.py": "scripts/make-previs-people.py",
     "src/assets/icon.svg": "src/assets/icon.svg",
     "src/assets/logo.png": "src/assets/logo.png",
-    "src/vendor/splat-viewer.js": "src/vendor/splat-viewer.js"
+    "src/vendor/splat-viewer.js": "src/vendor/splat-viewer.js",
+    "electron/icon-ios.png": "ios/FilmEngine/Assets.xcassets/AppIcon.appiconset/icon-1024.png"
   },
   "v2OwnFiles": []
 }

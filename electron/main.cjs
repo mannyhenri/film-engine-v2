@@ -12,6 +12,8 @@ const http = require('http');
 const net = require('net');
 
 const SMOKE = process.argv.includes('--smoke');
+// The iPhone app's icon in the macOS shape (tools/make-mac-icon.py from electron/icon-ios.png).
+const ICON = path.join(__dirname, 'icon.png');
 const BACKEND_VERSION = require('../backend/package.json').version;
 let API = process.env.FE_API_BASE || 'http://localhost:3100';
 let backend = null;
@@ -100,6 +102,10 @@ async function createWindow() {
     const win = new BrowserWindow({
         width: 1440, height: 900, show: !SMOKE,
         title: 'Film Engine',
+        icon: ICON,
+        backgroundColor: '#0b0b0c',
+        // No grey title bar on macOS: the traffic lights sit inside the app's top bar (src/styles/desktop.css).
+        ...(process.platform === 'darwin' ? { titleBarStyle: 'hiddenInset', trafficLightPosition: { x: 26, y: 34 } } : {}),
         webPreferences: {
             preload: path.join(__dirname, 'preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true,
             additionalArguments: [`--fe-api-base=${API}`],
@@ -151,6 +157,22 @@ async function smoke(win) {
         const ok = state.active === 'page-' + id && errors.length === before;
         report.push({ id, ok, chunk: state.chunk, active: state.active });
     }
+    // A launch with no address reopens the film and page you were on.
+    if (project && !process.env.FE_SMOKE_URL && !process.env.FE_SMOKE_PAGES) {
+        current = 'reopen';
+        const before = errors.length;
+        await js(`openProject(${JSON.stringify(project)}, 'notes').then(() => new Promise(r => setTimeout(r, 1500))).then(() => window.__feRoute.save())`);
+        const url = new URL(win.webContents.getURL());
+        url.hash = '';
+        await win.loadURL(url.href.replace(/#$/, ''));
+        for (let t = 0; t < 40; t++) {
+            if (await js(`!!(state.currentProject && state.currentPage === 'notes')`).catch(() => false)) break;
+            await new Promise(r => setTimeout(r, 250));
+        }
+        const st = await js(`({ active: document.querySelector('.page.active')?.id, film: state.currentProject && state.currentProject.id })`);
+        const ok = st.active === 'page-notes' && st.film === project && errors.length === before;
+        report.push({ id: 'reopen last film', ok, want: 'page-notes', active: ok ? 'page-notes' : `${st.active} film=${st.film}` });
+    }
     // Cold starts on deep links to chunked pages: the chunk (and its libraries) must load before its loader runs.
     const deeps = [PAGES.find(p => p !== 'projects' && p !== 'dashboard' && CHUNKED.includes(p)), CHUNKED.includes('previs') && 'previs'].filter(Boolean);
     for (const deep of (project && !process.env.FE_SMOKE_URL && !process.env.FE_SMOKE_PAGES) ? deeps : []) {
@@ -194,6 +216,7 @@ async function smoke(win) {
 }
 
 app.whenReady().then(async () => {
+    if (process.platform === 'darwin' && app.dock) app.dock.setIcon(ICON);
     try {
         const how = await ensureBackend();
         console.log(`[film-engine] backend ${how} at ${API}`);

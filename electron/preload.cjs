@@ -5,3 +5,6 @@ const { contextBridge } = require('electron');
 // put on another port, and from file:// there is no host to follow at all.
 const arg = process.argv.find(a => a.startsWith('--fe-api-base='));
 if (arg) contextBridge.exposeInMainWorld('__filmEngineApiBase', arg.slice('--fe-api-base='.length));
+
+// Which desktop shell this is, so the page can make room for the window controls.
+contextBridge.exposeInMainWorld('__feDesktop', { platform: process.platform });

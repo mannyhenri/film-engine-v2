@@ -1,0 +1,21 @@
+/*
+ * The desktop app on macOS: no grey title bar. The window's own traffic lights
+ * sit inside the app's top bar (electron/main.cjs trafficLightPosition), so the
+ * bar makes room for them and is what you drag the window by. Only applies
+ * with html.fe-desktop-mac (set from the preload); the page in a browser or the
+ * iOS app is untouched.
+ */
+html.fe-desktop-mac .fe-top { padding-left: 88px; -webkit-app-region: drag; }
+html.fe-desktop-mac .fe-top button,
+html.fe-desktop-mac .fe-top a,
+html.fe-desktop-mac .fe-top input,
+html.fe-desktop-mac .fe-top select,
+html.fe-desktop-mac .fe-top [onclick],
+html.fe-desktop-mac .fe-top .fe-brand,
+html.fe-desktop-mac .fe-track > *,
+html.fe-desktop-mac .fe-rail > * { -webkit-app-region: no-drag; }
+/* The strip above the bar drags too, like a title bar would (body::before is taken by the redesign). */
+html.fe-desktop-mac::before {
+  content: ''; position: fixed; top: 0; left: 0; right: 0; height: var(--fe-gap);
+  -webkit-app-region: drag; z-index: 301;
+}
