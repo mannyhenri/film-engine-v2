@@ -388,6 +388,18 @@
         "name": "the style-book entry card is in the wrapping-row denominator",
         "reason": "reads renderStyleBook's template; the Style Book is React. src/pages/stylebook/StyleBookPage.test.jsx checks every rendered entry is an .entity-card with its own .card-actions row."
       }
+    ],
+    "premiere-scenes.test.js": [
+      {
+        "name": "an agent and a person can both reach it",
+        "reason": "REACT: reads onclick=\"exportPremiereScenes()\" and its function body out of the page script; Export is React (src/pages/exportpage). Every assertion is held in src/pages/exportpage/export-contract.test.jsx (the MCP tools, and the page planning then POSTing export/premiere-scenes)."
+      }
+    ],
+    "delivery-quality.test.js": [
+      {
+        "name": "the page sets the codec, audio and drafting, applies presets through the server, and shows the delivery decision",
+        "reason": "REACT: reads loadDeliveryCheck/loadExportPage out of the page script; Export is React. Every assertion is held in src/pages/exportpage/export-contract.test.jsx: the legacy halves (Settings delivery controls, deliveryLineHtml executed, confirmPaidImage, the video-gen route) against the same reassembled page, and the delivery check as behaviour."
+      }
     ]
   }
 }

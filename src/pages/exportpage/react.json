@@ -1,0 +1,6 @@
+{
+  "about": "This page is React (src/pages/exportpage/ExportPage.jsx). tools/split-map.js stops generating it, drops the legacy functions below, and fails if anything left still calls them. downloadExport and importBundle are shared with other pages and stay in core (LEGACY_GLOBALS).",
+  "loader": "loadExportPage",
+  "replaces": ["loadExportPage", "loadDeliveryCheck", "exportPremiereScenes", "exportResolve", "downloadBundle"],
+  "modals": []
+}

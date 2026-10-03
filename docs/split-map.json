@@ -58,6 +58,17 @@
       ],
       "modals": []
     },
+    "exportpage": {
+      "loader": "loadExportPage",
+      "replaces": [
+        "loadExportPage",
+        "loadDeliveryCheck",
+        "exportPremiereScenes",
+        "exportResolve",
+        "downloadBundle"
+      ],
+      "modals": []
+    },
     "milestones": {
       "loader": "loadMilestones",
       "replaces": [
@@ -1064,21 +1075,6 @@
       "otherStatements": 6,
       "bytes": 47006
     },
-    "exportpage": {
-      "pages": [
-        "exportpage"
-      ],
-      "deps": [],
-      "functions": [
-        "loadExportPage",
-        "loadDeliveryCheck",
-        "exportPremiereScenes",
-        "exportResolve",
-        "downloadBundle"
-      ],
-      "otherStatements": 0,
-      "bytes": 6102
-    },
     "marketing": {
       "pages": [
         "marketing"
@@ -1355,13 +1351,8 @@
       "loader": [
         "loadExportPage"
       ],
-      "chunk": "exportpage",
-      "modals": [
-        "newProjectModal",
-        "folderPickerModal",
-        "productionGuideModal",
-        "projectOnboardingModal"
-      ]
+      "chunk": null,
+      "modals": []
     },
     "brand": {
       "loader": [
@@ -1560,7 +1551,7 @@
     ],
     "functions": 537,
     "unreached": 17,
-    "sharedByChunks": 5,
+    "sharedByChunks": 3,
     "declaredTwice": [],
     "bootVendors": [],
     "bytes": 797754
