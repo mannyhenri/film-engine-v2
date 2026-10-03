@@ -55,6 +55,9 @@ export const LEGACY_GLOBALS = [
     'anchorButton', 'directShot', 'exploreAngles', 'refineFrame', 'storyboardImportButton', 'openFrameVersions',
     'frameVersionTitle', 'frameVersionLabel', 'playFromShot', 'insertShotAfter', 'storyboardFacetTags', 'storyboardDialogueHtml', 'markupToolbar',
     'money', 'usd',          // how money is printed everywhere: $0.00, and finer under a dollar (budget, export, the confirmations)
+    // Settings: the shell it updates after a save, the shared dialogs, and the connection state core owns.
+    'paintProjectType', 'setStatusDot', 'confirmProjectDelete', 'backToProjectList', 'openFolderPicker', 'saveProductionGraphFlag',
+    'feStore', 'checkHealth', 'DEFAULT_API_BASE', 'APP_AUTHOR',
 ];
 
 

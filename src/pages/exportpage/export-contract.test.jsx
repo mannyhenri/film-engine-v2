@@ -52,7 +52,7 @@ describe('delivery-quality: the delivery controls, presets and decision (moved)'
         const src = page();
         const { CODECS } = backend('lib/delivery-quality');
         const { DELIVERY_PRESETS } = backend('lib/project-presets');
-        const codecSel = /<select id="settingsDeliveryCodec">([\s\S]*?)<\/select>/.exec(src);
+        const codecSel = /<select id="settingsDeliveryCodec"[^>]*>([\s\S]*?)<\/select>/.exec(src);
         expect(codecSel, 'a delivery codec control').toBeTruthy();
         for (const id of Object.keys(CODECS)) expect(codecSel[1]).toContain(`value="${id}"`);
         const presetSel = /<select id="settingsDeliveryPreset"[^>]*>([\s\S]*?)<\/select>/.exec(src);

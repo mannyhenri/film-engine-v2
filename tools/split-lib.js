@@ -88,6 +88,14 @@ const words = (text) => new Set(text.match(/[A-Za-z_$][\w$]*/g) || []);
 function replacedStatement(node, replaced) {
     if (node.type === 'FunctionDeclaration') return replaced.has(node.id.name);
     if (node.type === 'VariableDeclaration') return node.declarations.every(d => d.id.type === 'Identifier' && replaced.has(d.id.name));
+    // `window.X = X;` exposing a replaced function: the React page registers X on window itself (react.json
+    // `provides`), and left behind this would read a function that no longer exists, at load.
+    if (node.type === 'ExpressionStatement') {
+        const e = node.expression;
+        return e.type === 'AssignmentExpression' && e.operator === '=' && e.left.type === 'MemberExpression' && !e.left.computed
+            && e.left.object.type === 'Identifier' && e.left.object.name === 'window' && e.right.type === 'Identifier'
+            && e.left.property.name === e.right.name && replaced.has(e.right.name);
+    }
     return false;
 }
 

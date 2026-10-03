@@ -60,7 +60,8 @@ function readReactPages() {
         const j = JSON.parse(fs.readFileSync(f, 'utf8'));
         for (const k of ['loader', 'replaces', 'modals']) if (j[k] === undefined) throw new Error(`src/pages/${id}/react.json: no "${k}"`);
         if (!j.replaces.includes(j.loader)) throw new Error(`src/pages/${id}/react.json: the loader ${j.loader} must be among what it replaces`);
-        out[id] = { loader: j.loader, replaces: j.replaces, modals: j.modals };
+        for (const fn of j.provides || []) if (!j.replaces.includes(fn)) throw new Error(`src/pages/${id}/react.json: ${fn} is provided but not among what it replaces`);
+        out[id] = { loader: j.loader, replaces: j.replaces, modals: j.modals, provides: j.provides || [] };
     }
     return out;
 }

@@ -14,7 +14,8 @@
       ],
       "modals": [
         "assetModal"
-      ]
+      ],
+      "provides": []
     },
     "brand": {
       "loader": "loadBrands",
@@ -27,7 +28,8 @@
         "BRAND_REACH_NOTE",
         "BRAND_JSON_FIELDS"
       ],
-      "modals": []
+      "modals": [],
+      "provides": []
     },
     "budget": {
       "loader": "loadBudget",
@@ -74,6 +76,9 @@
       "modals": [
         "budgetLimitModal",
         "costEntryModal"
+      ],
+      "provides": [
+        "loadSpend"
       ]
     },
     "consistency": {
@@ -105,7 +110,8 @@
         "CONSISTENCY_IMG_TYPES",
         "VERIFY_STATUS_COLOR"
       ],
-      "modals": []
+      "modals": [],
+      "provides": []
     },
     "dashboard": {
       "loader": "loadDashboard",
@@ -122,7 +128,8 @@
         "resumeShot",
         "HOME_PANELS"
       ],
-      "modals": []
+      "modals": [],
+      "provides": []
     },
     "deliverables": {
       "loader": "loadDeliverables",
@@ -136,7 +143,8 @@
         "deleteDeliverable",
         "DELIVERABLE_SERVED"
       ],
-      "modals": []
+      "modals": [],
+      "provides": []
     },
     "edits": {
       "loader": "loadEditsPage",
@@ -151,7 +159,8 @@
         "scoreThisEdit",
         "openScoreSession"
       ],
-      "modals": []
+      "modals": [],
+      "provides": []
     },
     "exportpage": {
       "loader": "loadExportPage",
@@ -162,7 +171,8 @@
         "exportResolve",
         "downloadBundle"
       ],
-      "modals": []
+      "modals": [],
+      "provides": []
     },
     "jobsqueue": {
       "loader": "loadJobsQueuePage",
@@ -170,7 +180,8 @@
         "loadJobsQueuePage",
         "codexStatusBadge"
       ],
-      "modals": []
+      "modals": [],
+      "provides": []
     },
     "marketing": {
       "loader": "loadMarketing",
@@ -184,7 +195,8 @@
       ],
       "modals": [
         "marketingModal"
-      ]
+      ],
+      "provides": []
     },
     "milestones": {
       "loader": "loadMilestones",
@@ -197,7 +209,8 @@
       "modals": [
         "milestoneModal",
         "editMilestoneModal"
-      ]
+      ],
+      "provides": []
     },
     "moodboard": {
       "loader": "loadMoodBoardPage",
@@ -210,7 +223,8 @@
         "moodBoardCompose",
         "MOOD_SPECS"
       ],
-      "modals": []
+      "modals": [],
+      "provides": []
     },
     "notes": {
       "loader": "loadNotesPage",
@@ -227,7 +241,8 @@
       "modals": [
         "addNoteModal",
         "reviewShotModal"
-      ]
+      ],
+      "provides": []
     },
     "pipeline": {
       "loader": "loadPipeline",
@@ -239,7 +254,8 @@
         "runPipelineScope",
         "PIPE_STEP_ICONS"
       ],
-      "modals": []
+      "modals": [],
+      "provides": []
     },
     "projects": {
       "loader": "loadProjects",
@@ -260,7 +276,8 @@
         "openStagePicker",
         "setProjectStage"
       ],
-      "modals": []
+      "modals": [],
+      "provides": []
     },
     "renderhistory": {
       "loader": "loadRenderPage",
@@ -268,7 +285,8 @@
         "loadRenderPage",
         "loadRenderHistory"
       ],
-      "modals": []
+      "modals": [],
+      "provides": []
     },
     "rights": {
       "loader": "loadRights",
@@ -279,7 +297,8 @@
         "deleteRight",
         "RIGHTS_VOCAB"
       ],
-      "modals": []
+      "modals": [],
+      "provides": []
     },
     "scenes": {
       "loader": "loadScenes",
@@ -295,7 +314,54 @@
         "sceneDriftBadge",
         "sceneDriftBanner"
       ],
-      "modals": []
+      "modals": [],
+      "provides": []
+    },
+    "settings": {
+      "loader": "loadSettings",
+      "replaces": [
+        "loadProjectFolder",
+        "moveProjectFolder",
+        "loadBackupSettings",
+        "saveBackupSettings",
+        "runBackupNow",
+        "saveProjectsRoot",
+        "deleteCurrentProject",
+        "loadSettingsBrands",
+        "SETTINGS_SECTIONS",
+        "showSettingsSection",
+        "loadSettings",
+        "loadAppSettings",
+        "saveGridlightEnabled",
+        "saveAppSettings",
+        "_providerCatalog",
+        "loadProviders",
+        "_providerModelMenus",
+        "refreshModelMenu",
+        "pickImageTier",
+        "saveProviderKey",
+        "saveProviderFields",
+        "checkProviderKey",
+        "connectProviderOAuth",
+        "disconnectProvider",
+        "releaseRegisteredClient",
+        "clearProviderKey",
+        "saveProviderConfig",
+        "saveSettings",
+        "resetSettings",
+        "saveProjectSettings",
+        "DELIVERY_PRESETS",
+        "applyDeliveryPreset",
+        "onAspectRatioChange",
+        "updateAspectPreview",
+        "parseAspectRatio",
+        "loadTechnicalSettings",
+        "saveTechnicalSettings"
+      ],
+      "modals": [],
+      "provides": [
+        "showSettingsSection"
+      ]
     },
     "shotboard": {
       "loader": "loadShotBoard",
@@ -321,7 +387,8 @@
         "updateABCrossfade",
         "closeABCompare"
       ],
-      "modals": []
+      "modals": [],
+      "provides": []
     },
     "storyboard": {
       "loader": "loadStoryboard",
@@ -330,7 +397,8 @@
         "setAnnotationFeedback",
         "renderBoardProtect"
       ],
-      "modals": []
+      "modals": [],
+      "provides": []
     },
     "stylebook": {
       "loader": "loadStyleBook",
@@ -353,6 +421,9 @@
       ],
       "modals": [
         "styleBookModal"
+      ],
+      "provides": [
+        "applyStyleBookEntry"
       ]
     },
     "subtitles": {
@@ -367,7 +438,8 @@
         "SUB_SHOTS",
         "subTime"
       ],
-      "modals": []
+      "modals": [],
+      "provides": []
     },
     "titles": {
       "loader": "loadTitles",
@@ -383,7 +455,8 @@
         "deleteTitleCard",
         "TITLE_VOCAB"
       ],
-      "modals": []
+      "modals": [],
+      "provides": []
     },
     "videoshots": {
       "loader": "loadVideoShots",
@@ -397,7 +470,8 @@
         "generateAllVideos",
         "generateAllVideosRun"
       ],
-      "modals": []
+      "modals": [],
+      "provides": []
     }
   },
   "chunks": {
@@ -533,49 +607,6 @@
       ],
       "otherStatements": 0,
       "bytes": 1771
-    },
-    "settings": {
-      "pages": [
-        "settings"
-      ],
-      "deps": [],
-      "functions": [
-        "loadProjectFolder",
-        "moveProjectFolder",
-        "loadBackupSettings",
-        "saveBackupSettings",
-        "runBackupNow",
-        "saveProjectsRoot",
-        "deleteCurrentProject",
-        "loadSettingsBrands",
-        "showSettingsSection",
-        "loadSettings",
-        "loadAppSettings",
-        "saveGridlightEnabled",
-        "saveAppSettings",
-        "loadProviders",
-        "refreshModelMenu",
-        "pickImageTier",
-        "saveProviderKey",
-        "saveProviderFields",
-        "checkProviderKey",
-        "connectProviderOAuth",
-        "disconnectProvider",
-        "releaseRegisteredClient",
-        "clearProviderKey",
-        "saveProviderConfig",
-        "saveSettings",
-        "resetSettings",
-        "saveProjectSettings",
-        "applyDeliveryPreset",
-        "onAspectRatioChange",
-        "updateAspectPreview",
-        "parseAspectRatio",
-        "loadTechnicalSettings",
-        "saveTechnicalSettings"
-      ],
-      "otherStatements": 5,
-      "bytes": 54756
     },
     "stage3d": {
       "pages": [
@@ -1432,13 +1463,8 @@
       "loader": [
         "loadSettings"
       ],
-      "chunk": "settings",
-      "modals": [
-        "newProjectModal",
-        "folderPickerModal",
-        "productionGuideModal",
-        "projectOnboardingModal"
-      ]
+      "chunk": null,
+      "modals": []
     },
     "jobsqueue": {
       "loader": [

@@ -65,6 +65,8 @@ export function installLegacy({ routes = {}, project = { id: 'p1' } } = {}) {
         frameVersionTitle: () => 'versions title', frameVersionLabel: (f) => `v${f.asset_version || 1}`, playFromShot: vi.fn(), insertShotAfter: vi.fn(),
         storyboardFacetTags: (f) => `<span class="facet">facets ${f.shot_code}</span>`, storyboardDialogueHtml: (d) => (d && d.length ? `<p class="dlg">${d.length} lines</p>` : ''),
         markupToolbar: (id) => `<span class="markup-tools">markup ${id}</span>`,
+        paintProjectType: vi.fn(), setStatusDot: vi.fn(), confirmProjectDelete: vi.fn(async () => true), backToProjectList: vi.fn(), openFolderPicker: vi.fn(),
+        saveProductionGraphFlag: vi.fn(), feStore: { set: vi.fn(), remove: vi.fn(), get: vi.fn() }, checkHealth: vi.fn(), DEFAULT_API_BASE: 'http://default.test', APP_AUTHOR: null,
         money: (n) => '$' + (Number(n) || 0).toFixed(2), usd: (n) => '$' + (Number(n) || 0).toFixed(3),
     };
     const missing = LEGACY_GLOBALS.filter(n => !(n in fake));

@@ -73,7 +73,7 @@ export const PAGES = [
     { id: 'previs', Component: PrevisPage, chunk: 'stage3d' },
     { id: 'pipeline', Component: PipelinePage, chunk: null },
     { id: 'stylebook', Component: StylebookPage, chunk: null },
-    { id: 'settings', Component: SettingsPage, chunk: 'settings' },
+    { id: 'settings', Component: SettingsPage, chunk: null },
     { id: 'jobsqueue', Component: JobsqueuePage, chunk: null },
 ];
 
@@ -81,7 +81,6 @@ export const PAGES = [
 export const CHUNKS = {
     screenplay: { deps: [] },
     subjects: { deps: [] },
-    settings: { deps: [] },
     stage3d: { deps: ["three"] },
     graph: { deps: [] },
     music: { deps: [] },

@@ -528,6 +528,40 @@
         "name": "a model that cannot reach 2K is not sold on its provider reaching it",
         "reason": "ends with a regex over the legacy Compare template (max ${esc(x.max_size)}). Its backend half (Google's draft model reported at 1K, every Google row with a maximum) is kept verbatim in backend/tests/budget-backend-halves.test.js; src/pages/budget/BudgetPage.test.jsx requires the 'max' badge drawn on the compare table."
       }
+    ],
+    "manual-edit.test.js": [
+      {
+        "name": "the style preset can be read and edited by hand",
+        "reason": "reads the legacy save text style_preset: document.getElementById('settingsStylePreset'); Settings is React. src/pages/settings/SettingsPage.test.jsx edits the project card and checks the PUT carries style_preset (and every other project field); #settingsStylePreset keeps its data-field, so hasControl still finds it."
+      },
+      {
+        "name": "the subject warning is rendered as prose, not as an object",
+        "reason": "reads the legacy settingsStyleWarning innerHTML template; Settings is React. src/pages/settings/SettingsPage.test.jsx returns {subjects, detail} from the save and requires the detail shown as text beside the field."
+      }
+    ],
+    "project-folders.test.js": [
+      {
+        "name": "where THIS project is kept and where NEW projects go are two cards, each saying which",
+        "reason": "reads ids used by the legacy loadProjectFolder/moveProjectFolder/saveProjectsRoot bodies; Settings is React. src/pages/settings/SettingsPage.test.jsx checks each card holds only its own controls, the project card's heading names the project, and the new-projects card says it moves nothing."
+      }
+    ],
+    "setup-models.test.js": [
+      {
+        "name": "the model menu follows the provider picked beside it",
+        "reason": "executes the legacy refreshModelMenu against a fake DOM; Settings is React (the menu is rendered from the provider picked). src/pages/settings/SettingsPage.test.jsx switches the provider and checks the menu lists only that provider's models and drops a model it does not offer."
+      },
+      {
+        "name": "every capability row has a provider menu and a model menu, and saving sends the models",
+        "reason": "reads the legacy loadProviders/saveProviderConfig template text; Settings is React. src/pages/settings/SettingsPage.test.jsx renders provcap-/provmodel- per capability and checks the PUT sends each <cap>_model."
+      },
+      {
+        "name": "Setup is one section at a time: a section list, every card in exactly one section, keys in their own",
+        "reason": "executes the legacy showSettingsSection against a fake DOM; Settings is React. src/pages/settings/SettingsPage.test.jsx checks every card is in exactly one listed section, every section shows something, the keys card holds the keys, a project section with no project says why, and an unknown section falls back to the providers."
+      },
+      {
+        "name": "the providers are grouped by what they make, and no capability is left off the page",
+        "reason": "reads CAP_GROUPS inside the legacy loadProviders; Settings is React (CAP_GROUPS in ProviderCards.jsx). src/pages/settings/SettingsPage.test.jsx requires every CAPABILITIES entry from backend/lib/providers/base in a group, with an Other fallback."
+      }
     ]
   }
 }
