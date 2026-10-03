@@ -362,6 +362,32 @@
         "name": "the page: an Edit page in Post, the score monitor follows the playhead, and a session can be opened on an edit",
         "reason": "REACT: reads function loadEditsPage( and friends out of the page script; the Edit page is React (src/pages/edits). Every guarantee is held in src/pages/edits/edits-contract.test.jsx (nav item, loader, X-Upload-Offset, the music workstation half) and EditsPage.test.jsx (behaviour)."
       }
+    ],
+    "style-book-media.test.js": [
+      {
+        "name": "the page can add a visual \u2014 both ways",
+        "reason": "reads addStyleBookMedia/removeStyleBookMedia/link_kind out of the page script; the Style Book is React. src/pages/stylebook/StyleBookPage.test.jsx adds by link and by file (size-checked), removes, and checks each visual is drawn as what it is (embed, clip, link, picture)."
+      },
+      {
+        "name": "a brand-new shot offers the visual fields, and saves itself to accept one",
+        "reason": "reads the legacy modal's mediaSection wiring; the Style Book is React. src/pages/stylebook/StyleBookPage.test.jsx opens + Shot, finds the visual fields, and checks Add visual saves the shot first, then attaches, keeping the editor open."
+      }
+    ],
+    "style-book.test.js": [
+      {
+        "name": "the page exists and is reachable from the rail",
+        "reason": "reads function loadStyleBook and applyStyleBookEntry out of the page script; both are React now (applyStyleBookEntry is PROVIDED on window, react.json). src/pages/stylebook/StyleBookPage.test.jsx checks the rail entry, the page, and applying (including on a fresh app, the bug the port had); tools/tests/react-pages.test.js checks both are registered."
+      }
+    ],
+    "style-book-gaps.test.js": [
+      {
+        "name": "the reference-slot reality reaches both surfaces, from ONE source",
+        "reason": "reads styleBookNoteInto/openStyleBookModal out of the page script; the Style Book is React. src/pages/stylebook/StyleBookPage.test.jsx checks the served note is painted where visuals are added and that the page holds no copy of it."
+      },
+      {
+        "name": "the style-book entry card is in the wrapping-row denominator",
+        "reason": "reads renderStyleBook's template; the Style Book is React. src/pages/stylebook/StyleBookPage.test.jsx checks every rendered entry is an .entity-card with its own .card-actions row."
+      }
     ]
   }
 }

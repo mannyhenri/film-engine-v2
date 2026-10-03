@@ -1,0 +1,7 @@
+{
+  "about": "This page is React (src/pages/stylebook/StyleBookPage.jsx). tools/split-map.js stops generating it, drops the legacy functions and modal below, and fails if anything left still calls them. It also PROVIDES applyStyleBookEntry: the shot pages (Direct panel, previs) call it, and the page registers it on window at boot.",
+  "loader": "loadStyleBook",
+  "provides": ["applyStyleBookEntry"],
+  "replaces": ["loadStyleBook", "styleBookTags", "styleBookNoteInto", "renderStyleBook", "newStyleBookEntry", "editStyleBookEntry", "openStyleBookModal", "saveStyleBookEntry", "addStyleBookMedia", "removeStyleBookMedia", "styleBookMediaTile", "refreshStyleBookMedia", "deleteStyleBookEntry", "applyStyleBookEntry", "_styleBook"],
+  "modals": ["styleBookModal"]
+}

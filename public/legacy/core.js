@@ -9920,39 +9920,6 @@
         showModal('plateViewerModal');
     }
 
-    /**
-     * Apply an entry to a shot, from wherever a shot is being directed.
-     *
-     * One runner for both surfaces — the Direct panel and previs — because two
-     * separately written appliers is how the board and the viewer came to
-     * disagree about their own markup tools.
-     */
-    async function applyStyleBookEntry(shotId) {
-        if (!_styleBook.entries || !_styleBook.entries.length) {
-            try {
-                _styleBook = await api(state.currentProject
-                    ? '/projects/' + state.currentProject.id + '/style-book' : '/style-book');
-            } catch (err) { setStatus('Could not read the style book: ' + err.message); return; }
-        }
-        const entries = _styleBook.entries || [];
-        if (!entries.length) { setStatus('The style book is empty — add a shot first'); return; }
-
-        const pick = prompt('Apply which shot?\n\n'
-            + entries.map((e, i) => `${i + 1}. ${e.name}${e.camera && e.camera.lens ? ' — ' + e.camera.lens : ''}`).join('\n'));
-        const idx = parseInt(pick, 10) - 1;
-        if (!(idx >= 0 && idx < entries.length)) return;
-
-        try {
-            const r = await api(`/shots/${shotId}/style-book/${entries[idx].id}`, { method: 'POST' });
-            // Says what changed: "I applied my low-angle" and "it carried
-            // nothing this shot could use" look identical otherwise.
-            setStatus(r.applied && r.applied.length
-                ? `Applied ${r.applied.join(', ')} — regenerate the frame to see it`
-                : 'That entry carried nothing this shot could use');
-            if (typeof loadStoryboard === 'function') loadStoryboard();
-        } catch (err) { setStatus('Error: ' + err.message); }
-    }
-
     /** Options from the SERVED vocabulary, with the current value selected. */
     function vocabOptions(list, current, blank) {
         return (blank ? `<option value="">${esc(blank)}</option>` : '')

@@ -136,6 +136,29 @@
       ],
       "modals": []
     },
+    "stylebook": {
+      "loader": "loadStyleBook",
+      "replaces": [
+        "loadStyleBook",
+        "styleBookTags",
+        "styleBookNoteInto",
+        "renderStyleBook",
+        "newStyleBookEntry",
+        "editStyleBookEntry",
+        "openStyleBookModal",
+        "saveStyleBookEntry",
+        "addStyleBookMedia",
+        "removeStyleBookMedia",
+        "styleBookMediaTile",
+        "refreshStyleBookMedia",
+        "deleteStyleBookEntry",
+        "applyStyleBookEntry",
+        "_styleBook"
+      ],
+      "modals": [
+        "styleBookModal"
+      ]
+    },
     "subtitles": {
       "loader": "loadSubtitles",
       "replaces": [
@@ -329,29 +352,6 @@
       ],
       "otherStatements": 0,
       "bytes": 1771
-    },
-    "stylebook": {
-      "pages": [
-        "stylebook"
-      ],
-      "deps": [],
-      "functions": [
-        "loadStyleBook",
-        "styleBookTags",
-        "styleBookNoteInto",
-        "renderStyleBook",
-        "newStyleBookEntry",
-        "editStyleBookEntry",
-        "openStyleBookModal",
-        "saveStyleBookEntry",
-        "addStyleBookMedia",
-        "removeStyleBookMedia",
-        "styleBookMediaTile",
-        "refreshStyleBookMedia",
-        "deleteStyleBookEntry"
-      ],
-      "otherStatements": 1,
-      "bytes": 15205
     },
     "settings": {
       "pages": [
@@ -1506,11 +1506,8 @@
       "loader": [
         "loadStyleBook"
       ],
-      "chunk": "stylebook",
-      "modals": [
-        "plateViewerModal",
-        "styleBookModal"
-      ]
+      "chunk": null,
+      "modals": []
     },
     "settings": {
       "loader": [
@@ -1564,11 +1561,11 @@
       "loadMusic",
       "loadPlayback"
     ],
-    "functions": 538,
-    "unreached": 18,
+    "functions": 537,
+    "unreached": 17,
     "sharedByChunks": 6,
     "declaredTwice": [],
     "bootVendors": [],
-    "bytes": 799487
+    "bytes": 797754
   }
 }

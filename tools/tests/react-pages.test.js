@@ -44,7 +44,10 @@ test('every React page registers the loader navigateTo calls, and renders every 
     const bad = [];
     for (const [id, r] of Object.entries(REACT)) {
         const jsx = jsxOf(id);
-        if (!new RegExp(`usePageLoader\\(\\s*'${r.loader}'`).test(jsx)) bad.push(`${id}: never registers ${r.loader}`);
+        for (const fn of [r.loader, ...(r.provides || [])]) {
+            if (!new RegExp(`usePageLoader\\(\\s*'${fn}'`).test(jsx)) bad.push(`${id}: never registers ${fn}`);
+            if (!r.replaces.includes(fn)) bad.push(`${id}: registers ${fn} but react.json does not list it in replaces`);
+        }
         for (const m of r.modals) if (!new RegExp(`<Modal\\s+id="${m}"`).test(jsx)) bad.push(`${id}: does not render modal ${m}`);
     }
     assert.deepStrictEqual(bad, []);
@@ -60,7 +63,7 @@ test('nothing in the legacy code still defines or calls what a React page replac
         const ids = identifiers(text);
         // A loader may be CALLED (the React page registers it on window before core runs); never defined.
         for (const [id, r] of Object.entries(REACT)) for (const n of r.replaces) {
-            if (n === r.loader ? new RegExp(`function\\s+${n}\\s*\\(`).test(text) : ids.has(n)) bad.push(`${f} still uses ${n} (${id})`);
+            if (n === r.loader || (r.provides || []).includes(n) ? new RegExp(`function\\s+${n}\\s*\\(`).test(text) : ids.has(n)) bad.push(`${f} still uses ${n} (${id})`);
         }
         for (const [id, r] of Object.entries(REACT)) for (const m of r.modals) if (text.includes(`id="${m}"`)) bad.push(`${f} still has modal ${m} (${id})`);
     }

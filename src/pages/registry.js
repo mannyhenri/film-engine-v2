@@ -72,7 +72,7 @@ export const PAGES = [
     { id: 'flows', Component: FlowsPage, chunk: 'graph' },
     { id: 'previs', Component: PrevisPage, chunk: 'stage3d' },
     { id: 'pipeline', Component: PipelinePage, chunk: 'pipeline' },
-    { id: 'stylebook', Component: StylebookPage, chunk: 'stylebook' },
+    { id: 'stylebook', Component: StylebookPage, chunk: null },
     { id: 'settings', Component: SettingsPage, chunk: 'settings' },
     { id: 'jobsqueue', Component: JobsqueuePage, chunk: 'jobsqueue' },
 ];
@@ -83,7 +83,6 @@ export const CHUNKS = {
     dashboard: { deps: [] },
     screenplay: { deps: [] },
     subjects: { deps: [] },
-    stylebook: { deps: [] },
     settings: { deps: [] },
     shotboard: { deps: [] },
     storyboard: { deps: [] },

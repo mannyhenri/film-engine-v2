@@ -248,7 +248,8 @@ function generate({ write = true } = {}) {
             ...pages.filter(p => !react[p.id]).map(p => p.outer), ...modals.map(m => m.outer)].map(stripHtmlComments).join('\n');
         // A React page's LOADER may still be called (core refreshes a page after work it did): the page
         // registers it on window before core runs, and core keeps its placeholder var. It may not be DEFINED.
-        const loaders = new Set(Object.values(react).map(r => r.loader));
+        // ...and so may what it PROVIDES (react.json `provides`: functions it registers on window for core to call).
+        const loaders = new Set(Object.values(react).flatMap(r => [r.loader, ...(r.provides || [])]));
         const defined = (n) => new RegExp(`function\\s+${n}\\s*\\(`).test(rest);
         const still = [...replaced.keys()].filter(n => loaders.has(n) ? defined(n) : words(rest).has(n));
         if (still.length) throw new Error('legacy code still uses what a React page replaced: ' + still.map(n => `${n} (${replaced.get(n)})`).join(', '));
