@@ -167,6 +167,16 @@ test('every onclick names a function that exists', () => {
      */
     const src = ownScript();
     const decl = declared(src);
+    /*
+     * v2: a React page's own source is a <template data-react-source> (tools/assemble-page.js), and some of
+     * it renders HTML with inline handlers (Playback's engine, src/pages/playback/player.js, draws its
+     * playlist rows with onclick="pbGoTo(…)"). Those functions are defined THERE, and the page puts them on
+     * window while mounted, which src/pages/playback/PlaybackPage.test.jsx holds for every handler the engine
+     * renders. So a definition in a React source counts here.
+     */
+    for (const m of PAGE.matchAll(/<template data-react-source="[^"]+">([\s\S]*?)<\/template>/g)) {
+        for (const n of declared(stripComments(m[1]))) decl.add(n);
+    }
     // Names the page hands to the browser rather than calling itself.
     for (const g of ['alert', 'confirm', 'print', 'history', 'window', 'location', 'event']) decl.add(g);
 
