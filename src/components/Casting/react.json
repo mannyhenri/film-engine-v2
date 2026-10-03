@@ -1,0 +1,6 @@
+{
+  "about": "Voice casting and auditions are React (src/components/Casting/Casting.jsx), a component mounted once at boot. tools/split-map.js drops the legacy code and modal below and fails if anything left still calls them. The character sheet (core) opens it by name: castCharacterVoice is PROVIDED.",
+  "provides": ["castCharacterVoice"],
+  "replaces": ["CASTING", "castCharacterVoice", "loadCastingBody", "setStandingDelivery", "pickVoice", "auditionVoice"],
+  "modals": ["castingModal"]
+}

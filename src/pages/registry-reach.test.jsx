@@ -9,6 +9,8 @@
  *                   needs and the button that carries each registry function. The page is rendered, its
  *                   loader run, the button clicked, and the click must REACH something (an API request or
  *                   a core function). Presence alone would pass a dead button.
+ *   React component -> the same, from src/components/<Name>/reach.js, which says how core OPENS it
+ *                   (`open: { call, args }`, a name it provides) in place of a page loader.
  *
  * An entry bound on neither side fails, naming it. The denominator is the backend's own registry,
  * imported, never a list typed here. Adding a React page means writing its reach.js, not editing this.
@@ -28,9 +30,12 @@ const ROOT = path.resolve(__dirname, '../..');
 const require_ = createRequire(import.meta.url);
 const backend = (m) => require_(path.join(ROOT, 'backend', m));
 
-const REACH = Object.fromEntries(Object.entries(import.meta.glob('./*/reach.js', { eager: true }))
-    .map(([f, mod]) => [f.split('/')[1], mod.default]));
+const REACH = Object.fromEntries([
+    ...Object.entries(import.meta.glob('./*/reach.js', { eager: true })).map(([f, mod]) => [f.split('/')[1], mod.default]),
+    ...Object.entries(import.meta.glob('../components/*/reach.js', { eager: true })).map(([f, mod]) => [`component:${f.split('/')[2]}`, mod.default]),
+]);
 const PAGES = import.meta.glob('./*/index.jsx');
+const COMPONENTS = import.meta.glob('../components/*/*.jsx');
 const reactJson = (id) => JSON.parse(fs.readFileSync(path.join(ROOT, 'src/pages', id, 'react.json'), 'utf8'));
 
 /** The assembled page without the React source blocks: what the legacy side of the app draws and wires. */
@@ -42,17 +47,28 @@ const reactControls = (fn) => Object.entries(REACH).flatMap(([page, r]) => (r.co
 
 /** Render the page, run its loader, click the control; resolve true when the click reached the API or core. */
 async function clickReaches(control) {
-    const { page, button, reach } = control;
+    const { page, button, type, reach } = control;
     const legacy = installLegacy({ routes: reach.fixture.routes || {}, project: reach.fixture.project ?? { id: 'p1' } });
     vi.spyOn(window, 'confirm').mockReturnValue(true);
-    const Page = (await PAGES[`./${page}/index.jsx`]()).default;
-    render(<Page />);
-    await act(async () => { await window[reactJson(page).loader](); });
+    if (page.startsWith('component:')) {
+        // A component: mounted as App mounts it, then opened the way core opens it (a name it provides).
+        const name = page.slice('component:'.length);
+        const Component = (await COMPONENTS[`../components/${name}/${name}.jsx`]()).default;
+        render(<Component />);
+        expect(reach.open && reach.open.call, `${name}/reach.js: says nothing about how core opens it (open: { call, args })`).toBeTruthy();
+        await act(async () => { await window[reach.open.call](...(reach.open.args || [])); });
+    } else {
+        const Page = (await PAGES[`./${page}/index.jsx`]()).default;
+        render(<Page />);
+        await act(async () => { await window[reactJson(page).loader](); });
+    }
     // A control that only exists after something is selected (the Production graph's shot drawer): the page's
     // reach.js says how to get there, with the page's own functions, before the click is counted.
     if (control.prepare) await act(async () => { await control.prepare(window); });
     const coreFns = Object.entries(legacy.fake).filter(([k, v]) => typeof v === 'function' && v.mock && k !== 'setStatus' && k !== 'api');
     const before = { api: legacy.calls.length, core: coreFns.map(([, v]) => v.mock.calls.length) };
+    // A control that needs input first (Audition refuses an empty line) says what to type.
+    if (type) fireEvent.change(document.getElementById(type.id), { target: { value: type.value } });
     const el = screen.queryByRole('button', { name: button });
     if (!el) return { ok: false, why: `no button "${button}" on the ${page} page` };
     /*
@@ -92,7 +108,7 @@ describe('dialogue scopes (voice-casting DIALOGUE_SCOPES): every scope is reacha
             const fn = scope.ui.replace(/\($/, '');
             if (new RegExp(`onclick="[^"]*\\b${fn}\\(`).test(legacyPage())) return;          // legacy: wired as the backend checks
             const controls = reactControls(fn);
-            expect(controls.length, `${scope.id}: ${fn}() is wired by no legacy onclick, and no React page's reach.js declares a control for it`).toBeGreaterThan(0);
+            expect(controls.length, `${scope.id}: ${fn}() is wired by no legacy onclick, and no React page's or component's reach.js declares a control for it`).toBeGreaterThan(0);
             for (const c of controls) {
                 const r = await clickReaches(c);
                 expect(r.ok, `${scope.id}: ${r.why}`).toBe(true);

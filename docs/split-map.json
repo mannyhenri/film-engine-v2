@@ -813,6 +813,22 @@
     }
   },
   "reactComponents": {
+    "Casting": {
+      "provides": [
+        "castCharacterVoice"
+      ],
+      "replaces": [
+        "CASTING",
+        "castCharacterVoice",
+        "loadCastingBody",
+        "setStandingDelivery",
+        "pickVoice",
+        "auditionVoice"
+      ],
+      "modals": [
+        "castingModal"
+      ]
+    },
     "Gallery": {
       "provides": [
         "openGallery"
@@ -1750,11 +1766,11 @@
       "loadMusic",
       "loadPlayback"
     ],
-    "functions": 495,
+    "functions": 490,
     "unreached": 19,
     "sharedByChunks": 0,
     "declaredTwice": [],
     "bootVendors": [],
-    "bytes": 732042
+    "bytes": 722278
   }
 }
