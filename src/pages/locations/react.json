@@ -1,0 +1,6 @@
+{
+  "about": "This page is React (src/pages/locations/LocationsPage.jsx). tools/split-map.js stops generating it, drops the legacy code and modal below, and fails if anything left still calls them. The location sheet, its plate tools and views stay in core and call loadLocations() by name, which the page registers on window.",
+  "loader": "loadLocations",
+  "replaces": ["loadLocations", "editLocation", "saveLocation", "deleteLocation", "editingLocationOriginalName"],
+  "modals": ["locationModal"]
+}

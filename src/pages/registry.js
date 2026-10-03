@@ -45,9 +45,9 @@ export const PAGES = [
     { id: 'shotboard', Component: ShotboardPage, chunk: null },
     { id: 'moodboard', Component: MoodboardPage, chunk: null },
     { id: 'storyboard', Component: StoryboardPage, chunk: null },
-    { id: 'characters', Component: CharactersPage, chunk: 'subjects' },
-    { id: 'locations', Component: LocationsPage, chunk: 'subjects' },
-    { id: 'props', Component: PropsPage, chunk: 'subjects' },
+    { id: 'characters', Component: CharactersPage, chunk: null },
+    { id: 'locations', Component: LocationsPage, chunk: null },
+    { id: 'props', Component: PropsPage, chunk: null },
     { id: 'assets', Component: AssetsPage, chunk: null },
     { id: 'musicws', Component: MusicwsPage, chunk: 'music' },
     { id: 'musiccues', Component: MusiccuesPage, chunk: 'music' },
@@ -80,7 +80,6 @@ export const PAGES = [
 // Each chunk, and the vendored libraries it needs first.
 export const CHUNKS = {
     screenplay: { deps: [] },
-    subjects: { deps: [] },
     stage3d: { deps: ["three"] },
     graph: { deps: [] },
     music: { deps: [] },

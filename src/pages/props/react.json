@@ -1,0 +1,6 @@
+{
+  "about": "This page is React (src/pages/props/PropsPage.jsx). tools/split-map.js stops generating it, drops the legacy code and modal below, and fails if anything left still calls them. The prop sheet and its plate tools stay in core and call loadProps() by name, which the page registers on window.",
+  "loader": "loadProps",
+  "replaces": ["loadProps", "filterProps", "fillPropCategories", "_propCategories", "editProp", "saveProp", "deleteProp"],
+  "modals": ["propModal"]
+}

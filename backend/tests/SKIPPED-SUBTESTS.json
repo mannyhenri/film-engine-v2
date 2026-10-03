@@ -283,6 +283,10 @@
       {
         "name": "no page handler calls a loader that does not exist",
         "reason": "reads the assembled page, where a React page's loader (loadScenes) is only a placeholder var while core still calls it. The same rule, over every legacy file AND the React pages' registered loaders, runs in tools/tests/react-pages.test.js."
+      },
+      {
+        "name": "a successful location save is not reported as an error",
+        "reason": "reads saveLocation's body out of the page script; the locations page is React now. src/pages/subjects-contract.test.jsx runs the React save down its screenplay-updated branch and holds what it calls (loadScreenplayPage) to being defined in core."
       }
     ],
     "page-parses.test.js": [
@@ -561,6 +565,22 @@
       {
         "name": "the providers are grouped by what they make, and no capability is left off the page",
         "reason": "reads CAP_GROUPS inside the legacy loadProviders; Settings is React (CAP_GROUPS in ProviderCards.jsx). src/pages/settings/SettingsPage.test.jsx requires every CAPABILITIES entry from backend/lib/providers/base in a group, with an Other fallback."
+      }
+    ],
+    "character-sheet.test.js": [
+      {
+        "name": "a character card has exactly two buttons",
+        "reason": "reads the card-actions row out of the legacy loadCharacters; the characters page is React now. src/pages/subjects-contract.test.jsx renders a card and counts its buttons."
+      },
+      {
+        "name": "clicking the card opens the sheet",
+        "reason": "reads onclick=\"openCharacterSheet(\" out of the legacy loadCharacters; the characters page is React now. src/pages/subjects-contract.test.jsx clicks a rendered card and holds openCharacterSheet to being defined in core."
+      }
+    ],
+    "screenplay-to-entities.test.js": [
+      {
+        "name": "describing from the screenplay is reachable in the app",
+        "reason": "reads function describeFromScreenplay and three onclick=\"describeFromScreenplay(\" out of the page script; the three entity pages are React and the function is src/lib/subjects.js. src/pages/subjects-contract.test.jsx clicks the button on each of the three pages and checks the describe route, the still-blank report and the reload."
       }
     ]
   }

@@ -65,6 +65,8 @@ commit. A page whose functions are shared with another page converts together wi
 | brand, edits, deliverables, pipeline, exportpage, videoshots | done | film-engine-v2 agent |
 | scenes, moodboard, stylebook, marketing | batch 2 | film-engine agent |
 | consistency, jobsqueue, projects, dashboard | done | film-engine-v2 agent |
-| characters + locations + props (one chunk), shotboard, storyboard | batch 3, unclaimed: shared modals | |
+| characters + locations + props (stage 1: the lists and their forms; the subjects chunk is gone) | done | film-engine-v2 agent |
+| subject sheets, casting, gallery (core, opened from the board, graph and viewer) | stage 2, next | film-engine-v2 agent |
+| shotboard, storyboard | done | |
 | budget, settings, playback, productiongraph + flows | batch 4, one owner each | |
 | screenplay, music + musicws + musiccues, threed + previs | batch 5, the big three, one owner each | |

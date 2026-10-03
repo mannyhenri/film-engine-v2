@@ -54,6 +54,7 @@ export function installLegacy({ routes = {}, project = { id: 'p1' } } = {}) {
         openPlateViewer: vi.fn(),
         uploadControl: vi.fn((target, url, o) => `<label class="btn btn-secondary btn-sm">${(o && o.label) || 'Upload'}<input type="file" data-import-target="${target}" data-url="${url}"></label>`),
         confirmPaidImage: vi.fn(),
+        openCharacterSheet: vi.fn(), openSubjectSheet: vi.fn(), loadScreenplayPage: vi.fn(),
         regenerateStoryboard: vi.fn(),
         ANCHOR: { frames: [] }, FRAME_VIEWER: { frames: [] }, BOARD_ANCHOR: null, MARKUP: { cache: {} },
         loadBoardLock: vi.fn(), renderAnnotationFeedbackToggle: vi.fn(), renderAnchorChip: vi.fn(), loadBoardBanners: vi.fn(), markupPaintAll: vi.fn(),

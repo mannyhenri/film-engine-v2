@@ -13,22 +13,19 @@ import m10 from './characterSheetModal.html?raw';
 import m11 from './subjectSheetModal.html?raw';
 import m12 from './castingModal.html?raw';
 import m13 from './galleryModal.html?raw';
-import m14 from './characterModal.html?raw';
-import m15 from './locationModal.html?raw';
-import m16 from './plateViewerModal.html?raw';
-import m17 from './propModal.html?raw';
-import m18 from './musicCueModal.html?raw';
-import m19 from './sceneCardModal.html?raw';
-import m20 from './newSceneCardModal.html?raw';
-import m21 from './textConvertModal.html?raw';
-import m22 from './suggestionsModal.html?raw';
-import m23 from './versionDiffModal.html?raw';
-import m24 from './titlePageModal.html?raw';
-import m25 from './importScriptModal.html?raw';
-import m26 from './glossaryModal.html?raw';
-import m27 from './productionGuideModal.html?raw';
-import m28 from './projectOnboardingModal.html?raw';
-import m29 from './soundGenModal.html?raw';
+import m14 from './plateViewerModal.html?raw';
+import m15 from './musicCueModal.html?raw';
+import m16 from './sceneCardModal.html?raw';
+import m17 from './newSceneCardModal.html?raw';
+import m18 from './textConvertModal.html?raw';
+import m19 from './suggestionsModal.html?raw';
+import m20 from './versionDiffModal.html?raw';
+import m21 from './titlePageModal.html?raw';
+import m22 from './importScriptModal.html?raw';
+import m23 from './glossaryModal.html?raw';
+import m24 from './productionGuideModal.html?raw';
+import m25 from './projectOnboardingModal.html?raw';
+import m26 from './soundGenModal.html?raw';
 
 // In source order. inMain: the overlay sat inside .main in the source, and still does.
 export const MODALS = [
@@ -46,20 +43,17 @@ export const MODALS = [
     { id: 'subjectSheetModal', html: m11, inMain: false },
     { id: 'castingModal', html: m12, inMain: false },
     { id: 'galleryModal', html: m13, inMain: false },
-    { id: 'characterModal', html: m14, inMain: false },
-    { id: 'locationModal', html: m15, inMain: false },
-    { id: 'plateViewerModal', html: m16, inMain: false },
-    { id: 'propModal', html: m17, inMain: false },
-    { id: 'musicCueModal', html: m18, inMain: false },
-    { id: 'sceneCardModal', html: m19, inMain: false },
-    { id: 'newSceneCardModal', html: m20, inMain: false },
-    { id: 'textConvertModal', html: m21, inMain: false },
-    { id: 'suggestionsModal', html: m22, inMain: false },
-    { id: 'versionDiffModal', html: m23, inMain: false },
-    { id: 'titlePageModal', html: m24, inMain: false },
-    { id: 'importScriptModal', html: m25, inMain: false },
-    { id: 'glossaryModal', html: m26, inMain: false },
-    { id: 'productionGuideModal', html: m27, inMain: false },
-    { id: 'projectOnboardingModal', html: m28, inMain: false },
-    { id: 'soundGenModal', html: m29, inMain: true },
+    { id: 'plateViewerModal', html: m14, inMain: false },
+    { id: 'musicCueModal', html: m15, inMain: false },
+    { id: 'sceneCardModal', html: m16, inMain: false },
+    { id: 'newSceneCardModal', html: m17, inMain: false },
+    { id: 'textConvertModal', html: m18, inMain: false },
+    { id: 'suggestionsModal', html: m19, inMain: false },
+    { id: 'versionDiffModal', html: m20, inMain: false },
+    { id: 'titlePageModal', html: m21, inMain: false },
+    { id: 'importScriptModal', html: m22, inMain: false },
+    { id: 'glossaryModal', html: m23, inMain: false },
+    { id: 'productionGuideModal', html: m24, inMain: false },
+    { id: 'projectOnboardingModal', html: m25, inMain: false },
+    { id: 'soundGenModal', html: m26, inMain: true },
 ];

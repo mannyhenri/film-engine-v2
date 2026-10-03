@@ -1567,7 +1567,7 @@
     }
     // React port: page loaders that live in chunks, declared here so navigateTo's loaders map
     // evaluates before their chunk loads; each chunk's own function declaration fills its name in.
-    var loadProjects, loadDashboard, loadScenes, loadShotBoard, loadStoryboard, loadAssets, loadMusicCues, loadMusicWorkstation, loadMilestones, loadNotesPage, loadRenderPage, loadEditsPage, loadExportPage, loadPipeline, loadFlowsPage, loadMoodBoardPage, loadStyleBook, loadPrevisPage, loadSettings, loadJobsQueuePage, loadBrands, loadDeliverables, loadRights, loadTitles, loadSubtitles, loadMarketing, loadConsistency, loadSpend, loadBudget, loadThreeD, loadVideoShots, loadMusic, loadPlayback;
+    var loadProjects, loadDashboard, loadScenes, loadShotBoard, loadStoryboard, loadCharacters, loadLocations, loadProps, loadAssets, loadMusicCues, loadMusicWorkstation, loadMilestones, loadNotesPage, loadRenderPage, loadEditsPage, loadExportPage, loadPipeline, loadFlowsPage, loadMoodBoardPage, loadStyleBook, loadPrevisPage, loadSettings, loadJobsQueuePage, loadBrands, loadDeliverables, loadRights, loadTitles, loadSubtitles, loadMarketing, loadConsistency, loadSpend, loadBudget, loadThreeD, loadVideoShots, loadMusic, loadPlayback;
 
 
     function navigateTo(page) {
@@ -6211,83 +6211,6 @@
         });
     }
 
-    async function loadCharacters() {
-        if (!state.currentProject) return;
-        try {
-            const data = await api('/projects/' + state.currentProject.id + '/characters');
-            state.characters = data.characters || [];
-            const el = document.getElementById('characterGrid');
-            if (state.characters.length === 0) {
-                el.innerHTML = `<div class="empty-state" style="grid-column:1/-1;"><div class="icon">&#128100;</div><h3>No characters</h3><p>Add characters for your film production.</p></div>`;
-            } else {
-                el.innerHTML = state.characters.map(c => `
-                    <div class="entity-card" style="cursor:pointer;" onclick="openCharacterSheet('${c.id}')" title="Open the character sheet">
-                        <div class="entity-card-header">
-                            ${c.reference_image_url
-                                ? '<img src="' + plateSrc(c.reference_image_url, 160) + '" style="width:48px;height:48px;border-radius:50%;object-fit:cover;flex-shrink:0;cursor:zoom-in;" title="Click to see the plate full size"'
-                                    // stopPropagation: the card is itself clickable and opens the
-                                    // inspector, so without this you get both and the one you
-                                    // asked for is underneath.
-                                    + ' onclick="event.stopPropagation(); openPlateViewer(\'' + API_BASE + c.reference_image_url + '\', ' + jsAttr(c.name) + ')"'
-                                    + ' onerror="this.outerHTML=\'<div class=entity-avatar>' + esc(c.name.charAt(0)) + '</div>\'">'
-                                : '<div class="entity-avatar">' + esc(c.name.charAt(0)) + '</div>'}
-                            <div>
-                                <h3>${esc(c.name)}</h3>
-                                <p class="text-sm text-muted">${[
-                                    c.age_range ? esc(c.age_range) : null,
-                                    c.gender ? esc(c.gender) : null,
-                                    c.height_m ? esc(c.height_m) + 'm' : null,
-                                ].filter(Boolean).join(' &middot; ') || ''}${
-                                    /*
-                                     * What is MISSING, said where it is noticed.
-                                     *
-                                     * Both fields already rendered here and an
-                                     * absent one produced an empty line, which
-                                     * reads as the field not existing — it was
-                                     * reported as exactly that. They are not
-                                     * decoration: voice casting ranks the
-                                     * catalogue by them, so an unrecorded
-                                     * gender means twenty-one voices in
-                                     * arbitrary order.
-                                     */
-                                    (!c.age_range || !c.gender)
-                                    ? `<a class="text-sm" style="cursor:pointer;color:var(--gl-accent,#818cf8);"
-                                          onclick="event.stopPropagation(); editCharacter('${c.id}')"
-                                          title="Voice casting ranks the catalogue by these">${
-                                        c.age_range || c.gender ? ' &middot; ' : ''}+ ${
-                                        [!c.gender ? 'gender' : null, !c.age_range ? 'age' : null]
-                                            .filter(Boolean).join(' &amp; ')}</a>`
-                                    : ''}</p>
-                            </div>
-                        </div>
-                        <p>${esc(c.description || 'No description')}</p>
-                        <div class="tag-row">
-                            ${c.has_voice_profile ? '<span class="tag" style="background:rgba(34,197,94,0.15);color:#4ade80;">Voice</span>' : ''}
-                            ${c.costume_count > 0 ? '<span class="tag">' + c.costume_count + ' costume(s)</span>' : ''}
-                            ${c.lora_id ? '<span class="tag">LoRA</span>' : ''}
-                        </div>
-                        <div class="card-actions">
-                            <!--
-                              Two buttons.
-                              Regen Image, Orbit Sheet, Views, Upload, Gallery
-                              and Voice all came off this row: every one of them
-                              is something you do while LOOKING at the
-                              character, and eight controls on a 260px tile in a
-                              grid of twelve is a worse place to do it than a
-                              sheet with room. They live in openCharacterSheet(),
-                              and tests/character-sheet.test.js holds each of
-                              them to still being reachable — removing a button
-                              is only a simplification if the thing it did has a
-                              home.
-                            -->
-                            <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation(); editCharacter('${c.id}')">Edit</button>
-                            <button class="btn btn-danger btn-sm" onclick="event.stopPropagation(); deleteCharacter('${c.id}')">Delete</button>
-                        </div>
-                    </div>`).join('');
-            }
-        } catch (err) { setStatus('Error: ' + err.message); }
-    }
-
 
     /*
      * THE TURNAROUND, and which view actually reaches a prompt.
@@ -6380,10 +6303,6 @@
             loadCharacters();
         } catch (err) { setStatus('Error: ' + err.message); }
     }
-
-    // FILM-122: Track original name for rename confirmation
-    let editingCharacterOriginalName = '';
-    let editingLocationOriginalName = '';
 
     /* ── the character sheet ───────────────────────────────────────────────
      *
@@ -8606,64 +8525,6 @@
         });
     }
 
-    function editCharacter(id) {
-        const c = state.characters.find(x => x.id === id);
-        if (!c) return;
-        document.getElementById('characterModalTitle').textContent = 'Edit Character';
-        document.getElementById('characterEditId').value = id;
-        editingCharacterOriginalName = c.name || ''; // Store original name
-        setModalData('characterModal', c);
-        showModal('characterModal');
-    }
-
-    async function saveCharacter() {
-        if (!state.currentProject) return;
-        const editId = document.getElementById('characterEditId').value;
-        const data = getModalData('characterModal');
-        if (!data.name) return;
-
-        // FILM-122: Check for name change and confirm screenplay propagation
-        let propagateToScreenplay = true;
-        if (editId && editingCharacterOriginalName && data.name !== editingCharacterOriginalName) {
-            const confirmMsg = `Rename "${editingCharacterOriginalName}" to "${data.name}" in the screenplay too?\n\n` +
-                'This will update all character cues in the screenplay.';
-            propagateToScreenplay = confirm(confirmMsg);
-            data.propagate_to_screenplay = propagateToScreenplay;
-        }
-
-        try {
-            let response;
-            if (editId) {
-                response = await api('/characters/' + editId, { method: 'PUT', body: JSON.stringify(data) });
-            } else {
-                response = await api('/projects/' + state.currentProject.id + '/characters', { method: 'POST', body: JSON.stringify(data) });
-            }
-
-            // Show screenplay update info if applicable
-            if (response.screenplay_update && response.screenplay_update.updated) {
-                setStatus(`Character saved. Updated ${response.screenplay_update.occurrences} occurrence(s) in screenplay.`);
-            } else {
-                setStatus('Character saved');
-            }
-
-            closeModal('characterModal');
-            clearModal('characterModal');
-            document.getElementById('characterEditId').value = '';
-            document.getElementById('characterModalTitle').textContent = 'New Character';
-            editingCharacterOriginalName = '';
-            loadCharacters();
-        } catch (err) { setStatus('Error: ' + err.message); }
-    }
-
-    async function deleteCharacter(id) {
-        if (!confirm('Delete this character?')) return;
-        try {
-            await api('/characters/' + id, { method: 'DELETE' });
-            loadCharacters();
-            setStatus('Character deleted');
-        } catch (err) { setStatus('Error: ' + err.message); }
-    }
-
     /**
      * The upload control that sits beside every Generate.
      *
@@ -9412,119 +9273,6 @@
         });
     }
 
-    // ══════════════════════════════════════════════════════════════
-    // LOCATIONS
-    // ══════════════════════════════════════════════════════════════
-    async function loadLocations() {
-        if (!state.currentProject) return;
-        try {
-            const data = await api('/projects/' + state.currentProject.id + '/locations');
-            state.locations = data.locations || [];
-            const el = document.getElementById('locationGrid');
-            if (state.locations.length === 0) {
-                el.innerHTML = `<div class="empty-state" style="grid-column:1/-1;"><div class="icon">&#128205;</div><h3>No locations</h3><p>Add filming locations.</p></div>`;
-            } else {
-                el.innerHTML = state.locations.map(l => `
-                    <div class="entity-card" style="cursor:pointer;" onclick="openSubjectSheet('location', '${l.id}')" title="Open the location sheet">
-                        ${l.reference_image_url
-                            ? '<img src="' + plateSrc(l.reference_image_url, 480) + '" style="width:calc(100% + 24px);height:120px;object-fit:cover;border-radius:8px 8px 0 0;margin:-12px -12px 8px -12px;cursor:zoom-in;" title="Click to see the plate full size"'
-                                + ' onclick="event.stopPropagation(); openPlateViewer(\'' + API_BASE + l.reference_image_url + '\', ' + jsAttr(l.name) + ')"'
-                                + ' onerror="this.style.display=\'none\'">'
-                            : ''}
-                        <div class="entity-card-header">
-                            <div class="entity-avatar" style="border-radius:8px;">&#128205;</div>
-                            <div>
-                                <h3>${esc(l.name)}</h3>
-                                <p class="text-sm text-muted">${l.scene_count || 0} scene(s)</p>
-                            </div>
-                        </div>
-                        <p>${esc(l.description || 'No description')}</p>
-                        <div class="tag-row">
-                            ${l.lighting_default ? '<span class="tag">' + esc(l.lighting_default) + '</span>' : ''}
-                            ${l.time_of_day_default ? '<span class="tag">' + esc(l.time_of_day_default) + '</span>' : ''}
-                        </div>
-                        <div class="card-actions">
-                            <!--
-                              Two buttons. Everything else moved onto the sheet,
-                              where there is room to work — see RELOCATED in
-                              lib/subject-sheets.js, which holds each moved
-                              action to still having a home.
-                            -->
-                            <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation(); editLocation('${l.id}')">Edit</button>
-                            <button class="btn btn-danger btn-sm" onclick="event.stopPropagation(); deleteLocation('${l.id}')">Delete</button>
-                        </div>
-                    </div>`).join('');
-            }
-        } catch (err) { setStatus('Error: ' + err.message); }
-    }
-
-    function editLocation(id) {
-        const l = state.locations.find(x => x.id === id);
-        if (!l) return;
-        document.getElementById('locationModalTitle').textContent = 'Edit Location';
-        document.getElementById('locationEditId').value = id;
-        editingLocationOriginalName = l.name || ''; // FILM-122: Store original name
-        setModalData('locationModal', l);
-        showModal('locationModal');
-    }
-
-    async function saveLocation() {
-        if (!state.currentProject) return;
-        const editId = document.getElementById('locationEditId').value;
-        const data = getModalData('locationModal');
-        if (!data.name) return;
-
-        // FILM-122: Check for name change and confirm screenplay propagation
-        let propagateToScreenplay = true;
-        if (editId && editingLocationOriginalName && data.name !== editingLocationOriginalName) {
-            const confirmMsg = `Rename "${editingLocationOriginalName}" to "${data.name}" in the screenplay too?\n\n` +
-                'This will update all scene headings in the screenplay.';
-            propagateToScreenplay = confirm(confirmMsg);
-            data.propagate_to_screenplay = propagateToScreenplay;
-        }
-
-        try {
-            let result;
-            if (editId) {
-                result = await api('/locations/' + editId, { method: 'PUT', body: JSON.stringify(data) });
-            } else {
-                result = await api('/projects/' + state.currentProject.id + '/locations', { method: 'POST', body: JSON.stringify(data) });
-            }
-            closeModal('locationModal');
-            clearModal('locationModal');
-            document.getElementById('locationEditId').value = '';
-            document.getElementById('locationModalTitle').textContent = 'New Location';
-            editingLocationOriginalName = '';
-            loadLocations();
-
-            // FILM-122: Show screenplay update status
-            if (result && result.screenplay_update) {
-                const su = result.screenplay_update;
-                if (su.updated) {
-                    setStatus(`Location saved. Screenplay updated: ${su.occurrences} occurrence(s) renamed (v${su.new_version})`);
-                    // Reload the screenplay so the rename is visible. Named
-                    // loadScreenplayPage: the old call was `loadScreenplay`,
-                    // which nothing defines, so a save that WORKED reported
-                    // "Error: loadScreenplay is not defined" from the catch.
-                    loadScreenplayPage();
-                } else {
-                    setStatus(`Location saved. Screenplay: ${su.reason || 'no changes needed'}`);
-                }
-            } else {
-                setStatus('Location saved');
-            }
-        } catch (err) { setStatus('Error: ' + err.message); }
-    }
-
-    async function deleteLocation(id) {
-        if (!confirm('Delete this location?')) return;
-        try {
-            await api('/locations/' + id, { method: 'DELETE' });
-            loadLocations();
-            setStatus('Location deleted');
-        } catch (err) { setStatus('Error: ' + err.message); }
-    }
-
     async function generateLocationImage(locId) {
         return confirmPaidImage({
             capability: 'image',
@@ -9543,125 +9291,6 @@
                 } catch (err) { setStatus('Error generating image: ' + err.message); }
             },
         });
-    }
-
-    // ══════════════════════════════════════════════════════════════
-    // PROPS
-    // ══════════════════════════════════════════════════════════════
-    async function loadProps() {
-        if (!state.currentProject) return;
-        try {
-            const data = await api('/projects/' + state.currentProject.id + '/props');
-            state.props = data.props || [];
-            const categories = ['all', ...new Set(state.props.map(p => p.category || 'generic'))];
-            document.getElementById('propFilters').innerHTML = categories.map(c =>
-                `<button class="filter-pill ${c === (state.propFilter || 'all') ? 'active' : ''}" onclick="filterProps('${c}')">${c}</button>`
-            ).join('');
-
-            const filtered = state.propFilter && state.propFilter !== 'all' ?
-                state.props.filter(p => (p.category || 'generic') === state.propFilter) : state.props;
-
-            const el = document.getElementById('propGrid');
-            if (filtered.length === 0) {
-                el.innerHTML = `<div class="empty-state" style="grid-column:1/-1;"><div class="icon">&#127917;</div><h3>No props</h3><p>Add props used in your production.</p></div>`;
-            } else {
-                el.innerHTML = filtered.map(p => `
-                    <div class="entity-card" style="cursor:pointer;" onclick="openSubjectSheet('prop', '${p.id}')" title="Open the prop sheet">
-                        ${p.reference_image_url
-                            ? '<img src="' + plateSrc(p.reference_image_url, 480) + '" style="width:calc(100% + 24px);height:120px;object-fit:cover;border-radius:8px 8px 0 0;margin:-12px -12px 8px -12px;cursor:zoom-in;" title="Click to see the plate full size"'
-                                + ' onclick="event.stopPropagation(); openPlateViewer(\'' + API_BASE + p.reference_image_url + '\', ' + jsAttr(p.name) + ')"'
-                                + ' onerror="this.style.display=\'none\'">'
-                            : ''}
-                        <div class="entity-card-header">
-                            <div class="entity-avatar" style="border-radius:8px;font-size:14px;">&#127917;</div>
-                            <div>
-                                <h3>${esc(p.name)}</h3>
-                                <span class="badge">${esc(p.category || 'generic')}</span>
-                            </div>
-                        </div>
-                        <p>${esc(p.description || 'No description')}</p>
-                        <div class="card-actions">
-                            <!-- Two buttons; the rest is on the sheet. -->
-                            <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation(); editProp('${p.id}')">Edit</button>
-                            <button class="btn btn-danger btn-sm" onclick="event.stopPropagation(); deleteProp('${p.id}')">Delete</button>
-                        </div>
-                    </div>`).join('');
-            }
-        } catch (err) { setStatus('Error: ' + err.message); }
-    }
-
-    function filterProps(cat) { state.propFilter = cat; loadProps(); }
-
-    /*
-     * The prop categories the database will actually accept.
-     *
-     * Loaded once and cached; a failure leaves the single fallback option in
-     * place rather than an empty select, since a picker with nothing in it
-     * looks broken while a short one merely looks short.
-     */
-    let _propCategories = null;
-    async function fillPropCategories() {
-        const sel = document.getElementById('propCategorySelect');
-        if (!sel) return;
-        if (!_propCategories) {
-            try {
-                const v = await api('/card-vocabulary');
-                _propCategories = (v.prop_categories || []).map(id => ({
-                    id, label: (v.prop_category_labels || {})[id] || id,
-                }));
-            } catch (_) { return; }
-        }
-        if (!_propCategories.length) return;
-        const current = sel.value;
-        sel.innerHTML = _propCategories
-            .map(c => `<option value="${esc(c.id)}">${esc(c.label)}</option>`).join('');
-        if (current) sel.value = current;
-    }
-
-    async function editProp(id) {
-        const p = state.props.find(x => x.id === id);
-        if (!p) return;
-        document.getElementById('propModalTitle').textContent = 'Edit Prop';
-        document.getElementById('propEditId').value = id;
-        /*
-         * AWAITED, because the options have to exist before the value is set.
-         * Fired without awaiting, the fetch resolved AFTER setModalData, and
-         * assigning `vehicle` to a select that still held only `generic` fails
-         * silently — so every prop opened reading "Generic" and saving it would
-         * have quietly recategorised the prop.
-         */
-        await fillPropCategories();
-        setModalData('propModal', p);
-        showModal('propModal');
-    }
-
-    async function saveProp() {
-        if (!state.currentProject) return;
-        const editId = document.getElementById('propEditId').value;
-        const data = getModalData('propModal');
-        if (!data.name) return;
-        try {
-            if (editId) {
-                await api('/props/' + editId, { method: 'PUT', body: JSON.stringify(data) });
-            } else {
-                await api('/projects/' + state.currentProject.id + '/props', { method: 'POST', body: JSON.stringify(data) });
-            }
-            closeModal('propModal');
-            clearModal('propModal');
-            document.getElementById('propEditId').value = '';
-            document.getElementById('propModalTitle').textContent = 'New Prop';
-            loadProps();
-            setStatus('Prop saved');
-        } catch (err) { setStatus('Error: ' + err.message); }
-    }
-
-    async function deleteProp(id) {
-        if (!confirm('Delete this prop?')) return;
-        try {
-            await api('/props/' + id, { method: 'DELETE' });
-            loadProps();
-            setStatus('Prop deleted');
-        } catch (err) { setStatus('Error: ' + err.message); }
     }
 
     async function generatePropImage(propId) {

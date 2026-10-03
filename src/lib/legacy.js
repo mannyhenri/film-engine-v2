@@ -44,6 +44,8 @@ export const LEGACY_GLOBALS = [
     'openPlateViewer',        // the full-size plate viewer, shared by every page that shows a plate
     'uploadControl',          // the shared upload + iPhone camera control, as markup (marketing; every plate uses it)
     'confirmPaidImage',       // the one confirmation every paid generation goes through: what is sent, what it costs
+    'openCharacterSheet', 'openSubjectSheet', // the subject sheets (core: the board, graph and viewer open them too); a card click opens one
+    'loadScreenplayPage',     // reload the screenplay editor after a location rename rewrote its headings (locations)
     'regenerateStoryboard',   // regenerate one shot's frame: its own confirmation, the busy veil (board, viewer, shot drawer)
     // The storyboard board: state core shares with the frame viewer, the anchor and markup...
     'ANCHOR', 'FRAME_VIEWER', 'BOARD_ANCHOR', 'MARKUP',
