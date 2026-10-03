@@ -92,6 +92,16 @@ describe('Notes & Reviews', () => {
         expect(modal.classList.contains('open')).toBe(true);
     });
 
+    it('the body follows the legacy form rules: text trimmed, empty fields left out', async () => {
+        let posted;
+        await openPage({ 'POST /shots/sh1/notes': (b) => { posted = b; return { ok: true }; } });
+        await pickShot();
+        fireEvent.click(screen.getByRole('button', { name: '+ Note' }));
+        fireEvent.change(document.querySelector('#addNoteModal textarea'), { target: { value: '  spaced  ' } });
+        await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Add Note' })); });
+        expect(posted).toEqual({ note_type: 'general', priority: 'normal', content: 'spaced' });
+    });
+
     it('an empty note is not sent', async () => {
         const { calls } = await openPage();
         await pickShot();

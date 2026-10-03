@@ -19,12 +19,21 @@ export const LEGACY_GLOBALS = [
     'showModal',    // open a modal overlay by id, on the shared stack
     'closeModal',   // close it and give its depth back
     'navigateTo',   // go to another page
+    'API_BASE',     // the API's address (a top-level `let`: read live, Settings can change it)
+    'loadScreenplayDrift',    // fill DRIFT from the screenplay-drift report (the storyboard reads it too)
+    'DRIFT',                  // which scenes' shots were written from an earlier draft (a top-level `let`)
+    'updateSceneStatusIcons', // the status icon beside each scene heading in the screenplay editor
+    'generateSceneDialogue',  // a scene's dialogue: one paid confirmation, then shot by shot (shared with screenplay)
 ];
 
 export const legacy = new Proxy({}, {
     get(_, name) {
         if (!LEGACY_GLOBALS.includes(name)) throw new Error(`legacy.${String(name)} is not in LEGACY_GLOBALS (src/lib/legacy.js)`);
-        const v = window[name];
+        // A function declaration or window.<name> is on window; a top-level let/const of a classic
+        // script is a global binding but not a window property, so it is read in global scope. Only
+        // names on the list above get here, so no other text is ever evaluated.
+        let v = window[name];
+        if (v === undefined) { try { v = Function(`return typeof ${name} === 'undefined' ? undefined : ${name}`)(); } catch (_) { v = undefined; } }
         if (v === undefined) throw new Error(`legacy.${String(name)}: the core has not defined it`);
         return v;
     },

@@ -324,6 +324,12 @@
         "name": "every picture or clip a pg* function draws goes through pgSrc/pgThumb, so it reaches the API origin",
         "reason": "PRE-EXISTING: fails in film-engine at fb8c770 too (its scanner flags pgDrawerVersion: esc(auditionUrl), but auditionUrl is built with pgSrc one line up)"
       }
+    ],
+    "page-handlers.test.js": [
+      {
+        "name": "the delivery pages reach every field their routes accept",
+        "reason": "reads the legacy saver functions (saveCredit, saveTitleCard, saveSubtitle, saveRight) out of the page script; those pages are React now. The same guarantee, derived from the same routes, runs in src/pages/delivery-fields.test.jsx: it SAVES each React form and reads the request body, and holds a page still legacy (deliverables) to this test's own rule against its chunk."
+      }
     ]
   }
 }

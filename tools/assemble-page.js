@@ -41,9 +41,11 @@ function assemble() {
     const appAst = parse(src.app);
     // Functions a React page replaced are in no port file, by design (src/pages/<id>/react.json).
     const replaced = new Set(Object.values(map.react || {}).flatMap(r => r.replaces));
+    const replacedStatement = (n) => n.type === 'FunctionDeclaration' ? replaced.has(n.id.name)
+        : n.type === 'VariableDeclaration' && n.declarations.every(d => d.id.type === 'Identifier' && replaced.has(d.id.name));
     let prev = 0;
     for (const n of appAst.body) {
-        if (n.type === 'FunctionDeclaration' && replaced.has(n.id.name)) { prev = n.end; continue; }
+        if (replacedStatement(n)) { prev = n.end; continue; }
         const lead = src.app.slice(prev, n.start); // comments and blank lines before it, as in the source
         prev = n.end;
         const t = src.app.slice(n.start, n.end);

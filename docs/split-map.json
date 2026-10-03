@@ -3,6 +3,32 @@
   "sourceCommit": "fb8c7700ad1e9233f6cf50e86669d28ebeac29ef",
   "round": 3,
   "react": {
+    "assets": {
+      "loader": "loadAssets",
+      "replaces": [
+        "loadAssets",
+        "filterAssets",
+        "registerAsset",
+        "deleteAsset",
+        "formatBytes"
+      ],
+      "modals": [
+        "assetModal"
+      ]
+    },
+    "milestones": {
+      "loader": "loadMilestones",
+      "replaces": [
+        "loadMilestones",
+        "createMilestone",
+        "showEditMilestone",
+        "updateMilestone"
+      ],
+      "modals": [
+        "milestoneModal",
+        "editMilestoneModal"
+      ]
+    },
     "notes": {
       "loader": "loadNotesPage",
       "replaces": [
@@ -19,6 +45,55 @@
         "addNoteModal",
         "reviewShotModal"
       ]
+    },
+    "renderhistory": {
+      "loader": "loadRenderPage",
+      "replaces": [
+        "loadRenderPage",
+        "loadRenderHistory"
+      ],
+      "modals": []
+    },
+    "rights": {
+      "loader": "loadRights",
+      "replaces": [
+        "loadRights",
+        "openRight",
+        "saveRight",
+        "deleteRight",
+        "RIGHTS_VOCAB"
+      ],
+      "modals": []
+    },
+    "subtitles": {
+      "loader": "loadSubtitles",
+      "replaces": [
+        "loadSubtitles",
+        "renderSubtitles",
+        "openSubtitle",
+        "saveSubtitle",
+        "deleteSubtitle",
+        "exportSubtitles",
+        "SUB_SHOTS",
+        "subTime"
+      ],
+      "modals": []
+    },
+    "titles": {
+      "loader": "loadTitles",
+      "replaces": [
+        "loadTitles",
+        "renderTitleCards",
+        "renderCredits",
+        "openCredit",
+        "saveCredit",
+        "deleteCredit",
+        "openTitleCard",
+        "saveTitleCard",
+        "deleteTitleCard",
+        "TITLE_VOCAB"
+      ],
+      "modals": []
     }
   },
   "chunks": {
@@ -628,20 +703,6 @@
       "otherStatements": 6,
       "bytes": 25853
     },
-    "milestones": {
-      "pages": [
-        "milestones"
-      ],
-      "deps": [],
-      "functions": [
-        "loadMilestones",
-        "createMilestone",
-        "showEditMilestone",
-        "updateMilestone"
-      ],
-      "otherStatements": 0,
-      "bytes": 3683
-    },
     "budget": {
       "pages": [
         "budget"
@@ -940,21 +1001,6 @@
       "otherStatements": 0,
       "bytes": 0
     },
-    "assets": {
-      "pages": [
-        "assets"
-      ],
-      "deps": [],
-      "functions": [
-        "loadAssets",
-        "filterAssets",
-        "registerAsset",
-        "deleteAsset",
-        "formatBytes"
-      ],
-      "otherStatements": 0,
-      "bytes": 3902
-    },
     "playback": {
       "pages": [
         "playback"
@@ -1009,18 +1055,6 @@
       "otherStatements": 6,
       "bytes": 47006
     },
-    "renderhistory": {
-      "pages": [
-        "renderhistory"
-      ],
-      "deps": [],
-      "functions": [
-        "loadRenderPage",
-        "loadRenderHistory"
-      ],
-      "otherStatements": 0,
-      "bytes": 2590
-    },
     "edits": {
       "pages": [
         "edits"
@@ -1054,55 +1088,6 @@
       ],
       "otherStatements": 0,
       "bytes": 6102
-    },
-    "rights": {
-      "pages": [
-        "rights"
-      ],
-      "deps": [],
-      "functions": [
-        "loadRights",
-        "openRight",
-        "saveRight",
-        "deleteRight"
-      ],
-      "otherStatements": 1,
-      "bytes": 10660
-    },
-    "titles": {
-      "pages": [
-        "titles"
-      ],
-      "deps": [],
-      "functions": [
-        "loadTitles",
-        "renderTitleCards",
-        "renderCredits",
-        "openCredit",
-        "saveCredit",
-        "deleteCredit",
-        "openTitleCard",
-        "saveTitleCard",
-        "deleteTitleCard"
-      ],
-      "otherStatements": 1,
-      "bytes": 11937
-    },
-    "subtitles": {
-      "pages": [
-        "subtitles"
-      ],
-      "deps": [],
-      "functions": [
-        "loadSubtitles",
-        "renderSubtitles",
-        "openSubtitle",
-        "saveSubtitle",
-        "deleteSubtitle",
-        "exportSubtitles"
-      ],
-      "otherStatements": 2,
-      "bytes": 9357
     },
     "marketing": {
       "pages": [
@@ -1330,10 +1315,8 @@
       "loader": [
         "loadAssets"
       ],
-      "chunk": "assets",
-      "modals": [
-        "assetModal"
-      ]
+      "chunk": null,
+      "modals": []
     },
     "musicws": {
       "loader": [
@@ -1361,11 +1344,8 @@
       "loader": [
         "loadMilestones"
       ],
-      "chunk": "milestones",
-      "modals": [
-        "milestoneModal",
-        "editMilestoneModal"
-      ]
+      "chunk": null,
+      "modals": []
     },
     "playback": {
       "loader": [
@@ -1387,7 +1367,7 @@
       "loader": [
         "loadRenderPage"
       ],
-      "chunk": "renderhistory",
+      "chunk": null,
       "modals": []
     },
     "edits": {
@@ -1427,21 +1407,21 @@
       "loader": [
         "loadRights"
       ],
-      "chunk": "rights",
+      "chunk": null,
       "modals": []
     },
     "titles": {
       "loader": [
         "loadTitles"
       ],
-      "chunk": "titles",
+      "chunk": null,
       "modals": []
     },
     "subtitles": {
       "loader": [
         "loadSubtitles"
       ],
-      "chunk": "subtitles",
+      "chunk": null,
       "modals": []
     },
     "marketing": {
@@ -1607,8 +1587,8 @@
       "loadPlayback"
     ],
     "functions": 546,
-    "unreached": 16,
-    "sharedByChunks": 12,
+    "unreached": 17,
+    "sharedByChunks": 11,
     "declaredTwice": [],
     "bootVendors": [],
     "bytes": 813052

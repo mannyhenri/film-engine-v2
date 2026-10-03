@@ -141,9 +141,16 @@ function generate({ write = true } = {}) {
     for (const s of ast.body) { segs.push({ node: s, text: src.app.slice(prev, s.end), code: appCode.slice(prev, s.end) }); prev = s.end; }
     const tail = src.app.slice(prev);
     // Functions a React page replaces leave the legacy code entirely.
-    const declared = new Set(segs.filter(s => s.node.type === 'FunctionDeclaration').map(s => s.node.id.name));
-    for (const [n, id] of replaced) if (!declared.has(n)) throw new Error(`src/pages/${id}/react.json replaces ${n}, which is not a top-level function of the source`);
-    segs = segs.filter(s => !(s.node.type === 'FunctionDeclaration' && replaced.has(s.node.id.name)));
+    // A function, or a top-level let/const/var whose every declared name is replaced (the state only
+    // that page's code used), leaves with it.
+    const declaredBy = (n) => n.type === 'FunctionDeclaration' ? [n.id.name]
+        : n.type === 'VariableDeclaration' && n.declarations.every(d => d.id.type === 'Identifier') ? n.declarations.map(d => d.id.name) : [];
+    const declared = new Set(segs.flatMap(s => declaredBy(s.node)));
+    for (const [n, id] of replaced) if (!declared.has(n)) throw new Error(`src/pages/${id}/react.json replaces ${n}, which is not a top-level function or variable of the source`);
+    const isReplaced = (n) => { const names = declaredBy(n); return names.length > 0 && names.every(x => replaced.has(x)); };
+    for (const s of segs) if (s.node.type === 'VariableDeclaration' && declaredBy(s.node).some(x => replaced.has(x)) && !isReplaced(s.node))
+        throw new Error('a react.json replaces only some of the names one statement declares: ' + declaredBy(s.node).join(', '));
+    segs = segs.filter(s => !isReplaced(s.node));
     /*
      * Graph nodes: every top-level function declaration, class, and const/let/var
      * whose initialisers run nothing at load (functions, literals, empty

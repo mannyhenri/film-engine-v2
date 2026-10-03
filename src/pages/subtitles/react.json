@@ -1,0 +1,15 @@
+{
+  "about": "This page is React (src/pages/subtitles/SubtitlesPage.jsx). tools/split-map.js stops generating it, drops the legacy functions below, and fails if anything left still calls them. Its form (subtitleModal) was built at run time by showModalHtml, so it is no static modal to take over.",
+  "loader": "loadSubtitles",
+  "replaces": [
+    "loadSubtitles",
+    "renderSubtitles",
+    "openSubtitle",
+    "saveSubtitle",
+    "deleteSubtitle",
+    "exportSubtitles",
+    "SUB_SHOTS",
+    "subTime"
+  ],
+  "modals": []
+}

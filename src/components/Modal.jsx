@@ -16,12 +16,13 @@ import { legacy } from '../lib/legacy.js';
  * className here is a constant. Never make it depend on state, or a re-render
  * would strip the `open` class and the modal would vanish while still on the stack.
  */
-export default function Modal({ id, title, children }) {
+export default function Modal({ id, title, children, footer }) {
     const overlay = (
         <div id={id} className="modal-overlay">
             <div className="modal">
                 <div className="modal-header"><h3>{title}</h3><button className="modal-close" onClick={() => closeModal(id)}>&times;</button></div>
                 <div className="modal-body">{children}</div>
+                {footer && <div className="modal-footer">{footer}</div>}
             </div>
         </div>
     );

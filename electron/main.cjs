@@ -17,6 +17,9 @@ const http = require('http');
 const net = require('net');
 
 const SMOKE = process.argv.includes('--smoke');
+// A smoke run gets its own throwaway Chromium profile: two checkouts can run it at once without sharing
+// one profile, and a test run never writes into the person's own app storage (remembered page, settings).
+if (SMOKE) app.setPath('userData', require('fs').mkdtempSync(require('path').join(require('os').tmpdir(), 'fe-smoke-')));
 // The iPhone app's icon in the macOS shape (tools/make-mac-icon.py from electron/icon-ios.png).
 const ICON = path.join(__dirname, 'icon.png');
 const BACKEND_VERSION = require('../backend/package.json').version;

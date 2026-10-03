@@ -1,0 +1,6 @@
+{
+  "about": "This page is React (src/pages/assets/AssetsPage.jsx). tools/split-map.js stops generating it, drops the legacy functions and modal below, and fails if anything left still calls them.",
+  "loader": "loadAssets",
+  "replaces": ["loadAssets", "filterAssets", "registerAsset", "deleteAsset", "formatBytes"],
+  "modals": ["assetModal"]
+}

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import Modal, { openModal, closeModal } from '../../components/Modal.jsx';
 import { legacy } from '../../lib/legacy.js';
 import { usePageLoader } from '../../lib/usePageLoader.js';
+import { formBody } from '../../lib/forms.js';
 
 /*
  * Notes & Reviews, as React. Replaces the legacy functions listed in react.json:
@@ -50,9 +51,10 @@ export default function NotesPage() {
     function requireShot(then) { if (!shotId) { legacy.setStatus('Select a shot first'); return; } then(); }
 
     async function addNote() {
-        if (!shotId || !draft.content) return;
+        const body = formBody(draft); // trimmed, empty fields left out, as the legacy form sent
+        if (!shotId || !body.content) return;
         try {
-            await legacy.api('/shots/' + shotId + '/notes', { method: 'POST', body: JSON.stringify(draft) });
+            await legacy.api('/shots/' + shotId + '/notes', { method: 'POST', body: JSON.stringify(body) });
             closeModal('addNoteModal');
             setDraft(EMPTY_NOTE);
             loadShotNotes();

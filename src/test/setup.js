@@ -25,6 +25,11 @@ export function installLegacy({ routes = {}, project = { id: 'p1' } } = {}) {
         showModal: vi.fn((id) => document.getElementById(id)?.classList.add('open')),
         closeModal: vi.fn((id) => document.getElementById(id)?.classList.remove('open')),
         navigateTo: vi.fn(),
+        API_BASE: 'http://api.test/film',
+        DRIFT: { shots: {}, scenes: [] },
+        loadScreenplayDrift: vi.fn(async () => {}),
+        updateSceneStatusIcons: vi.fn(),
+        generateSceneDialogue: vi.fn(),
     };
     const missing = LEGACY_GLOBALS.filter(n => !(n in fake));
     if (missing.length) throw new Error('the test fake lacks ' + missing.join(', ') + ' (src/test/setup.js)');

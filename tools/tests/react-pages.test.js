@@ -79,7 +79,7 @@ test('React reaches the legacy app only through LEGACY_GLOBALS, and each of thos
     assert.ok(used > 0, 'found no legacy.<name> uses at all: the scan is broken');
     const core = LEGACY_FILES.slice(0, 3).map(read).join('\n');
     for (const n of legacyGlobals) {
-        const onWindow = new RegExp(`^\\s{0,4}(async\\s+)?function\\s+${n}\\s*\\(|window\\.${n}\\s*=`, 'm').test(core);
+        const onWindow = new RegExp(`^\\s{0,4}(async\\s+)?function\\s+${n}\\s*\\(|window\\.${n}\\s*=|^\\s{0,4}(let|const|var)\\s+${n}\\b`, 'm').test(core);
         if (!onWindow) bad.push(`${n}: not a top-level function or window.${n} in core, so React cannot reach it`);
     }
     assert.deepStrictEqual(bad, []);

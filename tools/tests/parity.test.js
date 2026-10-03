@@ -62,7 +62,9 @@ test('no code is lost or duplicated: every top-level statement of the source is 
     const norm = (code) => acorn.parse(code, { ecmaVersion: 'latest' }).body.map(n => code.slice(n.start, n.end));
     // Less the function declarations a React page replaced: those leave the legacy code.
     const app = acorn.parse(src.app, { ecmaVersion: 'latest' }).body
-        .filter(n => !(n.type === 'FunctionDeclaration' && REPLACED.has(n.id.name))).map(n => src.app.slice(n.start, n.end));
+        .filter(n => !(n.type === 'FunctionDeclaration' ? REPLACED.has(n.id.name)
+            : n.type === 'VariableDeclaration' && n.declarations.every(d => d.id.type === 'Identifier' && REPLACED.has(d.id.name))))
+        .map(n => src.app.slice(n.start, n.end));
     // The port adds exactly one statement: core's var placeholders for loaders that live in chunks.
     const placeholder = `var ${map.core.loaderPlaceholders.join(', ')};`;
     const port = [...norm(read('public/legacy/core.js')), ...chunkFiles().flatMap(f => norm(read(f)))].filter(t => t !== placeholder);

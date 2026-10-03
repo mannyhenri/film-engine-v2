@@ -1,0 +1,17 @@
+{
+  "about": "This page is React (src/pages/titles/TitlesPage.jsx). tools/split-map.js stops generating it, drops the legacy functions below, and fails if anything left still calls them. Its two forms were built at run time by showModalHtml, so they are no static modals to take over.",
+  "loader": "loadTitles",
+  "replaces": [
+    "loadTitles",
+    "renderTitleCards",
+    "renderCredits",
+    "openCredit",
+    "saveCredit",
+    "deleteCredit",
+    "openTitleCard",
+    "saveTitleCard",
+    "deleteTitleCard",
+    "TITLE_VOCAB"
+  ],
+  "modals": []
+}

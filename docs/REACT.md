@@ -45,10 +45,10 @@ commit. A page whose functions are shared with another page converts together wi
 
 | Page | Status | Owner |
 |---|---|---|
-| notes | done | film-engine agent |
-| renderhistory, milestones, rights, subtitles, titles, assets | batch 1, in progress | film-engine agent |
+| notes, renderhistory, milestones, rights, subtitles, titles, assets | done | film-engine agent |
 | brand, edits, deliverables, pipeline, exportpage, videoshots | batch 1, in progress | film-engine-v2 agent |
-| scenes, moodboard, stylebook, marketing, consistency, jobsqueue, projects, dashboard | batch 2, unclaimed | |
+| scenes, moodboard, stylebook, marketing | batch 2 | film-engine agent |
+| consistency, jobsqueue, projects, dashboard | batch 2 | film-engine-v2 agent |
 | characters + locations + props (one chunk), shotboard, storyboard | batch 3, unclaimed: shared modals | |
 | budget, settings, playback, productiongraph + flows | batch 4, one owner each | |
 | screenplay, music + musicws + musiccues, threed + previs | batch 5, the big three, one owner each | |

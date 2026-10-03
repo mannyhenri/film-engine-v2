@@ -1,0 +1,6 @@
+{
+  "about": "This page is React (src/pages/renderhistory/RenderHistoryPage.jsx). tools/split-map.js stops generating it, drops the legacy functions below, and fails if anything left still calls them.",
+  "loader": "loadRenderPage",
+  "replaces": ["loadRenderPage", "loadRenderHistory"],
+  "modals": []
+}

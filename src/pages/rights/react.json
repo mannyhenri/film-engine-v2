@@ -1,0 +1,12 @@
+{
+  "about": "This page is React (src/pages/rights/RightsPage.jsx). tools/split-map.js stops generating it, drops the legacy functions below, and fails if anything left still calls them. Its form (rightModal) was built at run time by showModalHtml, so it is no static modal to take over.",
+  "loader": "loadRights",
+  "replaces": [
+    "loadRights",
+    "openRight",
+    "saveRight",
+    "deleteRight",
+    "RIGHTS_VOCAB"
+  ],
+  "modals": []
+}

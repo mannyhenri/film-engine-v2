@@ -12,7 +12,9 @@ const os = require('os');
 const path = require('path');
 
 const DIR = path.join(__dirname, '..', 'backend');
-const OUT = path.join(os.tmpdir(), 'fe-backend-tests');
+// One log folder per checkout: two worktrees running this at once must not wipe each other's logs
+// (each run deletes its folder at start and reads its own logs back as files finish).
+const OUT = path.join(os.tmpdir(), 'fe-backend-tests-' + require('crypto').createHash('sha1').update(path.resolve(DIR)).digest('hex').slice(0, 8));
 fs.rmSync(OUT, { recursive: true, force: true });
 fs.mkdirSync(OUT, { recursive: true });
 const skips = JSON.parse(fs.readFileSync(path.join(DIR, 'tests', 'SKIPPED-SUBTESTS.json'), 'utf8')).files;
