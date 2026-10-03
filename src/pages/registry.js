@@ -68,7 +68,7 @@ export const PAGES = [
     { id: 'threed', Component: ThreedPage, chunk: 'stage3d' },
     { id: 'videoshots', Component: VideoshotsPage, chunk: null },
     { id: 'music', Component: MusicPage, chunk: 'music' },
-    { id: 'productiongraph', Component: ProductiongraphPage, chunk: 'graph' },
+    { id: 'productiongraph', Component: ProductiongraphPage, chunk: null },
     { id: 'flows', Component: FlowsPage, chunk: 'graph' },
     { id: 'previs', Component: PrevisPage, chunk: 'stage3d' },
     { id: 'pipeline', Component: PipelinePage, chunk: null },

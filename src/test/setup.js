@@ -70,6 +70,12 @@ export function installLegacy({ routes = {}, project = { id: 'p1' } } = {}) {
         saveProductionGraphFlag: vi.fn(), feStore: { set: vi.fn(), remove: vi.fn(), get: vi.fn() }, checkHealth: vi.fn(), DEFAULT_API_BASE: 'http://default.test', APP_AUTHOR: null,
         money: (n) => '$' + (Number(n) || 0).toFixed(2), usd: (n) => '$' + (Number(n) || 0).toFixed(3),
         pb: { timeline: null, notes: [], index: 0, playing: false, raf: null, localMs: 0 },
+        PG: { graph: null, byKey: new Map(), sel: null, zoom: 0.9, pan: { x: 0, y: 0 }, scene: 'all', busy: new Map(), drawerCache: {},
+            play: { index: 0, playing: false, t0: 0, timer: null, stills: true, audio: true }, fitted: false, menuFor: null,
+            running: new Map(), pollTimer: null, behindOnly: false, queue: null, queueOpen: false, picked: new Set(), add: null, selBeforeClick: null },
+        IB: { setup: null, span: null, sel: 0, rangeEdit: null, price: null },
+        pgRenderSide: vi.fn(), FLOW: {}, confirmUpscale: vi.fn(), generateNativeMultiShot: vi.fn(), generateSequence: vi.fn(),
+        jsAttr: (v) => JSON.stringify(String(v)).replace(/"/g, '&quot;'), markCurrentShot: vi.fn(), showModalHtml: vi.fn(), uploadCapabilityMedia: vi.fn(), setAnchor: vi.fn(), stitchSequence: vi.fn(),
         mediaUrl: (p) => (p ? 'http://api.test' + (p.startsWith('/') ? p : '/film/' + p) : ''),
     };
     const missing = LEGACY_GLOBALS.filter(n => !(n in fake));

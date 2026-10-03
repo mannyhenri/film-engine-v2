@@ -226,6 +226,31 @@ async function smoke(win) {
         const ok = st.cards === st.frames && !st.missing.length && (!st.first || viewer === 'open') && errors.length === before;
         report.push({ id: 'storyboard ids', ok, want: 'storyboard ids', active: ok ? `storyboard ids (${st.cards} cards, viewer ${viewer})` : `cards=${st.cards} frames=${st.frames} missing=${st.missing.join(',')} viewer=${viewer}` });
     }
+    /*
+     * The Production graph's engine (src/pages/productiongraph/engine.js) draws the graph into the React page by id:
+     * every node the server sent is on the canvas, and selecting a shot opens its drawer. Viewing only; it reads the
+     * graph, changes no setting and generates nothing.
+     */
+    if (project && PAGES.includes('productiongraph')) {
+        current = 'graph draws';
+        const before = errors.length;
+        await js(`navigateTo('productiongraph')`);
+        for (let t = 0; t < 40; t++) {
+            if (await js(`!!(window.PG && PG.graph && PG.graph.project_id === state.currentProject.id && document.querySelector('#pgWorld [data-key]'))`).catch(() => false)) break;
+            await new Promise(r => setTimeout(r, 250));
+        }
+        const st = await js(`(() => {
+            const nodes = (PG.graph && PG.graph.nodes) || [];
+            const missing = nodes.filter(n => pgVisible(n) && !pgCollapsedOf(n.key) && !document.querySelector('#pgWorld [data-key="' + CSS.escape(n.key) + '"]')).map(n => n.key);
+            const shot = nodes.find(n => n.type === 'shot');
+            if (shot) pgSelect(shot.key);
+            return { nodes: nodes.length, missing, shot: shot ? shot.shot_code : null };
+        })()`).catch(e => ({ error: String(e) }));
+        await new Promise(r => setTimeout(r, 600));
+        const drawer = await js(`(document.getElementById('pgDrawerBody')?.textContent || '').trim().length`).catch(() => 0);
+        const ok = !st.error && st.nodes > 0 && !st.missing.length && (!st.shot || drawer > 0) && errors.length === before;
+        report.push({ id: 'graph draws', ok, want: 'graph draws', active: ok ? `graph draws (${st.nodes} nodes, drawer for ${st.shot})` : `error=${st.error || ''} nodes=${st.nodes} missing=${(st.missing || []).join(',')} drawer=${drawer}` });
+    }
     // A launch with no address reopens the film and page you were on.
     if (project && !process.env.FE_SMOKE_URL && !process.env.FE_SMOKE_PAGES) {
         current = 'reopen';

@@ -62,6 +62,11 @@ export const LEGACY_GLOBALS = [
     'feStore', 'checkHealth', 'DEFAULT_API_BASE', 'APP_AUTHOR',
     // Playback: the player's state (a core const the shell resets on a project switch) and a stored file's URL.
     'pb', 'mediaUrl',
+    // The Production graph engine (src/pages/productiongraph/engine.js): its two state objects and side panel, kept in core
+    // with the flag; the Flows canvas state it opens flows from; and the shared actions its nodes run.
+    'PG', 'IB', 'pgRenderSide', 'FLOW', 'confirmUpscale', 'generateNativeMultiShot', 'generateSequence', 'jsAttr',
+    'markCurrentShot', 'showModalHtml', 'uploadCapabilityMedia',
+    'setAnchor', 'stitchSequence', // called from the HTML the graph engine draws (a frame's anchor, a sequence's join)
 ];
 
 

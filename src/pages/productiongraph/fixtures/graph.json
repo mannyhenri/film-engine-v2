@@ -1,0 +1,232 @@
+{
+  "project_id": "00000000-0000-4000-8000-000000000001",
+  "board_locked": false,
+  "nodes": [
+    {
+      "key": "shot:00000000-0000-4000-8000-0000000000b1",
+      "type": "shot",
+      "id": "00000000-0000-4000-8000-0000000000b1",
+      "shot_code": "1A",
+      "scene_id": "00000000-0000-4000-8000-0000000000a1",
+      "scene_number": 1,
+      "scene_label": "Sc 1 · DINER",
+      "framing": "",
+      "duration_ms": 4000,
+      "description": "",
+      "dialogue_lines": 0,
+      "status": "pending",
+      "sequence_id": "00000000-0000-4000-8000-0000000000c1",
+      "frames": [],
+      "selected_frame": null,
+      "videos": [],
+      "selected_video_asset_id": null,
+      "state": "no_frame",
+      "previs": {
+        "locked": 0,
+        "approved": false
+      },
+      "held": false,
+      "held_at": null,
+      "flow_frames": [],
+      "flow_versions": [],
+      "x": 40,
+      "y": 44,
+      "pinned": false,
+      "w": 200,
+      "h": 180,
+      "impact": {
+        "state": "never",
+        "why": "Nothing has been generated yet.",
+        "action": "Generate it when you are ready.",
+        "badges": []
+      }
+    },
+    {
+      "key": "shot:00000000-0000-4000-8000-0000000000b2",
+      "type": "shot",
+      "id": "00000000-0000-4000-8000-0000000000b2",
+      "shot_code": "1B",
+      "scene_id": "00000000-0000-4000-8000-0000000000a1",
+      "scene_number": 1,
+      "scene_label": "Sc 1 · DINER",
+      "framing": "",
+      "duration_ms": 3000,
+      "description": "",
+      "dialogue_lines": 0,
+      "status": "pending",
+      "sequence_id": "00000000-0000-4000-8000-0000000000c1",
+      "frames": [],
+      "selected_frame": null,
+      "videos": [],
+      "selected_video_asset_id": null,
+      "state": "no_frame",
+      "previs": {
+        "locked": 0,
+        "approved": false
+      },
+      "held": false,
+      "held_at": null,
+      "flow_frames": [],
+      "flow_versions": [],
+      "x": 40,
+      "y": 248,
+      "pinned": false,
+      "w": 200,
+      "h": 180,
+      "impact": {
+        "state": "never",
+        "why": "Nothing has been generated yet.",
+        "action": "Generate it when you are ready.",
+        "badges": []
+      }
+    },
+    {
+      "key": "seq:00000000-0000-4000-8000-0000000000c1",
+      "type": "sequence",
+      "id": "00000000-0000-4000-8000-0000000000c1",
+      "name": "Arrival",
+      "description": "",
+      "shot_ids": [
+        "00000000-0000-4000-8000-0000000000b1",
+        "00000000-0000-4000-8000-0000000000b2"
+      ],
+      "shot_codes": [
+        "1A",
+        "1B"
+      ],
+      "joins": [],
+      "duration_ms": 7000,
+      "links": {
+        "start": null,
+        "end": null,
+        "fingerprint": null,
+        "stale": false
+      },
+      "videos": [],
+      "legs": [],
+      "selected_video_asset_id": null,
+      "ready": false,
+      "status": "draft",
+      "held": false,
+      "held_at": null,
+      "x": 300,
+      "y": 64,
+      "pinned": false,
+      "w": 240,
+      "h": 280,
+      "impact": {
+        "state": "never",
+        "why": "Nothing has been generated yet.",
+        "action": "Generate it when you are ready."
+      }
+    },
+    {
+      "key": "sound:00000000-0000-4000-8000-0000000000d1",
+      "type": "sound",
+      "id": "00000000-0000-4000-8000-0000000000d1",
+      "kind": "music",
+      "cue_type": "score",
+      "title": "Diner theme",
+      "description": "sparse piano",
+      "mood": "",
+      "genre": "",
+      "negative_prompt": "",
+      "duration_ms": 0,
+      "scene_id": "00000000-0000-4000-8000-0000000000a1",
+      "shot_id": null,
+      "sequence_id": null,
+      "parent": null,
+      "versions": [],
+      "selected_asset_id": null,
+      "held": false,
+      "held_at": null,
+      "x": 600,
+      "y": 44,
+      "pinned": false,
+      "w": 200,
+      "h": 130,
+      "impact": {
+        "state": "never",
+        "why": "Nothing has been generated yet.",
+        "action": "Generate it when you are ready."
+      }
+    }
+  ],
+  "edges": [
+    {
+      "from": "shot:00000000-0000-4000-8000-0000000000b1",
+      "from_port": "image",
+      "to": "seq:00000000-0000-4000-8000-0000000000c1",
+      "to_port": "slot:0",
+      "type": "image",
+      "style": "dotted"
+    },
+    {
+      "from": "shot:00000000-0000-4000-8000-0000000000b2",
+      "from_port": "image",
+      "to": "seq:00000000-0000-4000-8000-0000000000c1",
+      "to_port": "slot:1",
+      "type": "image",
+      "style": "dotted"
+    }
+  ],
+  "groups": [
+    {
+      "id": "seq:00000000-0000-4000-8000-0000000000c1",
+      "label": "SC 1 · ARRIVAL",
+      "x": 20,
+      "y": 8,
+      "w": 820,
+      "h": 456,
+      "key": "seq:00000000-0000-4000-8000-0000000000c1",
+      "collapsed": false,
+      "members": [
+        "shot:00000000-0000-4000-8000-0000000000b1",
+        "shot:00000000-0000-4000-8000-0000000000b2",
+        "seq:00000000-0000-4000-8000-0000000000c1",
+        "sound:00000000-0000-4000-8000-0000000000d1"
+      ],
+      "summary": {
+        "length_ms": 7000,
+        "shots_total": 2,
+        "shots_done": 0,
+        "behind": 0,
+        "running": 0
+      }
+    }
+  ],
+  "running_order": [
+    "00000000-0000-4000-8000-0000000000b1",
+    "00000000-0000-4000-8000-0000000000b2"
+  ],
+  "running": [],
+  "meta": {
+    "shots": 2,
+    "framed": 0,
+    "with_video": 0,
+    "need_frame": 2,
+    "sequences": 1,
+    "sounds": 1
+  },
+  "pending": [
+    {
+      "key": "shot:00000000-0000-4000-8000-0000000000b1",
+      "action": "frame",
+      "label": "1A",
+      "held": false
+    },
+    {
+      "key": "shot:00000000-0000-4000-8000-0000000000b2",
+      "action": "frame",
+      "label": "1B",
+      "held": false
+    },
+    {
+      "key": "sound:00000000-0000-4000-8000-0000000000d1",
+      "action": "sound",
+      "label": "Diner theme",
+      "held": false
+    }
+  ],
+  "pending_held": []
+}

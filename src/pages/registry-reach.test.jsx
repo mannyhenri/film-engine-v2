@@ -41,17 +41,31 @@ const legacyPage = () => fs.readFileSync(path.join(ROOT, 'src/index.html'), 'utf
 const reactControls = (fn) => Object.entries(REACH).flatMap(([page, r]) => (r.controls && r.controls[fn] ? [{ page, ...r.controls[fn], reach: r }] : []));
 
 /** Render the page, run its loader, click the control; resolve true when the click reached the API or core. */
-async function clickReaches({ page, button, reach }) {
+async function clickReaches(control) {
+    const { page, button, reach } = control;
     const legacy = installLegacy({ routes: reach.fixture.routes || {}, project: reach.fixture.project ?? { id: 'p1' } });
     vi.spyOn(window, 'confirm').mockReturnValue(true);
     const Page = (await PAGES[`./${page}/index.jsx`]()).default;
     render(<Page />);
     await act(async () => { await window[reactJson(page).loader](); });
+    // A control that only exists after something is selected (the Production graph's shot drawer): the page's
+    // reach.js says how to get there, with the page's own functions, before the click is counted.
+    if (control.prepare) await act(async () => { await control.prepare(window); });
     const coreFns = Object.entries(legacy.fake).filter(([k, v]) => typeof v === 'function' && v.mock && k !== 'setStatus' && k !== 'api');
     const before = { api: legacy.calls.length, core: coreFns.map(([, v]) => v.mock.calls.length) };
     const el = screen.queryByRole('button', { name: button });
     if (!el) return { ok: false, why: `no button "${button}" on the ${page} page` };
-    await act(async () => { fireEvent.click(el); });
+    /*
+     * A button the page draws as HTML with an inline handler (the Production graph engine's drawer) carries its
+     * call as onclick text. A browser runs that text against window; jsdom under vitest runs it in its own inner
+     * context, which sees nothing the test defines, so it would throw "not defined" for a function that exists.
+     * So the text is run as the browser runs it: against window, with the element as `this`.
+     */
+    const inline = el.getAttribute('onclick');
+    await act(async () => {
+        if (inline) await Function('event', inline).call(el, new MouseEvent('click', { bubbles: true }));
+        else fireEvent.click(el);
+    });
     const reached = legacy.calls.length > before.api || coreFns.some(([, v], i) => v.mock.calls.length > before.core[i]);
     return { ok: reached, why: reached ? '' : `"${button}" on ${page} was clicked and reached nothing` };
 }

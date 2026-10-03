@@ -1226,18 +1226,6 @@
         });
     }
 
-    // ══════════════════════════════════════════════════════════════
-    // NAVIGATION
-    // ══════════════════════════════════════════════════════════════
-    // ── Previs ────────────────────────────────────────────────────────────
-    //
-    // The old stage (inspector, grey-box canvas, toolbar) was removed; the
-    // Previs page is the World Engine console. What survives is the one thing
-    // the console reads from here — the vocabulary GET /film/previs/taxonomy
-    // serves, which its timeline names moves from — and the projection maths
-    // below it (previsProject, previsAim, previsFrameView, previsFullView).
-    const PREVIS = { taxonomy: null };
-
     const P_DEG = Math.PI / 180;
 
     /** The project's aspect ratio as a number, defaulting to 16:9. */
@@ -1567,7 +1555,7 @@
     }
     // React port: page loaders that live in chunks, declared here so navigateTo's loaders map
     // evaluates before their chunk loads; each chunk's own function declaration fills its name in.
-    var loadProjects, loadDashboard, loadScenes, loadShotBoard, loadStoryboard, loadCharacters, loadLocations, loadProps, loadAssets, loadMusicCues, loadMusicWorkstation, loadMilestones, loadNotesPage, loadRenderPage, loadEditsPage, loadExportPage, loadPipeline, loadFlowsPage, loadMoodBoardPage, loadStyleBook, loadPrevisPage, loadSettings, loadJobsQueuePage, loadBrands, loadDeliverables, loadRights, loadTitles, loadSubtitles, loadMarketing, loadConsistency, loadSpend, loadBudget, loadThreeD, loadVideoShots, loadMusic, loadPlayback;
+    var loadProjects, loadDashboard, loadScenes, loadShotBoard, loadStoryboard, loadCharacters, loadLocations, loadProps, loadAssets, loadMusicCues, loadMusicWorkstation, loadMilestones, loadNotesPage, loadRenderPage, loadEditsPage, loadExportPage, loadPipeline, loadFlowsPage, loadProductionGraph, loadMoodBoardPage, loadStyleBook, loadPrevisPage, loadSettings, loadJobsQueuePage, loadBrands, loadDeliverables, loadRights, loadTitles, loadSubtitles, loadMarketing, loadConsistency, loadSpend, loadBudget, loadThreeD, loadVideoShots, loadMusic, loadPlayback;
 
 
     function navigateTo(page) {
