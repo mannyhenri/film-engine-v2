@@ -98,3 +98,18 @@ describe('Production graph: it draws the project from the real response', () => 
         expect(world.textContent).toContain('Arrival');
     });
 });
+
+describe('Production graph: Run what changed spends only through the shared confirmation', () => {
+    // Held here from backend run-changed-run "the header offers it…" (skipped there: it read onclick text).
+    it('reads the free plan in confirmPaidImage, posts nothing before it, and its send posts the run route', async () => {
+        const { legacy } = openPage({ [`POST /projects/${P}/production-graph/run-changed`]: { run_id: 'r1', plan: { items: [1, 2] } } });
+        legacy.fake.confirmPaidImage = window.confirmPaidImage = vi.fn();
+        await act(async () => { await E.pgRunChanged(); });
+        expect(legacy.fake.confirmPaidImage).toHaveBeenCalledTimes(1);
+        const opts = legacy.fake.confirmPaidImage.mock.calls[0][0];
+        expect(opts.previewUrl).toBe(`/projects/${P}/production-graph/run-changed/plan`);
+        expect(legacy.calls.filter(c => c.method === 'POST'), 'it spent before the confirmation').toEqual([]);
+        await act(async () => { await opts.send(); });
+        expect(legacy.calls.filter(c => c.method === 'POST').map(c => c.path)).toEqual([`/projects/${P}/production-graph/run-changed`]);
+    });
+});

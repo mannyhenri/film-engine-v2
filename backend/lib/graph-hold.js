@@ -58,7 +58,7 @@ const BATCH_ENTRY_POINTS = Object.freeze([
     { file: 'backend/lib/run-changed.js', fn: 'buildRunChangedPlan' },
     { file: 'backend/lib/run-changed.js', fn: 'planRunChanged' },
     { file: 'backend/lib/run-to-here.js', fn: 'planRunToHere' },
-    { file: 'public/legacy/production-graph.js', fn: 'pgRunPending' },
+    { file: 'src/pages/productiongraph/engine.js', fn: 'pgRunPending' },
 ]);
 
 /** Batch-shaped functions that cannot meet a hold, each with why. */

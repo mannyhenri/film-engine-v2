@@ -616,6 +616,12 @@
         "name": "the page has served images at all \u2014 the scan is not blind",
         "reason": "a floor on <img src=\"${...}\"> template strings in the assembled page; each page converted to React moves its pictures out of that scan (the gallery took it to 29 of 30). The two sub-tests that check the pictures still run on what is legacy; tools/tests/react-image-weight.test.js holds the React half: every src={...} on an <img> asks for a size or is named with why, with its own not-blind floor."
       }
+    ],
+    "run-changed-run.test.js": [
+      {
+        "name": "the header offers it, and it goes through the one confirmation then the run route",
+        "reason": "reads onclick=\"pgRunChanged()\" out of the legacy page; the Production graph is React. Held in src/pages/productiongraph: ProductionGraphControls.test.jsx (the header button calls pgRunChanged) and ProductionGraphPage.test.jsx (pgRunChanged, run: the shared confirmation reads the free plan, nothing is posted before it, and its send posts the run route)"
+      }
     ]
   }
 }

@@ -71,7 +71,10 @@ test('every graph surface that names a flow carries an Edit flow control for tha
     }
     assert.deepEqual(dead, [], 'these name a flow and give no way to open it');
     // The set is complete: every graph renderer that shows a flow's name is a surface above or named here.
-    const named = [...SPA.slice(SPA.indexOf('let PRODUCTION_GRAPH_ON')).matchAll(/function\s+(pg\w+)\s*\(/g)].map(m => m[1])
+    // v2: the graph's renderers are the Production graph page's engine, in its source template (assemble-page),
+    // not after `let PRODUCTION_GRAPH_ON`, which stayed in core with the flag. Read from the engine when it is there.
+    const engineAt = SPA.indexOf('<template data-react-source="productiongraph">');
+    const named = [...SPA.slice(engineAt >= 0 ? engineAt : SPA.indexOf('let PRODUCTION_GRAPH_ON')).matchAll(/function\s+(pg\w+)\s*\(/g)].map(m => m[1])
         .filter(n => /flow_name|f\.flow\.name|\.flow_id\b/.test(fnSource(n)) && /return\s*`/.test(fnSource(n)));
     const covered = ['pgApplyPickerHtml', 'pgFlowFramesHtml', 'pgFlowPickControls', 'pgQueueHtml', 'pgFlowFormHtml', 'pgRecipeFlowHtml', ...Object.keys(NOT_A_WAY_OUT)];
     assert.ok(named.length >= 4, `found only ${named}`);
