@@ -1,0 +1,6 @@
+{
+  "about": "This page is React (src/pages/dashboard/DashboardPage.jsx). tools/split-map.js stops generating it, drops the legacy code below, and fails if anything left still calls it. Resume calls core's openFrameViewer (shared with the board) through legacy.js.",
+  "loader": "loadDashboard",
+  "replaces": ["loadHomePanels", "loadDashboard", "homeGreetingHtml", "homeResumeHtml", "homeNeedsHtml", "capitalise", "homePhasesHtml", "homeActivityHtml", "homeRunningHtml", "resumeShot", "HOME_PANELS"],
+  "modals": []
+}

@@ -38,6 +38,7 @@ export function installLegacy({ routes = {}, project = { id: 'p1' } } = {}) {
         fmtBytes: (n) => `${n} B`,
         checkUploadSize: vi.fn(),
         refreshProtectOptions: vi.fn(),
+        openFrameViewer: vi.fn(async () => {}),
         PROJECT_LIST: { status: '', archived: false, dragId: null },
         openProject: vi.fn(), openNewProject: vi.fn(), loadDemoProject: vi.fn(), deleteProjectById: vi.fn(), deleteAllProjects: vi.fn(),
         // As core builds it: a label + hidden file input addressed by capability (the test reads the call).

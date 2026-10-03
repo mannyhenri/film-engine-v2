@@ -428,6 +428,24 @@
         "name": "on the list, the badge opens the picker without opening the project, and a choice saves",
         "reason": "REACT: reads the legacy card template and runs setProjectStage with injected globals; the list is React. Held in src/pages/projects/ProjectsPage.test.jsx: the badge opens the picker without opening the project, the stages are Settings own, the choice PUTs the status, updates the list and the open project, and redraws."
       }
+    ],
+    "home-page.test.js": [
+      {
+        "name": "the phase fractions are declared once, and the page renders what it is served",
+        "reason": "REACT: reads the legacy home builders (function homePhasesHtml..homeRunningHtml, their onclick text, async function resumeShot) out of the page; the home page is React (src/pages/dashboard). Held in src/pages/dashboard/dashboard-contract.test.jsx (phases declared once in lib/home.js and rendered as served; every control in the home blocks does something) and DashboardPage.test.jsx (each way in; Resume goes to the board and opens the frame)."
+      },
+      {
+        "name": "every needs-you item carries a way in",
+        "reason": "REACT: reads the legacy home builders (function homePhasesHtml..homeRunningHtml, their onclick text, async function resumeShot) out of the page; the home page is React (src/pages/dashboard). Held in src/pages/dashboard/dashboard-contract.test.jsx (phases declared once in lib/home.js and rendered as served; every control in the home blocks does something) and DashboardPage.test.jsx (each way in; Resume goes to the board and opens the frame)."
+      },
+      {
+        "name": "every handler the home page calls is actually defined",
+        "reason": "REACT: reads the legacy home builders (function homePhasesHtml..homeRunningHtml, their onclick text, async function resumeShot) out of the page; the home page is React (src/pages/dashboard). Held in src/pages/dashboard/dashboard-contract.test.jsx (phases declared once in lib/home.js and rendered as served; every control in the home blocks does something) and DashboardPage.test.jsx (each way in; Resume goes to the board and opens the frame)."
+      },
+      {
+        "name": "resume opens the frame rather than silently doing nothing",
+        "reason": "REACT: reads the legacy home builders (function homePhasesHtml..homeRunningHtml, their onclick text, async function resumeShot) out of the page; the home page is React (src/pages/dashboard). Held in src/pages/dashboard/dashboard-contract.test.jsx (phases declared once in lib/home.js and rendered as served; every control in the home blocks does something) and DashboardPage.test.jsx (each way in; Resume goes to the board and opens the frame)."
+      }
     ]
   }
 }

@@ -60,6 +60,23 @@
       ],
       "modals": []
     },
+    "dashboard": {
+      "loader": "loadDashboard",
+      "replaces": [
+        "loadHomePanels",
+        "loadDashboard",
+        "homeGreetingHtml",
+        "homeResumeHtml",
+        "homeNeedsHtml",
+        "capitalise",
+        "homePhasesHtml",
+        "homeActivityHtml",
+        "homeRunningHtml",
+        "resumeShot",
+        "HOME_PANELS"
+      ],
+      "modals": []
+    },
     "deliverables": {
       "loader": "loadDeliverables",
       "replaces": [
@@ -302,26 +319,6 @@
     }
   },
   "chunks": {
-    "dashboard": {
-      "pages": [
-        "dashboard"
-      ],
-      "deps": [],
-      "functions": [
-        "loadHomePanels",
-        "loadDashboard",
-        "homeGreetingHtml",
-        "homeResumeHtml",
-        "homeNeedsHtml",
-        "capitalise",
-        "homePhasesHtml",
-        "homeActivityHtml",
-        "homeRunningHtml",
-        "resumeShot"
-      ],
-      "otherStatements": 1,
-      "bytes": 11375
-    },
     "screenplay": {
       "pages": [
         "screenplay"
@@ -1115,26 +1112,8 @@
       "loader": [
         "loadDashboard"
       ],
-      "chunk": "dashboard",
-      "modals": [
-        "frameViewerModal",
-        "frameVersionsModal",
-        "backgroundPickerModal",
-        "confirmGenModal",
-        "shotCardModal",
-        "entityInspectModal",
-        "characterSheetModal",
-        "subjectSheetModal",
-        "castingModal",
-        "galleryModal",
-        "characterModal",
-        "locationModal",
-        "plateViewerModal",
-        "propModal",
-        "sceneCardModal",
-        "versionDiffModal",
-        "titlePageModal"
-      ]
+      "chunk": null,
+      "modals": []
     },
     "screenplay": {
       "loader": [

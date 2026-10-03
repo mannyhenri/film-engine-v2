@@ -39,7 +39,7 @@ import JobsqueuePage from './jobsqueue/index.jsx';
 
 export const PAGES = [
     { id: 'projects', Component: ProjectsPage, chunk: null },
-    { id: 'dashboard', Component: DashboardPage, chunk: 'dashboard' },
+    { id: 'dashboard', Component: DashboardPage, chunk: null },
     { id: 'screenplay', Component: ScreenplayPage, chunk: 'screenplay' },
     { id: 'scenes', Component: ScenesPage, chunk: null },
     { id: 'shotboard', Component: ShotboardPage, chunk: 'shotboard' },
@@ -79,7 +79,6 @@ export const PAGES = [
 
 // Each chunk, and the vendored libraries it needs first.
 export const CHUNKS = {
-    dashboard: { deps: [] },
     screenplay: { deps: [] },
     subjects: { deps: [] },
     settings: { deps: [] },
