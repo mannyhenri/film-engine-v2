@@ -196,6 +196,36 @@ async function smoke(win) {
         const ok = state.active === 'page-' + id && errors.length === before && reactOk;
         report.push({ id, ok, chunk: state.chunk, active: state.active, react: !!REACT[id] });
     }
+    /*
+     * The storyboard in the real app: React draws the cards and core writes INTO them by id, so a card
+     * that lost an id breaks the regenerate veil, the markup or the drift marks with no error at all.
+     * On a project with frames: every card carries img-/annot-/data-facets, and the shared frame viewer
+     * opens from the board (viewing only; nothing here generates or spends).
+     */
+    if (project && PAGES.includes('storyboard')) {
+        current = 'storyboard ids';
+        const before = errors.length;
+        await js(`navigateTo('storyboard')`);
+        for (let t = 0; t < 40; t++) {
+            if (await js(`!!(window.FRAME_VIEWER && document.querySelector('#storyboardGrid > .card, #storyboardGrid > .empty-state'))`).catch(() => false)) break;
+            await new Promise(r => setTimeout(r, 250));
+        }
+        const st = await js(`(() => {
+            const cards = [...document.querySelectorAll('#storyboardGrid > .card')];
+            const ids = (FRAME_VIEWER.frames || []).map(f => f.shot_id);
+            const missing = ids.filter(id => !document.getElementById('img-' + id) || !document.getElementById('annot-' + id) || !document.querySelector('[data-facets="' + id + '"]'));
+            return { cards: cards.length, frames: ids.length, missing, first: ids[0] || null };
+        })()`);
+        let viewer = 'no frames';
+        if (st.first) {
+            await js(`openFrameViewer(${JSON.stringify(st.first)})`).catch(e => errors.push({ page: 'storyboard', message: String(e) }));
+            await new Promise(r => setTimeout(r, 800));
+            viewer = await js(`document.getElementById('frameViewerModal')?.classList.contains('open') ? 'open' : 'closed'`);
+            await js(`closeModal('frameViewerModal')`).catch(() => {});
+        }
+        const ok = st.cards === st.frames && !st.missing.length && (!st.first || viewer === 'open') && errors.length === before;
+        report.push({ id: 'storyboard ids', ok, want: 'storyboard ids', active: ok ? `storyboard ids (${st.cards} cards, viewer ${viewer})` : `cards=${st.cards} frames=${st.frames} missing=${st.missing.join(',')} viewer=${viewer}` });
+    }
     // A launch with no address reopens the film and page you were on.
     if (project && !process.env.FE_SMOKE_URL && !process.env.FE_SMOKE_PAGES) {
         current = 'reopen';
