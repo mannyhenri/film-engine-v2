@@ -39,6 +39,21 @@ commit, with the app working after every commit. Notes (`src/pages/notes/`) is t
   control the API accepts must still be on the page (`manual-edit.test.js`).
 - `npm run smoke`: every page becomes active with no console error, and a React page's loader is on `window`.
 
+## Registry checks (whole-app "a person can do this" lists)
+
+Some backend tests iterate a registry (media imports, dialogue scopes, paid controls) and look for each
+entry's control in the page source. Before skipping one, re-run it: the test page carries each React page's
+source (`<template data-react-source>`, components written unnamed so a scan attributes requests to the real
+handlers), so a check that reads a function by name often simply passes. Where a control must stay core's
+own (an upload control, a paid confirmation), render core's builder (`legacy.mediaUploadControl(...)`,
+`legacy.uploadControl(...)`) rather than re-implementing it.
+
+A check that can only see legacy `onclick` text is held by `src/pages/registry-reach.test.jsx` instead: it
+imports the backend registry and, for an entry whose control is React, renders the page from its
+`src/pages/<id>/reach.js` (`fixture` = routes and project; `controls` = registry function -> button) and
+CLICKS the button, which must reach the API or core. Converting a page with such a control means writing its
+`reach.js`; the shared test is not edited.
+
 ## Who is converting what
 
 Each page is converted by one person at a time; claim it in this table before starting, in its own
@@ -47,8 +62,7 @@ commit. A page whose functions are shared with another page converts together wi
 | Page | Status | Owner |
 |---|---|---|
 | notes, renderhistory, milestones, rights, subtitles, titles, assets | done | film-engine agent |
-| brand, edits, deliverables, pipeline, exportpage | done | film-engine-v2 agent |
-| videoshots | batch 1, in progress | film-engine-v2 agent |
+| brand, edits, deliverables, pipeline, exportpage, videoshots | done | film-engine-v2 agent |
 | scenes, moodboard, stylebook, marketing | batch 2 | film-engine agent |
 | consistency, jobsqueue, projects, dashboard | batch 2 | film-engine-v2 agent |
 | characters + locations + props (one chunk), shotboard, storyboard | batch 3, unclaimed: shared modals | |

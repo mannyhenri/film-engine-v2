@@ -225,6 +225,20 @@
         "TITLE_VOCAB"
       ],
       "modals": []
+    },
+    "videoshots": {
+      "loader": "loadVideoShots",
+      "replaces": [
+        "loadVideoShots",
+        "renderSequencePicker",
+        "toggleSequenceShot",
+        "SEQ",
+        "generateAllVoices",
+        "createSequence",
+        "generateAllVideos",
+        "generateAllVideosRun"
+      ],
+      "modals": []
     }
   },
   "chunks": {
@@ -835,20 +849,6 @@
       "otherStatements": 7,
       "bytes": 27336
     },
-    "videoshots": {
-      "pages": [
-        "videoshots"
-      ],
-      "deps": [],
-      "functions": [
-        "generateAllVoices",
-        "createSequence",
-        "generateAllVideos",
-        "generateAllVideosRun"
-      ],
-      "otherStatements": 0,
-      "bytes": 4851
-    },
     "music": {
       "pages": [
         "musicws",
@@ -1427,10 +1427,8 @@
       "loader": [
         "loadVideoShots"
       ],
-      "chunk": "videoshots",
-      "modals": [
-        "confirmGenModal"
-      ]
+      "chunk": null,
+      "modals": []
     },
     "music": {
       "loader": [
@@ -1530,14 +1528,15 @@
       "loadSpend",
       "loadBudget",
       "loadThreeD",
+      "loadVideoShots",
       "loadMusic",
       "loadPlayback"
     ],
-    "functions": 537,
+    "functions": 534,
     "unreached": 17,
     "sharedByChunks": 3,
     "declaredTwice": [],
     "bootVendors": [],
-    "bytes": 797754
+    "bytes": 787005
   }
 }

@@ -365,7 +365,7 @@
     ],
     "style-book-media.test.js": [
       {
-        "name": "the page can add a visual \u2014 both ways",
+        "name": "the page can add a visual — both ways",
         "reason": "reads addStyleBookMedia/removeStyleBookMedia/link_kind out of the page script; the Style Book is React. src/pages/stylebook/StyleBookPage.test.jsx adds by link and by file (size-checked), removes, and checks each visual is drawn as what it is (embed, clip, link, picture)."
       },
       {
@@ -399,6 +399,22 @@
       {
         "name": "the page sets the codec, audio and drafting, applies presets through the server, and shows the delivery decision",
         "reason": "REACT: reads loadDeliveryCheck/loadExportPage out of the page script; Export is React. Every assertion is held in src/pages/exportpage/export-contract.test.jsx: the legacy halves (Settings delivery controls, deliveryLineHtml executed, confirmPaidImage, the video-gen route) against the same reassembled page, and the delivery check as behaviour."
+      }
+    ],
+    "dialogue-audition.test.js": [
+      {
+        "name": "every scope is reachable from the page AND from an agent",
+        "reason": "REACT: finds a control only as legacy onclick text; generateAllVoices is a React button on Video Shots now. Held in full by src/pages/registry-reach.test.jsx, over DIALOGUE_SCOPES imported: the MCP tool per scope, the why_no_ui rule, and the control (legacy onclick, or a React page rendered from its reach.js and the button CLICKED, which must reach the API or core)."
+      }
+    ],
+    "background-replace.test.js": [
+      {
+        "name": "the page offers it on the shot, gated, and shows the control working",
+        "reason": "REACT: reads onclick=\"replaceBackground(\" on the card; the card is React. Held in src/pages/videoshots/videoshots-contract.test.jsx: core replaceBackground body (confirmPaidImage, background/preview, background/generate) read as here, and the card control as behaviour."
+      },
+      {
+        "name": "the button is only offered where there is footage to edit",
+        "reason": "REACT: reads the legacy const proActions block. Held in src/pages/videoshots/videoshots-contract.test.jsx: Background… absent on a shot with no clip, present and calling core on one with footage."
       }
     ]
   }

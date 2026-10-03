@@ -38,6 +38,11 @@ export function installLegacy({ routes = {}, project = { id: 'p1' } } = {}) {
         fmtBytes: (n) => `${n} B`,
         checkUploadSize: vi.fn(),
         refreshProtectOptions: vi.fn(),
+        // As core builds it: a label + hidden file input addressed by capability (the test reads the call).
+        mediaUploadControl: vi.fn((capability, media, scope, id, o = {}) => `<label class="btn btn-secondary btn-sm">${o.label || 'Upload'}<input type="file" data-import-target="${capability}-media"></label>`),
+        loadSequences: vi.fn(),
+        generateVideoFor: vi.fn(), generateVoiceForShot: vi.fn(), setClipCoverage: vi.fn(), lipsyncShot: vi.fn(),
+        postShot: vi.fn(), replaceBackground: vi.fn(), stitchShot: vi.fn(),
         downloadExport: vi.fn(),
         importBundle: vi.fn(),
         streamSSEPost: vi.fn(),   // a test drives it: (path, body, onEvent, onDone, onError)

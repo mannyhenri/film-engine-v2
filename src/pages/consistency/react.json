@@ -1,0 +1,7 @@
+{
+  "about": "This page is React (src/pages/consistency/ConsistencyPage.jsx). tools/split-map.js stops generating it, drops the legacy code below, and fails if anything left still calls it.",
+  "loader": "loadConsistency",
+  "replaces": ["_cParse", "switchConsistencyTab", "loadConsistency", "renderConsistencySubjects", "renderVoiceRow", "renderRefManager", "startProfileForRefs", "addProfileRef", "removeProfileRef", "setProfileWeight", "toggleRequiredRole", "renderConsistencyAudit", "lockConsistency", "lockVoice", "unlockConsistency", "loadConsistencyVerify", "renderConsistencyVerify", "renderVerifySubject", "parseJsonArray",
+    "_consistencyData", "_consistencyProfiles", "_consistencyAssets", "_consistencyRefRoles", "CONSISTENCY_IMG_TYPES", "VERIFY_STATUS_COLOR"],
+  "modals": []
+}

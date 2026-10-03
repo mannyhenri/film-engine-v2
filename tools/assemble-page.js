@@ -86,7 +86,15 @@ function assemble() {
         const dir = path.join(ROOT, 'src/pages', id);
         const files = fs.readdirSync(dir).filter(f => f.endsWith('.jsx') && !f.includes('.test.') && f !== 'index.jsx').sort();
         // Import lines dropped: they are wiring, not behaviour, and the page's no-bundler check reads them as ES modules in the page.
-        const text = files.map(f => read(`src/pages/${id}/${f}`)).join('\n').replace(/^import\b[^\n]*$/gm, '// (import omitted in the test page)');
+        const text = files.map(f => read(`src/pages/${id}/${f}`)).join('\n').replace(/^import\b[^\n]*$/gm, '// (import omitted in the test page)')
+            /*
+             * A component is not a handler. The backend's scans read `function NAME(` and attribute every
+             * api() inside to NAME, so `export default function VideoShotsPage()` would be charged with every
+             * request its inner handlers make (a free sequence plan read as an ungated paid button). A
+             * module-level, capitalised function is a component: it is written unnamed here, and the scans
+             * see the real handlers, each with its own body.
+             */
+            .replace(/^(?:export default )?function ([A-Z][\w$]*)\s*\(/gm, 'const $1 = function (');
         if (/<\/template>/i.test(text)) throw new Error(`src/pages/${id}: its source contains </template>, which would end the source block early`);
         return `<template data-react-source="${id}">\n${text}</template>`;
     }).join('\n');
