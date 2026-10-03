@@ -27,6 +27,12 @@
         "reason": "reads film-engine repo file docs/adr/008-spark-lazy-splat-viewer.md"
       }
     ],
+    "annotation-feedback.test.js": [
+      {
+        "name": "the storyboard page carries the switch and a per-frame badge",
+        "reason": "the only item that fails is the legacy wiring text onchange=\"setAnnotationFeedback; the Storyboard is React and wires it with onChange. src/pages/storyboard/StoryboardPage.test.jsx clicks the switch and checks it writes annotation_feedback, says what marks now do, and repaints every frame's badge (markupPaintAll); the badge builders stay in core."
+      }
+    ],
     "background-replace.test.js": [
       {
         "name": "the page offers it on the shot, gated, and shows the control working",
@@ -34,13 +40,23 @@
       },
       {
         "name": "the button is only offered where there is footage to edit",
-        "reason": "REACT: reads the legacy const proActions block. Held in src/pages/videoshots/videoshots-contract.test.jsx: Background\u2026 absent on a shot with no clip, present and calling core on one with footage."
+        "reason": "REACT: reads the legacy const proActions block. Held in src/pages/videoshots/videoshots-contract.test.jsx: Background… absent on a shot with no clip, present and calling core on one with footage."
       }
     ],
     "capture-affordance.test.js": [
       {
         "name": "the iOS bundle is re-synced, or the phone runs a page without the change",
         "reason": "reads film-engine repo file ios/FilmEngine/Web/index.html"
+      }
+    ],
+    "character-sheet.test.js": [
+      {
+        "name": "a character card has exactly two buttons",
+        "reason": "reads the card-actions row out of the legacy loadCharacters; the characters page is React now. src/pages/subjects-contract.test.jsx renders a card and counts its buttons."
+      },
+      {
+        "name": "clicking the card opens the sheet",
+        "reason": "reads onclick=\"openCharacterSheet(\" out of the legacy loadCharacters; the characters page is React now. src/pages/subjects-contract.test.jsx clicks a rendered card and holds openCharacterSheet to being defined in core."
       }
     ],
     "delivery-quality.test.js": [
@@ -55,10 +71,28 @@
         "reason": "REACT: finds a control only as legacy onclick text; generateAllVoices is a React button on Video Shots now. Held in full by src/pages/registry-reach.test.jsx, over DIALOGUE_SCOPES imported: the MCP tool per scope, the why_no_ui rule, and the control (legacy onclick, or a React page rendered from its reach.js and the button CLICKED, which must reach the API or core)."
       }
     ],
+    "direct-shot-ui.test.js": [
+      {
+        "name": "a shot can be added from the board",
+        "reason": "reads the legacy template text insertShotAfter('${f.shot_id}'); the Storyboard is React. src/pages/storyboard/StoryboardPage.test.jsx clicks + Shot on a card and checks insertShotAfter is called with that card's shot."
+      }
+    ],
+    "director-controls.test.js": [
+      {
+        "name": "A5 · playback can regenerate a scene's dialogue, and says what that costs",
+        "reason": "reads onclick=\"pbRegenerateDialogue(\" and the function text out of the legacy Playback page source; Playback is React. Held in src/pages/playback: PlaybackControls.test.jsx (the button calls pbRegenerateDialogue) and PlaybackPage.test.jsx (it goes through confirmPaidImage, spends nothing before it, and every shot is bought with regenerate: true)"
+      }
+    ],
     "drop-to-recipe.test.js": [
       {
         "name": "the canvas accepts dropped files, hashes them in the browser, asks /match, and opens the recipe or offers the upload",
         "reason": "reads film-engine repo file ios/FilmEngine/Web/index.html"
+      }
+    ],
+    "editor-transport.test.js": [
+      {
+        "name": "every transport control exists and is bound to something clickable",
+        "reason": "reads onclick=\"pbX(\" out of the legacy Playback page source; Playback is React (no such text). Held in src/pages/playback/PlaybackControls.test.jsx: every control the reference markup bound, operated on the React page, calls the same engine function with the same arguments"
       }
     ],
     "edits.test.js": [
@@ -183,6 +217,16 @@
         "reason": "reads film-engine repo file scripts/make-canvas-guide.py"
       }
     ],
+    "generator-costs.test.js": [
+      {
+        "name": "the page renders the PRICE per model, not the conversion factor",
+        "reason": "reads the legacy Rates template (${rate.models.length} model rate(s) … m.usd_per_native); Budget is React. src/pages/budget/BudgetPage.test.jsx renders a model rate and requires its price ('$0.12 per call'), not the conversion factor."
+      },
+      {
+        "name": "the comparison is reachable from the page",
+        "reason": "reads the legacy switchBudgetTab('compare') / loadGeneratorCompare('image'|'video') text; Budget is React. src/pages/budget/BudgetPage.test.jsx opens Compare Generators, checks the /spend/compare request for images and for video (with the clip length), and the badges."
+      }
+    ],
     "graph-add-palette.test.js": [
       {
         "name": "keyboard only: arrows move, Enter picks, Escape cancels; a double-click on empty canvas opens it; Shift+click picks shots",
@@ -243,6 +287,16 @@
         "reason": "reads film-engine repo file ios/FilmEngine/Web/index.html"
       }
     ],
+    "manual-edit.test.js": [
+      {
+        "name": "the style preset can be read and edited by hand",
+        "reason": "reads the legacy save text style_preset: document.getElementById('settingsStylePreset'); Settings is React. src/pages/settings/SettingsPage.test.jsx edits the project card and checks the PUT carries style_preset (and every other project field); #settingsStylePreset keeps its data-field, so hasControl still finds it."
+      },
+      {
+        "name": "the subject warning is rendered as prose, not as an object",
+        "reason": "reads the legacy settingsStyleWarning innerHTML template; Settings is React. src/pages/settings/SettingsPage.test.jsx returns {subjects, detail} from the save and requires the detail shown as text beside the field."
+      }
+    ],
     "mood-board-images.test.js": [
       {
         "name": "the page renders the served URL, and does not hide a failure in silence",
@@ -295,16 +349,40 @@
         "reason": "reads film-engine repo file ios/FilmEngine/Web/index.html"
       }
     ],
+    "playback-marks.test.js": [
+      {
+        "name": "every mark operation has a control bound to something clickable",
+        "reason": "reads onclick=\"pbX(\" out of the legacy Playback page source; Playback is React (no such text). Held in src/pages/playback/PlaybackControls.test.jsx: every control the reference markup bound, operated on the React page, calls the same engine function with the same arguments"
+      }
+    ],
+    "playback-start.test.js": [
+      {
+        "name": "there is a way to play from a specific shot deliberately",
+        "reason": "reads the legacy template text playFromShot('${f.shot_id}'); the Storyboard is React. src/pages/storyboard/StoryboardPage.test.jsx clicks ▶ on a card and checks playFromShot is called with that card's shot."
+      }
+    ],
     "premiere-scenes.test.js": [
       {
         "name": "an agent and a person can both reach it",
         "reason": "REACT: reads onclick=\"exportPremiereScenes()\" and its function body out of the page script; Export is React (src/pages/exportpage). Every assertion is held in src/pages/exportpage/export-contract.test.jsx (the MCP tools, and the page planning then POSTing export/premiere-scenes)."
       }
     ],
+    "production-estimate.test.js": [
+      {
+        "name": "the route, the tool and the Budget tab serve it, free",
+        "reason": "ends with a regex over the legacy page (film: 'budgetTabFilm', prodEstSet('resolution'…). Its backend half (the route answers free at the asked resolution; the budget_production_estimate tool serves it) is kept verbatim in backend/tests/budget-backend-halves.test.js; the page half (the tab prices on open, a resolution or generator choice re-prices with its query) runs in src/pages/budget/BudgetPage.test.jsx."
+      }
+    ],
     "production-graph-nodes.test.js": [
       {
         "name": "every picture or clip a pg* function draws goes through pgSrc/pgThumb, so it reaches the API origin",
         "reason": "PRE-EXISTING: fails in film-engine at fb8c770 too (its scanner flags pgDrawerVersion: esc(auditionUrl), but auditionUrl is built with pgSrc one line up)"
+      }
+    ],
+    "project-folders.test.js": [
+      {
+        "name": "where THIS project is kept and where NEW projects go are two cards, each saying which",
+        "reason": "reads ids used by the legacy loadProjectFolder/moveProjectFolder/saveProjectsRoot bodies; Settings is React. src/pages/settings/SettingsPage.test.jsx checks each card holds only its own controls, the project card's heading names the project, and the new-projects card says it moves nothing."
       }
     ],
     "project-list.test.js": [
@@ -349,6 +427,12 @@
       {
         "name": "the epic states the constraints that decide the design",
         "reason": "reads film-engine repo file docs/plans/redo-between-frames-epic.md"
+      }
+    ],
+    "requested-size.test.js": [
+      {
+        "name": "a model that cannot reach 2K is not sold on its provider reaching it",
+        "reason": "ends with a regex over the legacy Compare template (max ${esc(x.max_size)}). Its backend half (Google's draft model reported at 1K, every Google row with a maximum) is kept verbatim in backend/tests/budget-backend-halves.test.js; src/pages/budget/BudgetPage.test.jsx requires the 'max' badge drawn on the compare table."
       }
     ],
     "room-scan.test.js": [
@@ -401,10 +485,34 @@
         "reason": "reads film-engine repo file docs/plans/screenplay-port.md"
       }
     ],
+    "screenplay-to-entities.test.js": [
+      {
+        "name": "describing from the screenplay is reachable in the app",
+        "reason": "reads function describeFromScreenplay and three onclick=\"describeFromScreenplay(\" out of the page script; the three entity pages are React and the function is src/lib/subjects.js. src/pages/subjects-contract.test.jsx clicks the button on each of the three pages and checks the describe route, the still-blank report and the reload."
+      }
+    ],
     "set-build.test.js": [
       {
         "name": "the Previs Plan view edits the set: footprints out of the layout and back, then a rebuild that pins the shot",
         "reason": "PRE-EXISTING: fails in film-engine at the pinned commit too"
+      }
+    ],
+    "setup-models.test.js": [
+      {
+        "name": "the model menu follows the provider picked beside it",
+        "reason": "executes the legacy refreshModelMenu against a fake DOM; Settings is React (the menu is rendered from the provider picked). src/pages/settings/SettingsPage.test.jsx switches the provider and checks the menu lists only that provider's models and drops a model it does not offer."
+      },
+      {
+        "name": "every capability row has a provider menu and a model menu, and saving sends the models",
+        "reason": "reads the legacy loadProviders/saveProviderConfig template text; Settings is React. src/pages/settings/SettingsPage.test.jsx renders provcap-/provmodel- per capability and checks the PUT sends each <cap>_model."
+      },
+      {
+        "name": "Setup is one section at a time: a section list, every card in exactly one section, keys in their own",
+        "reason": "executes the legacy showSettingsSection against a fake DOM; Settings is React. src/pages/settings/SettingsPage.test.jsx checks every card is in exactly one listed section, every section shows something, the keys card holds the keys, a project section with no project says why, and an unknown section falls back to the providers."
+      },
+      {
+        "name": "the providers are grouped by what they make, and no capability is left off the page",
+        "reason": "reads CAP_GROUPS inside the legacy loadProviders; Settings is React (CAP_GROUPS in ProviderCards.jsx). src/pages/settings/SettingsPage.test.jsx requires every CAPABILITIES entry from backend/lib/providers/base in a group, with an Other fallback."
       }
     ],
     "sheet-and-board-affordances.test.js": [
@@ -421,10 +529,38 @@
         "reason": "extracts the legacy `const ratioGuide = (f) => {...}` from loadStoryboard; the board is React. src/pages/storyboard/StoryboardPage.test.jsx renders a 9:16 shot and requires its guide drawn at aspect-ratio 9/16 (and a shot without one at the project's 16/9); the picker's data-field stays on every card."
       }
     ],
+    "shot-anchor.test.js": [
+      {
+        "name": "the board can pick the anchor up, show it, and put it down",
+        "reason": "reads the legacy template text ${anchorButton(f)} and onclick= wiring; the board is React and renders core's anchorButton(f) on every card (its onclick=\"setAnchor( is core's markup, unchanged), and the chip's clear button reaches clearAnchor. Both held in src/pages/storyboard/StoryboardPage.test.jsx; setAnchor/clearAnchor/renderAnchorChip stay in core."
+      },
+      {
+        "name": "the board offers a way into the attempts, and a way back",
+        "reason": "reads the legacy text onclick=\"openFrameVersions(; the board is React and its versions button calls openFrameVersions with the card's shot (src/pages/storyboard/StoryboardPage.test.jsx). The modal, restoreFrameVersion and closeFrameVersions are core and unchanged."
+      }
+    ],
+    "staleness-cost.test.js": [
+      {
+        "name": "the board paints its frames before it waits for any report",
+        "reason": "reads loadStoryboard's body for the grid write; the board is React. src/pages/storyboard/StoryboardPage.test.jsx makes the banner report never land and requires the cards drawn and the report started once, not awaited."
+      }
+    ],
     "storage-never-throws.test.js": [
       {
         "name": "the app injects the address by a route that cannot throw",
         "reason": "reads film-engine repo file ios/FilmEngine/ContentView.swift"
+      }
+    ],
+    "storyboard-annotation.test.js": [
+      {
+        "name": "a frame URL is keyed to the version of the frame",
+        "reason": "reads the legacy grid card for frameSrc(; the board is React and its card <img> src is legacy.frameSrc(f, 640), held in src/pages/storyboard/StoryboardPage.test.jsx; frameSrc (version-keyed) stays in core."
+      }
+    ],
+    "storyboard-prerequisites.test.js": [
+      {
+        "name": "the storyboard panel shows what a storyboard panel is for",
+        "reason": "reads the legacy grid template for shot_code, description and dialogue; the board is React. src/pages/storyboard/StoryboardPage.test.jsx renders a card and finds its code, description (as text) and dialogue (core's storyboardDialogueHtml)."
       }
     ],
     "style-book-gaps.test.js": [
@@ -439,7 +575,7 @@
     ],
     "style-book-media.test.js": [
       {
-        "name": "the page can add a visual \u2014 both ways",
+        "name": "the page can add a visual — both ways",
         "reason": "reads addStyleBookMedia/removeStyleBookMedia/link_kind out of the page script; the Style Book is React. src/pages/stylebook/StyleBookPage.test.jsx adds by link and by file (size-checked), removes, and checks each visual is drawn as what it is (embed, clip, link, picture)."
       },
       {
@@ -463,124 +599,6 @@
       {
         "name": "walking moves the shot's own camera, and keeping it goes through the validated proposal",
         "reason": "PRE-EXISTING: fails in film-engine at the pinned commit too"
-      }
-    ],
-    "annotation-feedback.test.js": [
-      {
-        "name": "the storyboard page carries the switch and a per-frame badge",
-        "reason": "the only item that fails is the legacy wiring text onchange=\"setAnnotationFeedback; the Storyboard is React and wires it with onChange. src/pages/storyboard/StoryboardPage.test.jsx clicks the switch and checks it writes annotation_feedback, says what marks now do, and repaints every frame's badge (markupPaintAll); the badge builders stay in core."
-      }
-    ],
-    "direct-shot-ui.test.js": [
-      {
-        "name": "a shot can be added from the board",
-        "reason": "reads the legacy template text insertShotAfter('${f.shot_id}'); the Storyboard is React. src/pages/storyboard/StoryboardPage.test.jsx clicks + Shot on a card and checks insertShotAfter is called with that card's shot."
-      }
-    ],
-    "playback-start.test.js": [
-      {
-        "name": "there is a way to play from a specific shot deliberately",
-        "reason": "reads the legacy template text playFromShot('${f.shot_id}'); the Storyboard is React. src/pages/storyboard/StoryboardPage.test.jsx clicks \u25b6 on a card and checks playFromShot is called with that card's shot."
-      }
-    ],
-    "shot-anchor.test.js": [
-      {
-        "name": "the board can pick the anchor up, show it, and put it down",
-        "reason": "reads the legacy template text ${anchorButton(f)} and onclick= wiring; the board is React and renders core's anchorButton(f) on every card (its onclick=\"setAnchor( is core's markup, unchanged), and the chip's clear button reaches clearAnchor. Both held in src/pages/storyboard/StoryboardPage.test.jsx; setAnchor/clearAnchor/renderAnchorChip stay in core."
-      },
-      {
-        "name": "the board offers a way into the attempts, and a way back",
-        "reason": "reads the legacy text onclick=\"openFrameVersions(; the board is React and its versions button calls openFrameVersions with the card's shot (src/pages/storyboard/StoryboardPage.test.jsx). The modal, restoreFrameVersion and closeFrameVersions are core and unchanged."
-      }
-    ],
-    "staleness-cost.test.js": [
-      {
-        "name": "the board paints its frames before it waits for any report",
-        "reason": "reads loadStoryboard's body for the grid write; the board is React. src/pages/storyboard/StoryboardPage.test.jsx makes the banner report never land and requires the cards drawn and the report started once, not awaited."
-      }
-    ],
-    "storyboard-annotation.test.js": [
-      {
-        "name": "a frame URL is keyed to the version of the frame",
-        "reason": "reads the legacy grid card for frameSrc(; the board is React and its card <img> src is legacy.frameSrc(f, 640), held in src/pages/storyboard/StoryboardPage.test.jsx; frameSrc (version-keyed) stays in core."
-      }
-    ],
-    "storyboard-prerequisites.test.js": [
-      {
-        "name": "the storyboard panel shows what a storyboard panel is for",
-        "reason": "reads the legacy grid template for shot_code, description and dialogue; the board is React. src/pages/storyboard/StoryboardPage.test.jsx renders a card and finds its code, description (as text) and dialogue (core's storyboardDialogueHtml)."
-      }
-    ],
-    "generator-costs.test.js": [
-      {
-        "name": "the page renders the PRICE per model, not the conversion factor",
-        "reason": "reads the legacy Rates template (${rate.models.length} model rate(s) \u2026 m.usd_per_native); Budget is React. src/pages/budget/BudgetPage.test.jsx renders a model rate and requires its price ('$0.12 per call'), not the conversion factor."
-      },
-      {
-        "name": "the comparison is reachable from the page",
-        "reason": "reads the legacy switchBudgetTab('compare') / loadGeneratorCompare('image'|'video') text; Budget is React. src/pages/budget/BudgetPage.test.jsx opens Compare Generators, checks the /spend/compare request for images and for video (with the clip length), and the badges."
-      }
-    ],
-    "production-estimate.test.js": [
-      {
-        "name": "the route, the tool and the Budget tab serve it, free",
-        "reason": "ends with a regex over the legacy page (film: 'budgetTabFilm', prodEstSet('resolution'\u2026). Its backend half (the route answers free at the asked resolution; the budget_production_estimate tool serves it) is kept verbatim in backend/tests/budget-backend-halves.test.js; the page half (the tab prices on open, a resolution or generator choice re-prices with its query) runs in src/pages/budget/BudgetPage.test.jsx."
-      }
-    ],
-    "requested-size.test.js": [
-      {
-        "name": "a model that cannot reach 2K is not sold on its provider reaching it",
-        "reason": "ends with a regex over the legacy Compare template (max ${esc(x.max_size)}). Its backend half (Google's draft model reported at 1K, every Google row with a maximum) is kept verbatim in backend/tests/budget-backend-halves.test.js; src/pages/budget/BudgetPage.test.jsx requires the 'max' badge drawn on the compare table."
-      }
-    ],
-    "manual-edit.test.js": [
-      {
-        "name": "the style preset can be read and edited by hand",
-        "reason": "reads the legacy save text style_preset: document.getElementById('settingsStylePreset'); Settings is React. src/pages/settings/SettingsPage.test.jsx edits the project card and checks the PUT carries style_preset (and every other project field); #settingsStylePreset keeps its data-field, so hasControl still finds it."
-      },
-      {
-        "name": "the subject warning is rendered as prose, not as an object",
-        "reason": "reads the legacy settingsStyleWarning innerHTML template; Settings is React. src/pages/settings/SettingsPage.test.jsx returns {subjects, detail} from the save and requires the detail shown as text beside the field."
-      }
-    ],
-    "project-folders.test.js": [
-      {
-        "name": "where THIS project is kept and where NEW projects go are two cards, each saying which",
-        "reason": "reads ids used by the legacy loadProjectFolder/moveProjectFolder/saveProjectsRoot bodies; Settings is React. src/pages/settings/SettingsPage.test.jsx checks each card holds only its own controls, the project card's heading names the project, and the new-projects card says it moves nothing."
-      }
-    ],
-    "setup-models.test.js": [
-      {
-        "name": "the model menu follows the provider picked beside it",
-        "reason": "executes the legacy refreshModelMenu against a fake DOM; Settings is React (the menu is rendered from the provider picked). src/pages/settings/SettingsPage.test.jsx switches the provider and checks the menu lists only that provider's models and drops a model it does not offer."
-      },
-      {
-        "name": "every capability row has a provider menu and a model menu, and saving sends the models",
-        "reason": "reads the legacy loadProviders/saveProviderConfig template text; Settings is React. src/pages/settings/SettingsPage.test.jsx renders provcap-/provmodel- per capability and checks the PUT sends each <cap>_model."
-      },
-      {
-        "name": "Setup is one section at a time: a section list, every card in exactly one section, keys in their own",
-        "reason": "executes the legacy showSettingsSection against a fake DOM; Settings is React. src/pages/settings/SettingsPage.test.jsx checks every card is in exactly one listed section, every section shows something, the keys card holds the keys, a project section with no project says why, and an unknown section falls back to the providers."
-      },
-      {
-        "name": "the providers are grouped by what they make, and no capability is left off the page",
-        "reason": "reads CAP_GROUPS inside the legacy loadProviders; Settings is React (CAP_GROUPS in ProviderCards.jsx). src/pages/settings/SettingsPage.test.jsx requires every CAPABILITIES entry from backend/lib/providers/base in a group, with an Other fallback."
-      }
-    ],
-    "character-sheet.test.js": [
-      {
-        "name": "a character card has exactly two buttons",
-        "reason": "reads the card-actions row out of the legacy loadCharacters; the characters page is React now. src/pages/subjects-contract.test.jsx renders a card and counts its buttons."
-      },
-      {
-        "name": "clicking the card opens the sheet",
-        "reason": "reads onclick=\"openCharacterSheet(\" out of the legacy loadCharacters; the characters page is React now. src/pages/subjects-contract.test.jsx clicks a rendered card and holds openCharacterSheet to being defined in core."
-      }
-    ],
-    "screenplay-to-entities.test.js": [
-      {
-        "name": "describing from the screenplay is reachable in the app",
-        "reason": "reads function describeFromScreenplay and three onclick=\"describeFromScreenplay(\" out of the page script; the three entity pages are React and the function is src/lib/subjects.js. src/pages/subjects-contract.test.jsx clicks the button on each of the three pages and checks the describe route, the still-blank report and the reload."
       }
     ]
   }

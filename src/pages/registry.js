@@ -52,7 +52,7 @@ export const PAGES = [
     { id: 'musicws', Component: MusicwsPage, chunk: 'music' },
     { id: 'musiccues', Component: MusiccuesPage, chunk: 'music' },
     { id: 'milestones', Component: MilestonesPage, chunk: null },
-    { id: 'playback', Component: PlaybackPage, chunk: 'playback' },
+    { id: 'playback', Component: PlaybackPage, chunk: null },
     { id: 'notes', Component: NotesPage, chunk: null },
     { id: 'renderhistory', Component: RenderhistoryPage, chunk: null },
     { id: 'edits', Component: EditsPage, chunk: null },
@@ -83,7 +83,6 @@ export const CHUNKS = {
     stage3d: { deps: ["three"] },
     graph: { deps: [] },
     music: { deps: [] },
-    playback: { deps: [] },
 };
 
 export const VENDORS = {

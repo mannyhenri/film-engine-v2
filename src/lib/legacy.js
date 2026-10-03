@@ -60,6 +60,8 @@ export const LEGACY_GLOBALS = [
     // Settings: the shell it updates after a save, the shared dialogs, and the connection state core owns.
     'paintProjectType', 'setStatusDot', 'confirmProjectDelete', 'backToProjectList', 'openFolderPicker', 'saveProductionGraphFlag',
     'feStore', 'checkHealth', 'DEFAULT_API_BASE', 'APP_AUTHOR',
+    // Playback: the player's state (a core const the shell resets on a project switch) and a stored file's URL.
+    'pb', 'mediaUrl',
 ];
 
 

@@ -102,7 +102,8 @@ function assemble() {
      */
     const reactSource = Object.keys(map.react || {}).sort().map(id => {
         const dir = path.join(ROOT, 'src/pages', id);
-        const files = fs.readdirSync(dir).filter(f => f.endsWith('.jsx') && !f.includes('.test.') && f !== 'index.jsx').sort();
+        const files = fs.readdirSync(dir).filter(f => /\.jsx?$/.test(f) && !f.includes('.test.') && f !== 'index.jsx' && f !== 'reach.js').sort();
+        // .jsx and the page's own .js modules (playback's engine is player.js); reach.js is test reachability data, not page source.
         // Import lines dropped: they are wiring, not behaviour, and the page's no-bundler check reads them as ES modules in the page.
         const text = files.map(f => read(`src/pages/${id}/${f}`)).join('\n').replace(/^import\b[^\n]*$/gm, '// (import omitted in the test page)')
             /*

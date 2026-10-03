@@ -288,6 +288,62 @@
       "modals": [],
       "provides": []
     },
+    "playback": {
+      "loader": "loadPlayback",
+      "replaces": [
+        "_pbProtectBound",
+        "bindPlaybackProtect",
+        "renderPlaybackProtect",
+        "playbackStartIndex",
+        "loadPlayback",
+        "renderPlaybackSummary",
+        "pbEntry",
+        "pbAbsoluteMs",
+        "loadShotIntoStage",
+        "renderPlaylist",
+        "renderScrub",
+        "motionTransformAt",
+        "motionCss",
+        "pbMovingTrack",
+        "pbApplyMotion",
+        "pbMotionLabel",
+        "pbMotionToggled",
+        "BED_KINDS",
+        "bedVolume",
+        "bedAt",
+        "pbSyncBeds",
+        "pbBedLabel",
+        "pbRegenerateDialogue",
+        "pbBedsToggled",
+        "updatePlayhead",
+        "msToTc",
+        "pbGoTo",
+        "pbStep",
+        "pbTogglePlay",
+        "pbLastFrame",
+        "pbPlayLine",
+        "pbDialogueToggled",
+        "pbTick",
+        "PB_MARK_FLOOR_S",
+        "pbResolveMarks",
+        "pbMarks",
+        "pbFrameRate",
+        "pbFrameStep",
+        "pbKeydown",
+        "pbRunRepair",
+        "pbMarkIn",
+        "pbMarkOut",
+        "pbClearMarks",
+        "pbRenderMarks",
+        "pbSeekFromClick",
+        "pbSyncAudio",
+        "pbSeekAbsolute",
+        "pbAddNote",
+        "renderNoteList"
+      ],
+      "modals": [],
+      "provides": []
+    },
     "projects": {
       "loader": "loadProjects",
       "replaces": [
@@ -1110,60 +1166,6 @@
       ],
       "otherStatements": 16,
       "bytes": 182653
-    },
-    "playback": {
-      "pages": [
-        "playback"
-      ],
-      "deps": [],
-      "functions": [
-        "bindPlaybackProtect",
-        "renderPlaybackProtect",
-        "playbackStartIndex",
-        "loadPlayback",
-        "renderPlaybackSummary",
-        "pbEntry",
-        "pbAbsoluteMs",
-        "loadShotIntoStage",
-        "renderPlaylist",
-        "renderScrub",
-        "motionTransformAt",
-        "motionCss",
-        "pbMovingTrack",
-        "pbApplyMotion",
-        "pbMotionLabel",
-        "pbMotionToggled",
-        "bedVolume",
-        "bedAt",
-        "pbSyncBeds",
-        "pbBedLabel",
-        "pbRegenerateDialogue",
-        "pbBedsToggled",
-        "updatePlayhead",
-        "msToTc",
-        "pbGoTo",
-        "pbStep",
-        "pbTogglePlay",
-        "pbPlayLine",
-        "pbDialogueToggled",
-        "pbTick",
-        "pbResolveMarks",
-        "pbFrameRate",
-        "pbFrameStep",
-        "pbKeydown",
-        "pbRunRepair",
-        "pbMarkIn",
-        "pbMarkOut",
-        "pbClearMarks",
-        "pbRenderMarks",
-        "pbSeekFromClick",
-        "pbSyncAudio",
-        "pbSeekAbsolute",
-        "pbAddNote",
-        "renderNoteList"
-      ],
-      "otherStatements": 6,
-      "bytes": 47006
     }
   },
   "pages": {
@@ -1285,10 +1287,8 @@
       "loader": [
         "loadPlayback"
       ],
-      "chunk": "playback",
-      "modals": [
-        "confirmGenModal"
-      ]
+      "chunk": null,
+      "modals": []
     },
     "notes": {
       "loader": [

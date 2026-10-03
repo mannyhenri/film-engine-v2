@@ -69,6 +69,8 @@ export function installLegacy({ routes = {}, project = { id: 'p1' } } = {}) {
         paintProjectType: vi.fn(), setStatusDot: vi.fn(), confirmProjectDelete: vi.fn(async () => true), backToProjectList: vi.fn(), openFolderPicker: vi.fn(),
         saveProductionGraphFlag: vi.fn(), feStore: { set: vi.fn(), remove: vi.fn(), get: vi.fn() }, checkHealth: vi.fn(), DEFAULT_API_BASE: 'http://default.test', APP_AUTHOR: null,
         money: (n) => '$' + (Number(n) || 0).toFixed(2), usd: (n) => '$' + (Number(n) || 0).toFixed(3),
+        pb: { timeline: null, notes: [], index: 0, playing: false, raf: null, localMs: 0 },
+        mediaUrl: (p) => (p ? 'http://api.test' + (p.startsWith('/') ? p : '/film/' + p) : ''),
     };
     const missing = LEGACY_GLOBALS.filter(n => !(n in fake));
     if (missing.length) throw new Error('the test fake lacks ' + missing.join(', ') + ' (src/test/setup.js)');

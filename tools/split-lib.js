@@ -92,6 +92,11 @@ function replacedStatement(node, replaced) {
     // `provides`), and left behind this would read a function that no longer exists, at load.
     if (node.type === 'ExpressionStatement') {
         const e = node.expression;
+        // `window.addEventListener('keydown', X);` binding a replaced function: the React page binds it on
+        // mount (and unbinds it), so the page's handler acts only while the page exists.
+        if (e.type === 'CallExpression' && e.callee.type === 'MemberExpression' && !e.callee.computed
+            && e.callee.object.type === 'Identifier' && e.callee.object.name === 'window' && e.callee.property.name === 'addEventListener'
+            && e.arguments.length === 2 && e.arguments[1].type === 'Identifier' && replaced.has(e.arguments[1].name)) return true;
         return e.type === 'AssignmentExpression' && e.operator === '=' && e.left.type === 'MemberExpression' && !e.left.computed
             && e.left.object.type === 'Identifier' && e.left.object.name === 'window' && e.right.type === 'Identifier'
             && e.left.property.name === e.right.name && replaced.has(e.right.name);
