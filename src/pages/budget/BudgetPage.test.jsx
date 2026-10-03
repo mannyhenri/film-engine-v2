@@ -160,12 +160,14 @@ describe('Budget: the page', () => {
         expect(asked.at(-1)).toBe('/projects/p1/budget/production?video_provider=runway&video_model=gen4.5');
         await act(async () => { fireEvent.click(screen.getByRole('button', { name: "Back to the project's choices" })); });
         expect(asked.at(-1)).toBe('/projects/p1/budget/production');
+        await act(async () => { fireEvent.change(document.querySelector('#prodEstControls [data-choice="resolution"]'), { target: { value: '4k' } }); });
+        expect(asked.at(-1)).toBe('/projects/p1/budget/production?resolution=4k');
     });
 
     it('Compare: images by default, video asks for the clip length; badges say what a row cannot do', async () => {
         const asked = [];
         const r = { work: { work_label: 'Per frame', scene_label: 'Scene of 10' }, note: 'Priced per frame.',
-            rows: [{ provider: 'a', provider_label: 'A', model: 'm1', available: true, usd_per_unit: 0.01, unit: 'image', units_per_work: 1, usd_per_work: 0.01, usd_per_scene: 0.1, checked: '2026-09-01', checked_age_days: 30 },
+            rows: [{ provider: 'a', provider_label: 'A', model: 'm1', max_size: '1K', available: true, usd_per_unit: 0.01, unit: 'image', units_per_work: 1, usd_per_work: 0.01, usd_per_scene: 0.1, checked: '2026-09-01', checked_age_days: 30 },
                 { provider: 'b', provider_label: 'B', model: 'm2', available: false, connected: false, honours_resolution: false, usd_per_unit: 0.02, unit: 'image', units_per_work: 1, usd_per_work: 0.02, usd_per_scene: 0.2, checked: '2026-01-01', checked_age_days: 200 }],
             unpriced: [{ provider: 'c', why: 'no rate published' }] };
         const legacy = await openPage();
@@ -173,7 +175,7 @@ describe('Budget: the page', () => {
         await act(async () => { fireEvent.click(tabBtn('Compare Generators')); });
         expect(asked.at(-1)).toBe('/spend/compare?capability=image&project_id=p1');
         const text = byId('generatorCompare').textContent;
-        for (const s of ['cheapest', 'not connected', 'ignores your resolution', 'stale', 'no rate published']) expect(text).toContain(s);
+        for (const s of ['cheapest', 'not connected', 'ignores your resolution', 'stale', 'no rate published', 'max 1K']) expect(text).toContain(s);
         await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Video' })); });
         expect(asked.at(-1)).toBe('/spend/compare?capability=video&project_id=p1&clip_seconds=5');
         expect(byId('compareClipWrap').style.display).toBe('flex');

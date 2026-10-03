@@ -506,6 +506,28 @@
         "name": "the storyboard panel shows what a storyboard panel is for",
         "reason": "reads the legacy grid template for shot_code, description and dialogue; the board is React. src/pages/storyboard/StoryboardPage.test.jsx renders a card and finds its code, description (as text) and dialogue (core's storyboardDialogueHtml)."
       }
+    ],
+    "generator-costs.test.js": [
+      {
+        "name": "the page renders the PRICE per model, not the conversion factor",
+        "reason": "reads the legacy Rates template (${rate.models.length} model rate(s) \u2026 m.usd_per_native); Budget is React. src/pages/budget/BudgetPage.test.jsx renders a model rate and requires its price ('$0.12 per call'), not the conversion factor."
+      },
+      {
+        "name": "the comparison is reachable from the page",
+        "reason": "reads the legacy switchBudgetTab('compare') / loadGeneratorCompare('image'|'video') text; Budget is React. src/pages/budget/BudgetPage.test.jsx opens Compare Generators, checks the /spend/compare request for images and for video (with the clip length), and the badges."
+      }
+    ],
+    "production-estimate.test.js": [
+      {
+        "name": "the route, the tool and the Budget tab serve it, free",
+        "reason": "ends with a regex over the legacy page (film: 'budgetTabFilm', prodEstSet('resolution'\u2026). Its backend half (the route answers free at the asked resolution; the budget_production_estimate tool serves it) is kept verbatim in backend/tests/budget-backend-halves.test.js; the page half (the tab prices on open, a resolution or generator choice re-prices with its query) runs in src/pages/budget/BudgetPage.test.jsx."
+      }
+    ],
+    "requested-size.test.js": [
+      {
+        "name": "a model that cannot reach 2K is not sold on its provider reaching it",
+        "reason": "ends with a regex over the legacy Compare template (max ${esc(x.max_size)}). Its backend half (Google's draft model reported at 1K, every Google row with a maximum) is kept verbatim in backend/tests/budget-backend-halves.test.js; src/pages/budget/BudgetPage.test.jsx requires the 'max' badge drawn on the compare table."
+      }
     ]
   }
 }
