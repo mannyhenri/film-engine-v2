@@ -29,6 +29,7 @@ export const LEGACY_GLOBALS = [
     'mwTime',       // ms -> m:ss.t, as every timing in the app is shown (edits)
     'fmtBytes',     // bytes -> "12.3 MB" (edits)
     'checkUploadSize', // refuse a body over the server's per-request ceiling before sending it (edits)
+    'streamSSEPost', // POST that answers as server-sent events: the live pipeline run, step by step (pipeline)
     'refreshProtectOptions', // the board and playback pickers offer the ratios this job ships (deliverables)
     'uploadReferenceImage',   // upload a reference picture: size check, the label's "Uploading…", the error left on it
     'plateSrc',               // a plate's thumbnail URL at a width (the server caches it)

@@ -1,0 +1,6 @@
+{
+  "about": "This page is React (src/pages/pipeline/PipelinePage.jsx). tools/split-map.js stops generating it, drops the legacy code below, and fails if anything left still calls it.",
+  "loader": "loadPipeline",
+  "replaces": ["loadPipeline", "renderPipelineReadiness", "renderPipelineSteps", "runPipelineLive", "runPipelineScope", "PIPE_STEP_ICONS"],
+  "modals": []
+}

@@ -101,6 +101,18 @@
         "reviewShotModal"
       ]
     },
+    "pipeline": {
+      "loader": "loadPipeline",
+      "replaces": [
+        "loadPipeline",
+        "renderPipelineReadiness",
+        "renderPipelineSteps",
+        "runPipelineLive",
+        "runPipelineScope",
+        "PIPE_STEP_ICONS"
+      ],
+      "modals": []
+    },
     "renderhistory": {
       "loader": "loadRenderPage",
       "replaces": [
@@ -989,21 +1001,6 @@
       "otherStatements": 16,
       "bytes": 182653
     },
-    "pipeline": {
-      "pages": [
-        "pipeline"
-      ],
-      "deps": [],
-      "functions": [
-        "loadPipeline",
-        "renderPipelineReadiness",
-        "renderPipelineSteps",
-        "runPipelineLive",
-        "runPipelineScope"
-      ],
-      "otherStatements": 1,
-      "bytes": 12412
-    },
     "jobsqueue": {
       "pages": [
         "jobsqueue"
@@ -1499,7 +1496,7 @@
       "loader": [
         "loadPipeline"
       ],
-      "chunk": "pipeline",
+      "chunk": null,
       "modals": []
     },
     "stylebook": {
@@ -1563,7 +1560,7 @@
     ],
     "functions": 537,
     "unreached": 17,
-    "sharedByChunks": 6,
+    "sharedByChunks": 5,
     "declaredTwice": [],
     "bootVendors": [],
     "bytes": 797754

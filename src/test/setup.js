@@ -38,6 +38,7 @@ export function installLegacy({ routes = {}, project = { id: 'p1' } } = {}) {
         fmtBytes: (n) => `${n} B`,
         checkUploadSize: vi.fn(),
         refreshProtectOptions: vi.fn(),
+        streamSSEPost: vi.fn(),   // a test drives it: (path, body, onEvent, onDone, onError)
         uploadReferenceImage: vi.fn(),
         plateSrc: (url, w) => `plate:${url}@${w}`,
         openPlateViewer: vi.fn(),
