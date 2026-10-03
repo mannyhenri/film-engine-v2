@@ -62,7 +62,7 @@ export const PAGES = [
     { id: 'rights', Component: RightsPage, chunk: null },
     { id: 'titles', Component: TitlesPage, chunk: null },
     { id: 'subtitles', Component: SubtitlesPage, chunk: null },
-    { id: 'marketing', Component: MarketingPage, chunk: 'marketing' },
+    { id: 'marketing', Component: MarketingPage, chunk: null },
     { id: 'consistency', Component: ConsistencyPage, chunk: 'consistency' },
     { id: 'budget', Component: BudgetPage, chunk: 'budget' },
     { id: 'threed', Component: ThreedPage, chunk: 'stage3d' },
@@ -94,7 +94,6 @@ export const CHUNKS = {
     music: { deps: [] },
     jobsqueue: { deps: [] },
     playback: { deps: [] },
-    marketing: { deps: [] },
 };
 
 export const VENDORS = {

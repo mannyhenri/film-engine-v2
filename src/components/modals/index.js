@@ -25,13 +25,12 @@ import m22 from './suggestionsModal.html?raw';
 import m23 from './versionDiffModal.html?raw';
 import m24 from './titlePageModal.html?raw';
 import m25 from './importScriptModal.html?raw';
-import m26 from './marketingModal.html?raw';
-import m27 from './budgetLimitModal.html?raw';
-import m28 from './costEntryModal.html?raw';
-import m29 from './glossaryModal.html?raw';
-import m30 from './productionGuideModal.html?raw';
-import m31 from './projectOnboardingModal.html?raw';
-import m32 from './soundGenModal.html?raw';
+import m26 from './budgetLimitModal.html?raw';
+import m27 from './costEntryModal.html?raw';
+import m28 from './glossaryModal.html?raw';
+import m29 from './productionGuideModal.html?raw';
+import m30 from './projectOnboardingModal.html?raw';
+import m31 from './soundGenModal.html?raw';
 
 // In source order. inMain: the overlay sat inside .main in the source, and still does.
 export const MODALS = [
@@ -61,11 +60,10 @@ export const MODALS = [
     { id: 'versionDiffModal', html: m23, inMain: false },
     { id: 'titlePageModal', html: m24, inMain: false },
     { id: 'importScriptModal', html: m25, inMain: false },
-    { id: 'marketingModal', html: m26, inMain: false },
-    { id: 'budgetLimitModal', html: m27, inMain: false },
-    { id: 'costEntryModal', html: m28, inMain: false },
-    { id: 'glossaryModal', html: m29, inMain: false },
-    { id: 'productionGuideModal', html: m30, inMain: false },
-    { id: 'projectOnboardingModal', html: m31, inMain: false },
-    { id: 'soundGenModal', html: m32, inMain: true },
+    { id: 'budgetLimitModal', html: m26, inMain: false },
+    { id: 'costEntryModal', html: m27, inMain: false },
+    { id: 'glossaryModal', html: m28, inMain: false },
+    { id: 'productionGuideModal', html: m29, inMain: false },
+    { id: 'projectOnboardingModal', html: m30, inMain: false },
+    { id: 'soundGenModal', html: m31, inMain: true },
 ];

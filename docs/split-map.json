@@ -69,6 +69,20 @@
       ],
       "modals": []
     },
+    "marketing": {
+      "loader": "loadMarketing",
+      "replaces": [
+        "loadMarketing",
+        "marketingImgSrc",
+        "createMarketingAsset",
+        "generateMarketingArt",
+        "deleteMarketingAsset",
+        "MARKETING_TYPE_ICON"
+      ],
+      "modals": [
+        "marketingModal"
+      ]
+    },
     "milestones": {
       "loader": "loadMilestones",
       "replaces": [
@@ -1074,21 +1088,6 @@
       ],
       "otherStatements": 6,
       "bytes": 47006
-    },
-    "marketing": {
-      "pages": [
-        "marketing"
-      ],
-      "deps": [],
-      "functions": [
-        "marketingImgSrc",
-        "loadMarketing",
-        "createMarketingAsset",
-        "generateMarketingArt",
-        "deleteMarketingAsset"
-      ],
-      "otherStatements": 1,
-      "bytes": 6078
     }
   },
   "pages": {
@@ -1393,23 +1392,8 @@
       "loader": [
         "loadMarketing"
       ],
-      "chunk": "marketing",
-      "modals": [
-        "confirmGenModal",
-        "entityInspectModal",
-        "characterSheetModal",
-        "subjectSheetModal",
-        "castingModal",
-        "galleryModal",
-        "characterModal",
-        "locationModal",
-        "plateViewerModal",
-        "propModal",
-        "sceneCardModal",
-        "versionDiffModal",
-        "titlePageModal",
-        "marketingModal"
-      ]
+      "chunk": null,
+      "modals": []
     },
     "consistency": {
       "loader": [

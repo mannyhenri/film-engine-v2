@@ -1,0 +1,6 @@
+{
+  "about": "This page is React (src/pages/marketing/MarketingPage.jsx). tools/split-map.js stops generating it, drops the legacy functions and modal below, and fails if anything left still calls them. The upload control and the paid confirmation stay in core (every picture uses them) and are reached through src/lib/legacy.js.",
+  "loader": "loadMarketing",
+  "replaces": ["loadMarketing", "marketingImgSrc", "createMarketingAsset", "generateMarketingArt", "deleteMarketingAsset", "MARKETING_TYPE_ICON"],
+  "modals": ["marketingModal"]
+}

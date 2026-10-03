@@ -36,6 +36,8 @@ export const LEGACY_GLOBALS = [
     'uploadReferenceImage',   // upload a reference picture: size check, the label's "Uploading…", the error left on it
     'plateSrc',               // a plate's thumbnail URL at a width (the server caches it)
     'openPlateViewer',        // the full-size plate viewer, shared by every page that shows a plate
+    'uploadControl',          // the shared upload + iPhone camera control, as markup (marketing; every plate uses it)
+    'confirmPaidImage',       // the one confirmation every paid generation goes through: what is sent, what it costs
 ];
 
 

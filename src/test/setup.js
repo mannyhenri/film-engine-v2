@@ -44,6 +44,8 @@ export function installLegacy({ routes = {}, project = { id: 'p1' } } = {}) {
         uploadReferenceImage: vi.fn(),
         plateSrc: (url, w) => `plate:${url}@${w}`,
         openPlateViewer: vi.fn(),
+        uploadControl: vi.fn((target, url, o) => `<label class="btn btn-secondary btn-sm">${(o && o.label) || 'Upload'}<input type="file" data-import-target="${target}" data-url="${url}"></label>`),
+        confirmPaidImage: vi.fn(),
     };
     const missing = LEGACY_GLOBALS.filter(n => !(n in fake));
     if (missing.length) throw new Error('the test fake lacks ' + missing.join(', ') + ' (src/test/setup.js)');
