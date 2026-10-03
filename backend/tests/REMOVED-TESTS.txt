@@ -1,267 +1,64 @@
-# Tests removed from this copy of the backend (film-engine-v2). set-build and room-scan were among them, so their exemptions left tests/ffmpeg-stdin.test.js too.
-# They assert on film-engine/src/index.html, the one-file page this app replaces. They stay in film-engine as the reference suite; tools/tests/parity.test.js covers the port.
-act-structure.test.js
-adr-spark.test.js
-anchor-plate-override.test.js
-annotation-feedback.test.js
-app-settings.test.js
-blocking-and-directing.test.js
-audio-cards.test.js
-background-replace.test.js
-bug-hunt-fixes.test.js
-capture-affordance.test.js
-board-prompt-standard.test.js
-character-sheet.test.js
-board-lock.test.js
-backup-folder.test.js
-cancel-honest.test.js
-character-orbit-surfaces.test.js
-character-sheet-authoring.test.js
-credentials-global.test.js
-card-overflow.test.js
-clip-coverage.test.js
-canvas-guide.test.js
-css-cascade.js
-deliverables.test.js
-dialogue-audition.test.js
-cue-length.test.js
-delivery-quality.test.js
-docs-drift.test.js
-daw-sync-ui.test.js
-dialogue-audio-reference.test.js
-current-frame.test.js
-decision-parity.test.js
-console-render.js
-dialogue-delivery.test.js
-dev-server.test.js
-dialogue-reaches-generation.test.js
-every-generate-button.test.js
-direct-shot-ui.test.js
-dialogue-playback.test.js
-drop-to-recipe.test.js
-director-controls.test.js
-edits.test.js
-fcc-footage-to-shot.test.js
-editor-transport.test.js
-fcc-previz-capture.test.js
-film-engine-camera-brief.test.js
-fcc-parity-epic.test.js
-fcc-system-camera.test.js
-flow-outputs.test.js
-flow-pick.test.js
-flow-form.test.js
-flow-provenance.test.js
-frame-send.test.js
-generation-controls.test.js
-generation-busy.test.js
-flow-canvas-reach.test.js
-flow-queue.test.js
-generation-options.test.js
-graph-apply-flow.test.js
-flow-next-node.test.js
-generator-costs.test.js
-frame-versions.test.js
-flows-on-graph-docs.test.js
-generation-plate.test.js
-inbetween-span.test.js
-graph-templates-shelf.test.js
-graph-add-palette.test.js
-graph-patterns.test.js
-graph-collapse.test.js
-how-made-panel.test.js
-ios-previz-brief.test.js
-graph-hold.test.js
-hold-in-batches.test.js
-inbetween-plan.test.js
-home-page.test.js
-grid-children.test.js
-image-weight.test.js
-instrument-render.test.js
-magnific-upscale.test.js
-ios-app.test.js
-lighting.test.js
-loading-never-sticks.test.js
-ios-previz-epic.test.js
-modal-stacking.test.js
-live-after-write.test.js
-impact.test.js
-mobile-feasibility.test.js
-mcp-first-writing.test.js
-manual-edit.test.js
-mobile-shell.test.js
-music-ai-controls.test.js
-live-events.test.js
-media-imports.test.js
-location-views.test.js
-music-capabilities.test.js
-music-emotion-proposals.test.js
-mood-board-images.test.js
-music-registries.test.js
-nav-chrome.test.js
-music-midi.test.js
-nav-flow.test.js
-nav-chrome-projects.test.js
-page-route.test.js
-muapi-upscale.test.js
-paid-preview.test.js
-plate-camera-epic.test.js
-nav-reorg.test.js
-page-parses.test.js
-music-direction.test.js
-music-workstation-research.test.js
-page-handlers.test.js
-music-workstation-editor.test.js
-paid-image-controls.test.js
-plate-viewer.test.js
-playback-marks.test.js
-previs-routes.test.js
-preview-reachability.test.js
-previs-boundary.test.js
-plate-upload.test.js
-production-estimate.test.js
-previs-redesign.test.js
-plate-guides.test.js
-previs-loop.test.js
-premiere-scenes.test.js
-previs-camera-freedom.test.js
-previs-scout.test.js
-production-graph-draw-states.test.js
-previs-camera-contract.test.js
-playback-start.test.js
-project-folders.test.js
-previs-views.test.js
-previs-staging.test.js
-previs-shot-navigation.test.js
-plate-views.test.js
-previz-console-placement.test.js
-production-graph.test.js
-production-graph-nodes.test.js
-production-graph-nodes-epic.test.js
-previs-decisions.test.js
-production-graph-progress.test.js
-prompt-budget.test.js
-project-stage-picker.test.js
-previs-subject-path.test.js
-reference-match.test.js
-recompose.test.js
-redo-between-frames-brief.test.js
-production-graph-queue-strip.test.js
-run-to-here-run.test.js
-redo-between-frames-epic.test.js
-room-scan.test.js
-requested-size.test.js
-repair-dispatch.test.js
-run-changed-run.test.js
-screenplay-analysis.test.js
-screenplay-focus.test.js
-screenplay-continuous.test.js
-screenplay-port.test.js
-screenplay-ellipsis-and-print-fit.test.js
-screenplay-drift.test.js
-sheet-and-board-affordances.test.js
-screenplay-structure.test.js
-screenplay-to-entities.test.js
-sheet-counters.test.js
-screenplay-mutators.test.js
-screenplay-furniture.test.js
-set-build.test.js
-screenplay-pagination.test.js
-screenplay-empty-blocks.test.js
-setup-models.test.js
-shot-motion.test.js
-sheet-layout-fidelity.test.js
-shot-anchor.test.js
-screenplay-entities.test.js
-storyboard-prerequisites.test.js
-staleness-cost.test.js
-style-book-research.test.js
-storyboard-annotation.test.js
-subject-gallery.test.js
-stock-capability.test.js
-sound-library-files.test.js
-style-book.test.js
-upload-anywhere.test.js
-subject-scale.test.js
-style-book-gaps.test.js
-subject-sheet-fidelity.test.js
-storage-never-throws.test.js
-sound-library.test.js
-video-surfaces.test.js
-subject-sheet-design.test.js
-subject-sheets.test.js
-style-book-media.test.js
-style-book-plan.test.js
-upload-size-guard.test.js
-video-editorial-ui.test.js
-title-page-and-print.test.js
-world-blender-import.test.js
-warnings-clear.test.js
-world-flags.test.js
-topaz-upscale.test.js
-world-console.test.js
-video-model-options.test.js
-world-timeline.test.js
-world-capture-import.test.js
-console-layout.test.js
-console-regions.test.js
-direct-the-shot-panel.test.js
-explore-shot-panel.test.js
-nothing-covers-the-page.test.js
-previs-board-view.test.js
-project-list.test.js
+# Tests from film-engine (backend/tests at the pinned commit in tools/port-plan.json) that this copy does not carry.
+# Each asserts on film-engine repo files that are not part of this app (docs/plans epics, briefs and research,
+# the iOS project in ios/, CLAUDE.md, gridlight.json). They stay in film-engine. Generated alongside
+# SKIPPED-SUBTESTS.json, which lists the sub-tests skipped inside files that ARE carried.
 
-# Also removed (round 3): they assert on film-engine's own repo files (docs/plans, epics, briefs, ios/, CLAUDE.md, gridlight.json, scripts/), not on the backend's behaviour. They stay in film-engine.
-ableton-sidecar.test.js
-ai-tools-api-brief.test.js
-ai-tools-epic.test.js
-cinematography.test.js
-comfyui-epic.test.js
-conform-contract.test.js
-e2e-first-film-plan.test.js
-epic-scoping-copy.test.js
-fcc-audio.test.js
-fcc-epic-record.test.js
-fcc-external-storage.test.js
-fcc-format-picker.test.js
-fcc-hardware-tier.test.js
-fcc-locks.test.js
-fcc-log.test.js
-fcc-on-device-proof.test.js
-fcc-parity-brief.test.js
-fcc-prores.test.js
-fcc-recording.test.js
-fcc-transport.test.js
-flow-graph.test.js
-flows-canvas-plan.test.js
-flows-node-taxonomy.test.js
-mcp-guide.test.js
-music-docs-ops.test.js
-music-workstation-epic-scope.test.js
-music-workstation-research-brief.test.js
-phase0-spec-coverage.test.js
-phase6-live-runs.test.js
-plate-capture-settings.test.js
-plate-clipping.test.js
-plate-exposure.test.js
-plate-focus.test.js
-plate-frames.test.js
-plate-lens.test.js
-plate-peaking.test.js
-plate-white-balance.test.js
-previs-library.test.js
-previs-plan.test.js
-previs-to-video.test.js
-production-graph-docs.test.js
-rbf-001-video-edit-probe.test.js
-rbf-002-verdict-recorded.test.js
-readiness-brief.test.js
-runway-parity-brief.test.js
-runway-parity-epic.test.js
-seedance-video-edit-retired.test.js
-self-hosted-models-plan.test.js
-style-book-qa.test.js
-version.test.js
-world-engine.test.js
-
-# Also removed (round 3): reads src/index.html through lib/music-approval.js SCORE_CONSUMERS (a list only tests read).
-approved-score.test.js
+ai-tools-api-brief.test.js  — reads docs/plans/ai-video-image-tools-api-brief.md
+ai-tools-epic.test.js  — reads docs/plans/ai-tools-epic.md
+canvas-guide.test.js  — reads docs/plans/production-graph-nodes-epic.md
+comfyui-epic.test.js  — reads docs/plans/comfyui-research-brief.md
+docs-drift.test.js  — reads CLAUDE.md
+e2e-first-film-plan.test.js  — reads docs/plans/e2e-first-film.md
+epic-scoping-copy.test.js  — reads docs/plans
+fcc-audio.test.js  — reads ios/FilmEngine/PlateCamera.swift
+fcc-epic-record.test.js  — reads docs/plans/fcc-parity-epic.md
+fcc-external-storage.test.js  — reads ios/FilmEngine/PlateCamera.swift
+fcc-footage-to-shot.test.js  — reads ios/FilmEngine/PlateCamera.swift
+fcc-format-picker.test.js  — reads ios/FilmEngine/PlateCamera.swift
+fcc-hardware-tier.test.js  — reads ios/FilmEngine/PlateCamera.swift
+fcc-locks.test.js  — reads ios/FilmEngine/PlateCamera.swift
+fcc-log.test.js  — reads ios/FilmEngine/PlateCamera.swift
+fcc-on-device-proof.test.js  — reads docs/plans/fcc-camera-on-device-proof.md
+fcc-parity-brief.test.js  — reads docs/plans/final-cut-camera-parity-brief.md
+fcc-parity-epic.test.js  — reads docs/plans/fcc-parity-epic.md
+fcc-prores.test.js  — reads ios/FilmEngine/PlateCamera.swift
+fcc-recording.test.js  — reads ios/FilmEngine/PlateCamera.swift
+fcc-system-camera.test.js  — reads docs/plans/fcc-parity-epic.md
+fcc-transport.test.js  — reads ios/FilmEngine/PlateCamera.swift
+flows-canvas-plan.test.js  — reads docs/plans/flows-canvas-node-taxonomy.json
+flows-node-taxonomy.test.js  — reads docs/plans/flows-canvas-node-taxonomy.json
+ios-app.test.js  — reads ios/FilmEngine/PlateCamera.swift
+ios-previz-brief.test.js  — reads docs/plans/ios-capture-and-previz-brief.md
+ios-previz-epic.test.js  — reads docs/plans/ios-capture-and-previz-epic.md
+mcp-guide.test.js  — reads docs/claude-desktop-guide.md
+mobile-feasibility.test.js  — reads docs/plans/mobile-feasibility.md
+music-docs-ops.test.js  — reads docs/api-film.md
+music-workstation-epic-scope.test.js  — reads docs/plans/epic-music-workstation.md
+music-workstation-research-brief.test.js  — reads docs/research/music-workstation-research-brief.md
+music-workstation-research.test.js  — reads docs/research/music-workstation-and-ableton.md
+phase0-spec-coverage.test.js  — reads docs/plans/phase0-test-matrix.json
+plate-camera-epic.test.js  — reads docs/plans/plate-camera-controls-epic.md
+plate-capture-settings.test.js  — reads ios/FilmEngine/PlateCamera.swift
+plate-clipping.test.js  — reads ios/FilmEngine/PlateCamera.swift
+plate-exposure.test.js  — reads ios/FilmEngine/PlateCamera.swift
+plate-focus.test.js  — reads ios/FilmEngine/PlateCamera.swift
+plate-frames.test.js  — reads ios/FilmEngine/PlateCamera.swift
+plate-guides.test.js  — reads ios/FilmEngine/PlateCamera.swift
+plate-lens.test.js  — reads ios/FilmEngine/PlateCamera.swift
+plate-peaking.test.js  — reads ios/FilmEngine/PlateCamera.swift
+plate-white-balance.test.js  — reads ios/FilmEngine/PlateCamera.swift
+previs-plan.test.js  — reads docs/plans/previs-camera-implementation-plan.md
+production-graph-docs.test.js  — reads CLAUDE.md
+production-graph-nodes-epic.test.js  — reads docs/plans/production-graph-nodes-epic.md
+production-graph-nodes.test.js  — reads docs/plans/production-graph-nodes-epic.md
+rbf-001-video-edit-probe.test.js  — reads docs/plans/rbf-001-video-edit-probe.md
+rbf-002-verdict-recorded.test.js  — reads docs/plans/redo-between-frames-epic.md
+readiness-brief.test.js  — reads docs/plans/pipeline-readiness-brief.md
+runway-parity-brief.test.js  — reads docs/plans/runway-parity-brief.md
+runway-parity-epic.test.js  — reads docs/plans/runway-parity-brief.md
+seedance-video-edit-retired.test.js  — reads docs/plans (the RBF-001 verdict)
+self-hosted-models-plan.test.js  — reads docs/plans/self-hosted-models-plan.md
+style-book-plan.test.js  — reads docs/plans/style-book-implementation.md
+style-book-qa.test.js  — reads docs/plans/style-book-qa.md
+style-book-research.test.js  — reads docs/plans/style-book-research.md
+version.test.js  — reads gridlight.json

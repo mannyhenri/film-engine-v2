@@ -1,5 +1,8 @@
 {
-  "source": "../film-engine/src/index.html",
+  "source": "reference/fb8c770/src/index.html",
+  "sourceRepo": "../film-engine",
+  "sourceCommit": "fb8c7700ad1e9233f6cf50e86669d28ebeac29ef",
+  "sourceNote": "reference/<sha>/src/index.html is film-engine's src/index.html at sourceCommit, so this repo checks itself without ../film-engine. To resync: bump sourceCommit, `git -C ../film-engine show <sha>:src/index.html > reference/<short>/src/index.html`, re-copy backend/ at the same sha, npm run split, npm test.",
   "currentRound": 3,
   "rounds": [
     [
@@ -65,5 +68,13 @@
       "productiongraph",
       "flows"
     ]
+  },
+  "backendLocalChanges": {
+    "backend/lib/music-approval.js": "SCORE_CONSUMERS: playback's code is in public/legacy/chunks/playback.js, not src/index.html",
+    "backend/lib/graph-hold.js": "pgRunPending is in public/legacy/production-graph.js, not src/index.html",
+    "backend/lib/framing.js": "comment: SHOT_FRAMINGS now lives in public/legacy/chunks/stage3d.js",
+    "backend/lib/previs-subject-path.js": "comment: subjectPoseAt's mirror now lives in public/legacy/chunks/stage3d.js",
+    "backend/tests/REMOVED-TESTS.txt": "v2 only: the film-engine tests this copy does not carry, each with its reason",
+    "backend/tests/SKIPPED-SUBTESTS.json": "v2 only: sub-tests skipped by exact name, each with its reason"
   }
 }

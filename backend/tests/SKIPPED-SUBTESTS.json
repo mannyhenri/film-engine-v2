@@ -1,0 +1,333 @@
+{
+  "about": "Sub-tests the v2 backend suite skips, by exact name, each with its reason. tools/backend-tests.js passes them to node --test-skip-pattern for their own file only. Everything else in the file runs.",
+  "files": {
+    "adr-spark.test.js": [
+      {
+        "name": "the record exists where a reader would look for it",
+        "reason": "reads film-engine repo file backend/tests/adr-spark.test.js:54:12)"
+      },
+      {
+        "name": "it carries every section the other records carry",
+        "reason": "reads film-engine repo file backend/tests/adr-spark.test.js:49:12)"
+      },
+      {
+        "name": "it takes a position and names what it replaces",
+        "reason": "reads film-engine repo file docs/adr/008-spark-lazy-splat-viewer.md"
+      },
+      {
+        "name": "ADR-006 says it was superseded, and by what",
+        "reason": "reads film-engine repo file docs/adr/006-spark-and-the-splat-viewport.md"
+      },
+      {
+        "name": "EVERY claim the record rests on is still true of the code",
+        "reason": "reads film-engine repo file docs/adr/008-spark-lazy-splat-viewer.md"
+      },
+      {
+        "name": "it says what would change the answer, in checkable terms",
+        "reason": "reads film-engine repo file docs/adr/008-spark-lazy-splat-viewer.md"
+      }
+    ],
+    "capture-affordance.test.js": [
+      {
+        "name": "the iOS bundle is re-synced, or the phone runs a page without the change",
+        "reason": "reads film-engine repo file ios/FilmEngine/Web/index.html"
+      }
+    ],
+    "fcc-previz-capture.test.js": [
+      {
+        "name": "EVERY mode gets the WORLD budget the server computes, not the footage one",
+        "reason": "reads film-engine repo file ios/FilmEngine/PlateCamera.swift"
+      },
+      {
+        "name": "a walkthrough is SHORTER than the same mode shot for the cut",
+        "reason": "reads film-engine repo file ios/FilmEngine/PlateCamera.swift"
+      },
+      {
+        "name": "the recommendation for a WORLD capture is chosen against Marble",
+        "reason": "reads film-engine repo file ios/FilmEngine/PlateCamera.swift"
+      },
+      {
+        "name": "EVERY forWorld entry point is actually asked with it",
+        "reason": "reads film-engine repo file ios/FilmEngine/PlateCamera.swift"
+      },
+      {
+        "name": "the camera knows whether THIS session is a world capture",
+        "reason": "reads film-engine repo file ios/FilmEngine/PlateCamera.swift"
+      },
+      {
+        "name": "a world take LOCKS exposure, rather than hoping a director remembered",
+        "reason": "reads film-engine repo file ios/FilmEngine/PlateCamera.swift"
+      },
+      {
+        "name": "a lens that cannot hold exposure is NAMED, and the take still runs",
+        "reason": "reads film-engine repo file ios/FilmEngine/PlateCamera.swift"
+      },
+      {
+        "name": "a finished walkthrough is DELIVERED to the route the page named",
+        "reason": "reads film-engine repo file ios/FilmEngine/PlateCamera.swift"
+      },
+      {
+        "name": "a delivery that fails NAMES itself and keeps the take",
+        "reason": "reads film-engine repo file ios/FilmEngine/PlateCamera.swift"
+      },
+      {
+        "name": "the iOS bundle is re-synced, or the phone runs a page without the change",
+        "reason": "reads film-engine repo file ios/FilmEngine/Web/index.html"
+      }
+    ],
+    "film-engine-camera-brief.test.js": [
+      {
+        "name": "the brief exists and carries every section the format asks for",
+        "reason": "reads film-engine repo file backend/tests/film-engine-camera-brief.test.js:33:12)"
+      },
+      {
+        "name": "EVERY claim the brief rests on is still true of the code",
+        "reason": "reads film-engine repo file docs/plans/film-engine-camera-brief.md"
+      },
+      {
+        "name": "the brief states the framing error rather than burying it",
+        "reason": "reads film-engine repo file docs/plans/film-engine-camera-brief.md"
+      },
+      {
+        "name": "the size comparison that carries the recommendation is stated with BOTH numbers",
+        "reason": "reads film-engine repo file docs/plans/film-engine-camera-brief.md"
+      },
+      {
+        "name": "the open questions are DECISIONS, not tasks in disguise",
+        "reason": "reads film-engine repo file docs/plans/film-engine-camera-brief.md"
+      }
+    ],
+    "drop-to-recipe.test.js": [
+      {
+        "name": "the canvas accepts dropped files, hashes them in the browser, asks /match, and opens the recipe or offers the upload",
+        "reason": "reads film-engine repo file ios/FilmEngine/Web/index.html"
+      }
+    ],
+    "flow-outputs.test.js": [
+      {
+        "name": "the page draws every drawn kind off its shot: the real node renderer, the badge and the drawer strip",
+        "reason": "reads film-engine repo file ios/FilmEngine/Web/index.html"
+      }
+    ],
+    "flow-pick.test.js": [
+      {
+        "name": "the drawer offers Pick on each awaiting variation and Cancel on its run",
+        "reason": "reads film-engine repo file ios/FilmEngine/Web/index.html"
+      }
+    ],
+    "flow-form.test.js": [
+      {
+        "name": "the drawer renders the form, every control, and the plan it confirms carries the values",
+        "reason": "reads film-engine repo file ios/FilmEngine/Web/index.html"
+      }
+    ],
+    "flow-provenance.test.js": [
+      {
+        "name": "the panel names the flow, and \"make another\" re-applies that flow to the shot through the apply",
+        "reason": "reads film-engine repo file ios/FilmEngine/Web/index.html"
+      }
+    ],
+    "flow-queue.test.js": [
+      {
+        "name": "the strip draws the paused bucket, with a way to the pick and a Cancel run on each live flow run",
+        "reason": "reads film-engine repo file ios/FilmEngine/Web/index.html"
+      }
+    ],
+    "flow-next-node.test.js": [
+      {
+        "name": "releasing a wire on empty canvas opens the suggestions; picking one adds the node there, wired",
+        "reason": "reads film-engine repo file ios/FilmEngine/Web/index.html"
+      }
+    ],
+    "flow-canvas-reach.test.js": [
+      {
+        "name": "with the graph on, the Flows page is reachable by address, with no back button when not arriving from the graph",
+        "reason": "reads film-engine repo file ios/FilmEngine/Web/index.html"
+      }
+    ],
+    "flows-on-graph-docs.test.js": [
+      {
+        "name": "CLAUDE.md has the section, and it names every task the code cites",
+        "reason": "reads film-engine repo file CLAUDE.md"
+      },
+      {
+        "name": "the Word guide carries every task a director meets, and lists it in the contents",
+        "reason": "reads film-engine repo file scripts/make-canvas-guide.py"
+      }
+    ],
+    "graph-templates-shelf.test.js": [
+      {
+        "name": "the palette reads the shelf when it opens, and the iOS copy carries it",
+        "reason": "reads film-engine repo file ios/FilmEngine/Web/index.html"
+      }
+    ],
+    "graph-add-palette.test.js": [
+      {
+        "name": "keyboard only: arrows move, Enter picks, Escape cancels; a double-click on empty canvas opens it; Shift+click picks shots",
+        "reason": "reads film-engine repo file ios/FilmEngine/Web/index.html"
+      }
+    ],
+    "graph-patterns.test.js": [
+      {
+        "name": "the add palette offers every pattern after the nearest shot; Enter previews for free, a second Enter creates",
+        "reason": "reads film-engine repo file ios/FilmEngine/Web/index.html"
+      }
+    ],
+    "graph-collapse.test.js": [
+      {
+        "name": "the page draws a collapsed group as a card with every summary field, hides its members, and toggles through the route",
+        "reason": "reads film-engine repo file ios/FilmEngine/Web/index.html"
+      }
+    ],
+    "how-made-panel.test.js": [
+      {
+        "name": "the drawers wire it in: version drawer and shot drawer load the recipe, offer make-another and compare-with-selected",
+        "reason": "reads film-engine repo file ios/FilmEngine/Web/index.html"
+      }
+    ],
+    "graph-hold.test.js": [
+      {
+        "name": "a held node wears a \"held\" badge; nothing else does; Ctrl+B and the menu reach the toggle",
+        "reason": "reads film-engine repo file ios/FilmEngine/Web/index.html"
+      }
+    ],
+    "page-parses.test.js": [
+      {
+        "name": "ios/FilmEngine/Web/index.html: every inline script compiles",
+        "reason": "reads film-engine repo file ios/FilmEngine/Web/index.html"
+      }
+    ],
+    "redo-between-frames-brief.test.js": [
+      {
+        "name": "the brief exists",
+        "reason": "reads film-engine repo file backend/tests/redo-between-frames-brief.test.js:137:12)"
+      },
+      {
+        "name": "every required section is present",
+        "reason": "reads film-engine repo file docs/plans/redo-between-frames-brief.md"
+      },
+      {
+        "name": "the brief states the constraints that decide the design",
+        "reason": "reads film-engine repo file docs/plans/redo-between-frames-brief.md"
+      }
+    ],
+    "redo-between-frames-epic.test.js": [
+      {
+        "name": "the epic exists",
+        "reason": "reads film-engine repo file backend/tests/redo-between-frames-epic.test.js:109:12)"
+      },
+      {
+        "name": "every section the template mandates is present",
+        "reason": "reads film-engine repo file docs/plans/redo-between-frames-epic.md"
+      },
+      {
+        "name": "every declared task is well formed",
+        "reason": "reads film-engine repo file docs/plans/redo-between-frames-epic.md"
+      },
+      {
+        "name": "the epic states the constraints that decide the design",
+        "reason": "reads film-engine repo file docs/plans/redo-between-frames-epic.md"
+      }
+    ],
+    "screenplay-port.test.js": [
+      {
+        "name": "the plan accounts for every element the parser can emit",
+        "reason": "reads film-engine repo file docs/plans/screenplay-port.md"
+      },
+      {
+        "name": "the plan states the coverage counts, and they are true",
+        "reason": "reads film-engine repo file docs/plans/screenplay-port.md"
+      },
+      {
+        "name": "the plan defines authorability rather than just counting it",
+        "reason": "reads film-engine repo file docs/plans/screenplay-port.md"
+      },
+      {
+        "name": "every element the plan calls stranded really is known-but-unreachable",
+        "reason": "reads film-engine repo file docs/plans/screenplay-port.md"
+      },
+      {
+        "name": "the plan and the FDX map agree about what is exported",
+        "reason": "reads film-engine repo file docs/plans/screenplay-port.md"
+      },
+      {
+        "name": "the MCP screenplay surface is what the plan says it is",
+        "reason": "reads film-engine repo file docs/plans/screenplay-port.md"
+      },
+      {
+        "name": "the plan names its phases, its deferrals and who owns the unverified cells",
+        "reason": "reads film-engine repo file docs/plans/screenplay-port.md"
+      }
+    ],
+    "storage-never-throws.test.js": [
+      {
+        "name": "the app injects the address by a route that cannot throw",
+        "reason": "reads film-engine repo file ios/FilmEngine/ContentView.swift"
+      }
+    ],
+    "music-registries.test.js": [
+      {
+        "name": "every track role: stored through the tool, rendered or named a guide with its reason, documented",
+        "reason": "reads film-engine repo file docs/music-workstation.md"
+      },
+      {
+        "name": "every clip kind: stored, rendered when selected, walked by the rights lineage, documented",
+        "reason": "reads film-engine repo file docs/music-workstation.md"
+      },
+      {
+        "name": "every kind of file the workstation registers is documented",
+        "reason": "reads film-engine repo file docs/music-workstation.md"
+      },
+      {
+        "name": "every score tool reaches a route the router names and the API reference documents",
+        "reason": "reads film-engine repo file docs/api-film.md"
+      },
+      {
+        "name": "every section of the portable package is in a built manifest and in the documentation",
+        "reason": "reads film-engine repo file docs/music-workstation.md"
+      },
+      {
+        "name": "every DAW mutation has an agent tool, a page control with its portable twin, an audit record, and documentation",
+        "reason": "reads film-engine repo file docs/music-workstation.md"
+      }
+    ],
+    "video-editorial-ui.test.js": [
+      {
+        "name": "desktop and packaged mobile UI compile and stay identical",
+        "reason": "reads film-engine repo file ios/FilmEngine/Web/index.html"
+      }
+    ],
+    "room-scan.test.js": [
+      {
+        "name": "the iPhone app scans with RoomPlan and the page asks it under the same names",
+        "reason": "reads film-engine repo file ios/FilmEngine/RoomScan.swift"
+      },
+      {
+        "name": "the phone files a photo to the wall it faces, worked out from the scan (compiled and run where Swift is here)",
+        "reason": "reads film-engine repo file ios/FilmEngine/RoomScan.swift"
+      }
+    ],
+    "screenplay-focus.test.js": [
+      {
+        "name": "every kind of key makes its own sound; shortcuts and arrows make none",
+        "reason": "PORT: slices the text from const TYPEWRITER (core) to function twBurst (screenplay chunk); in the port they are in different scripts, so the slice spans a </script> boundary"
+      },
+      {
+        "name": "switched off, the typewriter is silent",
+        "reason": "PORT: same slice as above, across the core/screenplay-chunk boundary"
+      }
+    ],
+    "world-blender-import.test.js": [
+      {
+        "name": "walking moves the shot's own camera, and keeping it goes through the validated proposal",
+        "reason": "PRE-EXISTING: fails in film-engine at the pinned commit too"
+      }
+    ],
+    "set-build.test.js": [
+      {
+        "name": "the Previs Plan view edits the set: footprints out of the layout and back, then a rebuild that pins the shot",
+        "reason": "PRE-EXISTING: fails in film-engine at the pinned commit too"
+      }
+    ]
+  }
+}

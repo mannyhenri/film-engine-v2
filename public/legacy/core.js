@@ -1565,6 +1565,10 @@
         if (r.page && r.page !== state.currentPage) navigateTo(r.page);
         return true;
     }
+    // React port: page loaders that live in chunks, declared here so navigateTo's loaders map
+    // evaluates before their chunk loads; each chunk's own function declaration fills its name in.
+    var loadDashboard, loadShotBoard, loadAssets, loadMusicCues, loadMusicWorkstation, loadMilestones, loadNotesPage, loadRenderPage, loadEditsPage, loadExportPage, loadPipeline, loadFlowsPage, loadMoodBoardPage, loadStyleBook, loadPrevisPage, loadSettings, loadBrands, loadDeliverables, loadRights, loadTitles, loadSubtitles, loadMarketing, loadConsistency, loadSpend, loadBudget, loadThreeD, loadMusic, loadPlayback;
+
 
     function navigateTo(page) {
         // On a phone the drawer covers the page you just chose.
@@ -1583,34 +1587,35 @@
         if (navEl) navEl.classList.add('active');
 
         // Load page data — after its script chunk is in (React port: window.__fePages).
-        const __fePage = page;
+        PAGE_RELOAD = null;
         window.__fePages.ensure(page).then(() => {
-        if (state.currentPage !== __fePage) return;
+        if (state.currentPage !== page) return;
+        // Load page data
         const loaders = {
-            projects: () => loadProjects(),
-            dashboard: () => loadDashboard(),
-            screenplay: () => loadScreenplayPage(),
-            scenes: () => loadScenes(),
-            shotboard: () => loadShotBoard(),
-            storyboard: () => loadStoryboard(),
-            characters: () => loadCharacters(),
-            locations: () => loadLocations(),
-            props: () => loadProps(),
-            assets: () => loadAssets(),
-            musiccues: () => loadMusicCues(),
-            musicws: () => loadMusicWorkstation(),
-            milestones: () => loadMilestones(),
-            notes: () => loadNotesPage(),
-            renderhistory: () => loadRenderPage(),
-            edits: () => loadEditsPage(),
-            exportpage: () => loadExportPage(),
-            pipeline: () => loadPipeline(),
-            flows: () => loadFlowsPage(),
-            productiongraph: () => loadProductionGraph(),
-            moodboard: () => loadMoodBoardPage(),
-            stylebook: () => loadStyleBook(),
-            previs: () => loadPrevisPage(),
-            settings: () => loadSettings(),
+            projects: loadProjects,
+            dashboard: loadDashboard,
+            screenplay: loadScreenplayPage,
+            scenes: loadScenes,
+            shotboard: loadShotBoard,
+            storyboard: loadStoryboard,
+            characters: loadCharacters,
+            locations: loadLocations,
+            props: loadProps,
+            assets: loadAssets,
+            musiccues: loadMusicCues,
+            musicws: loadMusicWorkstation,
+            milestones: loadMilestones,
+            notes: loadNotesPage,
+            renderhistory: loadRenderPage,
+            edits: loadEditsPage,
+            exportpage: loadExportPage,
+            pipeline: loadPipeline,
+            flows: loadFlowsPage,
+            productiongraph: loadProductionGraph,
+            moodboard: loadMoodBoardPage,
+            stylebook: loadStyleBook,
+            previs: loadPrevisPage,
+            settings: loadSettings,
             /*
              * Registered here rather than only on its own nav button, which is
              * how it was wired: `onclick="navigateTo('jobsqueue'); loadJobsQueuePage()"`
@@ -1618,33 +1623,33 @@
              * from the home page's run report or from either "Open job queue"
              * link — which land on a panel nobody filled.
              */
-            jobsqueue: () => loadJobsQueuePage(),
-            brand: () => loadBrands(),
-            deliverables: () => loadDeliverables(),
-            rights: () => loadRights(),
-            titles: () => loadTitles(),
-            subtitles: () => loadSubtitles(),
-            marketing: () => loadMarketing(),
-            consistency: () => loadConsistency(),
+            jobsqueue: loadJobsQueuePage,
+            brand: loadBrands,
+            deliverables: loadDeliverables,
+            rights: loadRights,
+            titles: loadTitles,
+            subtitles: loadSubtitles,
+            marketing: loadMarketing,
+            consistency: loadConsistency,
             budget: () => { loadSpend(); loadBudget(); },
-            threed: () => loadThreeD(),
-            videoshots: () => loadVideoShots(),
-            music: () => loadMusic(),
+            threed: loadThreeD,
+            videoshots: loadVideoShots,
+            music: loadMusic,
             // ==== CLAUDE:START loaders (gaps 3/4/5/7d) ====
-            playback: () => loadPlayback(),
+            playback: loadPlayback,
             // ==== CLAUDE:END ====
         };
         // Remembered so the page can reload itself without a navigation —
         // the data changes underneath us whenever an agent writes through MCP,
         // and there is no framework here to notice.
-                PAGE_RELOAD = loaders[page] || null;
+        PAGE_RELOAD = loaders[page] || null;
         if (loaders[page]) loaders[page]();
         // Several pages build their cards from data, so re-wire after the
         // loader has had a chance to render. Idempotent by design.
-                setTimeout(initCollapsibleCards, 60);
-        }).catch(err => { console.error(err); setStatus('Error loading page: ' + err.message); });
+        setTimeout(initCollapsibleCards, 60);
         revealNavGroupFor(page);
         writeRoute();
+        }).catch(err => { console.error(err); setStatus('Error loading page: ' + err.message); });
     }
 
     function openProject(id, page) {
@@ -10307,6 +10312,7 @@
             }
         }
     });
+    const MAX_CHUNK_SIZE = 7000;
 
     // ══════════════════════════════════════════════════════════════
     // FILM-121: SCREENPLAY SUGGESTIONS
@@ -10333,6 +10339,36 @@
         } catch (e) {
             // Silently ignore if endpoint doesn't exist yet
         }
+    }
+
+    // FILM-119: Update estimate when text changes
+    document.addEventListener('DOMContentLoaded', () => {
+        const sourceText = document.getElementById('convertSourceText');
+        if (sourceText) {
+            let estimateTimer;
+            sourceText.addEventListener('input', () => {
+                clearTimeout(estimateTimer);
+                estimateTimer = setTimeout(updateConversionEstimate, 500);
+            });
+        }
+    });
+
+    // FILM-119: Calculate and display estimated time
+    function updateConversionEstimate() {
+        const text = document.getElementById('convertSourceText').value;
+        const estimateEl = document.getElementById('convertEstimate');
+
+        if (!text.trim()) {
+            estimateEl.style.display = 'none';
+            return;
+        }
+
+        const textLength = text.length;
+        const chunkCount = Math.ceil(textLength / MAX_CHUNK_SIZE);
+        const estimatedSeconds = chunkCount * 15; // ~15 sec per chunk
+
+        estimateEl.style.display = 'block';
+        estimateEl.textContent = `Full document: ${textLength.toLocaleString()} chars (~${chunkCount} chunk${chunkCount !== 1 ? 's' : ''}, ~${Math.ceil(estimatedSeconds / 60)} min)`;
     }
 
     // Close on backdrop click

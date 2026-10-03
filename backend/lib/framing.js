@@ -20,7 +20,7 @@
  *   4. nothing — no size is invented.
  *
  * `cover` is metres of frame height on the subject, the same numbers the Previs
- * page frames with (SHOT_FRAMINGS in src/index.html); tests/framing.test.js holds
+ * page frames with (SHOT_FRAMINGS in public/legacy/chunks/stage3d.js, generated from film-engine's src/index.html); tests/framing.test.js holds
  * the two lists equal.
  */
 const FRAMINGS = Object.freeze([

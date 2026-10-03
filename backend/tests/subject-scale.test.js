@@ -1,0 +1,265 @@
+/**
+ * How big a thing is, said so an image model can act on it.
+ *
+ * A diffusion model has no metric understanding, and a reference plate makes
+ * scale WORSE rather than better: a plate is a close-up filling its own frame,
+ * and conditioning transfers appearance rather than size, so the model
+ * reproduces what it was shown. The sprinkler plate produced a sprinkler the
+ * size of the car parked beside it. The plate was doing its job — nothing was
+ * telling the model how big the thing is.
+ *
+ * Set-based over the phrasings, because each covers a case the others cannot:
+ * a frame fraction needs a lens and a distance, an anchor works on any shot,
+ * and a plain measure is the floor. A version that emits only the first is
+ * silent on every unblocked shot, which is most of them.
+ */
+
+const test = require('node:test');
+const assert = require('node:assert');
+
+const {
+    ANCHORS, sizeOf, fractionPhrase, anchorPhrase, scalePhrase, scaleNegative,
+} = require('../lib/subject-scale');
+
+test('an undeclared size produces no scale language at all', () => {
+    // An invented default is indistinguishable from a deliberate one and would
+    // be wrong silently, which is the failure this exists to end.
+    assert.strictEqual(scalePhrase('X', 'prop', {}), null);
+    assert.strictEqual(scalePhrase('X', 'prop', { height_m: 0 }), null);
+    assert.strictEqual(scalePhrase('X', 'character', { height_m: null }), null);
+    assert.strictEqual(sizeOf('prop', { height_m: 'tall' }), null);
+});
+
+test('the frame fraction is only claimed when a coverage is given', () => {
+    // It is computed from what the lens covers at ONE distance — the camera's
+    // distance to what it is framing. Everything else in the shot is somewhere
+    // else, and pricing a mid-ground car at the subject's coverage said a
+    // five-metre car fills most of a 7.5m frame.
+    const framed = scalePhrase('Sprinkler', 'prop', { height_m: 0.3 }, 7.5);
+    assert.match(framed, /frame width/);
+    const other = scalePhrase('SEDAN', 'prop', { length_m: 5.5 });
+    assert.ok(!/frame width/.test(other), 'a subject at unknown distance claimed a frame fraction');
+    assert.match(other, /parked car/, 'it fell back to no scale language at all');
+});
+
+test('a fraction is rounded to something a person would say', () => {
+    // "0.04 of frame width" is a number nobody composes with, and a model does
+    // not distinguish a twenty-third from a twenty-fifth.
+    assert.match(fractionPhrase(0.5), /half/);
+    assert.match(fractionPhrase(0.25), /quarter/);
+    assert.match(fractionPhrase(0.04), /one 25th/);
+    assert.match(fractionPhrase(0.95), /filling the frame/);
+    assert.strictEqual(fractionPhrase(0), null);
+});
+
+test('a person is the anchor, so a person is not anchored to a door', () => {
+    const maya = scalePhrase('MAYA', 'character', { height_m: 1.7 });
+    assert.match(maya, /1\.7m tall/);
+    assert.ok(!/front door/.test(maya), 'a human was measured against a doorframe');
+
+    // Something far from human scale still gets one, because it needs it.
+    assert.match(scalePhrase('DRAGON', 'character', { height_m: 20 }), /two-storey house/);
+});
+
+test('every anchor is a thing whose size is common knowledge', () => {
+    // An anchor the model has no reliable sense of is worse than none: it
+    // sounds precise and means nothing.
+    for (const a of ANCHORS) {
+        assert.ok(a.m > 0, `${a.name} has no size`);
+        assert.ok(/^a /.test(a.name), `${a.name} does not read inside a sentence`);
+    }
+    // Spread across the range, or everything anchors to the same object.
+    const sizes = ANCHORS.map(a => a.m).sort((x, y) => x - y);
+    assert.ok(sizes[sizes.length - 1] / sizes[0] > 20, 'the anchors cover too narrow a range');
+});
+
+test('the negative names the failure that actually happens', () => {
+    // Things come out too big, never too small: a plate fills its own frame and
+    // the model matches what it was shown.
+    const n = scaleNegative('Sprinkler', 'prop', { height_m: 0.3 });
+    assert.match(n, /Sprinkler larger than/);
+    // And it names a TIGHT bound. "Larger than a house" is a bound a wrong
+    // image can satisfy.
+    assert.match(n, /car tyre/);
+    // A large subject cannot be inflated in the way that matters, so it gets none.
+    assert.strictEqual(scaleNegative('SEDAN', 'prop', { length_m: 5.5 }), null);
+});
+
+test('the largest declared dimension is what reads as how big it is', () => {
+    assert.strictEqual(sizeOf('prop', { height_m: 1.4, length_m: 5.5, width_m: 2 }), 5.5);
+    // A character is its height; a person lying down is still a person.
+    assert.strictEqual(sizeOf('character', { height_m: 1.7 }), 1.7);
+});
+
+/**
+ * Setting a size has to be possible everywhere the subject is.
+ *
+ * Set-based over the surfaces, because a size that can only be set in one place
+ * is a size most subjects will never have — and an undeclared subject silently
+ * contributes no scale language at all, which is indistinguishable from the
+ * feature not existing.
+ */
+const fs = require('fs');
+const path = require('path');
+
+test('every surface that edits a subject can set its size', () => {
+    const html = fs.readFileSync(path.join(__dirname, '..', '..', 'src', 'index.html'), 'utf8');
+    for (const field of ['height_m', 'width_m', 'length_m']) {
+        assert.ok(html.includes(`data-field="${field}"`), `the UI cannot set ${field}`);
+    }
+
+    const { PRODUCTION_TOOLS } = require('../lib/mcp-tools');
+    const gaps = [];
+    for (const [tool, fields] of [['prop_create', ['height_m', 'width_m', 'length_m']],
+                                  ['prop_update', ['height_m', 'width_m', 'length_m']],
+                                  ['character_create', ['height_m']],
+                                  ['character_update', ['height_m']]]) {
+        const t = PRODUCTION_TOOLS.find(x => x.name === tool);
+        if (!t) { gaps.push(`${tool} is missing`); continue; }
+        for (const f of fields) if (!t.schema[f]) gaps.push(`${tool} cannot set ${f}`);
+    }
+    assert.deepStrictEqual(gaps, [], gaps.join('; '));
+});
+
+test('the routes store a size as a number, and refuse nonsense', () => {
+    // The prompt divides by it. A string that looks like a number survives a
+    // length-capped write and then breaks the arithmetic silently.
+    for (const file of ['locations.js', 'characters.js']) {
+        const src = fs.readFileSync(path.join(__dirname, '..', 'routes', file), 'utf8');
+        assert.ok(/height_m/.test(src), `${file} does not accept height_m`);
+        assert.ok(/Number\.isFinite\(n\) \|\| n <= 0/.test(src),
+            `${file} does not refuse a size that is not a positive number`);
+    }
+});
+
+test('the gap is reported as work, not as a status', () => {
+    // "Set sizes" is ignorable. "The DRAGON has no size and appears in 4 shots"
+    // is a job, and ordering by shot count puts the expensive one first.
+    const { missingSizes } = require('../lib/subject-scale');
+    assert.strictEqual(typeof missingSizes, 'function');
+    const src = fs.readFileSync(path.join(__dirname, '..', 'lib', 'subject-scale.js'), 'utf8');
+    assert.ok(/shots:/.test(src), 'the report does not say how many shots a gap affects');
+    assert.ok(/plated/.test(src), 'the report does not flag the plate-without-size combination');
+});
+
+/**
+ * The size is usually already written down. Surface it, don't parse it.
+ *
+ * Every prop on the first production that needed this already stated its size
+ * in its own description — "about forty centimetres tall", "roughly seventy
+ * centimetres across", "about five and a half metres nose to tail" — and
+ * nothing was reading them. The person filling the field was being asked to
+ * invent a number that was two lines above.
+ *
+ * Surfaced rather than parsed. Word-numbers, ranges and mixed units make a
+ * parser that is right most of the time, and a size that is silently wrong is
+ * worse than one that is absent: it reaches every frame the subject appears in,
+ * looking deliberate.
+ */
+test('a subject that states its size in words has that sentence surfaced', () => {
+    const { statedSizes } = require('../lib/subject-scale');
+    const found = statedSizes({
+        visual_prompt: 'Brown kraft paper grocery sack, flat-bottomed, about forty centimetres tall '
+            + 'and twenty-five across. Top edge rolled over twice.',
+    });
+    assert.strictEqual(found.length, 1, 'the sentence with the measurement was not found');
+    assert.match(found[0], /forty centimetres/);
+});
+
+test('a subject with no measurement anywhere surfaces nothing, not a guess', () => {
+    const { statedSizes } = require('../lib/subject-scale');
+    assert.deepStrictEqual(statedSizes({ visual_prompt: 'A battered tin kettle, dented on one side.' }), []);
+    assert.deepStrictEqual(statedSizes({}), []);
+});
+
+test('all three description fields are read, because subjects use different ones', () => {
+    // A character writes into appearance_prompt, a prop into visual_prompt, and
+    // either may put it in description. Reading one field finds a subset.
+    const { statedSizes } = require('../lib/subject-scale');
+    assert.strictEqual(statedSizes({ appearance_prompt: 'Roughly twenty metres nose to tail.' }).length, 1);
+    assert.strictEqual(statedSizes({ description: 'About 0.7m across.' }).length, 1);
+});
+
+/**
+ * Whatever leads a prompt is what the image is OF.
+ *
+ * The scale notes were emitted before the action, on the reasoning that "who is
+ * here and how big they are" reads as one statement. It does not. An
+ * establishing wide down a cul-de-sac opened with "Sprinkler is roughly 1.4
+ * times smaller than a car tyre… SEDAN is roughly 1.2 times the size of a
+ * parked car", and the shot itself did not begin until character 178 — so the
+ * model made the two measured objects the subject and put both dead centre: a
+ * car parked in the middle of the road, a sprinkler on the pavement.
+ *
+ * A measurement is a qualifier on something already in the scene. It belongs
+ * after the scene, and this asserts the order rather than the presence, because
+ * the sentences were present the whole time and in the wrong place.
+ */
+test('the shot leads the prompt, and the measurements follow it', () => {
+    const { buildStoryboardPrompt } = require('../lib/storyboard-prompt');
+    const card = {
+        shot_code: '1A',
+        description: 'Extreme wide down the length of the cul-de-sac.',
+        camera: { shot_type: 'establishing', lens: '40mm' },
+        characters: [], props: ['Sprinkler'],
+    };
+    const props = [{ name: 'Sprinkler', height_m: 0.3, width_m: 0.3 }];
+    const { prompt } = buildStoryboardPrompt(card, [], null, 'teal grade', { props });
+
+    const shotAt = prompt.indexOf('Extreme wide');
+    const scaleAt = prompt.indexOf('Sprinkler is');
+    assert.ok(shotAt >= 0, 'the shot description is missing entirely');
+    assert.ok(scaleAt >= 0, 'the scale note is missing entirely');
+    assert.ok(shotAt < scaleAt,
+        `a measurement leads the prompt (shot at ${shotAt}, scale at ${scaleAt}) — `
+        + 'whatever leads is what the image is of');
+    assert.ok(shotAt < 40, `the shot does not start until character ${shotAt}`);
+});
+
+
+// ── The plate is where a size has to land ───────────────────────────────
+
+test('a declared size reaches the plate that establishes the subject', () => {
+    // It reached the KEYFRAME prompt and never the plate, which is backwards. A
+    // plate is a close-up filling its own frame, and conditioning transfers
+    // appearance rather than scale — so the model reproduces what it was shown,
+    // and a thirty-centimetre sprinkler plated at full frame came back the size
+    // of the car beside it. Fixing that downstream means arguing with the plate
+    // in every shot the subject appears in.
+    const { buildPlatePrompt } = require('../lib/reference-plates');
+    const { buildRefSheetPrompt } = require('../routes/characters');
+
+    const prop = buildPlatePrompt('prop',
+        { name: 'Sprinkler', visual_prompt: 'cast-metal sprinkler', height_m: 0.3, length_m: 0.45, width_m: 0.3 },
+        'noir');
+    assert.match(prop, /0\.3m tall/, 'a prop plate says nothing about how big the prop is');
+
+    const character = buildRefSheetPrompt({ name: 'MAYA', appearance_prompt: 'rust cardigan', height_m: 1.62 },
+        'front', 'noir');
+    assert.match(character, /1\.62m tall/, 'a character plate says nothing about how tall they are');
+});
+
+test('an undeclared size still says nothing, on plates too', () => {
+    // An invented default is indistinguishable from a deliberate one and would
+    // be wrong silently — the rule the size fields were built on, and it has to
+    // hold on the surface that conditions every later frame.
+    const { buildPlatePrompt } = require('../lib/reference-plates');
+    const { buildRefSheetPrompt } = require('../routes/characters');
+
+    const prop = buildPlatePrompt('prop', { name: 'Sprinkler', visual_prompt: 'cast-metal sprinkler' }, 'noir');
+    assert.ok(!/\dm (tall|long|wide)/.test(prop), `a size was invented: ${prop}`);
+    assert.ok(!/times (smaller|larger)/.test(prop), `an anchor was invented: ${prop}`);
+
+    const character = buildRefSheetPrompt({ name: 'MAYA', appearance_prompt: 'rust cardigan' }, 'front', 'noir');
+    assert.ok(!/\dm tall/.test(character), `a height was invented: ${character}`);
+});
+
+test('a plate gets no frame fraction, because it has no frame to be a fraction of', () => {
+    // "About one 25th of the frame width" is a statement about composition and
+    // needs a lens, a distance and something else in shot. A plate has none of
+    // the three; what applies is the anchor and the plain measure.
+    const { buildPlatePrompt } = require('../lib/reference-plates');
+    const prop = buildPlatePrompt('prop',
+        { name: 'Sprinkler', visual_prompt: 'x', height_m: 0.3, length_m: 0.45, width_m: 0.3 }, '');
+    assert.ok(!/of the frame/.test(prop), `a plate claimed a frame fraction: ${prop}`);
+});

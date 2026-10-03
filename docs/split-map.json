@@ -1,5 +1,6 @@
 {
-  "generatedFrom": "../film-engine/src/index.html",
+  "generatedFrom": "reference/fb8c770/src/index.html",
+  "sourceCommit": "fb8c7700ad1e9233f6cf50e86669d28ebeac29ef",
   "round": 3,
   "chunks": {
     "projects": {
@@ -137,7 +138,6 @@
         "selectAllChapters",
         "deselectAllChapters",
         "chunkText",
-        "updateConversionEstimate",
         "formatDuration",
         "setConversionProgress",
         "buildConversionQueue",
@@ -150,8 +150,8 @@
         "backToConvertStep1",
         "acceptConversion"
       ],
-      "otherStatements": 10,
-      "bytes": 138618
+      "otherStatements": 8,
+      "bytes": 137374
     },
     "scenes": {
       "pages": [
@@ -1579,11 +1579,41 @@
     }
   },
   "core": {
-    "functions": 544,
+    "loaderPlaceholders": [
+      "loadDashboard",
+      "loadShotBoard",
+      "loadAssets",
+      "loadMusicCues",
+      "loadMusicWorkstation",
+      "loadMilestones",
+      "loadNotesPage",
+      "loadRenderPage",
+      "loadEditsPage",
+      "loadExportPage",
+      "loadPipeline",
+      "loadFlowsPage",
+      "loadMoodBoardPage",
+      "loadStyleBook",
+      "loadPrevisPage",
+      "loadSettings",
+      "loadBrands",
+      "loadDeliverables",
+      "loadRights",
+      "loadTitles",
+      "loadSubtitles",
+      "loadMarketing",
+      "loadConsistency",
+      "loadSpend",
+      "loadBudget",
+      "loadThreeD",
+      "loadMusic",
+      "loadPlayback"
+    ],
+    "functions": 545,
     "unreached": 16,
     "sharedByChunks": 12,
     "declaredTwice": [],
     "bootVendors": [],
-    "bytes": 810937
+    "bytes": 812511
   }
 }

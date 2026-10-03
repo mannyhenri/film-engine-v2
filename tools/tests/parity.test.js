@@ -54,8 +54,10 @@ test('every ported page loads a chunk, and each chunk holds exactly its mapped f
 
 test('no code is lost or duplicated: every top-level statement of the source is in core or one chunk, once', () => {
     const norm = (code) => acorn.parse(code, { ecmaVersion: 'latest' }).body.map(n => code.slice(n.start, n.end));
-    const app = norm(src.app.replace(/if \(loaders\[page\]\) loaders\[page\]\(\);/, ''));
-    const port = [...norm(read('public/legacy/core.js')), ...chunkFiles().flatMap(f => norm(read(f)))];
+    const app = norm(src.app);
+    // The port adds exactly one statement: core's var placeholders for loaders that live in chunks.
+    const placeholder = `var ${map.core.loaderPlaceholders.join(', ')};`;
+    const port = [...norm(read('public/legacy/core.js')), ...chunkFiles().flatMap(f => norm(read(f)))].filter(t => t !== placeholder);
     assert.strictEqual(port.length, app.length, 'statement count');
     // navigateTo is the one statement the port rewrites; everything else is byte-identical.
     const portSet = new Map();

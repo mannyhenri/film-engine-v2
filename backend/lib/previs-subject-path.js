@@ -11,7 +11,7 @@
  * say which way the subject faces, because a running person faces where they
  * run. Before the first key and after the last the subject holds.
  *
- * ONE sampler. `subjectPoseAt` is mirrored in the page (src/index.html) so the
+ * ONE sampler. `subjectPoseAt` is mirrored in the page (public/legacy/chunks/stage3d.js) so the
  * Plan and Look views can draw the subject at the playhead without a request,
  * and `tests/previs-subject-path.test.js` runs both over the same cases: two
  * samplers that disagree draw the girl somewhere the render does not put her.
@@ -52,7 +52,7 @@ function validateSubjectPath(path, at, durationMs) {
 
 /**
  * Where a staged subject is, and which way it faces, at `tMs` into the shot.
- * MIRRORED in src/index.html — change both, or the parity test fails.
+ * MIRRORED in public/legacy/chunks/stage3d.js — change both, or the parity test fails.
  */
 function subjectPoseAt(su, tMs) {
     const base = su && Array.isArray(su.position) ? su.position.map(Number) : [0, 0, 0];

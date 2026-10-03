@@ -1,0 +1,672 @@
+/**
+ * Directing a shot is a creative act, not a control panel.
+ *
+ * The first version of this surface exposed every parameter the route accepts —
+ * seed, ledger mode, negative prompt, style override, prompt override, and a
+ * character-budget chart. All of that is the MACHINERY. A director opening a
+ * frame that came back wrong does not want to tune a sampler; they want to say
+ * who is in the shot, where the camera is, and what else should be true.
+ *
+ * The surface is now exactly what the work is:
+ *
+ *   description   what the SCREENPLAY says. Nothing else. Not composed, not
+ *                 embellished — the writing is the source, and a board that
+ *                 shows something else is showing you a paraphrase of your film.
+ *   anchor        keep the previous shot as reference (unchanged)
+ *   direct        WHO and WHAT is in it (blocking), then WHERE THE CAMERA IS
+ *                 (cinematography), with anything unset falling through to the
+ *                 mood board and the film's look
+ *   refine        keep this frame, change one thing
+ *   regen         make it again
+ *   version       which attempt am I looking at
+ *
+ * Set-based over three registries — the reference kinds, the camera facets the
+ * schema validates, and the mood-board specs — because a hand-listed subset is
+ * how the last version came to offer four cinematography fields out of eight.
+ */
+
+const test = require('node:test');
+const assert = require('node:assert');
+const fs = require('fs');
+const path = require('path');
+
+const HTML = fs.readFileSync(path.join(__dirname, '..', '..', 'src', 'index.html'), 'utf8');
+
+/** Run a panel builder out of the page, so ids built from `${p}x` are real. */
+function runFn(name, ...args) {
+    const start = HTML.indexOf(`function ${name}(`);
+    assert.ok(start > 0, `${name} is not defined`);
+    let i = HTML.indexOf('{', start), depth = 0, end = -1;
+    for (let j = i; j < HTML.length; j++) {
+        if (HTML[j] === '{') depth++;
+        else if (HTML[j] === '}') { depth--; if (depth === 0) { end = j + 1; break; } }
+    }
+    const src = HTML.slice(start, end);
+    // eslint-disable-next-line no-new-func
+    return new Function(`${src}; return ${name}(${args.map(a => JSON.stringify(a)).join(',')});`)();
+}
+
+// ── The three registries this surface must cover ────────────────────────
+
+/** What a director PICKS for a shot: who is in it, where it is, what is in it. */
+const BLOCKING_KINDS = (() => {
+    const { KIND_RANK, KIND_SOURCE } = require('../lib/reference-images');
+    /*
+     * DERIVED from KIND_SOURCE rather than a list of names.
+     *
+     * Only an `entity` kind is a thing a director PICKS for a shot — a subject
+     * with a table and a plate. `anchor` is a frame and has its own button,
+     * `style` is the film's look, and `plate` is a render of geometry: none of
+     * them is something you choose from a list of cast and props.
+     *
+     * This was `filter(k => k !== 'anchor' && k !== 'style')`, and the sixth
+     * kind arrived and demanded a picker for a previs render. KIND_SOURCE
+     * exists precisely so that question has a mechanical answer.
+     */
+    return Object.keys(KIND_RANK).filter(k => KIND_SOURCE[k] === 'entity');
+})();
+
+/** Every camera facet the validator accepts — the cinematography set. */
+/*
+ * Camera facets a DIRECTOR types on the board.
+ *
+ * Excludes the 3-vector pose facets, and the rule is mechanical rather than a
+ * list of names: a facet the schema checks with validVector3 is a position or
+ * an orientation, and those are authored by standing the camera on the previs
+ * stage, not by typing three numbers into a board form. Offering "rotation
+ * [_, _, _]" beside a lens dropdown would be the machinery this surface was
+ * explicitly built to remove.
+ *
+ * They still round-trip — Apply writes them and from-card reads them back —
+ * so this is a statement about which SURFACE authors them, not permission to
+ * drop them. Derived from the validator so a fourth vector facet is excluded
+ * for the same reason with nothing to remember, and a new SCALAR facet is
+ * still demanded here.
+ */
+const CAMERA_FACETS = (() => {
+    const src = fs.readFileSync(path.join(__dirname, '..', 'lib', 'scene-card-schema.js'), 'utf8');
+    const all = [...new Set([...src.matchAll(/card\.camera\.([a-z_]+)/g)].map(m => m[1]))];
+    const vectors = new Set([...src.matchAll(/validVector3\(card\.camera\.([a-z_]+)\)/g)].map(m => m[1]));
+    return all.filter(f => !vectors.has(f));
+})();
+
+/** The pose facets previs authors instead. Asserted below, not merely skipped. */
+const POSE_FACETS = (() => {
+    const src = fs.readFileSync(path.join(__dirname, '..', 'lib', 'scene-card-schema.js'), 'utf8');
+    return [...new Set([...src.matchAll(/validVector3\(card\.camera\.([a-z_]+)\)/g)].map(m => m[1]))];
+})();
+
+/** Specs a shot's cinematography can fall through to. */
+const PREVIS_SPECS = (() => {
+    const { SPEC_KINDS } = require('../lib/look-development');
+    return Object.entries(SPEC_KINDS).filter(([, v]) => (v.target || v) === 'previs').map(([k]) => k);
+})();
+
+test('the set this surface must cover is derived, not guessed', () => {
+    assert.ok(BLOCKING_KINDS.length >= 3, `blocking kinds: ${BLOCKING_KINDS.join(',')}`);
+    assert.ok(CAMERA_FACETS.length >= 8, `camera facets: ${CAMERA_FACETS.join(',')}`);
+    assert.ok(PREVIS_SPECS.length >= 3, `previs specs: ${PREVIS_SPECS.join(',')}`);
+});
+
+// ── 1. The description is the screenplay ────────────────────────────────
+
+test('the shot description is the screenplay text, and direction is separate', () => {
+    // A board showing a composed description is showing a paraphrase of the
+    // film. The writing is the source; what a director adds is ADDITIVE and
+    // lives in its own field, so the two can never be confused and the
+    // screenplay half can always be re-derived.
+    const schema = fs.readFileSync(path.join(__dirname, '..', 'lib', 'scene-card-schema.js'), 'utf8');
+    assert.ok(/card\.direction/.test(schema),
+        'the scene card has no `direction` field, so a director has nowhere to add to the screenplay '
+        + 'except by overwriting it');
+
+    const shots = fs.readFileSync(path.join(__dirname, '..', 'routes', 'shots.js'), 'utf8');
+    assert.ok(/'direction'/.test(shots), 'direction cannot be saved through PUT /shots/:id');
+
+    const prompt = fs.readFileSync(path.join(__dirname, '..', 'lib', 'storyboard-prompt.js'), 'utf8');
+    assert.ok(/sceneCard\.direction/.test(prompt),
+        'direction is stored and never reaches the prompt');
+});
+
+// ── 3. Blocking: pick who and what is in the shot ───────────────────────
+
+/** The choices are rendered from project data, so the test supplies some. */
+function renderChoices() {
+    const start = HTML.indexOf('function renderBlockingChoices(');
+    assert.ok(start > 0, 'renderBlockingChoices is not defined');
+    let i = HTML.indexOf('{', start), depth = 0, end = -1;
+    for (let j = i; j < HTML.length; j++) {
+        if (HTML[j] === '{') depth++;
+        else if (HTML[j] === '}') { depth--; if (depth === 0) { end = j + 1; break; } }
+    }
+    const src = HTML.slice(start, end);
+    let out = '';
+    const doc = {
+        getElementById: () => ({ set innerHTML(v) { out = v; }, get innerHTML() { return out; } }),
+    };
+    // eslint-disable-next-line no-new-func
+    new Function('document', 'escapeHtml', `${src}; renderBlockingChoices('shotCard', {
+        card: { characters: ['MAYA'], props: [] },
+        characters: [{ name: 'MAYA', has_plate: true }, { name: 'DRAGON', has_plate: false }],
+        props: [{ name: 'SEDAN', has_plate: true }],
+        location: { name: 'SUBURBAN STREET', has_plate: true },
+    });`)(doc, x => String(x));
+    return out;
+}
+
+test('every blocking kind can be picked for a shot', () => {
+    const rendered = renderChoices();
+    for (const kind of BLOCKING_KINDS) {
+        assert.ok(new RegExp(`id="shotCard${kind[0].toUpperCase()}${kind.slice(1)}`, 'i').test(rendered)
+            || new RegExp(`data-blocking-kind="${kind}"`).test(rendered),
+            `no way to choose which ${kind}(s) are in this shot`);
+    }
+});
+
+test('blocking is a PICKER over what the project has, not free text', () => {
+    // Typing "MAYA" and typing "Maya" produce a subject the plates know nothing
+    // about. The project already knows its own cast; a director should choose
+    // from it, and see what has no plate yet.
+    const rendered = renderChoices();
+    assert.ok(/no plate/.test(rendered),
+        'the picker never says which subjects have no plate, which is the fact that decides '
+        + 'whether a subject will be invented fresh in every frame');
+    assert.ok(/type="checkbox"/.test(rendered),
+        'blocking is still free text — a typo silently invents a subject with no plate');
+});
+
+test('the direction box adds to the screenplay rather than replacing it', () => {
+    const rendered = runFn('blockingPanel', 'shotCard');
+    assert.ok(/id="shotCardDirection"/.test(rendered), 'there is no direction box');
+    assert.ok(/screenplay/i.test(rendered),
+        'the panel never says the direction is on TOP of the screenplay, so it reads as a replacement');
+});
+
+test('the screenplay half is editable, and stays a separate half', () => {
+    // Editable, because sometimes the script's account of a shot needs fixing
+    // and going back to the screenplay to change one line is a long way round.
+    // Still its own field: the two are kept apart so a revision can replace the
+    // writing without discarding the direction.
+    const rendered = runFn('blockingPanel', 'shotCard');
+    assert.match(rendered, /<textarea[^>]*id="shotCardWritten"/,
+        'the screenplay half cannot be edited');
+    assert.ok(/id="shotCardDirection"/.test(rendered),
+        'direction lost its own field, so the two halves have merged');
+
+    const html = fs.readFileSync(path.join(__dirname, '..', '..', 'src', 'index.html'), 'utf8');
+    const read = html.slice(html.indexOf('function readBlockingPanel('),
+        html.indexOf('function readBlockingPanel(') + 900);
+    assert.ok(/description:/.test(read), 'the edited screenplay is never read back');
+
+    // A blank one is omitted, not sent: the route merges, and sending '' would
+    // erase the shot's own account of itself.
+    /*
+     * Bounded by the enclosing function, not by a character count.
+     *
+     * This was `+ 700`, and adding three fields to the save pushed the check it
+     * looks for outside the window — so it reported that a blank description
+     * was being sent when the guard was still there, four lines further down.
+     * This codebase has paid for a bounded scan four times ([^)], [^\]], a
+     * 600-char window, and now this): the failure mode is that it silently
+     * stops matching and then blames the code it can no longer see.
+     */
+    const saveStart = html.indexOf('const blocking = readBlockingPanel(');
+    let depth = 0, saveEnd = saveStart;
+    for (let i = saveStart; i < html.length; i++) {
+        if (html[i] === '{') depth++;
+        else if (html[i] === '}') { if (depth === 0) { saveEnd = i; break; } depth--; }
+    }
+    const save = html.slice(saveStart, saveEnd);
+    assert.match(save, /if \(blocking\.description\)/,
+        'a blank description is sent, which would erase what the screenplay said');
+});
+
+// ── 4. Cinematography, with the mood board underneath ───────────────────
+
+test('every camera facet the schema validates has a control', () => {
+    const rendered = runFn('directingPanel', 'shotCard');
+    const missing = CAMERA_FACETS.filter(f => {
+        const id = 'shotCard' + f.split('_').map(w => w[0].toUpperCase() + w.slice(1)).join('');
+        return !rendered.includes(`id="${id}"`);
+    });
+    assert.deepStrictEqual(missing, [],
+        `the schema validates these camera facets and the page cannot set them: ${missing.join(', ')}`);
+});
+
+test('the pose facets the board excludes are authored in the World Engine console', () => {
+    /*
+     * An exclusion that is only an exclusion is how a facet goes missing from
+     * every surface at once. These are not offered on the board BECAUSE the
+     * Previs page authors them — once the old stage's inspector, now the
+     * console's Camera Operate panel — so it has to actually author them, or a
+     * director can set a camera position nowhere at all.
+     */
+    assert.ok(POSE_FACETS.length,
+        'POSE_FACETS is empty, so every assertion below would pass over nothing');
+    const ui = fs.readFileSync(path.join(__dirname, '..', '..', 'src', 'index.html'), 'utf8');
+    const m = /const OPERATE_AXES = Object\.freeze\(\[([\s\S]*?)\]\);/.exec(ui);
+    assert.ok(m, 'the console declares no camera-operate axes');
+    const groups = { position: 'TRANSLATION', rotation: 'ROTATION' };
+    const orphaned = POSE_FACETS.filter(f => {
+        const g = groups[f];
+        return !g || (m[1].match(new RegExp(`group: '${g}'`, 'g')) || []).length < 3;
+    });
+    assert.deepStrictEqual(orphaned, [],
+        'excluded from the board and not authored in the console either — settable nowhere');
+    assert.match(ui, /async function worldNudge\(/, 'the axes have no handler that writes the camera');
+});
+
+test('an unset facet says what it will fall through to', () => {
+    // "whatever options we don't add should take from either moodboard or
+    // overall project look". A blank field that silently inherits is
+    // indistinguishable from one that reaches nothing.
+    const rendered = runFn('directingPanel', 'shotCard');
+    assert.ok(/mood board|moodboard/i.test(rendered),
+        'nothing on the cinematography panel says an unset value falls through to the mood board');
+    assert.ok(/function directingFallbacks\(/.test(HTML),
+        'no code resolves what an unset facet would inherit, so the hint cannot be real');
+});
+
+// ── 5. The frame card keeps the five controls that matter ───────────────
+
+/*
+ * The five controls a frame card carries, named as the code names them rather
+ * than as prose describes them: an earlier draft of this test asked for
+ * `anchorToggle`, which does not exist — the anchor is setAnchor/clearAnchor.
+ * A test written in a vocabulary the code does not speak reports a working
+ * surface as broken.
+ */
+const CARD_CONTROLS = ['setAnchor', 'directShot', 'refineFrame', 'regenerateStoryboard', 'openFrameVersions'];
+
+test('the frame card offers exactly the controls the work needs', () => {
+    for (const fn of CARD_CONTROLS) {
+        assert.ok(HTML.includes(`${fn}(`), `the frame card lost its ${fn} control`);
+    }
+});
+
+// ── The complexity is GONE, not merely collapsed ────────────────────────
+
+const MACHINERY = ['directSeed', 'directLedgerMode', 'directNegative', 'directStyleOverride',
+    'directPromptOverride', 'directRenderPreview'];
+
+test('the machinery is not on the directing surface', () => {
+    // Seed, sampler mode, negative prompts and a character-budget chart are
+    // what the engine does, not what a director decides. Left on the creative
+    // surface they crowd out the two questions that matter.
+    const present = MACHINERY.filter(id => HTML.includes(id));
+    assert.deepStrictEqual(present, [],
+        `these belong to the machinery and are still on the directing surface: ${present.join(', ')}`);
+});
+
+// ── 6. Previs shows the current frame, and feeds directing ──────────────
+
+
+test('directing in previs writes back into the directing elements', () => {
+    // "we should be able to manually direct the scene in previz and it adds
+    // those details into our directing elements" — the stage is a way of
+    // deciding the same facts, so what is decided there has to land where the
+    // rest of the app reads them.
+    const previs = fs.readFileSync(path.join(__dirname, '..', 'routes', 'previs.js'), 'utf8');
+    const at = previs.indexOf('function applyBlockingToCard(');
+    assert.ok(at > 0, 'applyBlockingToCard is gone');
+    const nextFn = previs.indexOf('\nfunction ', at + 10);
+    const apply = previs.slice(at, nextFn === -1 ? previs.length : nextFn);
+    for (const facet of ['shot_type', 'lens', 'movement', 'sensor', 'aperture', 'height_m']) {
+        assert.ok(apply.includes(facet), `previs/apply does not write ${facet} back to the card`);
+    }
+    assert.ok(/card\.characters|card\.props/.test(apply),
+        'staging a named subject in previs never reaches the shot\'s blocking, so the two disagree');
+});
+
+test('the plate badge agrees with what actually attaches', () => {
+    /*
+     * The picker invented three field names — plate_asset_id, has_plate,
+     * refsheet_asset_id — and only the middle one exists, and only because it
+     * was added afterwards. Every subject in every project reported "no plate",
+     * which is the opposite of the truth and the direction that costs money: it
+     * tells a director to go and generate plates that already exist.
+     *
+     * Derived over the three subject kinds, and against the GATHERER's own
+     * query, because a badge that disagrees with what attaches is worse than no
+     * badge.
+     */
+    const routes = {
+        characters: fs.readFileSync(path.join(__dirname, '..', 'routes', 'characters.js'), 'utf8'),
+        props: fs.readFileSync(path.join(__dirname, '..', 'routes', 'locations.js'), 'utf8'),
+        locations: fs.readFileSync(path.join(__dirname, '..', 'routes', 'locations.js'), 'utf8'),
+    };
+    for (const [kind, src] of Object.entries(routes)) {
+        assert.ok(/platedSubjects/.test(src),
+            `the ${kind} list does not report which subjects have a plate`);
+    }
+
+    // One source of truth: the helper must run the gatherer's own asset types.
+    const refs = fs.readFileSync(path.join(__dirname, '..', 'lib', 'shot-references.js'), 'utf8');
+    assert.ok(/function platedSubjects\(/.test(refs), 'platedSubjects is not defined beside the gatherer');
+    const helper = refs.slice(refs.indexOf('const PLATE_TYPES'), refs.indexOf('function platedSubjects(') + 900);
+    for (const t of ['character_sheet', 'reference_image']) {
+        assert.ok(helper.includes(t), `platedSubjects ignores ${t}, which the gatherer attaches`);
+    }
+
+    // And the client must read the served field, not a guessed one.
+    const html = fs.readFileSync(path.join(__dirname, '..', '..', 'src', 'index.html'), 'utf8');
+    const fn = html.slice(html.indexOf('const platedBy = rows =>'),
+        html.indexOf('const platedBy = rows =>') + 400);
+    assert.ok(/r\.has_plate/.test(fn), 'the picker does not read has_plate');
+    for (const invented of ['plate_asset_id', 'refsheet_asset_id']) {
+        assert.ok(!fn.includes(invented),
+            `the picker still reads ${invented}, which no route returns`);
+    }
+});
+
+
+test('camera mode is reachable from the board, and says when it cannot run', () => {
+    /*
+     * It was built, tested, and then removed from the page during the
+     * simplification — leaving the single best tool for "put the camera on the
+     * other side of the street" reachable only from an agent host. A capability
+     * with no control is indistinguishable from one that does not exist.
+     *
+     * It belongs here as a DIRECTING choice — action or camera — not as a dial
+     * on a control panel, which is what it was the first time.
+     */
+    const html = fs.readFileSync(path.join(__dirname, '..', '..', 'src', 'index.html'), 'utf8');
+    assert.ok(/name="shotCardMode"/.test(html), 'there is no way to choose what you are directing');
+    assert.ok(/value="camera"/.test(html) && /value="action"/.test(html),
+        'both directing modes must be offered');
+    assert.ok(/direction_mode/.test(html), 'the page never sends the chosen mode');
+
+    // Refused without an anchor, so it has to say so where it is CHOSEN rather
+    // than as a 409 after the form is filled in.
+    assert.ok(/shotCardModeHint/.test(html), 'nothing says whether camera mode can actually run');
+    assert.ok(/cameraRadio\.disabled/.test(html),
+        'camera mode stays selectable with no anchor, so the only feedback is a refusal');
+});
+
+test('you can see what will be sent before paying for it', () => {
+    /*
+     * "We need to nail getting accurate results on this tool, as this is where
+     * all the experimentation and consistency must be nailed first."
+     *
+     * Experimentation needs a feedback loop that is not a purchase. GET
+     * /shots/:id/prompt spends NOTHING and returns the exact assembled prompt,
+     * which plates travel, and how much room is left — and it had no control on
+     * the page at all, so the only way to find out what a shot would send was
+     * to generate it and look at the picture.
+     *
+     * That is what kept 2B expensive: a camera note contradicted by a staging
+     * line, a subject description overriding the anchor, plates silently
+     * dropped — every one of them visible in the assembled prompt, and none of
+     * them visible before the money was spent.
+     *
+     * Deliberately NOT the budget chart this surface carried the first time.
+     * What a director needs is the words that are going, the pictures that are
+     * going, and whether anything got cut.
+     */
+    const html = fs.readFileSync(path.join(__dirname, '..', '..', 'src', 'index.html'), 'utf8');
+    assert.ok(/function previewShotPrompt\(/.test(html),
+        'there is no way to see what a shot would send');
+
+    const fn = html.slice(html.indexOf('async function previewShotPrompt('),
+        html.indexOf('async function previewShotPrompt(') + 2600);
+    assert.ok(fn.length > 200, 'previewShotPrompt is not defined');
+    assert.ok(/\/prompt/.test(fn), 'the preview does not call the free prompt route');
+    assert.ok(!/regenerate/.test(fn), 'the preview spends money');
+    assert.ok(/direction_mode/.test(fn),
+        'the preview cannot show the mode being chosen, which is the one worth previewing');
+
+    // The three things that decide whether a frame comes back right.
+    for (const [needle, why] of [
+        ['references', 'which plates actually travel — a dropped plate is invented from scratch'],
+        ['Staging', 'the staged geometry, which is what contradicts a camera note'],
+        ['headroom', 'whether anything was cut to fit'],
+    ]) {
+        assert.ok(fn.includes(needle), `the preview does not show ${why}`);
+    }
+    assert.ok(/previewShotPrompt\(/.test(html.replace(fn, '')),
+        'nothing opens the preview');
+});
+
+test('language describing what is NOT in frame is flagged before spending', () => {
+    /*
+     * Wingfall 2B cost an afternoon to this. The card said the roofline was
+     * sheared off "the pale blue two-storey house JUST OFF FRAME" and every
+     * attempt drew that house, in frame. It said "We never see its face" and an
+     * attempt drew the face. Nothing was broken — the prompt was asking for
+     * them, because an image model draws what you NAME and negation is the
+     * least reliable instruction it takes.
+     *
+     * Set-based over the rules, because the failure is per-phrase: a check that
+     * catches "off frame" and misses "behind camera" leaves the same afternoon
+     * available.
+     */
+    const { offFrameFindings, RULES } = require('../lib/prompt-lint');
+    assert.ok(RULES.length >= 4, `expected several rules, found ${RULES.length}`);
+
+    const samples = {
+        off_frame: 'the pale blue house just off frame',
+        behind_camera: 'from the opened house behind camera',
+        never_see: 'we never see its face',
+        past_camera: 'debris travels toward camera and past it',
+        no_negative: 'there are no people on the street',
+    };
+    for (const rule of RULES) {
+        const sample = samples[rule.id];
+        assert.ok(sample, `rule ${rule.id} has no sample in this test — it is unproven`);
+        const hits = offFrameFindings(sample);
+        assert.ok(hits.some(h => h.rule === rule.id),
+            `rule ${rule.id} did not fire on "${sample}"`);
+        assert.ok(hits[0].fix, `rule ${rule.id} says what is wrong and not what to do instead`);
+    }
+
+    // Ordinary description must survive, or the warning gets switched off and
+    // then protects nothing — the asymmetry the style check is built around.
+    for (const innocent of [
+        'MAYA stands at the end of her driveway, small and still',
+        'the near wing fills the left of frame, seen from behind and slightly below',
+        'wet asphalt, streetlights, debris hanging in the air',
+        'a long hard-edged warm wedge lies across the wet road',
+    ]) {
+        assert.deepStrictEqual(offFrameFindings(innocent), [],
+            `ordinary description was flagged: "${innocent}"`);
+    }
+
+    // And it must reach the free preview, which is the only place it can be
+    // acted on before money is spent.
+    const routes = fs.readFileSync(path.join(__dirname, '..', 'routes', 'storyboard.js'), 'utf8');
+    assert.ok(/off_frame:/.test(routes), 'the free preview does not report it');
+    const html = fs.readFileSync(path.join(__dirname, '..', '..', 'src', 'index.html'), 'utf8');
+    assert.ok(/off_frame/.test(html), 'the page never shows it');
+});
+
+test('a shot can be added from the board', () => {
+    /*
+     * POST /shots has existed since the first week and `shot_create` reaches it
+     * over MCP; the board had no control at all. So a director who realised a
+     * scene needed a cutaway between 2A and 2B could not add one without
+     * leaving the app — a capability with no control is indistinguishable from
+     * one that does not exist.
+     */
+    const html = fs.readFileSync(path.join(__dirname, '..', '..', 'src', 'index.html'), 'utf8');
+    assert.ok(/function insertShotAfter\(/.test(html), 'there is no way to add a shot from the board');
+    assert.ok(/insertShotAfter\('\$\{f\.shot_id\}'\)/.test(html),
+        'the control is not on a frame, so "after which shot" is unanswerable');
+
+    const fn = html.slice(html.indexOf('async function insertShotAfter('),
+        html.indexOf('async function insertShotAfter(') + 2600);
+    assert.ok(/insert-after/.test(fn),
+        'the button does not use the insert route, so it cannot place the shot or number it');
+    assert.ok(/script supervisor/.test(fn),
+        'the prompt does not tell the director how the shot will be numbered before they commit');
+});
+
+test('every paid action shows what will be sent, and names the pictures', () => {
+    /*
+     * "When we click save or regen, we should have a popup of what will be sent
+     * to the image generator, so I can check it before spending a credit. And
+     * it should mention which plate or images are included so we're not going
+     * blind."
+     *
+     * The free preview existed as a button you had to remember to press, which
+     * is not the same thing — the check that matters is the one you cannot skip
+     * by accident.
+     *
+     * Naming the PICTURES is the half that kept being missed. A prompt reads
+     * perfectly while the plate that would have made the car a 1970s sedan was
+     * dropped for want of a reference slot: the words look right and the frame
+     * comes back wrong, which is the most expensive kind of wrong.
+     *
+     * Set-based over the per-shot paid paths, because a gate on one of them
+     * teaches a director that generations are checked, and then the other
+     * spends silently.
+     */
+    const html = fs.readFileSync(path.join(__dirname, '..', '..', 'src', 'index.html'), 'utf8');
+    assert.ok(/async function confirmGeneration\(/.test(html), 'there is no pre-spend confirmation');
+
+    /*
+     * Each paid path confirms against ITS OWN payload. Refine does not send
+     * what a regeneration sends — the picture plus one instruction, no card, no
+     * plates — so confirming it against the regeneration preview would show a
+     * ~3,800-character prompt and five plates that never travel.
+     */
+    const PAID = [
+        { fn: 'regenerateStoryboard', gate: 'confirmGeneration' },
+        { fn: 'refineFrame', gate: 'confirmRefine' },
+    ];
+    for (const { fn, gate } of PAID) {
+        const at = html.indexOf(`async function ${fn}(`);
+        assert.ok(at > 0, `${fn} is gone`);
+        const body = html.slice(at, at + 2600);
+        assert.ok(new RegExp(`await ${gate}\\(`).test(body),
+            `${fn} spends credits without showing what IT would send`);
+        assert.ok(/if \(!ok\) return;/.test(body),
+            `${fn} asks and then generates regardless of the answer`);
+    }
+
+    // The confirmation must name the pictures, the geometry and the risks —
+    // a prompt alone is what a director already could not diagnose from.
+    // Sized by brace balance rather than a guessed length: a fixed window
+    // silently stops checking the tail of the function every time it grows.
+    const dlgAt = html.indexOf('async function confirmGeneration(');
+    let di = html.indexOf('{', dlgAt), dd = 0, dEnd = -1;
+    for (let j = di; j < html.length; j++) {
+        if (html[j] === '{') dd++;
+        else if (html[j] === '}') { dd--; if (dd === 0) { dEnd = j + 1; break; } }
+    }
+    const dlg = html.slice(dlgAt, dEnd);
+    for (const [needle, why] of [
+        ['references', 'which plates travel — a dropped plate is invented from scratch'],
+        ['Pictures travelling', 'the pictures named in plain words'],
+        ['off_frame', 'language that draws what it says is not there'],
+        ['Staged geometry', 'staging that may contradict the camera note'],
+        ['prompt_chars', 'whether it fits'],
+    ]) {
+        assert.ok(dlg.includes(needle), `the confirmation does not show ${why}`);
+    }
+
+    // No plates at all is the loudest case, not a quiet blank.
+    assert.ok(/invented from words alone/.test(dlg),
+        'a shot sending NO reference images says nothing about it, which is the case most worth warning on');
+});
+
+test('the confirmation says whether the shot is anchored', () => {
+    /*
+     * The absence of an anchor is the single biggest reason a shot's location
+     * does not match the rest of its scene — the road, the kerb, where the car
+     * is parked — and it was invisible on the way to a generation.
+     *
+     * The anchor is a toggle on a frame card, so putting it down by accident is
+     * one click, and nothing afterwards mentions it. A missing plate among five
+     * is hard to spot; a missing anchor changes the whole street, which is
+     * exactly what happened to Wingfall 2B v19.
+     */
+    const html = fs.readFileSync(path.join(__dirname, '..', '..', 'src', 'index.html'), 'utf8');
+    const dlgAt2 = html.indexOf('async function confirmGeneration(');
+    let d2 = html.indexOf('{', dlgAt2), dp = 0, d2End = -1;
+    for (let j = d2; j < html.length; j++) {
+        if (html[j] === '{') dp++;
+        else if (html[j] === '}') { dp--; if (dp === 0) { d2End = j + 1; break; } }
+    }
+    const dlg = html.slice(dlgAt2, d2End);
+    assert.ok(/Continuity/.test(dlg), 'the confirmation never mentions continuity');
+    assert.ok(/kind === 'anchor'/.test(dlg),
+        'it does not distinguish the anchor from an ordinary plate, so its absence reads as normal');
+    assert.ok(/No anchor/.test(dlg),
+        'a shot generating with no anchor is not warned about, which is the case that costs a whole street');
+    assert.ok(/Cancel/.test(dlg) && /⚓|&#9875;/.test(dlg),
+        'the warning does not say how to fix it, so it is an observation rather than a prompt to act');
+});
+
+test('the pre-spend confirmation lets the prompt be edited, and an edit is what is sent', () => {
+    /*
+     * `GET /shots/:id/prompt` has shown exactly what would be sent for weeks,
+     * and `regenerate` has taken that text back as `prompt_override` for just
+     * as long — with nothing between them. Composing a prompt by hand meant
+     * curl, on the one surface a director spends money from.
+     *
+     * Two halves, and the second is the one that bites:
+     *
+     *   - the prompt is a textarea, not a <pre>;
+     *   - an UNEDITED prompt must NOT travel as an override. The route sets
+     *     promptIsFinal on an override, so sending the text back unchanged
+     *     would silently stop the references and the style preset being
+     *     applied — a frame generated without its plates, from a dialog the
+     *     director only opened to look.
+     */
+    const html = require('fs').readFileSync(
+        require('path').join(__dirname, '..', '..', 'src', 'index.html'), 'utf8');
+
+    const at = html.indexOf('async function confirmGeneration(');
+    assert.ok(at > 0, 'the pre-spend confirmation is gone');
+    const dialog = html.slice(at, at + 9000);
+
+    assert.ok(/id="confirmGenPrompt"[\s\S]{0,400}textarea|<textarea[^>]*id="confirmGenPrompt"/.test(dialog),
+        'the prompt is not editable — it is displayed and cannot be changed');
+
+    // The edit is read BEFORE the modal closes: closeModal removes the field,
+    // so reading it afterwards silently discards what was typed.
+    const resolver = html.slice(html.indexOf('function confirmGenResolve('));
+    /*
+     * Comments stripped first. The comment explaining this ordering NAMES
+     * closeModal, so matching on the raw text found the explanation before the
+     * code and reported correct code as broken — the same trap the clip-upload
+     * check fell into, where a test matched a word inside the comment that
+     * described the thing it was checking for.
+     */
+    const body = resolver.slice(0, resolver.indexOf('\n    }'))
+        .replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
+    const readAt = body.indexOf('confirmGenPrompt');
+    const closeAt = body.indexOf('closeModal');
+    assert.ok(readAt > 0 && readAt < closeAt,
+        'the edited prompt is read after the modal closes, so the edit is discarded');
+
+    // And it only travels when it really changed.
+    /*
+     * The whole function, bounded by the NEXT declaration. Slicing to the first
+     * `});` cut before the request body — a check that stops short of the code
+     * it is about reports correct code as broken, which is how a guard gets
+     * deleted rather than fixed.
+     */
+    const from = html.indexOf('async function regenerateStoryboard(');
+    const rest = html.slice(from + 40);
+    const end = rest.search(/\n    (?:async )?function /);
+    const call = end > 0 ? rest.slice(0, end) : rest.slice(0, 4000);
+    // Inline, or one call level down in confirmChoices(), which every dialog
+    // now sends its choices through.
+    const choicesFrom = html.indexOf('function confirmChoices(');
+    // Bounded by brace depth from the declaration, never a character window.
+    const choices = (() => {
+        if (choicesFrom < 0) return '';
+        const open = html.indexOf('{', choicesFrom);
+        let d = 0;
+        for (let j = open; j < html.length; j++) {
+            if (html[j] === '{') d++;
+            else if (html[j] === '}' && --d === 0) return html.slice(choicesFrom, j + 1);
+        }
+        return '';
+    })();
+    const viaChoices = /\.\.\.confirmChoices\(\)/.test(call) && /CONFIRM_GEN_EDITED\s*&&/.test(choices);
+    assert.ok(/CONFIRM_GEN_EDITED\s*&&/.test(call) || viaChoices,
+        'the prompt is sent as an override unconditionally, which would drop the '
+        + 'references and the style preset on an untouched generation');
+});

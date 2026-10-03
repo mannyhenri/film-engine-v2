@@ -13,7 +13,8 @@
     "test": "node --test tools/tests/*.test.js",
     "smoke": "npm run build && electron . --smoke",
     "parity": "sh tools/parity-run.sh",
-    "test:backend": "sh tools/backend-tests.sh"
+    "test:backend": "node tools/assemble-page.js && node tools/backend-tests.js",
+    "pretest": "node tools/assemble-page.js"
   },
   "dependencies": {
     "react": "^18.3.1",

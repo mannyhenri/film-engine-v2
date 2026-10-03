@@ -2778,7 +2778,6 @@ ${fountainText.slice(0, 50000)}`;
     let conversionResults = [];
     let conversionCancelled = false;
     let currentAbortController = null;
-    const MAX_CHUNK_SIZE = 7000;
     const CONTEXT_OVERLAP = 500;
 
     function openTextConvertModal() {
@@ -2969,18 +2968,6 @@ ${fountainText.slice(0, 50000)}`;
         reader.readAsText(file);
     }
 
-    // FILM-119: Update estimate when text changes
-    document.addEventListener('DOMContentLoaded', () => {
-        const sourceText = document.getElementById('convertSourceText');
-        if (sourceText) {
-            let estimateTimer;
-            sourceText.addEventListener('input', () => {
-                clearTimeout(estimateTimer);
-                estimateTimer = setTimeout(updateConversionEstimate, 500);
-            });
-        }
-    });
-
     function detectChapters() {
         const text = document.getElementById('convertSourceText').value;
         if (!text.trim()) {
@@ -3127,24 +3114,6 @@ ${fountainText.slice(0, 50000)}`;
         }
 
         return chunks;
-    }
-
-    // FILM-119: Calculate and display estimated time
-    function updateConversionEstimate() {
-        const text = document.getElementById('convertSourceText').value;
-        const estimateEl = document.getElementById('convertEstimate');
-
-        if (!text.trim()) {
-            estimateEl.style.display = 'none';
-            return;
-        }
-
-        const textLength = text.length;
-        const chunkCount = Math.ceil(textLength / MAX_CHUNK_SIZE);
-        const estimatedSeconds = chunkCount * 15; // ~15 sec per chunk
-
-        estimateEl.style.display = 'block';
-        estimateEl.textContent = `Full document: ${textLength.toLocaleString()} chars (~${chunkCount} chunk${chunkCount !== 1 ? 's' : ''}, ~${Math.ceil(estimatedSeconds / 60)} min)`;
     }
 
     function formatDuration(seconds) {

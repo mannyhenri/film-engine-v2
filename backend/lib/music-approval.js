@@ -35,7 +35,7 @@ const { generateId } = require('../db/database');
 
 const SCORE_CONSUMERS = Object.freeze([
     { id: 'timeline', file: 'backend/routes/timeline.js', what: 'The assembled timeline: the approved mix as one bed at its offset, and the scene music it replaces dropped.' },
-    { id: 'playback', file: 'src/index.html', what: 'Playback plays the timeline’s beds, one music bed at a time, so the score is heard once.' },
+    { id: 'playback', file: 'public/legacy/chunks/playback.js', what: 'Playback plays the timeline’s beds, one music bed at a time, so the score is heard once.' },
     { id: 'audio_mix', file: 'backend/routes/music-gen.js', what: 'The project mix plan names the score; a per-shot mix takes the score’s slice under that shot instead of the scene music.' },
     { id: 'pipeline', file: 'backend/routes/pipeline.js', what: 'The scene music step is skipped for a scene an approved score covers, so a second score is never generated under it.' },
     { id: 'nle_export', file: 'backend/routes/nle-export.js', what: 'FCPXML, Premiere XML and EDL lay the approved mix once on its first shot’s music lane, spanning its own length.' },
