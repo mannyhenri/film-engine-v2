@@ -11,7 +11,8 @@
     "build": "npm run split && vite build",
     "start": "electron .",
     "test": "node --test tools/tests/*.test.js",
-    "smoke": "npm run build && electron . --smoke"
+    "smoke": "npm run build && electron . --smoke",
+    "parity": "sh tools/parity-run.sh"
   },
   "dependencies": {
     "react": "^18.3.1",

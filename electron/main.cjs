@@ -44,7 +44,8 @@ async function createWindow() {
         title: 'Film Engine',
         webPreferences: { preload: path.join(__dirname, 'preload.cjs'), contextIsolation: true, nodeIntegration: false },
     });
-    if (process.env.FE_DEV_URL) await win.loadURL(process.env.FE_DEV_URL);
+    if (process.env.FE_SMOKE_URL) await win.loadURL(process.env.FE_SMOKE_URL); // e.g. the original one-file app, for a parity run
+    else if (process.env.FE_DEV_URL) await win.loadURL(process.env.FE_DEV_URL);
     else await win.loadFile(path.join(__dirname, '..', 'dist', 'index.html'));
     return win;
 }
@@ -63,27 +64,31 @@ async function smoke(win) {
     if (project) await js(`openProject(${JSON.stringify(project)}, 'dashboard')`).catch(e => errors.push({ page: 'openProject', message: String(e) }));
     await new Promise(r => setTimeout(r, 1500));
     const report = [];
+    const shapes = {};
     for (const id of PAGES) {
         current = id;
         const before = errors.length;
         await js(`navigateTo(${JSON.stringify(id)})`).catch(e => errors.push({ page: id, message: String(e) }));
-        await new Promise(r => setTimeout(r, 1200));
-        const state = await js(`({ active: document.querySelector('.page.active')?.id, chunk: (window.__fePages.loaded().includes(${JSON.stringify(id)})) })`);
+        await new Promise(r => setTimeout(r, Number(process.env.FE_SMOKE_WAIT || 1200)));
+        const state = await js(`({ active: document.querySelector('.page.active')?.id, chunk: !!(window.__fePages && window.__fePages.loaded().includes(${JSON.stringify(id)})),
+            shape: (() => { const el = document.getElementById('page-' + ${JSON.stringify(id)}); return el ? { elements: el.querySelectorAll('*').length, text: el.innerText.replace(/\\s+/g, ' ').trim().length } : null; })() })`);
+        shapes[id] = state.shape;
         const ok = state.active === 'page-' + id && errors.length === before;
         report.push({ id, ok, chunk: state.chunk, active: state.active });
     }
     // Cold start on a deep link to a chunked page: the chunk must load before its loader runs.
     const deep = PAGES.find(p => p !== 'projects' && p !== 'dashboard' && CHUNKED.includes(p));
-    if (project && deep) {
+    if (project && deep && !process.env.FE_SMOKE_URL) {
         current = 'deeplink:' + deep;
         const before = errors.length;
         const url = new URL(win.webContents.getURL());
         url.hash = `#/${project}/${deep}`;
         await win.loadURL(url.href);
         await new Promise(r => setTimeout(r, 3500));
-        const st = await js(`({ active: document.querySelector('.page.active')?.id, chunk: window.__fePages.loaded().includes(${JSON.stringify(deep)}) })`);
+        const st = await js(`({ active: document.querySelector('.page.active')?.id, chunk: !!(window.__fePages && window.__fePages.loaded().includes(${JSON.stringify(deep)})) })`);
         report.push({ id: 'deeplink→' + deep, ok: st.active === 'page-' + deep && st.chunk && errors.length === before, chunk: st.chunk, active: st.active, want: 'page-' + deep });
     }
+    if (process.env.FE_SMOKE_SHAPES) require('fs').writeFileSync(process.env.FE_SMOKE_SHAPES, JSON.stringify(shapes, null, 1));
     for (const r of report) console.log(`${r.ok ? 'ok  ' : 'FAIL'} ${r.id.padEnd(16)} ${r.chunk ? 'chunk loaded' : 'core only'}${r.active === (r.want || 'page-' + r.id) ? '' : '  active=' + r.active}`);
     for (const e of errors) console.log(`  console error [${e.page}] ${e.message} ${e.at || ''}`);
     console.log(`smoke: ${report.filter(r => r.ok).length}/${report.length} pages clean, ${errors.length} console errors, project=${project || 'none'}`);

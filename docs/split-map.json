@@ -1,26 +1,21 @@
 {
   "generatedFrom": "../film-engine/src/index.html",
-  "round": 1,
-  "pages": {
+  "round": 2,
+  "chunks": {
     "projects": {
-      "loader": [
-        "loadProjects"
+      "pages": [
+        "projects"
       ],
-      "chunk": true,
+      "deps": [],
       "functions": [],
-      "modals": [
-        "newProjectModal",
-        "folderPickerModal",
-        "productionGuideModal",
-        "projectOnboardingModal"
-      ],
+      "otherStatements": 0,
       "bytes": 0
     },
     "dashboard": {
-      "loader": [
-        "loadDashboard"
+      "pages": [
+        "dashboard"
       ],
-      "chunk": true,
+      "deps": [],
       "functions": [
         "loadHomePanels",
         "loadDashboard",
@@ -33,32 +28,14 @@
         "homeRunningHtml",
         "resumeShot"
       ],
-      "modals": [
-        "frameViewerModal",
-        "frameVersionsModal",
-        "backgroundPickerModal",
-        "confirmGenModal",
-        "shotCardModal",
-        "entityInspectModal",
-        "characterSheetModal",
-        "subjectSheetModal",
-        "castingModal",
-        "galleryModal",
-        "characterModal",
-        "locationModal",
-        "plateViewerModal",
-        "propModal",
-        "sceneCardModal",
-        "versionDiffModal",
-        "titlePageModal"
-      ],
-      "bytes": 8766
+      "otherStatements": 1,
+      "bytes": 11375
     },
     "screenplay": {
-      "loader": [
-        "loadScreenplayPage"
+      "pages": [
+        "screenplay"
       ],
-      "chunk": true,
+      "deps": [],
       "functions": [
         "uploadScreenplay",
         "restoreCursorPath",
@@ -81,6 +58,8 @@
         "detectElementTypeImmediate",
         "toggleDualDialogue",
         "undualDialogue",
+        "bodyBlocks",
+        "paginateInto",
         "saveTreatment",
         "addIndexCard",
         "createIndexCard",
@@ -88,6 +67,12 @@
         "exportToFountain",
         "exportToPlainText",
         "fountainToPlainText",
+        "exportToPDF",
+        "shootingScriptMarks",
+        "revisionMark",
+        "toPrintSheets",
+        "fitPrintSheets",
+        "generatePrintHTML",
         "downloadBlob",
         "openImportModal",
         "resetImportModal",
@@ -152,6 +137,7 @@
         "selectAllChapters",
         "deselectAllChapters",
         "chunkText",
+        "updateConversionEstimate",
         "formatDuration",
         "setConversionProgress",
         "buildConversionQueue",
@@ -164,56 +150,27 @@
         "backToConvertStep1",
         "acceptConversion"
       ],
-      "modals": [
-        "confirmGenModal",
-        "entityInspectModal",
-        "characterSheetModal",
-        "subjectSheetModal",
-        "castingModal",
-        "galleryModal",
-        "characterModal",
-        "locationModal",
-        "plateViewerModal",
-        "propModal",
-        "sceneCardModal",
-        "newSceneCardModal",
-        "textConvertModal",
-        "suggestionsModal",
-        "versionDiffModal",
-        "titlePageModal",
-        "importScriptModal"
-      ],
-      "bytes": 110828
+      "otherStatements": 10,
+      "bytes": 138618
     },
     "scenes": {
-      "loader": [
-        "loadScenes"
+      "pages": [
+        "scenes"
       ],
-      "chunk": true,
+      "deps": [],
       "functions": [
         "selectAllScenes",
         "deleteSelectedScenes",
         "breakdownAllScenes"
       ],
-      "modals": [
-        "confirmGenModal"
-      ],
+      "otherStatements": 0,
       "bytes": 2979
     },
-    "shotboard": {
-      "loader": [
-        "loadShotBoard"
-      ],
-      "chunk": false,
-      "functions": [],
-      "modals": [],
-      "bytes": 0
-    },
     "moodboard": {
-      "loader": [
-        "loadMoodBoardPage"
+      "pages": [
+        "moodboard"
       ],
-      "chunk": true,
+      "deps": [],
       "functions": [
         "loadMoodBoardPage",
         "moodSpecValues",
@@ -222,151 +179,27 @@
         "moodBoardDelete",
         "moodBoardCompose"
       ],
-      "modals": [
-        "confirmGenModal",
-        "entityInspectModal",
-        "characterSheetModal",
-        "subjectSheetModal",
-        "castingModal",
-        "galleryModal",
-        "characterModal",
-        "locationModal",
-        "plateViewerModal",
-        "propModal",
-        "sceneCardModal",
-        "versionDiffModal",
-        "titlePageModal"
-      ],
-      "bytes": 4932
+      "otherStatements": 1,
+      "bytes": 5038
     },
-    "storyboard": {
-      "loader": [
-        "loadStoryboard"
+    "subjects": {
+      "pages": [
+        "characters",
+        "locations",
+        "props"
       ],
-      "chunk": false,
-      "functions": [],
-      "modals": [],
-      "bytes": 0
-    },
-    "characters": {
-      "loader": [
-        "loadCharacters"
+      "deps": [],
+      "functions": [
+        "describeFromScreenplay"
       ],
-      "chunk": true,
-      "functions": [],
-      "modals": [
-        "confirmGenModal",
-        "entityInspectModal",
-        "characterSheetModal",
-        "subjectSheetModal",
-        "castingModal",
-        "galleryModal",
-        "characterModal",
-        "locationModal",
-        "plateViewerModal",
-        "propModal",
-        "sceneCardModal",
-        "versionDiffModal",
-        "titlePageModal"
-      ],
-      "bytes": 0
-    },
-    "locations": {
-      "loader": [
-        "loadLocations"
-      ],
-      "chunk": true,
-      "functions": [],
-      "modals": [
-        "confirmGenModal",
-        "entityInspectModal",
-        "characterSheetModal",
-        "subjectSheetModal",
-        "castingModal",
-        "galleryModal",
-        "characterModal",
-        "locationModal",
-        "plateViewerModal",
-        "propModal",
-        "sceneCardModal",
-        "versionDiffModal",
-        "titlePageModal"
-      ],
-      "bytes": 0
-    },
-    "props": {
-      "loader": [
-        "loadProps"
-      ],
-      "chunk": true,
-      "functions": [],
-      "modals": [
-        "confirmGenModal",
-        "entityInspectModal",
-        "characterSheetModal",
-        "subjectSheetModal",
-        "castingModal",
-        "galleryModal",
-        "characterModal",
-        "locationModal",
-        "plateViewerModal",
-        "propModal",
-        "sceneCardModal",
-        "versionDiffModal",
-        "titlePageModal"
-      ],
-      "bytes": 0
-    },
-    "assets": {
-      "loader": [
-        "loadAssets"
-      ],
-      "chunk": false,
-      "functions": [],
-      "modals": [],
-      "bytes": 0
-    },
-    "musicws": {
-      "loader": [
-        "loadMusicWorkstation"
-      ],
-      "chunk": false,
-      "functions": [],
-      "modals": [],
-      "bytes": 0
-    },
-    "musiccues": {
-      "loader": [
-        "loadMusicCues"
-      ],
-      "chunk": false,
-      "functions": [],
-      "modals": [],
-      "bytes": 0
-    },
-    "milestones": {
-      "loader": [
-        "loadMilestones"
-      ],
-      "chunk": false,
-      "functions": [],
-      "modals": [],
-      "bytes": 0
-    },
-    "playback": {
-      "loader": [
-        "loadPlayback"
-      ],
-      "chunk": false,
-      "functions": [],
-      "modals": [],
-      "bytes": 0
+      "otherStatements": 0,
+      "bytes": 1771
     },
     "notes": {
-      "loader": [
-        "loadNotesPage"
+      "pages": [
+        "notes"
       ],
-      "chunk": true,
+      "deps": [],
       "functions": [
         "loadNotesPage",
         "onNoteSceneChange",
@@ -377,185 +210,14 @@
         "showReviewModal",
         "submitReview"
       ],
-      "modals": [
-        "addNoteModal",
-        "reviewShotModal"
-      ],
+      "otherStatements": 0,
       "bytes": 4859
     },
-    "renderhistory": {
-      "loader": [
-        "loadRenderPage"
-      ],
-      "chunk": false,
-      "functions": [],
-      "modals": [],
-      "bytes": 0
-    },
-    "edits": {
-      "loader": [
-        "loadEditsPage"
-      ],
-      "chunk": false,
-      "functions": [],
-      "modals": [],
-      "bytes": 0
-    },
-    "exportpage": {
-      "loader": [
-        "loadExportPage"
-      ],
-      "chunk": false,
-      "functions": [],
-      "modals": [],
-      "bytes": 0
-    },
-    "brand": {
-      "loader": [
-        "loadBrands"
-      ],
-      "chunk": true,
-      "functions": [
-        "loadBrands",
-        "openBrand",
-        "saveBrand",
-        "deleteBrand"
-      ],
-      "modals": [],
-      "bytes": 6694
-    },
-    "deliverables": {
-      "loader": [
-        "loadDeliverables"
-      ],
-      "chunk": false,
-      "functions": [],
-      "modals": [],
-      "bytes": 0
-    },
-    "rights": {
-      "loader": [
-        "loadRights"
-      ],
-      "chunk": false,
-      "functions": [],
-      "modals": [],
-      "bytes": 0
-    },
-    "titles": {
-      "loader": [
-        "loadTitles"
-      ],
-      "chunk": false,
-      "functions": [],
-      "modals": [],
-      "bytes": 0
-    },
-    "subtitles": {
-      "loader": [
-        "loadSubtitles"
-      ],
-      "chunk": false,
-      "functions": [],
-      "modals": [],
-      "bytes": 0
-    },
-    "marketing": {
-      "loader": [
-        "loadMarketing"
-      ],
-      "chunk": false,
-      "functions": [],
-      "modals": [],
-      "bytes": 0
-    },
-    "consistency": {
-      "loader": [
-        "loadConsistency"
-      ],
-      "chunk": false,
-      "functions": [],
-      "modals": [],
-      "bytes": 0
-    },
-    "budget": {
-      "loader": [
-        "loadSpend",
-        "loadBudget"
-      ],
-      "chunk": false,
-      "functions": [],
-      "modals": [],
-      "bytes": 0
-    },
-    "threed": {
-      "loader": [
-        "loadThreeD"
-      ],
-      "chunk": false,
-      "functions": [],
-      "modals": [],
-      "bytes": 0
-    },
-    "videoshots": {
-      "loader": [
-        "loadVideoShots"
-      ],
-      "chunk": false,
-      "functions": [],
-      "modals": [],
-      "bytes": 0
-    },
-    "music": {
-      "loader": [
-        "loadMusic"
-      ],
-      "chunk": false,
-      "functions": [],
-      "modals": [],
-      "bytes": 0
-    },
-    "productiongraph": {
-      "loader": [
-        "loadProductionGraph"
-      ],
-      "chunk": false,
-      "functions": [],
-      "modals": [],
-      "bytes": 0
-    },
-    "flows": {
-      "loader": [
-        "loadFlowsPage"
-      ],
-      "chunk": false,
-      "functions": [],
-      "modals": [],
-      "bytes": 0
-    },
-    "previs": {
-      "loader": [
-        "loadPrevisPage"
-      ],
-      "chunk": false,
-      "functions": [],
-      "modals": [],
-      "bytes": 0
-    },
-    "pipeline": {
-      "loader": [
-        "loadPipeline"
-      ],
-      "chunk": false,
-      "functions": [],
-      "modals": [],
-      "bytes": 0
-    },
     "stylebook": {
-      "loader": [
-        "loadStyleBook"
+      "pages": [
+        "stylebook"
       ],
-      "chunk": true,
+      "deps": [],
       "functions": [
         "loadStyleBook",
         "styleBookTags",
@@ -571,17 +233,14 @@
         "refreshStyleBookMedia",
         "deleteStyleBookEntry"
       ],
-      "modals": [
-        "plateViewerModal",
-        "styleBookModal"
-      ],
-      "bytes": 14948
+      "otherStatements": 1,
+      "bytes": 15205
     },
     "settings": {
-      "loader": [
-        "loadSettings"
+      "pages": [
+        "settings"
       ],
-      "chunk": true,
+      "deps": [],
       "functions": [
         "loadProjectFolder",
         "moveProjectFolder",
@@ -591,6 +250,7 @@
         "saveProjectsRoot",
         "deleteCurrentProject",
         "loadSettingsBrands",
+        "showSettingsSection",
         "loadSettings",
         "loadAppSettings",
         "saveGridlightEnabled",
@@ -616,29 +276,1111 @@
         "loadTechnicalSettings",
         "saveTechnicalSettings"
       ],
+      "otherStatements": 5,
+      "bytes": 54756
+    },
+    "brand": {
+      "pages": [
+        "brand"
+      ],
+      "deps": [],
+      "functions": [
+        "loadBrands",
+        "openBrand",
+        "saveBrand",
+        "deleteBrand"
+      ],
+      "otherStatements": 3,
+      "bytes": 7596
+    },
+    "shotboard": {
+      "pages": [
+        "shotboard"
+      ],
+      "deps": [],
+      "functions": [
+        "loadShotboardRuntime",
+        "loadShotBoard",
+        "onShotDragStart",
+        "onShotDragEnd",
+        "onShotDragOver",
+        "onShotColumnOver",
+        "onShotColumnLeave",
+        "onShotColumnDrop",
+        "onShotDrop",
+        "openShotDetail",
+        "closeShotDetail",
+        "loadShotDetailNotes",
+        "addShotDetailNote",
+        "runShotPipeline",
+        "saveShotTransition",
+        "openABCompare",
+        "loadABCompare",
+        "updateABCrossfade",
+        "closeABCompare"
+      ],
+      "otherStatements": 1,
+      "bytes": 23650
+    },
+    "storyboard": {
+      "pages": [
+        "storyboard"
+      ],
+      "deps": [],
+      "functions": [
+        "setAnnotationFeedback",
+        "renderBoardProtect"
+      ],
+      "otherStatements": 0,
+      "bytes": 1756
+    },
+    "stage3d": {
+      "pages": [
+        "threed",
+        "previs"
+      ],
+      "deps": [
+        "three"
+      ],
+      "functions": [
+        "loadPrevisPage",
+        "pNorm",
+        "previsProject",
+        "previsFullView",
+        "previsFrameView",
+        "previsAim",
+        "worldLoadFlags",
+        "worldFlagOn",
+        "worldEngineOn",
+        "worldRegionOn",
+        "worldOverlays",
+        "worldToggleBoardOnion",
+        "worldToggleOverlay",
+        "worldLenses",
+        "worldFovFor",
+        "worldApplyLens",
+        "worldFrameRatio",
+        "worldMeasurements",
+        "worldOverlayMenuHtml",
+        "directIntentLabel",
+        "worldDirectPanelHtml",
+        "worldDirectIntent",
+        "worldDirectProposal",
+        "worldDirectSend",
+        "worldDirectShowResult",
+        "worldExploreTilesHtml",
+        "worldExplorePanelHtml",
+        "worldExploreBrief",
+        "worldExploreCandidates",
+        "worldExploreAccept",
+        "worldExploreTap",
+        "worldExploreLoad",
+        "worldExploreToggleCompare",
+        "worldExplorePick",
+        "worldExploreCompare",
+        "worldExploreShow",
+        "weM",
+        "weDeg",
+        "worldRailHtml",
+        "worldLoadShots",
+        "worldRailSelect",
+        "worldSpatialHtml",
+        "parse_",
+        "worldSetView",
+        "worldOperateScale",
+        "worldOperateSubject",
+        "worldOperateCamera",
+        "worldOperateValue",
+        "worldOperateApply",
+        "worldOperateLens",
+        "worldShotSubject",
+        "worldShotNow",
+        "worldShotPlace",
+        "worldShotOnHtml",
+        "worldShotOn",
+        "worldShotHtml",
+        "worldLightVocab",
+        "worldLightHtml",
+        "worldLightSet",
+        "worldLightShow",
+        "worldOperateHtml",
+        "worldNudge",
+        "worldBlockingHtml",
+        "worldSetRep",
+        "worldSecondaryHtml",
+        "worldAdvancedRows",
+        "worldAdvancedHtml",
+        "worldToggleAdvanced",
+        "worldConsoleHtml",
+        "worldDecisionsHtml",
+        "worldRefreshBlocking",
+        "worldApplyDecisions",
+        "worldDecisionClick",
+        "worldLockShot",
+        "worldSetTab",
+        "worldToggleTimeline",
+        "worldToolSelect",
+        "worldToolRailHtml",
+        "pvIcon",
+        "worldDecisionSummaryHtml",
+        "worldMoreMenuHtml",
+        "worldShotPickerHtml",
+        "worldMoveDockHtml",
+        "worldConsoleV2Html",
+        "worldFitFrame",
+        "worldBoardSrc",
+        "worldViewMode",
+        "worldModeButtonsHtml",
+        "worldLookAroundButtonHtml",
+        "worldSetViewMode",
+        "worldSplatInfo",
+        "worldSplatModule",
+        "worldCameraPose",
+        "worldSplatCanvas",
+        "worldSplatStop",
+        "worldAimCamera",
+        "worldSplatSync",
+        "worldSplatRenderOnce",
+        "meshLookLights",
+        "worldMeshStop",
+        "worldMeshCanvas",
+        "worldMeshSync",
+        "worldMeshRenderOnce",
+        "meshLookRig",
+        "meshLookHasSun",
+        "worldWalkCamera",
+        "worldWalkToggle",
+        "worldWalkRepaint",
+        "worldOperateRefreshValues",
+        "worldWalkEnsure",
+        "worldGestureView",
+        "worldWalkTurn",
+        "worldWalkStep",
+        "worldWalkKey",
+        "worldWalkBarHtml",
+        "worldWalkKeep",
+        "worldWalkUndo",
+        "worldLoadScoutable",
+        "scoutableWorlds",
+        "worldScoutSelect",
+        "scoutShotCode",
+        "scoutSceneFor",
+        "worldScoutMakeShot",
+        "worldExploreThumbs",
+        "stageSubjects",
+        "stageYaw",
+        "stageSize",
+        "stageShape",
+        "stageColour",
+        "stageDrawFootprint",
+        "stageDrawPath",
+        "stagePathKeyHit",
+        "stageHit",
+        "stageHitIn",
+        "planZoomAt",
+        "planFit",
+        "stageBindPlan",
+        "stageSave",
+        "stageRenderBar",
+        "stageRename",
+        "stageTurn",
+        "stageTarget",
+        "stageRemove",
+        "setEditItem",
+        "setEditStart",
+        "setEditCancel",
+        "setEditTurn",
+        "setEditRemove",
+        "setEditObjects",
+        "setEditRebuild",
+        "setEditRenderBar",
+        "stageOpenAdd",
+        "stageAdd",
+        "stageSyncLook",
+        "subjectPoseAt",
+        "stageNowMs",
+        "stageHasPath",
+        "stageShownSubject",
+        "stageShownSubjects",
+        "stageLookPose",
+        "stageKeyHere",
+        "stageDeleteKey",
+        "stageClearPath",
+        "stageFollow",
+        "planLevels",
+        "planLevelIndex",
+        "planLevelsFor",
+        "planActiveLevel",
+        "planSetFloor",
+        "planFloorPickerHtml",
+        "planFloorPickerSync",
+        "stagePathBarHtml",
+        "previzVideoExport",
+        "worldPaintPlan",
+        "pvFolds",
+        "pvFolded",
+        "pvApplyFolds",
+        "pvToggleFold",
+        "worldToggleArchived",
+        "worldRestoreArchived",
+        "worldSyncPanelShots",
+        "worldEases",
+        "worldTimelineHtml",
+        "worldSetEase",
+        "worldSelectLeg",
+        "worldAddLeg",
+        "worldHydrateMove",
+        "worldAddKey",
+        "worldPoseAtT",
+        "worldPreviewCamera",
+        "worldSeekTo",
+        "worldPlayMove",
+        "worldDrawPath",
+        "worldTimelineSave",
+        "worldRenderPlate",
+        "worldToggleOverlayMenu",
+        "worldSetLens",
+        "worldSetMode",
+        "worldPaintGeometry",
+        "scoutStartCamera",
+        "worldDefaultCamera",
+        "worldPaintFrame",
+        "setBuildOpen",
+        "setBuildHtml",
+        "roomScanHtml",
+        "roomScanStart",
+        "roomScanImport",
+        "setBuildFinish",
+        "worldOpenCreate",
+        "worldScoreComplexity",
+        "worldPaintRisk",
+        "worldRescore",
+        "worldCheckExport",
+        "worldOpenMatchReference",
+        "wmSetTool",
+        "wmLoadImage",
+        "wmClearMarks",
+        "wmBindCanvas",
+        "wmPaint",
+        "wmMarks",
+        "wmSolve",
+        "wmReportHtml",
+        "wmApply",
+        "worldLoadForShot",
+        "worldCreate",
+        "worldScrollKey",
+        "worldScrollSnapshot",
+        "worldScrollRestore",
+        "worldConsoleRender",
+        "loadThreeD",
+        "generateModelFor",
+        "rigModel",
+        "reportImportFailure",
+        "importThreeDModel",
+        "generateAllModels",
+        "generateAllModelsRun"
+      ],
+      "otherStatements": 60,
+      "bytes": 295322
+    },
+    "deliverables": {
+      "pages": [
+        "deliverables"
+      ],
+      "deps": [],
+      "functions": [
+        "loadDeliverables",
+        "renderDeliverables",
+        "loadDeliverableVerdict",
+        "applyDeliverablePackage",
+        "openDeliverable",
+        "saveDeliverable",
+        "deleteDeliverable"
+      ],
+      "otherStatements": 1,
+      "bytes": 13557
+    },
+    "consistency": {
+      "pages": [
+        "consistency"
+      ],
+      "deps": [],
+      "functions": [
+        "_cParse",
+        "switchConsistencyTab",
+        "loadConsistency",
+        "renderConsistencySubjects",
+        "renderVoiceRow",
+        "renderRefManager",
+        "startProfileForRefs",
+        "addProfileRef",
+        "removeProfileRef",
+        "setProfileWeight",
+        "toggleRequiredRole",
+        "renderConsistencyAudit",
+        "lockConsistency",
+        "lockVoice",
+        "unlockConsistency",
+        "loadConsistencyVerify",
+        "renderConsistencyVerify",
+        "renderVerifySubject"
+      ],
+      "otherStatements": 6,
+      "bytes": 25853
+    },
+    "milestones": {
+      "pages": [
+        "milestones"
+      ],
+      "deps": [],
+      "functions": [
+        "loadMilestones",
+        "createMilestone",
+        "showEditMilestone",
+        "updateMilestone"
+      ],
+      "otherStatements": 0,
+      "bytes": 3683
+    },
+    "budget": {
+      "pages": [
+        "budget"
+      ],
+      "deps": [],
+      "functions": [
+        "loadSpend",
+        "renderSpendBackfill",
+        "previewBackfill",
+        "runBackfill",
+        "renderSpendHeadline",
+        "statTile",
+        "renderSpendUnits",
+        "renderSpendByCapability",
+        "renderSpendOverTime",
+        "renderSpendByModel",
+        "renderSpendByShot",
+        "renderSubscription",
+        "loadGeneratorCompare",
+        "loadProductionEstimate",
+        "prodEstSet",
+        "prodEstReset",
+        "renderProductionEstimateControls",
+        "renderProductionEstimate",
+        "renderGeneratorCompare",
+        "loadSpendRates",
+        "loadBudget",
+        "saveCostEntry",
+        "deleteCostEntry",
+        "saveBudgetLimit",
+        "switchBudgetTab",
+        "generateBudgetEstimate",
+        "renderBudgetEstimate",
+        "showCostInputModal",
+        "saveCostInput",
+        "exportBudgetEstimate"
+      ],
+      "otherStatements": 8,
+      "bytes": 67327
+    },
+    "graph": {
+      "pages": [
+        "productiongraph",
+        "flows"
+      ],
+      "deps": [],
+      "functions": [
+        "loadFlowsPage",
+        "setFlowStatus",
+        "renderFlowPalette",
+        "flowCanvasOpen",
+        "flowCanvasRender",
+        "renderFlowNode",
+        "portPos",
+        "svgPoint",
+        "flowCanvasStartDrag",
+        "flowCanvasStartLink",
+        "flowCanvasEndLink",
+        "flowNextNodeSuggestions",
+        "flowNextNodeMenuHtml",
+        "flowOpenNextNode",
+        "flowNextNodeOutside",
+        "flowCloseNextNode",
+        "flowPickNextNode",
+        "flowCanvasDeleteEdge",
+        "flowCanvasAddNode",
+        "flowCanvasDeleteSelected",
+        "flowCanvasZoom",
+        "flowCanvasFit",
+        "renderFlowInspector",
+        "flowNodeSet",
+        "flowNodeSetConfig",
+        "flowCanvasFromTemplate",
+        "flowCanvasNew",
+        "flowCanvasDuplicate",
+        "flowCanvasSave",
+        "flowCanvasRun",
+        "flowPaintRun",
+        "flowCanvasBackgroundDown"
+      ],
+      "otherStatements": 7,
+      "bytes": 27336
+    },
+    "videoshots": {
+      "pages": [
+        "videoshots"
+      ],
+      "deps": [],
+      "functions": [
+        "generateAllVoices",
+        "createSequence",
+        "generateAllVideos",
+        "generateAllVideosRun"
+      ],
+      "otherStatements": 0,
+      "bytes": 4851
+    },
+    "music": {
+      "pages": [
+        "musicws",
+        "musiccues",
+        "music"
+      ],
+      "deps": [],
+      "functions": [
+        "loadMusicCues",
+        "cueRightsTag",
+        "openCueRights",
+        "saveCueRights",
+        "cueRenderSections",
+        "cueAddSection",
+        "cueRemoveSection",
+        "cueClearSections",
+        "cueSectionEdit",
+        "createMusicCue",
+        "loadMusicWorkstation",
+        "mwLoadSession",
+        "mwPickSession",
+        "mwFindRow",
+        "mwTrackOf",
+        "mwLengthMs",
+        "mwRender",
+        "mwSessionListHtml",
+        "mwStatusHtml",
+        "mwApprovalHtml",
+        "mwApprove",
+        "mwUnapprove",
+        "mwDriftHtml",
+        "mwMoveToEdit",
+        "mwPictureHtml",
+        "mwPictureSound",
+        "mwPictureFollow",
+        "mwRebase",
+        "mwContextHtml",
+        "mwProviderHtml",
+        "mwRulerHtml",
+        "mwEmotionHtml",
+        "mwTrackHtml",
+        "mwToggleTrack",
+        "mwTrackTab",
+        "mwTrackPlayHtml",
+        "mwPlayTrack",
+        "mwTrackDetailsHtml",
+        "mwTrackSections",
+        "mwNotesOf",
+        "mwRollRange",
+        "mwTempoBpm",
+        "mwSnapMs",
+        "mwPartPaneHtml",
+        "mwRollHtml",
+        "mwSetProgram",
+        "mwRollPointerDown",
+        "mwRollDelete",
+        "mwSaveNotes",
+        "mwPreviewPitch",
+        "mwHear",
+        "mwClipHtml",
+        "mwEnumOptions",
+        "mwControl",
+        "mwInspectorHtml",
+        "mwInstrumentControl",
+        "mwTrackOfAutomation",
+        "mwTakeGroupHtml",
+        "mwChooseTake",
+        "mwAddClipFromAsset",
+        "mwAddClipFromAssetSubmit",
+        "mwFieldChanged",
+        "mwSave",
+        "mwNote",
+        "mwRepaint",
+        "mwSelect",
+        "mwShowTrack",
+        "mwCreate",
+        "mwDelete",
+        "mwCreateSession",
+        "mwCreateSessionSubmit",
+        "mwSeek",
+        "mwZoom",
+        "mwClipPointerDown",
+        "mwDragOver",
+        "mwDrop",
+        "mwImportFiles",
+        "dawState",
+        "dawBase",
+        "dawPaint",
+        "dawCanChange",
+        "dawUndecided",
+        "dawConnectionHtml",
+        "dawPortableHtml",
+        "dawSessionHtml",
+        "dawPushHtml",
+        "dawResultHtml",
+        "dawPullHtml",
+        "dawTransportHtml",
+        "dawAuditHtml",
+        "dawPanelHtml",
+        "dawRefresh",
+        "dawRun",
+        "dawReadSession",
+        "dawPlanPush",
+        "dawResolve",
+        "dawPush",
+        "dawPlanPull",
+        "dawPull",
+        "dawTransport",
+        "dawExportPackage",
+        "dawImportPackage",
+        "scoreAiCapability",
+        "scoreAiNeed",
+        "scoreAiPanelHtml",
+        "scoreAiSelectedClip",
+        "scoreAiInputs",
+        "scoreAiGenerate",
+        "scoreAiCompose",
+        "scoreAiSection",
+        "scoreAiParts",
+        "scoreAiReference",
+        "scoreAiVideo",
+        "scoreAiInpaint",
+        "scoreAiRegenerate",
+        "scoreAiSeparate",
+        "scoreAiAudition",
+        "scoreAiApprove",
+        "scoreAiEmotion",
+        "scoreAiAcceptProposal",
+        "scoreAiRejectProposal",
+        "scoreAiUsd",
+        "scoreAiPlanHtml",
+        "scoreAiSeparationPlanHtml",
+        "scoreAiRetryHtml",
+        "scoreAiJobsHtml",
+        "scoreAiPoll",
+        "scoreAiRetry",
+        "mwHeard",
+        "mwClipLevel",
+        "mwBuffer",
+        "mwTogglePlay",
+        "mwPlay",
+        "mwStopSources",
+        "mwPause",
+        "mwStop",
+        "mwRestartAudio",
+        "fmtDuration",
+        "fmtSize",
+        "fmtAge",
+        "drawWaveform",
+        "paintWaveforms",
+        "soundFileCard",
+        "loadSoundLibrary",
+        "renderSoundLibrary",
+        "openSoundGenerator",
+        "soundGenPreview",
+        "runSoundGenerate",
+        "soundCueCard",
+        "openCueMidi",
+        "renderCueInstruments",
+        "playCuePart",
+        "uploadCueMidiPart",
+        "sndPlay",
+        "renderSoundSheet",
+        "generateCueAudio",
+        "addSoundCue",
+        "deleteSoundCue",
+        "loadMusic",
+        "generateScoreFor",
+        "saveAmbientDirection",
+        "saveScoreDirection",
+        "saveSceneDelivery",
+        "generateAmbientFor",
+        "generateAllMusic"
+      ],
+      "otherStatements": 16,
+      "bytes": 182653
+    },
+    "pipeline": {
+      "pages": [
+        "pipeline"
+      ],
+      "deps": [],
+      "functions": [
+        "loadPipeline",
+        "renderPipelineReadiness",
+        "renderPipelineSteps",
+        "runPipelineLive",
+        "runPipelineScope"
+      ],
+      "otherStatements": 1,
+      "bytes": 12412
+    },
+    "jobsqueue": {
+      "pages": [
+        "jobsqueue"
+      ],
+      "deps": [],
+      "functions": [],
+      "otherStatements": 0,
+      "bytes": 0
+    }
+  },
+  "pages": {
+    "projects": {
+      "loader": [
+        "loadProjects"
+      ],
+      "chunk": "projects",
       "modals": [
         "newProjectModal",
         "folderPickerModal",
         "productionGuideModal",
         "projectOnboardingModal"
+      ]
+    },
+    "dashboard": {
+      "loader": [
+        "loadDashboard"
       ],
-      "bytes": 51392
+      "chunk": "dashboard",
+      "modals": [
+        "frameViewerModal",
+        "frameVersionsModal",
+        "backgroundPickerModal",
+        "confirmGenModal",
+        "shotCardModal",
+        "entityInspectModal",
+        "characterSheetModal",
+        "subjectSheetModal",
+        "castingModal",
+        "galleryModal",
+        "characterModal",
+        "locationModal",
+        "plateViewerModal",
+        "propModal",
+        "sceneCardModal",
+        "versionDiffModal",
+        "titlePageModal"
+      ]
+    },
+    "screenplay": {
+      "loader": [
+        "loadScreenplayPage"
+      ],
+      "chunk": "screenplay",
+      "modals": [
+        "confirmGenModal",
+        "entityInspectModal",
+        "characterSheetModal",
+        "subjectSheetModal",
+        "castingModal",
+        "galleryModal",
+        "characterModal",
+        "locationModal",
+        "plateViewerModal",
+        "propModal",
+        "sceneCardModal",
+        "newSceneCardModal",
+        "textConvertModal",
+        "suggestionsModal",
+        "versionDiffModal",
+        "titlePageModal",
+        "importScriptModal"
+      ]
+    },
+    "scenes": {
+      "loader": [
+        "loadScenes"
+      ],
+      "chunk": "scenes",
+      "modals": [
+        "confirmGenModal"
+      ]
+    },
+    "shotboard": {
+      "loader": [
+        "loadShotBoard"
+      ],
+      "chunk": "shotboard",
+      "modals": [
+        "frameViewerModal",
+        "frameVersionsModal",
+        "backgroundPickerModal",
+        "confirmGenModal",
+        "shotCardModal",
+        "entityInspectModal",
+        "characterSheetModal",
+        "subjectSheetModal",
+        "castingModal",
+        "galleryModal",
+        "characterModal",
+        "locationModal",
+        "plateViewerModal",
+        "propModal",
+        "sceneCardModal",
+        "versionDiffModal",
+        "titlePageModal"
+      ]
+    },
+    "moodboard": {
+      "loader": [
+        "loadMoodBoardPage"
+      ],
+      "chunk": "moodboard",
+      "modals": [
+        "confirmGenModal",
+        "entityInspectModal",
+        "characterSheetModal",
+        "subjectSheetModal",
+        "castingModal",
+        "galleryModal",
+        "characterModal",
+        "locationModal",
+        "plateViewerModal",
+        "propModal",
+        "sceneCardModal",
+        "versionDiffModal",
+        "titlePageModal"
+      ]
+    },
+    "storyboard": {
+      "loader": [
+        "loadStoryboard"
+      ],
+      "chunk": "storyboard",
+      "modals": [
+        "frameViewerModal",
+        "frameVersionsModal",
+        "backgroundPickerModal",
+        "confirmGenModal",
+        "shotCardModal",
+        "entityInspectModal",
+        "characterSheetModal",
+        "subjectSheetModal",
+        "castingModal",
+        "galleryModal",
+        "characterModal",
+        "locationModal",
+        "plateViewerModal",
+        "propModal",
+        "sceneCardModal",
+        "versionDiffModal",
+        "titlePageModal"
+      ]
+    },
+    "characters": {
+      "loader": [
+        "loadCharacters"
+      ],
+      "chunk": "subjects",
+      "modals": [
+        "confirmGenModal",
+        "entityInspectModal",
+        "characterSheetModal",
+        "subjectSheetModal",
+        "castingModal",
+        "galleryModal",
+        "characterModal",
+        "locationModal",
+        "plateViewerModal",
+        "propModal",
+        "sceneCardModal",
+        "versionDiffModal",
+        "titlePageModal"
+      ]
+    },
+    "locations": {
+      "loader": [
+        "loadLocations"
+      ],
+      "chunk": "subjects",
+      "modals": [
+        "confirmGenModal",
+        "entityInspectModal",
+        "characterSheetModal",
+        "subjectSheetModal",
+        "castingModal",
+        "galleryModal",
+        "characterModal",
+        "locationModal",
+        "plateViewerModal",
+        "propModal",
+        "sceneCardModal",
+        "versionDiffModal",
+        "titlePageModal"
+      ]
+    },
+    "props": {
+      "loader": [
+        "loadProps"
+      ],
+      "chunk": "subjects",
+      "modals": [
+        "confirmGenModal",
+        "entityInspectModal",
+        "characterSheetModal",
+        "subjectSheetModal",
+        "castingModal",
+        "galleryModal",
+        "characterModal",
+        "locationModal",
+        "plateViewerModal",
+        "propModal",
+        "sceneCardModal",
+        "versionDiffModal",
+        "titlePageModal"
+      ]
+    },
+    "assets": {
+      "loader": [
+        "loadAssets"
+      ],
+      "chunk": null,
+      "modals": []
+    },
+    "musicws": {
+      "loader": [
+        "loadMusicWorkstation"
+      ],
+      "chunk": "music",
+      "modals": [
+        "confirmGenModal",
+        "musicCueModal",
+        "soundGenModal"
+      ]
+    },
+    "musiccues": {
+      "loader": [
+        "loadMusicCues"
+      ],
+      "chunk": "music",
+      "modals": [
+        "confirmGenModal",
+        "musicCueModal",
+        "soundGenModal"
+      ]
+    },
+    "milestones": {
+      "loader": [
+        "loadMilestones"
+      ],
+      "chunk": "milestones",
+      "modals": [
+        "milestoneModal",
+        "editMilestoneModal"
+      ]
+    },
+    "playback": {
+      "loader": [
+        "loadPlayback"
+      ],
+      "chunk": null,
+      "modals": []
+    },
+    "notes": {
+      "loader": [
+        "loadNotesPage"
+      ],
+      "chunk": "notes",
+      "modals": [
+        "addNoteModal",
+        "reviewShotModal"
+      ]
+    },
+    "renderhistory": {
+      "loader": [
+        "loadRenderPage"
+      ],
+      "chunk": null,
+      "modals": []
+    },
+    "edits": {
+      "loader": [
+        "loadEditsPage"
+      ],
+      "chunk": null,
+      "modals": []
+    },
+    "exportpage": {
+      "loader": [
+        "loadExportPage"
+      ],
+      "chunk": null,
+      "modals": []
+    },
+    "brand": {
+      "loader": [
+        "loadBrands"
+      ],
+      "chunk": "brand",
+      "modals": []
+    },
+    "deliverables": {
+      "loader": [
+        "loadDeliverables"
+      ],
+      "chunk": "deliverables",
+      "modals": []
+    },
+    "rights": {
+      "loader": [
+        "loadRights"
+      ],
+      "chunk": null,
+      "modals": []
+    },
+    "titles": {
+      "loader": [
+        "loadTitles"
+      ],
+      "chunk": null,
+      "modals": []
+    },
+    "subtitles": {
+      "loader": [
+        "loadSubtitles"
+      ],
+      "chunk": null,
+      "modals": []
+    },
+    "marketing": {
+      "loader": [
+        "loadMarketing"
+      ],
+      "chunk": null,
+      "modals": []
+    },
+    "consistency": {
+      "loader": [
+        "loadConsistency"
+      ],
+      "chunk": "consistency",
+      "modals": []
+    },
+    "budget": {
+      "loader": [
+        "loadSpend",
+        "loadBudget"
+      ],
+      "chunk": "budget",
+      "modals": [
+        "budgetLimitModal",
+        "costEntryModal"
+      ]
+    },
+    "threed": {
+      "loader": [
+        "loadThreeD"
+      ],
+      "chunk": "stage3d",
+      "modals": [
+        "confirmGenModal",
+        "plateViewerModal"
+      ]
+    },
+    "videoshots": {
+      "loader": [
+        "loadVideoShots"
+      ],
+      "chunk": "videoshots",
+      "modals": [
+        "confirmGenModal"
+      ]
+    },
+    "music": {
+      "loader": [
+        "loadMusic"
+      ],
+      "chunk": "music",
+      "modals": [
+        "confirmGenModal",
+        "musicCueModal",
+        "soundGenModal"
+      ]
+    },
+    "productiongraph": {
+      "loader": [
+        "loadProductionGraph"
+      ],
+      "chunk": "graph",
+      "modals": []
+    },
+    "flows": {
+      "loader": [
+        "loadFlowsPage"
+      ],
+      "chunk": "graph",
+      "modals": []
+    },
+    "previs": {
+      "loader": [
+        "loadPrevisPage"
+      ],
+      "chunk": "stage3d",
+      "modals": [
+        "confirmGenModal",
+        "plateViewerModal"
+      ]
+    },
+    "pipeline": {
+      "loader": [
+        "loadPipeline"
+      ],
+      "chunk": "pipeline",
+      "modals": []
+    },
+    "stylebook": {
+      "loader": [
+        "loadStyleBook"
+      ],
+      "chunk": "stylebook",
+      "modals": [
+        "plateViewerModal",
+        "styleBookModal"
+      ]
+    },
+    "settings": {
+      "loader": [
+        "loadSettings"
+      ],
+      "chunk": "settings",
+      "modals": [
+        "newProjectModal",
+        "folderPickerModal",
+        "productionGuideModal",
+        "projectOnboardingModal"
+      ]
     },
     "jobsqueue": {
       "loader": [
         "loadJobsQueuePage"
       ],
-      "chunk": false,
-      "functions": [],
-      "modals": [],
-      "bytes": 0
+      "chunk": "jobsqueue",
+      "modals": []
     }
   },
   "core": {
-    "functions": 1166,
-    "unreached": 39,
-    "sharedByPages": 1,
+    "functions": 633,
+    "unreached": 19,
+    "sharedByChunks": 1,
     "declaredTwice": [],
-    "bytes": 1614082
+    "bootVendors": [],
+    "bytes": 918878
   }
 }

@@ -2,7 +2,7 @@
 const fs = require('fs');
 const acorn = require('acorn');
 
-const parse = (code) => acorn.parse(code, { ecmaVersion: 'latest', sourceType: 'script', allowHashBang: true });
+const parse = (code, onComment) => acorn.parse(code, { ecmaVersion: 'latest', sourceType: 'script', allowHashBang: true, onComment });
 
 /** The pieces of index.html, in order: head styles, body markup, the five scripts. */
 function readSource(file) {

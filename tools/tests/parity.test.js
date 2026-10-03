@@ -31,39 +31,67 @@ test('every page has a markup component and a registry entry', () => {
     assert.deepStrictEqual(missing, []);
 });
 
-test('every ported page has its own script chunk holding exactly its mapped functions', () => {
+const chunkFiles = () => map ? Object.keys(map.chunks).map(c => `public/legacy/chunks/${c}.js`) : [];
+const CORE_FILES = ['public/legacy/core.js', 'public/legacy/production-graph.js', 'public/legacy/shell.js'];
+
+test('every ported page loads a chunk, and each chunk holds exactly its mapped functions', () => {
     assert.ok(map, 'docs/split-map.json missing');
+    const registry = read('src/pages/registry.js');
     const bad = [];
     for (const id of ported) {
-        const file = `public/legacy/pages/${id}.js`;
-        if (!exists(file)) { bad.push(`${id}: no chunk`); continue; }
+        const c = map.pages[id]?.chunk;
+        if (!c || !map.chunks[c]?.pages.includes(id)) { bad.push(`${id}: no chunk in the map`); continue; }
+        if (!registry.includes(`id: '${id}', Component: ${id[0].toUpperCase() + id.slice(1)}Page, chunk: '${c}'`)) bad.push(`${id}: registry does not load ${c}`);
+    }
+    for (const [c, m] of Object.entries(map.chunks)) {
+        const file = `public/legacy/chunks/${c}.js`;
+        if (!exists(file)) { bad.push(`${c}: no file`); continue; }
         const have = topLevelFunctions(read(file)).map(f => f.name).sort();
-        const want = [...(map.pages[id]?.functions || [])].sort();
-        if (JSON.stringify(have) !== JSON.stringify(want)) bad.push(`${id}: chunk != map`);
+        if (JSON.stringify(have) !== JSON.stringify([...m.functions].sort())) bad.push(`${c}: file != map`);
     }
     assert.deepStrictEqual(bad, []);
 });
 
-test('no function is lost or duplicated: each source function lives exactly once in core or one chunk', () => {
-    const where = new Map();
-    const add = (file) => { for (const f of topLevelFunctions(read(file))) where.set(f.name, [...(where.get(f.name) || []), file]); };
-    for (const f of ['public/legacy/core.js', 'public/legacy/production-graph.js', 'public/legacy/shell.js']) add(f);
-    for (const id of ported) if (exists(`public/legacy/pages/${id}.js`)) add(`public/legacy/pages/${id}.js`);
-    const all = [...topLevelFunctions(src.app), ...topLevelFunctions(src.productionGraph), ...topLevelFunctions(src.shell)].map(f => f.name);
-    const problems = all.filter(n => (where.get(n) || []).length !== all.filter(m => m === n).length);
-    assert.deepStrictEqual(problems, []);
+test('no code is lost or duplicated: every top-level statement of the source is in core or one chunk, once', () => {
+    const norm = (code) => acorn.parse(code, { ecmaVersion: 'latest' }).body.map(n => code.slice(n.start, n.end));
+    const app = norm(src.app.replace(/if \(loaders\[page\]\) loaders\[page\]\(\);/, ''));
+    const port = [...norm(read('public/legacy/core.js')), ...chunkFiles().flatMap(f => norm(read(f)))];
+    assert.strictEqual(port.length, app.length, 'statement count');
+    // navigateTo is the one statement the port rewrites; everything else is byte-identical.
+    const portSet = new Map();
+    for (const t of port) portSet.set(t, (portSet.get(t) || 0) + 1);
+    const missing = app.filter(t => !t.startsWith('function navigateTo(') && !portSet.get(t));
+    assert.deepStrictEqual(missing.map(t => t.slice(0, 60)), []);
+    for (const f of ['productionGraph', 'shell']) assert.ok(read(CORE_FILES[f === 'shell' ? 2 : 1]).includes(src[f]));
 });
 
-test('every id a page chunk looks up with getElementById exists in the boot markup', () => {
+test('every function lives exactly once in core or one chunk', () => {
+    const where = new Map();
+    for (const f of [...CORE_FILES, ...chunkFiles()]) for (const fn of topLevelFunctions(read(f))) where.set(fn.name, (where.get(fn.name) || 0) + 1);
+    const all = [...topLevelFunctions(src.app), ...topLevelFunctions(src.productionGraph), ...topLevelFunctions(src.shell)].map(f => f.name);
+    const count = (n) => all.filter(m => m === n).length;
+    assert.deepStrictEqual([...new Set(all)].filter(n => where.get(n) !== count(n)), []);
+});
+
+test('three.js is loaded before any code that uses it', () => {
+    const uses = (f) => /\bTHREE\b/.test(read(f).replace(/typeof\s+(window\.)?THREE/g, ''));
+    const boot = read('index.html');
+    const atBoot = boot.includes('legacy/vendor/three.min.js');
+    const bad = [];
+    if (!atBoot) for (const f of CORE_FILES) if (uses(f)) bad.push(f);
+    for (const [c, m] of Object.entries(map.chunks)) if (!atBoot && uses(`public/legacy/chunks/${c}.js`) && !m.deps.includes('three')) bad.push(c);
+    assert.deepStrictEqual(bad, []);
+});
+
+test('every id a chunk looks up with getElementById exists in the boot markup', () => {
     const comps = (d) => fs.readdirSync(path.join(ROOT, d), { recursive: true }).filter(f => f.endsWith('.html')).map(f => read(path.join(d, f)));
     const boot = [...pageIds.map(id => read(`src/pages/${id}/markup.html`)), ...comps('src/components')].join('\n');
     const bad = [];
-    for (const id of ported) {
-        const code = read(`public/legacy/pages/${id}.js`);
-        for (const m of code.matchAll(/getElementById\('([A-Za-z0-9_-]+)'\)/g)) {
-            // ids the source itself never had in its static markup are created at runtime there too
+    for (const f of chunkFiles()) {
+        for (const m of read(f).matchAll(/getElementById\('([A-Za-z0-9_-]+)'\)/g)) {
+            // ids the source never had in its static markup are created at runtime there too
             if (!src.html.includes(`id="${m[1]}"`)) continue;
-            if (!boot.includes(`id="${m[1]}"`)) bad.push(`${id}: #${m[1]}`);
+            if (!boot.includes(`id="${m[1]}"`)) bad.push(`${f}: #${m[1]}`);
         }
     }
     assert.deepStrictEqual(bad, []);
@@ -84,6 +112,6 @@ test('generated files are in sync with the source (npm run split leaves no diff)
 });
 
 test('every chunk and the core parse as classic scripts', () => {
-    const files = ['public/legacy/core.js', 'public/legacy/production-graph.js', 'public/legacy/shell.js', ...ported.map(id => `public/legacy/pages/${id}.js`)];
+    const files = [...CORE_FILES, ...chunkFiles()];
     for (const f of files) acorn.parse(read(f), { ecmaVersion: 'latest', sourceType: 'script' });
 });

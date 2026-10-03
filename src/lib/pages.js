@@ -1,29 +1,42 @@
-import { PAGES } from '../pages/registry.js';
+import { PAGES, CHUNKS, VENDORS } from '../pages/registry.js';
 
-const CHUNKED = new Set(PAGES.filter(p => p.chunk).map(p => p.id));
-const loading = new Map();
+const chunkOfPage = new Map(PAGES.filter(p => p.chunk).map(p => [p.id, p.chunk]));
+const loading = new Map(); // script url -> promise
 
-/*
- * window.__fePages.ensure(page): resolves once that page's code is in. A page's
- * chunk is a classic script, so its functions become globals as they were in
- * the one-file app (inline onclick strings and window[name]() still find them).
- * Loaded at most once: re-running it would redeclare its top-level names.
- */
-function ensure(page) {
-    if (!CHUNKED.has(page)) return Promise.resolve();
-    if (!loading.has(page)) {
-        loading.set(page, new Promise((resolve, reject) => {
+/** A classic script, added once; resolves on its load event. */
+function script(file) {
+    const url = new URL(`legacy/${file}`, document.baseURI).href;
+    if (!loading.has(url)) {
+        loading.set(url, new Promise((resolve, reject) => {
             const s = document.createElement('script');
-            s.src = new URL(`legacy/pages/${page}.js`, document.baseURI).href;
-            s.dataset.page = page;
+            s.src = url;
+            s.async = false; // in insertion order, like the source's script tags
             s.onload = () => resolve();
-            s.onerror = () => { loading.delete(page); s.remove(); reject(new Error(`could not load the ${page} page`)); };
+            s.onerror = () => { loading.delete(url); s.remove(); reject(new Error(`could not load ${file}`)); };
             document.head.appendChild(s);
         }));
     }
-    return loading.get(page);
+    return loading.get(url);
+}
+
+/*
+ * window.__fePages.ensure(page): resolves once that page's code is in: the
+ * vendored libraries its chunk needs (three.js for the 3D pages), then the
+ * chunk. A chunk is a classic script, so its functions become globals as they
+ * were in the one-file app (inline onclick strings and window[name]() still
+ * find them). Each file loads at most once: re-running a chunk would redeclare
+ * its top-level names.
+ */
+async function ensure(page) {
+    const chunk = chunkOfPage.get(page);
+    if (!chunk) return;
+    for (const dep of CHUNKS[chunk].deps) for (const f of VENDORS[dep]) await script(f);
+    await script(`chunks/${chunk}.js`);
 }
 
 export function installPageLoader() {
-    window.__fePages = { ensure, loaded: () => [...loading.keys()] };
+    window.__fePages = {
+        ensure,
+        loaded: () => [...chunkOfPage].filter(([, c]) => loading.has(new URL(`legacy/chunks/${c}.js`, document.baseURI).href)).map(([p]) => p),
+    };
 }

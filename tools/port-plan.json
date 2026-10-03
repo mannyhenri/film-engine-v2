@@ -1,9 +1,69 @@
 {
   "source": "../film-engine/src/index.html",
-  "currentRound": 1,
+  "currentRound": 2,
   "rounds": [
-    ["projects", "dashboard", "screenplay", "scenes", "moodboard", "characters", "locations", "props", "notes", "stylebook", "settings", "brand"],
-    ["shotboard", "storyboard", "previs", "deliverables", "consistency", "milestones", "budget", "productiongraph", "flows", "videoshots", "music", "musicws", "musiccues", "threed", "pipeline", "jobsqueue"],
-    ["assets", "playback", "renderhistory", "edits", "exportpage", "rights", "titles", "subtitles", "marketing"]
-  ]
+    [
+      "projects",
+      "dashboard",
+      "screenplay",
+      "scenes",
+      "moodboard",
+      "characters",
+      "locations",
+      "props",
+      "notes",
+      "stylebook",
+      "settings",
+      "brand"
+    ],
+    [
+      "shotboard",
+      "storyboard",
+      "previs",
+      "deliverables",
+      "consistency",
+      "milestones",
+      "budget",
+      "productiongraph",
+      "flows",
+      "videoshots",
+      "music",
+      "musicws",
+      "musiccues",
+      "threed",
+      "pipeline",
+      "jobsqueue"
+    ],
+    [
+      "assets",
+      "playback",
+      "renderhistory",
+      "edits",
+      "exportpage",
+      "rights",
+      "titles",
+      "subtitles",
+      "marketing"
+    ]
+  ],
+  "groups": {
+    "subjects": [
+      "characters",
+      "locations",
+      "props"
+    ],
+    "stage3d": [
+      "previs",
+      "threed"
+    ],
+    "music": [
+      "music",
+      "musicws",
+      "musiccues"
+    ],
+    "graph": [
+      "productiongraph",
+      "flows"
+    ]
+  }
 }
