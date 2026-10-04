@@ -12,7 +12,7 @@ import path from 'path';
 
 const ROOT = path.resolve(__dirname, '../../..');
 const read = (f) => fs.readFileSync(path.join(ROOT, f), 'utf8');
-const music = read('public/legacy/chunks/music.js');
+const music = read('src/pages/music/engine.js'); // the music chunk, moved verbatim into the Music page's engine
 const body = (fn) => {
     const at = music.indexOf(`function ${fn}(`);
     expect(at, `${fn} is not defined`).toBeGreaterThan(-1);

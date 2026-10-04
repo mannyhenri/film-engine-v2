@@ -191,6 +191,53 @@
       "modals": [],
       "provides": []
     },
+    "flows": {
+      "loader": "loadFlowsPage",
+      "replaces": [
+        "NODE_W",
+        "NODE_HEAD",
+        "PORT_ROW",
+        "PORT_R",
+        "nodeHeight",
+        "PORT_COLOR",
+        "portY",
+        "portsCompatibleClient",
+        "loadFlowsPage",
+        "setFlowStatus",
+        "renderFlowPalette",
+        "flowCanvasOpen",
+        "flowCanvasRender",
+        "renderFlowNode",
+        "portPos",
+        "svgPoint",
+        "flowCanvasStartDrag",
+        "flowCanvasStartLink",
+        "flowCanvasEndLink",
+        "flowNextNodeSuggestions",
+        "flowNextNodeMenuHtml",
+        "flowOpenNextNode",
+        "flowNextNodeOutside",
+        "flowCloseNextNode",
+        "flowPickNextNode",
+        "flowCanvasDeleteEdge",
+        "flowCanvasAddNode",
+        "flowCanvasDeleteSelected",
+        "flowCanvasZoom",
+        "flowCanvasFit",
+        "renderFlowInspector",
+        "flowNodeSet",
+        "flowNodeSetConfig",
+        "flowCanvasFromTemplate",
+        "flowCanvasNew",
+        "flowCanvasDuplicate",
+        "flowCanvasSave",
+        "flowCanvasRun",
+        "flowPaintRun",
+        "flowCanvasBackgroundDown"
+      ],
+      "modals": [],
+      "provides": []
+    },
     "jobsqueue": {
       "loader": "loadJobsQueuePage",
       "replaces": [
@@ -1560,48 +1607,6 @@
       ],
       "otherStatements": 61,
       "bytes": 295993
-    },
-    "graph": {
-      "pages": [
-        "flows"
-      ],
-      "deps": [],
-      "functions": [
-        "loadFlowsPage",
-        "setFlowStatus",
-        "renderFlowPalette",
-        "flowCanvasOpen",
-        "flowCanvasRender",
-        "renderFlowNode",
-        "portPos",
-        "svgPoint",
-        "flowCanvasStartDrag",
-        "flowCanvasStartLink",
-        "flowCanvasEndLink",
-        "flowNextNodeSuggestions",
-        "flowNextNodeMenuHtml",
-        "flowOpenNextNode",
-        "flowNextNodeOutside",
-        "flowCloseNextNode",
-        "flowPickNextNode",
-        "flowCanvasDeleteEdge",
-        "flowCanvasAddNode",
-        "flowCanvasDeleteSelected",
-        "flowCanvasZoom",
-        "flowCanvasFit",
-        "renderFlowInspector",
-        "flowNodeSet",
-        "flowNodeSetConfig",
-        "flowCanvasFromTemplate",
-        "flowCanvasNew",
-        "flowCanvasDuplicate",
-        "flowCanvasSave",
-        "flowCanvasRun",
-        "flowPaintRun",
-        "flowCanvasBackgroundDown"
-      ],
-      "otherStatements": 7,
-      "bytes": 27336
     }
   },
   "pages": {
@@ -1830,7 +1835,7 @@
       "loader": [
         "loadFlowsPage"
       ],
-      "chunk": "graph",
+      "chunk": null,
       "modals": []
     },
     "previs": {

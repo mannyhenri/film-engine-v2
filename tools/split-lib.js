@@ -97,6 +97,23 @@ function replacedStatement(node, replaced) {
         if (e.type === 'CallExpression' && e.callee.type === 'MemberExpression' && !e.callee.computed
             && e.callee.object.type === 'Identifier' && e.callee.object.name === 'window' && e.callee.property.name === 'addEventListener'
             && e.arguments.length === 2 && e.arguments[1].type === 'Identifier' && replaced.has(e.arguments[1].name)) return true;
+        // `document.addEventListener('mousemove', (evt) => { … })`, an INLINE handler that is wholly a replaced page's:
+        // every function it calls by name is replaced (Flows' canvas drag calls svgPoint and flowCanvasRender). The page
+        // binds the same handler on mount. One call of anything else keeps the statement, and the split's "still used"
+        // check then names it, so a shared listener is never dropped by this.
+        if (e.type === 'CallExpression' && e.callee.type === 'MemberExpression' && !e.callee.computed
+            && e.callee.object.type === 'Identifier' && ['window', 'document'].includes(e.callee.object.name)
+            && e.callee.property.name === 'addEventListener' && e.arguments.length === 2
+            && /^(ArrowFunctionExpression|FunctionExpression)$/.test(e.arguments[1].type)) {
+            const called = new Set();
+            const walk = (n) => {
+                if (!n || typeof n.type !== 'string') return;
+                if (n.type === 'CallExpression' && n.callee.type === 'Identifier') called.add(n.callee.name);
+                for (const k of Object.keys(n)) { const v = n[k]; if (Array.isArray(v)) v.forEach(walk); else if (v && typeof v.type === 'string') walk(v); }
+            };
+            walk(e.arguments[1].body);
+            return called.size > 0 && [...called].every(n => replaced.has(n));
+        }
         return e.type === 'AssignmentExpression' && e.operator === '=' && e.left.type === 'MemberExpression' && !e.left.computed
             && e.left.object.type === 'Identifier' && e.left.object.name === 'window' && e.right.type === 'Identifier'
             && e.left.property.name === e.right.name && replaced.has(e.right.name);

@@ -481,6 +481,28 @@ async function smoke(win) {
         const ok = !results.length && errors.length === before;
         report.push({ id: 'subject sheets', ok, want: 'subject sheets', active: ok ? 'subject sheets' : `${results.join(' | ')} errors=${errors.length - before}` });
     }
+    /*
+     * Flows (React page, the graph chunk's engine moved verbatim): opened in a project, its node palette draws one
+     * button for every node type the server serves (in the four kinds the palette groups), with no console error.
+     */
+    if (project && !process.env.FE_SMOKE_URL && !process.env.FE_SMOKE_PAGES) {
+        current = 'flows';
+        const before = errors.length;
+        await js(`openProject(${JSON.stringify(project)}, 'flows').then(() => true)`);
+        let st = null;
+        for (let t = 0; t < 40; t++) {
+            st = await js(`(async () => {
+                const types = await api('/flows/node-types');
+                const want = Object.values(types).filter(d => ['input', 'generator', 'transform', 'output'].includes(d.kind)).length;
+                return { want, drawn: document.querySelectorAll('#flowPalette .flow-node-btn').length, active: document.querySelector('.page.active')?.id };
+            })()`).catch(e => ({ error: e.message }));
+            if (st && st.want && st.drawn === st.want) break;
+            await new Promise(r => setTimeout(r, 250));
+        }
+        const ok = !!st && !st.error && st.want > 0 && st.drawn === st.want && st.active === 'page-flows' && errors.length === before;
+        report.push({ id: 'flows palette', ok, want: 'flows palette', active: ok ? 'flows palette' : JSON.stringify(st) + ` errors=${errors.length - before}` });
+        await js(`backToProjectList(); true`);
+    }
     // What the page opens: print previews stay in the app, API files download, other sites leave.
     if (!process.env.FE_SMOKE_URL && !process.env.FE_SMOKE_PAGES) {
         current = 'windows';

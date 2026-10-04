@@ -70,7 +70,7 @@ export const PAGES = [
     { id: 'videoshots', Component: VideoshotsPage, chunk: null, react: true },
     { id: 'music', Component: MusicPage, chunk: null, react: true },
     { id: 'productiongraph', Component: ProductiongraphPage, chunk: null, react: true },
-    { id: 'flows', Component: FlowsPage, chunk: 'graph' },
+    { id: 'flows', Component: FlowsPage, chunk: null, react: true },
     { id: 'previs', Component: PrevisPage, chunk: 'stage3d' },
     { id: 'pipeline', Component: PipelinePage, chunk: null, react: true },
     { id: 'stylebook', Component: StylebookPage, chunk: null, react: true },
@@ -81,7 +81,6 @@ export const PAGES = [
 // Each chunk, and the vendored libraries it needs first.
 export const CHUNKS = {
     stage3d: { deps: ["three"] },
-    graph: { deps: [] },
 };
 
 export const VENDORS = {

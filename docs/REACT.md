@@ -86,7 +86,7 @@ commit. A page whose functions are shared with another page converts together wi
 | characters + locations + props (stage 1: the lists and their forms; the subjects chunk is gone) | done | film-engine-v2 agent |
 | subject sheets, casting, gallery (React components: Gallery, Casting, SubjectSheet, CharacterSheet; the sheets' engines moved verbatim by tools/extract-engine.js) | done | film-engine-v2 agent |
 | productiongraph | batch 4 | film-engine agent |
-| flows | batch 4, after subjects stage 2 (shares the graph chunk) | film-engine-v2 agent |
+| flows (the graph chunk moved verbatim; the last of it) | done | film-engine-v2 agent |
 | shotboard, storyboard | done | |
 | budget, settings, playback, productiongraph + flows | batch 4, one owner each | |
 | screenplay, music + musicws + musiccues, threed + previs | batch 5, the big three, one owner each | |

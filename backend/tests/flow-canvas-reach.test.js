@@ -96,6 +96,8 @@ function browser() {
         state: { currentProject: { id: PID }, currentPage: 'productiongraph' },
         FLOW: { types: null },
         PRODUCTION_GRAPH_ON: true,
+        // v2: the Flows engine reads core's PRODUCTION_GRAPH_ON through its bridge, as legacy.PRODUCTION_GRAPH_ON.
+        legacy: { PRODUCTION_GRAPH_ON: true },
         document: { getElementById: id => (c.els[id] = c.els[id] || { innerHTML: '', style: {}, hidden: true }) },
         els: {},
         api: async (u) => u.endsWith('/node-types') ? {} : { flows: [{ id: 'first', name: 'First', node_count: 1 }, { id: F, name: 'Three looks', node_count: 4 }] },

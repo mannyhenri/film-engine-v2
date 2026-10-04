@@ -51,6 +51,8 @@ export const LEGACY_GLOBALS = [
     'LIGHTING_TECHNIQUE_IDS', 'openGallery', 'loadProps',
     // ...and the character sheet's (src/components/CharacterSheet/engine.js):
     'csImg', 'renderSubjectSheet',
+    'PRODUCTION_GRAPH_ON',    // whether production is one graph (a production-graph.js let): Flows reads it live
+    'flowBackToGraph',        // Flows' way back to the graph (the Production graph page provides it)
     'regenerateStoryboard',   // regenerate one shot's frame: its own confirmation, the busy veil (board, viewer, shot drawer)
     // The storyboard board: state core shares with the frame viewer, the anchor and markup...
     'ANCHOR', 'FRAME_VIEWER', 'BOARD_ANCHOR', 'MARKUP',

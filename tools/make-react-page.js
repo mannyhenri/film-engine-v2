@@ -9,7 +9,11 @@
  *
  *   node tools/make-react-page.js <spec.json>
  *   spec: { "id": "music", "component": "MusicPage", "markup": "(optional; else the reference's page)", "engine": "../music/engine.js",
- *           "loader": "loadMusic", "provides": [...], "ownsEngine": true, "about": "one paragraph" }
+ *           "loader": "loadMusic", "provides": [...], "ownsEngine": true, "about": "one paragraph",
+ *           "mount": "(optional) ./canvas-pointer.js" }
+ *
+ * mount: a module whose default export binds what the legacy code bound at load and is not a declaration (a
+ * document listener), and returns the function that unbinds it. Called once on mount, its unbind on unmount.
  *
  * Handlers resolve to the engine when it exports the name, else to core through legacy (LEGACY_GLOBALS). The page's
  * test must still compare the rendered DOM to the reference markup: this tool is trusted only that far.
@@ -44,10 +48,11 @@ const jsx = htmlToJsx(markup, {
 });
 const usesLegacy = [...used].some(n => !exported.has(n));
 const imports = [
-    spec.ownsEngine ? "import { useLayoutEffect } from 'react';" : null,
+    spec.ownsEngine || spec.mount ? "import { useLayoutEffect } from 'react';" : null,
     "import { usePageLoader } from '../../lib/usePageLoader.js';",
     usesLegacy ? "import { legacy } from '../../lib/legacy.js';" : null,
     `import * as E from '${spec.engine}';`,
+    spec.mount ? `import bindOnMount from '${spec.mount}';` : null,
 ].filter(Boolean).join('\n');
 const register = spec.ownsEngine ? `
     useLayoutEffect(() => {
@@ -57,6 +62,9 @@ const register = spec.ownsEngine ? `
             for (const [name] of ENGINE) { if (prior[name] === undefined) delete window[name]; else window[name] = prior[name]; }
         };
     }, []);` : '';
+const mount = spec.mount ? `
+    // What the legacy code bound at load (${spec.mount}): bound while the page is mounted.
+    useLayoutEffect(() => bindOnMount(), []);` : '';
 const provides = (spec.provides || []).length
     ? `    // What legacy code calls by name (react.json provides).\n${spec.provides.map(n => `    usePageLoader('${n}', E.${n});`).join('\n')}\n` : '';
 const out = `${imports}
@@ -69,7 +77,7 @@ const out = `${imports}
  */
 ${spec.ownsEngine ? "export const ENGINE = Object.entries(E).filter(([, v]) => typeof v === 'function');\n\n" : ''}export default function ${spec.component}() {
     usePageLoader('${spec.loader}', E.${spec.loader});
-${provides}${register}
+${provides}${register}${mount}
     return (
         <>
 ${jsx}        </>
