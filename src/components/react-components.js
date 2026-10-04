@@ -3,8 +3,10 @@
 import Casting from './Casting/Casting.jsx';
 import CharacterSheet from './CharacterSheet/CharacterSheet.jsx';
 import CoreDialogs from './CoreDialogs/CoreDialogs.jsx';
+import FolderPicker from './FolderPicker/FolderPicker.jsx';
 import Gallery from './Gallery/Gallery.jsx';
 import GraphDialogs from './GraphDialogs/GraphDialogs.jsx';
+import MediaInput from './MediaInput/MediaInput.jsx';
 import MusicDialogs from './MusicDialogs/MusicDialogs.jsx';
 import ScreenplayDialogs from './ScreenplayDialogs/ScreenplayDialogs.jsx';
 import SubjectSheet from './SubjectSheet/SubjectSheet.jsx';
@@ -13,8 +15,10 @@ export const REACT_COMPONENTS = [
     { name: 'Casting', Component: Casting },
     { name: 'CharacterSheet', Component: CharacterSheet },
     { name: 'CoreDialogs', Component: CoreDialogs },
+    { name: 'FolderPicker', Component: FolderPicker },
     { name: 'Gallery', Component: Gallery },
     { name: 'GraphDialogs', Component: GraphDialogs },
+    { name: 'MediaInput', Component: MediaInput },
     { name: 'MusicDialogs', Component: MusicDialogs },
     { name: 'ScreenplayDialogs', Component: ScreenplayDialogs },
     { name: 'SubjectSheet', Component: SubjectSheet },

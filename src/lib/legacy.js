@@ -48,7 +48,7 @@ export const LEGACY_GLOBALS = [
     // The location and prop sheet's engine (src/components/SubjectSheet/engine.js) reaches these through its bridge:
     'SS', 'ssSection', 'slotUpload', 'sheetEditable', 'toggleSheetMode', 'regeneratePlate', 'openGallery', 'loadProps',
     // ...and the character sheet's (src/components/CharacterSheet/engine.js):
-    'csImg', 'renderSubjectSheet', 'shootControl',
+    'csImg', 'renderSubjectSheet', 'shootControl', 'PLATE_CAMERA_AFTER',
     // The core dialogs' engine (src/components/CoreDialogs/engine.js) reaches these through its bridge:
     'folderPickerApply', 'frameViewerPaint', 'renderGlossary', 'renderProductionGuide', 'CONFIRM_GEN', 'CONFIRM_GEN_EDITED',
     'CONFIRM_GEN_FINAL_PROMPT', 'SHOT_CARD', 'guideTab', 'loadStoryboard', 'renderProjectOnboarding', 'onboardingIndex',

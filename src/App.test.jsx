@@ -24,11 +24,13 @@ describe('App registers every name the React pages and components provide', () =
         expect(OWNERS.filter(o => o.owner.startsWith('src/components/')).length).toBeGreaterThanOrEqual(1);
     });
 
-    it('each is a function on window after App mounts', () => {
+    it('each is on window after App mounts (a function, or a shared component\'s value)', () => {
         installLegacy();
         render(<App />);
+        // A provided name is a function; a shared component may also provide a value (a constant its engine exports).
         const missing = OWNERS.flatMap(o => [o.loader, ...(o.provides || [])].filter(Boolean)
-            .filter(n => typeof window[n] !== 'function').map(n => `${n} (${o.owner})`));
+            .filter(n => window[n] === undefined || (o.modals && o.modals.length + (o.loader ? 1 : 0) > 0 && typeof window[n] !== 'function'))
+            .map(n => `${n} (${o.owner})`));
         expect(missing).toEqual([]);
     });
 

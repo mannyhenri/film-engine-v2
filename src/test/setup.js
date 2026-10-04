@@ -59,7 +59,7 @@ export function installLegacy({ routes = {}, project = { id: 'p1' } } = {}) {
         slotUpload: vi.fn(() => '<label class="slot-upload">Upload</label>'), sheetEditable: vi.fn(() => false), toggleSheetMode: vi.fn(),
         regeneratePlate: vi.fn(),
         openGallery: vi.fn(), loadProps: vi.fn(),
-        characterViewsHtml: vi.fn(() => ''), shootControl: vi.fn(() => ''),
+        characterViewsHtml: vi.fn(() => ''), shootControl: vi.fn(() => ''), PLATE_CAMERA_AFTER: null,
         folderPickerApply: vi.fn(), frameViewerPaint: vi.fn(), renderGlossary: vi.fn(), renderProductionGuide: vi.fn(),
         CONFIRM_GEN: {}, CONFIRM_GEN_EDITED: false, CONFIRM_GEN_FINAL_PROMPT: '', SHOT_CARD: {}, guideTab: 'overview', loadStoryboard: vi.fn(), renderProjectOnboarding: vi.fn(), onboardingIndex: 0,
         loadProjects: vi.fn(async () => {}), previewProjectFolder: vi.fn(), loadScenes: vi.fn(async () => {}),

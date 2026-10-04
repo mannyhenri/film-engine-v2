@@ -1,0 +1,22 @@
+{
+  "about": "A SHARED module of core as a boot-mounted component with no dialogs: the folder picker (engine.js, moved verbatim). Its dialog is CoreDialogs' folderPickerModal; Settings and the project list call it too. It provides exactly what it replaces.",
+  "provides": [
+    "FOLDER_PICKER",
+    "folderPickerApply",
+    "folderPickerUp",
+    "loadFolderPicker",
+    "openFolderPicker",
+    "previewFolderSeq",
+    "previewProjectFolder"
+  ],
+  "replaces": [
+    "FOLDER_PICKER",
+    "folderPickerApply",
+    "folderPickerUp",
+    "loadFolderPicker",
+    "openFolderPicker",
+    "previewFolderSeq",
+    "previewProjectFolder"
+  ],
+  "modals": []
+}

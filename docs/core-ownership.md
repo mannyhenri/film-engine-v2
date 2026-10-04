@@ -9,10 +9,10 @@ by name and errs toward more reach, which only keeps more in core.
 | (a) one owner, and every core caller moves with it: can move into that owner's engine | 0 |
 | (a2) as (a), but a caller that stays NAMES it (onclick, window[name]): moves if the owner provides it | 0 |
 | (e) one owner, but a caller that stays in core calls it in code: held in core until that caller moves | 3 |
-| (b) two or more owners: stays core, or a shared module | 79 |
+| (b) two or more owners: stays core, or a shared module | 54 |
 | (c) reached by nobody this can see: dead, or reached only by a name built at run time | 29 |
 | (d) load-time core (startup statements, shell.js, production-graph.js and what they reach) | 214 |
-| total | 325 |
+| total | 300 |
 
 Measured as one owner (`GROUPS` in the tool): component:ScreenplayDialogs as page:screenplay (the Screenplay's seven dialogs: their handlers call the screenplay engine, and the component imports from it).
 
@@ -26,23 +26,15 @@ their shared declarations together into one engine; the rest stays core or becom
 | owners | declarations |
 |---|---|
 | page:productiongraph + page:videoshots | 16 |
-| component:CharacterSheet + component:SubjectSheet + page:marketing + page:music + page:productiongraph + page:videoshots | 10 |
 | page:productiongraph + page:storyboard | 7 |
-| component:CoreDialogs + page:settings | 5 |
-| component:CharacterSheet + component:SubjectSheet + page:edits + page:exportpage + page:marketing + page:moodboard + page:music + page:previs + page:productiongraph + page:projects + page:screenplay + page:storyboard + page:stylebook + page:videoshots | 3 |
 | page:playback + page:storyboard | 3 |
-| component:CharacterSheet + component:SubjectSheet + page:characters + page:consistency + page:locations + page:moodboard + page:props + page:storyboard | 2 |
 | component:CoreDialogs + page:music | 2 |
-| component:CoreDialogs + page:projects + page:settings | 2 |
 | page:deliverables + page:playback | 2 |
 | page:edits + page:music | 2 |
 | page:music + page:productiongraph + page:videoshots | 2 |
 | page:scenes + page:screenplay | 2 |
 | page:scenes + page:storyboard | 2 |
-| component:CharacterSheet + component:CoreDialogs + component:SubjectSheet + page:marketing + page:music + page:previs + page:productiongraph + page:settings + page:videoshots | 1 |
-| component:CharacterSheet + component:SubjectSheet + page:marketing + page:moodboard + page:productiongraph | 1 |
-| component:CharacterSheet + component:SubjectSheet + page:marketing + page:music + page:previs + page:productiongraph + page:videoshots | 1 |
-| component:CharacterSheet + component:SubjectSheet + page:marketing + page:productiongraph | 1 |
+| component:CharacterSheet + component:FolderPicker + component:MediaInput + component:SubjectSheet + page:music + page:previs + page:productiongraph | 1 |
 | component:SubjectSheet + page:music | 1 |
 | page:budget + page:playback + page:productiongraph + page:videoshots | 1 |
 | page:dashboard + page:productiongraph + page:storyboard | 1 |
@@ -69,22 +61,14 @@ their shared declarations together into one engine; the rest stays core or becom
 | `approveStrip` | page:productiongraph, page:videoshots |
 | `BATCH_CHOICES` | page:productiongraph, page:storyboard |
 | `BOARD_LOCK` | page:productiongraph, page:storyboard |
-| `captureDestination` | component:CharacterSheet, component:SubjectSheet, page:marketing, page:music, page:productiongraph, page:videoshots |
-| `captureFor` | component:CharacterSheet, component:SubjectSheet, page:marketing, page:music, page:productiongraph, page:videoshots |
-| `captureMedia` | component:CharacterSheet, component:SubjectSheet, page:marketing, page:music, page:productiongraph, page:videoshots |
-| `checkUploadSize` | component:CharacterSheet, component:SubjectSheet, page:edits, page:exportpage, page:marketing, page:moodboard, page:music, page:previs, page:productiongraph, page:projects, page:screenplay, page:storyboard, page:stylebook, page:videoshots |
 | `clearModal` | component:CoreDialogs, page:music |
 | `confirmProjectDelete` | page:projects, page:settings |
 | `confirmUpscale` | page:productiongraph, page:videoshots |
 | `correctStation` | page:productiongraph, page:videoshots |
-| `csImg` | component:CharacterSheet, component:SubjectSheet, page:characters, page:consistency, page:locations, page:moodboard, page:props, page:storyboard |
 | `deleteSequence` | page:productiongraph, page:videoshots |
 | `downloadExport` | page:exportpage, page:videoshots |
 | `DRIFT` | page:scenes, page:storyboard |
 | `fmtBytes` | page:edits, page:settings |
-| `FOLDER_PICKER` | component:CoreDialogs, page:settings |
-| `folderPickerApply` | component:CoreDialogs, page:settings |
-| `folderPickerUp` | component:CoreDialogs, page:settings |
 | `generateAllStoryboards` | page:productiongraph, page:storyboard |
 | `generateNativeMultiShot` | page:productiongraph, page:videoshots |
 | `generateNextSequenceLeg` | page:productiongraph, page:videoshots |
@@ -93,27 +77,17 @@ their shared declarations together into one engine; the rest stays core or becom
 | `getModalData` | component:CoreDialogs, page:music |
 | `getSceneStatusLabel` | page:scenes, page:screenplay |
 | `importBundle` | page:exportpage, page:projects |
-| `jsAttr` | component:CharacterSheet, component:CoreDialogs, component:SubjectSheet, page:marketing, page:music, page:previs, page:productiongraph, page:settings, page:videoshots |
-| `loadFolderPicker` | component:CoreDialogs, page:settings |
+| `jsAttr` | component:CharacterSheet, component:FolderPicker, component:MediaInput, component:SubjectSheet, page:music, page:previs, page:productiongraph |
 | `loadScreenplayDrift` | page:scenes, page:storyboard |
 | `loadSequences` | page:productiongraph, page:videoshots |
 | `mediaUploadControl` | page:music, page:productiongraph, page:videoshots |
 | `mediaUrl` | page:music, page:playback, page:previs, page:productiongraph |
 | `MW` | page:edits, page:music |
 | `mwTime` | page:edits, page:music |
-| `nativeCamera` | component:CharacterSheet, component:SubjectSheet, page:marketing, page:music, page:productiongraph, page:videoshots |
-| `openFolderPicker` | component:CoreDialogs, page:settings |
 | `openFrameViewer` | page:dashboard, page:productiongraph, page:storyboard |
 | `openStrip` | page:productiongraph, page:videoshots |
 | `pb` | page:playback, page:previs |
-| `PLATE_CAMERA` | component:CharacterSheet, component:SubjectSheet, page:marketing, page:music, page:productiongraph, page:videoshots |
-| `plateShootButton` | component:CharacterSheet, component:SubjectSheet, page:marketing, page:music, page:productiongraph, page:videoshots |
-| `plateSrc` | component:CharacterSheet, component:SubjectSheet, page:characters, page:consistency, page:locations, page:moodboard, page:props, page:storyboard |
-| `plateViewsFor` | component:CharacterSheet, component:SubjectSheet, page:marketing, page:music, page:productiongraph, page:videoshots |
-| `previewFolderSeq` | component:CoreDialogs, page:projects, page:settings |
-| `previewProjectFolder` | component:CoreDialogs, page:projects, page:settings |
 | `previewSequence` | page:productiongraph, page:videoshots |
-| `previsAspect` | component:CharacterSheet, component:SubjectSheet, page:marketing, page:music, page:previs, page:productiongraph, page:videoshots |
 | `protectBoxFor` | page:playback, page:storyboard |
 | `protectOptionsHTML` | page:deliverables, page:playback |
 | `protectOverlayHTML` | page:playback, page:storyboard |
@@ -122,9 +96,6 @@ their shared declarations together into one engine; the rest stays core or becom
 | `refreshProtectOptions` | page:deliverables, page:playback |
 | `renderBoardLock` | page:productiongraph, page:storyboard |
 | `setAnchor` | page:productiongraph, page:storyboard |
-| `shootControl` | component:CharacterSheet, component:SubjectSheet, page:marketing, page:music, page:productiongraph, page:videoshots |
-| `shootPlate` | component:CharacterSheet, component:SubjectSheet, page:marketing, page:music, page:productiongraph, page:videoshots |
-| `shootsWithCamera` | component:CharacterSheet, component:SubjectSheet, page:marketing, page:music, page:productiongraph, page:videoshots |
 | `ssSection` | component:SubjectSheet, page:music |
 | `stitchSequence` | page:productiongraph, page:videoshots |
 | `streamSSE` | page:productiongraph, page:storyboard |
@@ -132,11 +103,7 @@ their shared declarations together into one engine; the rest stays core or becom
 | `stripSequence` | page:productiongraph, page:videoshots |
 | `toggleBoardLock` | page:productiongraph, page:storyboard |
 | `updateSceneStatusIcons` | page:scenes, page:screenplay |
-| `UPLOAD_BODY_LIMITS` | component:CharacterSheet, component:SubjectSheet, page:edits, page:exportpage, page:marketing, page:moodboard, page:music, page:previs, page:productiongraph, page:projects, page:screenplay, page:storyboard, page:stylebook, page:videoshots |
 | `uploadCapabilityMedia` | page:music, page:productiongraph, page:videoshots |
-| `uploadControl` | component:CharacterSheet, component:SubjectSheet, page:marketing, page:productiongraph |
-| `uploadLimitFor` | component:CharacterSheet, component:SubjectSheet, page:edits, page:exportpage, page:marketing, page:moodboard, page:music, page:previs, page:productiongraph, page:projects, page:screenplay, page:storyboard, page:stylebook, page:videoshots |
-| `uploadReferenceImage` | component:CharacterSheet, component:SubjectSheet, page:marketing, page:moodboard, page:productiongraph |
 | `UPSCALE_DEFAULT_MODEL` | page:productiongraph, page:videoshots |
 | `upscaleCostLine` | page:productiongraph, page:videoshots |
 | `upscalePlanHtml` | page:productiongraph, page:videoshots |

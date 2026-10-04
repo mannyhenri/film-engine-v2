@@ -23,9 +23,12 @@ const jsxOf = (id) => sourceOf(`${PAGES_DIR}/${id}`);
 /** Every owner of legacy code, pages and components alike: what it registers on window, replaces and renders. */
 const OWNERS = [
     ...Object.entries(REACT).map(([id, r]) => ({ owner: `page ${id}`, src: () => jsxOf(id), registers: [r.loader, ...(r.provides || [])], ...r })),
-    ...Object.entries(COMPONENTS).map(([n, r]) => ({ owner: `component ${n}`, src: () => sourceOf(`${COMPONENTS_DIR}/${n}`), registers: r.provides || [], ...r })),
+    ...Object.entries(COMPONENTS).map(([n, r]) => ({ owner: `component ${n}`, dir: `${COMPONENTS_DIR}/${n}`, src: () => sourceOf(`${COMPONENTS_DIR}/${n}`), registers: r.provides || [], ...r })),
 ];
-const registersOn = (src, fn) => new RegExp(`usePageLoader\\(\\s*'${fn}'`).test(src);
+// By name (usePageLoader), or, for a shared component, by registering every export of its engine on window.
+const registersOn = (src, fn, dir) => new RegExp(`usePageLoader\\(\\s*'${fn}'`).test(src)
+    || (!!dir && /Object\.entries\(E\)/.test(src) && /window\[name\] = v/.test(src) && exists(`${dir}/engine.js`)
+        && new RegExp(`^export \\{[\\s\\S]*?\\b${fn}\\b[\\s\\S]*?\\};`, 'm').test(read(`${dir}/engine.js`)));
 const LEGACY_FILES = ['public/legacy/core.js', 'public/legacy/production-graph.js', 'public/legacy/shell.js',
     // The chunks the split generates (none, once every page is React).
     ...Object.keys(JSON.parse(fs.readFileSync(path.join(ROOT, 'docs/split-map.json'), 'utf8')).chunks).map(c => `public/legacy/chunks/${c}.js`)];
@@ -131,7 +134,7 @@ test('every page loader the legacy code calls exists: declared in legacy code, o
     assert.deepStrictEqual(missing, [], 'called and defined nowhere — a removed page is not removed until its callers go with it');
     // And a React loader core calls must really be registered by its page (else the call throws).
     for (const o of OWNERS) for (const fn of o.registers) {
-        if (calls.includes(fn)) assert.ok(registersOn(o.src(), fn), `${fn} is called by core and ${o.owner} never registers it`);
+        if (calls.includes(fn)) assert.ok(registersOn(o.src(), fn, o.dir), `${fn} is called by core and ${o.owner} never registers it`);
     }
 });
 
@@ -152,7 +155,7 @@ test('every React component: no loader, mounted by App through the generated lis
         if (!new RegExp(`from './${n}/${n}\\.jsx'`).test(list)) bad.push(`${n}: not in ${COMPONENTS_DIR}/react-components.js (run npm run split)`);
         if (!map.reactComponents || !map.reactComponents[n]) bad.push(`${n}: the split map does not list it (run npm run split)`);
         for (const fn of r.provides || []) {
-            if (!registersOn(src, fn)) bad.push(`${n}: never registers ${fn}`);
+            if (!registersOn(src, fn, `${COMPONENTS_DIR}/${n}`)) bad.push(`${n}: never registers ${fn}`);
             if (!r.replaces.includes(fn)) bad.push(`${n}: provides ${fn} but react.json does not list it in replaces`);
         }
         // Through the shared <Modal>, or as its own overlay (a sheet with its own header): an element with the id and modal-overlay.
@@ -204,7 +207,7 @@ test('every load-time call of a React-registered name is named, and its owner re
     for (const f of LEGACY_FILES) {
         for (const c of loadTimeCalls(read(f), new Set(owned.keys()))) {
             if (!LOAD_TIME_CALLS[c.name]) bad.push(`${f}: ${c.name}() runs at load; React registers it at mount. Move the call into a function, or name it in LOAD_TIME_CALLS with why it is safe`);
-            else if (!registersOn(owned.get(c.name).src(), c.name)) bad.push(`${c.name}: called at load and ${owned.get(c.name).owner} does not register it with usePageLoader`);
+            else if (!registersOn(owned.get(c.name).src(), c.name, owned.get(c.name).dir)) bad.push(`${c.name}: called at load and ${owned.get(c.name).owner} does not register it with usePageLoader`);
         }
     }
     for (const n of Object.keys(LOAD_TIME_CALLS)) if (!owned.has(n)) bad.push(`LOAD_TIME_CALLS names ${n}, which no React page or component registers: remove it`);
@@ -223,4 +226,25 @@ test('cutScript drops what React replaced from a whole script, with its lead com
     const r = cutScript(code, new Set(['b', 'B_STATE']));
     assert.strictEqual(r.code, '// a\nfunction a() {}\nconst keep = 2;\n');
     assert.deepStrictEqual([...r.declared].sort(), ['B_STATE', 'a', 'b', 'keep']);
+});
+
+/*
+ * A SHARED component (a module of core that several owners use, mounted at boot with no dialogs of its own) provides
+ * exactly what it replaces: a caller that stays in core, or another engine, reaches the moved name on window at run
+ * time, so a name it replaced and did not provide would break that caller the moment core lost it.
+ */
+const SHARED = Object.entries(COMPONENTS).filter(([n, r]) => !(r.modals || []).length && exists(`${COMPONENTS_DIR}/${n}/engine.js`));
+
+test('there are shared components (the scan finds them)', () => {
+    assert.ok(SHARED.length >= 2, `found ${SHARED.length} shared components`);
+});
+
+test('every shared component provides exactly what it replaces', () => {
+    const bad = [];
+    for (const [n, r] of SHARED) {
+        const p = new Set(r.provides), rep = new Set(r.replaces);
+        for (const x of rep) if (!p.has(x)) bad.push(`${n}: replaces ${x} and does not provide it`);
+        for (const x of p) if (!rep.has(x)) bad.push(`${n}: provides ${x}, which it does not replace`);
+    }
+    assert.deepStrictEqual(bad, []);
 });

@@ -1906,6 +1906,27 @@
         "projectOnboardingModal"
       ]
     },
+    "FolderPicker": {
+      "provides": [
+        "FOLDER_PICKER",
+        "folderPickerApply",
+        "folderPickerUp",
+        "loadFolderPicker",
+        "openFolderPicker",
+        "previewFolderSeq",
+        "previewProjectFolder"
+      ],
+      "replaces": [
+        "FOLDER_PICKER",
+        "folderPickerApply",
+        "folderPickerUp",
+        "loadFolderPicker",
+        "openFolderPicker",
+        "previewFolderSeq",
+        "previewProjectFolder"
+      ],
+      "modals": []
+    },
     "Gallery": {
       "provides": [
         "openGallery"
@@ -1931,6 +1952,49 @@
         "ibSetupModal",
         "ibDirectModal"
       ]
+    },
+    "MediaInput": {
+      "provides": [
+        "captureDestination",
+        "captureFor",
+        "captureMedia",
+        "nativeCamera",
+        "PLATE_CAMERA",
+        "plateShootButton",
+        "plateViewsFor",
+        "shootControl",
+        "shootPlate",
+        "shootsWithCamera",
+        "previsAspect",
+        "checkUploadSize",
+        "UPLOAD_BODY_LIMITS",
+        "uploadLimitFor",
+        "uploadControl",
+        "uploadReferenceImage",
+        "csImg",
+        "plateSrc"
+      ],
+      "replaces": [
+        "captureDestination",
+        "captureFor",
+        "captureMedia",
+        "nativeCamera",
+        "PLATE_CAMERA",
+        "plateShootButton",
+        "plateViewsFor",
+        "shootControl",
+        "shootPlate",
+        "shootsWithCamera",
+        "previsAspect",
+        "checkUploadSize",
+        "UPLOAD_BODY_LIMITS",
+        "uploadLimitFor",
+        "uploadControl",
+        "uploadReferenceImage",
+        "csImg",
+        "plateSrc"
+      ],
+      "modals": []
     },
     "MusicDialogs": {
       "provides": [],
@@ -2317,11 +2381,11 @@
       "loadMusic",
       "loadPlayback"
     ],
-    "functions": 233,
+    "functions": 212,
     "unreached": 18,
     "sharedByChunks": 0,
     "declaredTwice": [],
     "bootVendors": [],
-    "bytes": 381248
+    "bytes": 356287
   }
 }
