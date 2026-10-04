@@ -4,19 +4,16 @@ import { legacy } from '../../lib/legacy.js';
 import * as E from './engine.js';
 
 /*
- * The Screenplay page, as React. Its frame is GENERATED from the legacy markup by tools/html-to-jsx.js (every
- * element, attribute and handler; ScreenplayPage.test.jsx compares the rendered DOM to the reference markup element
- * by element), and rendered once: the editor is a contenteditable the engine owns, so React never re-renders it.
+ * The Screenplay page, as React. It OWNS the screenplay engine (engine.js): the legacy screenplay chunk and the editor core only this page and its dialogs use, moved. It registers every engine function on window while mounted (the engine and the dialogs draw HTML with inline handlers that call them by name); what core, the dialogs (ScreenplayDialogs) and the Scenes page call by name is in react.json provides.
  *
- * The engine (engine.js, the legacy screenplay chunk and the page's loader, moved) drives the editor and its panels by
- * id. Its functions are also put on window at mount, as the chunk had them: the engine and core draw HTML with inline
- * handlers that call them by name (scene navigator rows, index cards, suggestions, the AI panel).
+ * The frame is GENERATED from the legacy markup by tools/make-react-page.js (tools/html-to-jsx.js); its test holds it
+ * to the reference markup element by element. Regenerate it rather than editing the frame by hand.
  */
 export const ENGINE = Object.entries(E).filter(([, v]) => typeof v === 'function');
 
 export default function ScreenplayPage() {
     usePageLoader('loadScreenplayPage', E.loadScreenplayPage);
-    // What legacy code calls by name (react.json provides): the dialogs that stay in ModalHost, and core's editor.
+    // What legacy code calls by name (react.json provides).
     usePageLoader('bodyBlocks', E.bodyBlocks);
     usePageLoader('createIndexCard', E.createIndexCard);
     usePageLoader('resetImportModal', E.resetImportModal);
@@ -38,6 +35,8 @@ export default function ScreenplayPage() {
     usePageLoader('startConversion', E.startConversion);
     usePageLoader('backToConvertStep1', E.backToConvertStep1);
     usePageLoader('acceptConversion', E.acceptConversion);
+    usePageLoader('renderScreenplayEditor', E.renderScreenplayEditor);
+
     useLayoutEffect(() => {
         const prior = {};
         for (const [name, fn] of ENGINE) { prior[name] = window[name]; window[name] = fn; }
@@ -47,9 +46,6 @@ export default function ScreenplayPage() {
     }, []);
     return (
         <>
-        {' '}
-        {/* ── 3. SCREENPLAY ────────────────────────────────────── */}
-        {' '}
         <div className="page" id="page-screenplay">
             {' '}
             <div className="page-header">
@@ -140,7 +136,7 @@ export default function ScreenplayPage() {
                         Actions
                     </div>
                     {' '}
-                    <button className="btn btn-primary" onClick={(event) => legacy.saveScreenplay()} style={{ "width": "100%", "fontSize": "11px" }}>
+                    <button className="btn btn-primary" onClick={(event) => E.saveScreenplay()} style={{ "width": "100%", "fontSize": "11px" }}>
                         {" Save Script "}
                     </button>
                     {' '}
@@ -178,7 +174,7 @@ export default function ScreenplayPage() {
                             Scene: —
                         </span>
                         {' '}
-                        <button className="toolbar-btn" id="lockSceneNumsBtn" onClick={(event) => legacy.toggleLockSceneNumbers()} data-tooltip="Lock scene numbers to prevent reflow during editing">
+                        <button className="toolbar-btn" id="lockSceneNumsBtn" onClick={(event) => E.toggleLockSceneNumbers()} data-tooltip="Lock scene numbers to prevent reflow during editing">
                             {" 🔓 "}
                         </button>
                         {' '}
@@ -206,7 +202,7 @@ export default function ScreenplayPage() {
                             AI Chat
                         </button>
                         {' '}
-                        <button className="toolbar-btn" onClick={(event) => legacy.openTitlePageModal()} data-tooltip="Edit screenplay title page metadata (title, author, draft date)">
+                        <button className="toolbar-btn" onClick={(event) => E.openTitlePageModal()} data-tooltip="Edit screenplay title page metadata (title, author, draft date)">
                             Title Page
                         </button>
                         {' '}
@@ -300,19 +296,19 @@ export default function ScreenplayPage() {
                         {' '}
                         <div className="view-mode-toggle" style={{ "marginLeft": "auto" }}>
                             {' '}
-                            <button className="view-mode-btn active" onClick={(event) => legacy.setViewMode('editor')} id="viewModeEditor">
+                            <button className="view-mode-btn active" onClick={(event) => E.setViewMode('editor')} id="viewModeEditor">
                                 Editor
                             </button>
                             {' '}
-                            <button className="view-mode-btn" onClick={(event) => legacy.setViewMode('cards')} id="viewModeCards">
+                            <button className="view-mode-btn" onClick={(event) => E.setViewMode('cards')} id="viewModeCards">
                                 Index Cards
                             </button>
                             {' '}
-                            <button className="view-mode-btn" onClick={(event) => legacy.setViewMode('treatment')} id="viewModeTreatment">
+                            <button className="view-mode-btn" onClick={(event) => E.setViewMode('treatment')} id="viewModeTreatment">
                                 Treatment
                             </button>
                             {' '}
-                            <button className="view-mode-btn" onClick={(event) => legacy.setViewMode('analysis')} id="viewModeAnalysis">
+                            <button className="view-mode-btn" onClick={(event) => E.setViewMode('analysis')} id="viewModeAnalysis">
                                 Analysis
                             </button>
                             {' '}
@@ -338,7 +334,7 @@ export default function ScreenplayPage() {
                             {' '}
                         </div>
                         {' '}
-                        <button type="button" className="title-page-card" id="titlePageCard" onClick={(event) => legacy.openTitlePageModal()} title="Edit the title page: title, credit, author, source, draft date, contact, copyright, notes. It prints as the first page of the PDF.">
+                        <button type="button" className="title-page-card" id="titlePageCard" onClick={(event) => E.openTitlePageModal()} title="Edit the title page: title, credit, author, source, draft date, contact, copyright, notes. It prints as the first page of the PDF.">
                             {' '}
                             <span className="tpc-label">
                                 Title page
@@ -348,7 +344,7 @@ export default function ScreenplayPage() {
                             </span>
                         </button>
                         {' '}
-                        <div className="screenplay-page" id="screenplayEditor" contentEditable="true" suppressContentEditableWarning spellCheck="true" onInput={(event) => legacy.onEditorInput()} onKeyDown={(event) => E.onEditorKeydown(event.nativeEvent)} onClick={(event) => E.onEditorSelectionChange()} onKeyUp={(event) => E.onEditorSelectionChange()}>
+                        <div className="screenplay-page" id="screenplayEditor" contentEditable="true" suppressContentEditableWarning spellCheck="true" onInput={(event) => E.onEditorInput()} onKeyDown={(event) => E.onEditorKeydown(event.nativeEvent)} onClick={(event) => E.onEditorSelectionChange()} onKeyUp={(event) => E.onEditorSelectionChange()}>
                             {' '}
                         </div>
                         {' '}
@@ -406,7 +402,7 @@ export default function ScreenplayPage() {
                         {' '}
                         <div className="index-cards-toolbar">
                             {' '}
-                            <button className="btn btn-sm" onClick={(event) => legacy.loadAnalysis()}>
+                            <button className="btn btn-sm" onClick={(event) => E.loadAnalysis()}>
                                 Refresh
                             </button>
                             {' '}
@@ -857,7 +853,6 @@ export default function ScreenplayPage() {
             </div>
             {' '}
         </div>
-        {' '}
         </>
     );
 }

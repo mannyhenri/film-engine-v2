@@ -89,12 +89,13 @@ export function installLegacy({ routes = {}, project = { id: 'p1' } } = {}) {
         pgRenderSide: vi.fn(), FLOW: {}, confirmUpscale: vi.fn(), generateNativeMultiShot: vi.fn(), generateSequence: vi.fn(),
         jsAttr: (v) => JSON.stringify(String(v)).replace(/"/g, '&quot;'), markCurrentShot: vi.fn(), showModalHtml: vi.fn(), uploadCapabilityMedia: vi.fn(), setAnchor: vi.fn(), stitchSequence: vi.fn(),
         mediaUrl: (p) => (p ? 'http://api.test' + (p.startsWith('/') ? p : '/film/' + p) : ''),
-        loadAnalysis: vi.fn(), onEditorInput: vi.fn(), openTitlePageModal: vi.fn(), setViewMode: vi.fn(), toggleLockSceneNumbers: vi.fn(),
+        
         // The Screenplay engine's bridge: core's editor functions, and its shared state at core's initial values.
-        acceptAutoDetectSuggestion: vi.fn(), afterCardEdit: vi.fn(), captureEditorState: vi.fn(), checkScreenplaySuggestions: vi.fn(), clearAutoDetectSuggestion: vi.fn(), createBlock: vi.fn(), editorToFountain: vi.fn(), escapeHtml: vi.fn(), focusWordCount: vi.fn(), getCurrentBlock: vi.fn(), hideAutocomplete: vi.fn(), isKnownCharacter: vi.fn(), loadCharacters: vi.fn(), loadLatestFountain: vi.fn(), loadLocations: vi.fn(), loadRevisionInfo: vi.fn(), loadScriptTiming: vi.fn(), loadScriptVersions: vi.fn(), normalizeEditor: vi.fn(), parseFountainToHTML: vi.fn(), renderFountainToEditor: vi.fn(), renderScriptGutter: vi.fn(), saveScreenplay: vi.fn(), selectAutocompleteItem: vi.fn(), serializeEditorToFountain: vi.fn(), setBlockElementType: vi.fn(), setCursorToBlock: vi.fn(), spBlock: vi.fn(), timingRowsForHeadings: vi.fn(), toggleWriterFocus: vi.fn(), triggerAutoSave: vi.fn(), triggerSceneNavUpdate: vi.fn(), twBurst: vi.fn(), typewriterButtons: vi.fn(), updateConversionEstimate: vi.fn(), updateCurrentSceneHighlight: vi.fn(), updateEditorStats: vi.fn(), updateSaveStatus: vi.fn(), updateSceneNavigator: vi.fn(), updateSceneNumbers: vi.fn(), updateScriptStats: vi.fn(),
-        AI_PATH: { connected: false, checked: 0 }, API: () => 'http://api.test/film', AUTO_FORMAT_RULES: {}, MAX_CHUNK_SIZE: 7000, SCRIPT_TIMING: null, TYPEWRITER: {}, autoDetectTimer: null, autocompleteItems: [], autocompleteSelectedIndex: 0, autocompleteVisible: false, currentFountainContent: '', currentScriptVersion: null, editorDirty: false, redoStack: [], screenplaySuggestions: { unmatched_characters: [], unmatched_locations: [] }, undoStack: [],
+        escapeHtml: vi.fn(), focusWordCount: vi.fn(), loadCharacters: vi.fn(), loadLocations: vi.fn(), toggleWriterFocus: vi.fn(), typewriterButtons: vi.fn(), updateConversionEstimate: vi.fn(), 
+        AI_PATH: { connected: false, checked: 0 }, API: () => 'http://api.test/film', AUTO_FORMAT_RULES: {}, MAX_CHUNK_SIZE: 7000, TYPEWRITER: {}, 
         _shotAction: vi.fn(), clearModal: vi.fn(), getModalData: vi.fn(() => ({})),
         previsAspect: vi.fn(() => 16 / 9), WALK: { on: false, from: null, moved: false }, WORLD: { overlays: null, lens: 35, mode: 'keep', pinned: null, world: null }, P_DEG: Math.PI / 180,
+        renderTitlePageCard: vi.fn(),
     };
     const missing = LEGACY_GLOBALS.filter(n => !(n in fake));
     if (missing.length) throw new Error('the test fake lacks ' + missing.join(', ') + ' (src/test/setup.js)');

@@ -257,7 +257,7 @@ async function smoke(win) {
     /*
      * The Screenplay page's engine (src/pages/screenplay/engine.js) drives the editor React renders: the project's real
      * Fountain is drawn into it as blocks, the index cards draw a card per scene heading, the statistics panel opens,
-     * and back in the editor the blocks are the same. Reading only: nothing is typed and nothing is saved.
+     * and back in the editor the blocks are the same. Reading only: nothing is typed, and no request but a GET is made.
      */
     if (project && PAGES.includes('screenplay')) {
         current = 'screenplay editor';
@@ -268,6 +268,9 @@ async function smoke(win) {
             await new Promise(r => setTimeout(r, 250));
         }
         const st = await js(`(async () => {
+            // Nothing may be written while the check looks: every request that is not a GET is counted.
+            const realFetch = window.fetch; let writes = 0;
+            window.fetch = (u, o) => { if (o && o.method && o.method !== 'GET') writes++; return realFetch(u, o); };
             const ed = document.getElementById('screenplayEditor');
             const blocks = ed.querySelectorAll('[data-element-type]').length;
             const headings = ed.querySelectorAll('[data-element-type="scene-heading"]').length;
@@ -278,9 +281,11 @@ async function smoke(win) {
             toggleScriptStats();
             const stats = document.getElementById('scriptStatsContent').classList.contains('open');
             toggleScriptStats();
-            return { blocks, headings, cards, stats, after: ed.querySelectorAll('[data-element-type]').length, dirty: !!editorDirty };
+            await new Promise(r => setTimeout(r, 300));
+            window.fetch = realFetch;
+            return { blocks, headings, cards, stats, after: ed.querySelectorAll('[data-element-type]').length, writes };
         })()`).catch(e => ({ error: String(e) }));
-        const ok = !st.error && st.blocks > 0 && st.headings > 0 && st.cards === st.headings && st.stats && st.after === st.blocks && !st.dirty && errors.length === before;
+        const ok = !st.error && st.blocks > 0 && st.headings > 0 && st.cards === st.headings && st.stats && st.after === st.blocks && st.writes === 0 && errors.length === before;
         report.push({ id: 'screenplay editor', ok, want: 'screenplay editor', active: ok ? `screenplay editor (${st.blocks} blocks, ${st.cards} cards)` : JSON.stringify(st) });
     }
     /*

@@ -17,7 +17,8 @@ const M = measure();
 test('it measures every declaration of core.js, each in exactly one category', () => {
     const declared = acorn.parse(read('public/legacy/core.js'), { ecmaVersion: 'latest' }).body
         .flatMap(n => n.type === 'FunctionDeclaration' ? [n.id.name] : n.type === 'VariableDeclaration' ? n.declarations.filter(d => d.id.type === 'Identifier' && d.init).map(d => d.id.name) : []);
-    assert.ok(declared.length > 400, `only ${declared.length} core declarations: the scan is broken`);
+    // Core shrinks by design as owners take their code; the exact partition below is what proves the scan reads it.
+    assert.ok(declared.length > 0, 'no core declarations read: the scan is broken');
     const placed = [...M.a, ...M.a2, ...M.e, ...M.b, ...M.c, ...M.d].map(x => x.name);
     assert.deepStrictEqual(placed.filter((n, i) => placed.indexOf(n) !== i), [], 'placed twice');
     assert.deepStrictEqual([...placed].sort(), [...new Set(declared)].sort(), 'the categories are not exactly core\'s declarations');

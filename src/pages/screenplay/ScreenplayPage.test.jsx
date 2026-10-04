@@ -79,13 +79,13 @@ describe('Screenplay: what the page and its HTML call', () => {
 });
 
 describe('Screenplay: the loader', () => {
-    it('loads the versions and the latest Fountain through core, checks suggestions, and forgets the last gutter timing', async () => {
+    it('reads the versions, the latest Fountain and the suggestions: the editor core is the page\'s own engine now', async () => {
+        // loadScriptVersions, loadLatestFountain and checkScreenplaySuggestions moved from core into engine.js (the editor
+        // core only this page and its dialogs use, tools/core-ownership.js), so the loader is held to the reads they make.
         const { legacy } = openPage();
-        window.SCRIPT_TIMING = { stale: true };
-        await act(async () => { window.loadScreenplayPage(); });
-        expect(legacy.fake.loadScriptVersions).toHaveBeenCalled();
-        expect(legacy.fake.loadLatestFountain).toHaveBeenCalled();
-        expect(legacy.fake.checkScreenplaySuggestions).toHaveBeenCalled();
-        expect(window.SCRIPT_TIMING).toBe(null);
+        legacy.fake.api.mockImplementation(async (path) => (/fountain$/.test(path) ? { fountain: '' } : {}));
+        await act(async () => { window.loadScreenplayPage(); await new Promise(r => setTimeout(r, 0)); });
+        const reads = legacy.fake.api.mock.calls.map(([path]) => path);
+        expect(reads).toEqual(expect.arrayContaining(['/projects/p1/scripts', '/projects/p1/script/latest/fountain', '/projects/p1/screenplay/suggestions']));
     });
 });

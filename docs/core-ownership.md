@@ -6,21 +6,17 @@ by name and errs toward more reach, which only keeps more in core.
 
 | category | declarations |
 |---|---|
-| (a) one owner, and every core caller moves with it: can move into that owner's engine | 165 |
+| (a) one owner, and every core caller moves with it: can move into that owner's engine | 12 |
 | (a2) as (a), but a caller that stays NAMES it (onclick, window[name]): moves if the owner provides it | 0 |
 | (e) one owner, but a caller that stays in core calls it in code: held in core until that caller moves | 3 |
 | (b) two or more owners: stays core, or a shared module | 79 |
 | (c) reached by nobody this can see: dead, or reached only by a name built at run time | 29 |
 | (d) load-time core (startup statements, shell.js, production-graph.js and what they reach) | 214 |
-| total | 490 |
+| total | 337 |
 
 Measured as one owner (`GROUPS` in the tool): component:ScreenplayDialogs as page:screenplay (the Screenplay's seven dialogs: their handlers call the screenplay engine, and the component imports from it).
 
 ## (a) By owner
-
-### page:screenplay (152)
-
-`acceptAutoDetectSuggestion`, `afterCardEdit`, `analysisBadges`, `analysisByDimension`, `analysisMapHtml`, `analysisNoteHtml`, `analysisWhen`, `analyzeScreenplayLocal`, `appAuthor`, `applyAutocompleteItemToBlock`, `AUTO_DETECT_DELAY`, `AUTO_SAVE_DELAY`, `autocompleteItems`, `autocompleteSelectedIndex`, `autocompleteType`, `autocompleteVisible`, `autoDetectElementType`, `autoDetectTimer`, `autoSaveTimer`, `blockHoldsCaret`, `blockText`, `calculatePageEstimate`, `captureEditorState`, `checkScreenplaySuggestions`, `clearAutoDetectSuggestion`, `clearTitlePage`, `clearVersionSelection`, `compareSelectedVersions`, `computeDiff`, `createBlock`, `createFromAutocomplete`, `currentFountainContent`, `currentRevision`, `currentRevisionPagesChanged`, `currentSceneIndex`, `currentScriptVersion`, `currentTitlePage`, `currentViewMode`, `deleteAnalysis`, `deleteIndexCard`, `draggedCardIndex`, `draggedNavSceneIndex`, `editorDirty`, `editorToFountain`, `extractFormattedText`, `extractLocationFromSceneHeading`, `filterCharacters`, `filterLocations`, `getCurrentBlock`, `getCursorPath`, `getMarkAsRevision`, `hideAutocomplete`, `indexCardsData`, `initUndoStack`, `isEditorFurniture`, `isKnownCharacter`, `jumpToSceneFromCard`, `lastUndoTimestamp`, `loadAnalysis`, `loadLatestFountain`, `loadRevisionInfo`, `loadScriptTiming`, `loadScriptVersion`, `loadScriptVersions`, `loadTreatment`, `MAX_UNDO_ENTRIES`, `mmss`, `nextEditorBlock`, `normalizeEditor`, `onCardDragLeave`, `onCardDragOver`, `onCardDragStart`, `onCardDrop`, `onEditorInput`, `onSceneNavDragLeave`, `onSceneNavDragOver`, `onSceneNavDragStart`, `onSceneNavDrop`, `openIndexCard`, `openTitlePageModal`, `parseFountainToHTML`, `parseSceneBlocks`, `parseSceneOutline`, `parseTitlePageFromEditor`, `parseTitlePageFromFountain`, `performAutoSave`, `positionAutocomplete`, `pushUndoState`, `redoStack`, `renderFountainToEditor`, `renderIndexCards`, `renderScriptGutter`, `reorderScenes`, `restoreVersion`, `saveIndexCard`, `saveScreenplay`, `saveStatus`, `saveTitlePage`, `SCENE_NAV_UPDATE_DELAY`, `sceneActionText`, `sceneHeadingBlocks`, `sceneNavTimer`, `sceneNumbersLocked`, `screenplaySuggestions`, `SCRIPT_TIMING`, `scriptVersionsData`, `scrollToScene`, `selectAutocompleteItem`, `selectedVersions`, `serializeEditorToFountain`, `serializeTitlePageToFountain`, `setBlockElementType`, `setBlockText`, `setCursorToBlock`, `setCursorToEnd`, `setViewMode`, `shotCodesByScene`, `showAutocomplete`, `showAutoDetectSuggestion`, `showVersionDiff`, `SP_FURNITURE`, `SP_KEEP_EMPTY`, `SP_VIEWS`, `spBlock`, `startEditSceneNumber`, `stripEmphasisMarkers`, `sweepEmptyBlocks`, `textOf`, `timingRowsForHeadings`, `titlePageInnerHtml`, `toggleLockSceneNumbers`, `toggleVersionSelect`, `triggerAutocomplete`, `triggerAutoSave`, `triggerSceneNavUpdate`, `triggerUndoCapture`, `twBurst`, `UNDO_DEBOUNCE_DELAY`, `undoStack`, `undoTimer`, `updateCurrentSceneHighlight`, `updateEditorStats`, `updateEditorTitlePage`, `updateRevisionIndicator`, `updateRevisionPageMarkers`, `updateSaveStatus`, `updateSceneGutter`, `updateSceneNavigator`, `updateSceneNumberGutters`, `updateSceneNumbers`, `updateScriptStats`, `updateScriptStatsSummary`
 
 ### page:videoshots (10)
 
@@ -33,10 +29,6 @@ Measured as one owner (`GROUPS` in the tool): component:ScreenplayDialogs as pag
 ### page:previs (1)
 
 `P_DEG`
-
-### page:scenes (1)
-
-`renderScreenplayEditor`
 
 ## (b) By owner set
 

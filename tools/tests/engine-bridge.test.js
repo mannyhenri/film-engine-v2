@@ -51,7 +51,11 @@ for (const file of MODULES) {
         // A vendored library's global (THREE) is set by its own script, loaded before the page's loader
         // (react.json "vendors", tools/tests/page-vendors.test.js): not a core name, and not bridged.
         const vendorGlobals = new Set(Function(`return ${fs.readFileSync(path.join(ROOT, 'tools/split-map.js'), 'utf8').match(/const VENDORS = (\[[^\n]*\]);/)[1]}`)().map(v => v.global));
-        const unbridged = free.filter(n => !BROWSER.has(n) && !vendorGlobals.has(n));
+        // A name nothing defines, used only behind `typeof X` (the reference probes for an optional global, e.g.
+        // `typeof FountainParser !== 'undefined'`): safe in a module too, where typeof of an undeclared name is 'undefined'.
+        const code = fs.readFileSync(path.join(ROOT, file), 'utf8');
+        const probedOnly = (n) => new RegExp(`typeof\\s+${n}\\b`).test(code) && !fs.readFileSync(path.join(ROOT, 'public/legacy/core.js'), 'utf8').match(new RegExp(`\\b(function|const|let|var|class)\\s+${n}\\b`));
+        const unbridged = free.filter(n => !BROWSER.has(n) && !vendorGlobals.has(n) && !probedOnly(n));
         assert.deepStrictEqual(unbridged, [], `${file} uses these without declaring them; each is a core name that `
             + 'must be bridged (const X = (...a) => legacy.X(...a), and X in LEGACY_GLOBALS) so the split keeps it in core');
     });

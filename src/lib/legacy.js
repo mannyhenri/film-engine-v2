@@ -79,24 +79,25 @@ export const LEGACY_GLOBALS = [
     'setAnchor', 'stitchSequence', // called from the HTML the graph engine draws (a frame's anchor, a sequence's join)
     // The Screenplay engine (src/pages/screenplay/engine.js): the editor core keeps because Sync screenplay, scene edits
     // and the autosave share it...
-    'acceptAutoDetectSuggestion', 'afterCardEdit', 'captureEditorState', 'checkScreenplaySuggestions',
-    'clearAutoDetectSuggestion', 'createBlock', 'editorToFountain', 'escapeHtml', 'focusWordCount',
-    'getCurrentBlock', 'hideAutocomplete', 'isKnownCharacter', 'loadCharacters', 'loadLatestFountain',
-    'loadLocations', 'loadRevisionInfo', 'loadScriptTiming', 'loadScriptVersions', 'normalizeEditor',
-    'parseFountainToHTML', 'renderFountainToEditor', 'renderScriptGutter', 'saveScreenplay',
-    'selectAutocompleteItem', 'serializeEditorToFountain', 'setBlockElementType', 'setCursorToBlock', 'spBlock',
-    'timingRowsForHeadings', 'toggleWriterFocus', 'triggerAutoSave', 'triggerSceneNavUpdate', 'twBurst',
-    'typewriterButtons', 'updateConversionEstimate', 'updateCurrentSceneHighlight', 'updateEditorStats',
-    'updateSaveStatus', 'updateSceneNavigator', 'updateSceneNumbers', 'updateScriptStats',
-    'loadAnalysis', 'onEditorInput', 'openTitlePageModal', 'setViewMode', 'toggleLockSceneNumbers', // core handlers the Screenplay page's buttons call
+    
+    'escapeHtml', 'focusWordCount',
+    'loadCharacters', 
+    'loadLocations', 
+    
+    
+    'toggleWriterFocus', 
+    'typewriterButtons', 'updateConversionEstimate', 
+    
+    // core handlers the Screenplay page's buttons call
     // ...and the editor's shared state, read as legacy.X and assigned with setLegacy (a core `let`).
-    'AI_PATH', 'API', 'AUTO_FORMAT_RULES', 'MAX_CHUNK_SIZE', 'SCRIPT_TIMING', 'TYPEWRITER', 'autoDetectTimer',
-    'autocompleteItems', 'autocompleteSelectedIndex', 'autocompleteVisible', 'currentFountainContent',
-    'currentScriptVersion', 'editorDirty', 'redoStack', 'screenplaySuggestions', 'undoStack',
+    'AI_PATH', 'API', 'AUTO_FORMAT_RULES', 'MAX_CHUNK_SIZE', 'TYPEWRITER', 
+    
+    
     '_shotAction', 'clearModal', 'getModalData', // the music engine's bridge (src/pages/music/engine.js)
     'previsAspect', 'WALK', 'WORLD', 'P_DEG', // the 3D stage engine's bridge (src/pages/previs/engine.js)
     // The storyboard engine's bridge (src/pages/storyboard/engine.js):
     'annotationFeedbackOn', 'confirmChoices', 'confirmExtras', 'confirmGenArm', 'cueExtensionOf', 'frameBusy', 'markupDisarm', 'markupDraw', 'markupLoad', 'markupPaintFeedBadge', 'paintGenOptions', 'renderBoardLock', 'BOARD_LOCK',
+    'renderTitlePageCard', // the screenplay editor's title-page card (core keeps it: Sync screenplay redraws it)
 ];
 
 
