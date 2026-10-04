@@ -38,11 +38,15 @@ export default function DrawnListControls({ surface, container, item, rows, keys
         // or a different count, is the engine drawing again.
         const read = (records) => {
             if (!el) return;
+            // Pages mount before the legacy core script runs, so core's state may not exist yet: then there is
+            // nothing drawn to narrow, and the engine's first draw reads again.
+            let now;
+            try { now = (rows() || []).slice(); } catch (_) { return; }
             const drawnNow = [...el.querySelectorAll(item)];
             if (records && drawnNow.length === seen && drawnNow.every(n => n.__listSeen)) return;
             seen = drawnNow.length;
             drawnNow.forEach((n, i) => { n.__listRow = i; n.__listSeen = true; });
-            setData((rows() || []).slice());
+            setData(now);
         };
         const attach = () => {
             el = typeof container === 'function' ? container() : document.getElementById(container);
