@@ -99,7 +99,8 @@ test('the two cases the sheet moves found are measured as held or provided, not 
         if (!M.ownersOf || !M.callersOf(callee)) continue; // moved out of core already: nothing to measure
         const plain = M.a.find(x => x.name === callee);
         const callerMoves = M.a.find(x => x.name === caller);
-        assert.ok(!plain || callerMoves, `${callee} is plain (a) while ${caller} stays in core`);
+        const callerInCore = M.callersOf(caller) !== null; // a caller removed (split-lib REMOVED) holds nothing any more
+        assert.ok(!plain || callerMoves || !callerInCore, `${callee} is plain (a) while ${caller} stays in core`);
     }
 });
 
@@ -148,4 +149,14 @@ test('nothing the original app used is lost: a v2-unreached declaration was dead
     const live = liveInOriginal(M.c.map(x => x.name));
     assert.deepStrictEqual(live.filter(n => !TAKEN_OVER[n]), [], 'reached in the original and by nothing in v2: a call path the conversion lost');
     assert.deepStrictEqual(Object.keys(TAKEN_OVER).filter(n => !live.includes(n)), [], 'TAKEN_OVER names a declaration that is not (or no longer) such a case');
+});
+
+test('every declaration nobody reaches is accounted for: taken over by React, or kept because a backend test reads it', () => {
+    // Removed ones are gone from core (split-lib REMOVED, tools/tests/removed.test.js); what is left of (c) must be named.
+    const { TAKEN_OVER } = require('../core-ownership');
+    const { KEPT_FOR_TESTS } = require('../split-lib');
+    const unnamed = M.c.map(x => x.name).filter(n => !TAKEN_OVER[n] && !KEPT_FOR_TESTS.includes(n));
+    assert.deepStrictEqual(unnamed, [], 'reached by nothing and named nowhere: remove it (REMOVED) or say why it stays');
+    const stale = KEPT_FOR_TESTS.filter(n => !M.c.some(x => x.name === n));
+    assert.deepStrictEqual(stale, [], 'KEPT_FOR_TESTS names a declaration that is reached, or gone');
 });

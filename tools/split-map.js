@@ -16,7 +16,7 @@
  */
 const fs = require('fs');
 const path = require('path');
-const { readSource, loaderMap, parse, topLevelElements, innerOf, words, replacedStatement, cutScript, loadTimeCalls, LOAD_TIME_CALLS, replacedBy } = require('./split-lib');
+const { readSource, loaderMap, parse, topLevelElements, innerOf, words, replacedStatement, cutScript, loadTimeCalls, LOAD_TIME_CALLS, replacedBy, REMOVED } = require('./split-lib');
 
 const ROOT = path.join(__dirname, '..');
 const plan = require('./port-plan.json');
@@ -125,6 +125,8 @@ function generate({ write = true } = {}) {
     const components = readReactComponents();
     const owners = ownersOf(react, components);
     const replaced = new Map(Object.entries(owners).flatMap(([o, r]) => r.replaces.map(n => [n, o.replace(/^page:/, '')])));
+    // Removed outright (split-lib REMOVED, each with why): dropped like replaced code, owned by nobody.
+    for (const n of Object.keys(REMOVED)) replaced.set(n, 'removed');
     // The pages that bind again, on mount, what their chunk did at load (react.json "mount").
     const { mounts } = replacedBy(react, components);
     const reactModals = new Set(Object.values(owners).flatMap(r => r.modals));
@@ -212,6 +214,9 @@ function generate({ write = true } = {}) {
      * new Map()...). A node moves to the one chunk that alone reaches it. Any
      * other statement stays in core, in order, and its names are core roots.
      */
+    // Top-level consts by name, for a read of one's property (AUTO_FORMAT_RULES.nextType): pure when that const is.
+    const constInit = new Map(segs.filter(s => s.node.type === 'VariableDeclaration' && s.node.kind === 'const')
+        .flatMap(s => s.node.declarations.filter(d => d.id.type === 'Identifier').map(d => [d.id.name, d.init])));
     const isPure = (n) => {
         if (!n) return true;
         switch (n.type) {
@@ -220,13 +225,17 @@ function generate({ write = true } = {}) {
             case 'UnaryExpression': return isPure(n.argument);
             case 'BinaryExpression': return isPure(n.left) && isPure(n.right); // 'a ' + 'b': a note written over lines
             case 'ArrayExpression': return n.elements.every(e => !e || isPure(e));
-            case 'ObjectExpression': return n.properties.every(p => p.type === 'Property' && !p.computed && isPure(p.value));
+            // Plain properties only: a getter runs code when read.
+            case 'ObjectExpression': return n.properties.every(p => p.type === 'Property' && p.kind === 'init' && !p.computed && isPure(p.value));
             case 'CallExpression': // Object.freeze({...}) of pure parts
                 return n.callee.type === 'MemberExpression' && n.callee.object.name === 'Object' && n.callee.property.name === 'freeze' && n.arguments.every(isPure);
             case 'Identifier': return n.name === 'undefined' || n.name === 'Infinity' || n.name === 'NaN';
             // A built-in constant of Math (Math.PI / 180): reading it runs nothing. Only these eight names, never a call.
-            case 'MemberExpression': return !n.computed && n.object.type === 'Identifier' && n.object.name === 'Math'
-                && ['PI', 'E', 'LN2', 'LN10', 'LOG2E', 'LOG10E', 'SQRT1_2', 'SQRT2'].includes(n.property.name);
+            case 'MemberExpression':
+                if (n.computed || n.object.type !== 'Identifier') return false;
+                if (n.object.name === 'Math') return ['PI', 'E', 'LN2', 'LN10', 'LOG2E', 'LOG10E', 'SQRT1_2', 'SQRT2'].includes(n.property.name);
+                // A plain property of a top-level const whose own value is pure (no getters): reading it runs nothing.
+                return constInit.has(n.object.name) && constInit.get(n.object.name) !== n && isPure(constInit.get(n.object.name));
             case 'NewExpression': return n.callee.type === 'Identifier' && ['Map', 'Set', 'WeakMap', 'WeakSet'].includes(n.callee.name) && n.arguments.length === 0;
             default: return false;
         }

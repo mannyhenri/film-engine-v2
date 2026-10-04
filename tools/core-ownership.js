@@ -276,14 +276,20 @@ function report(M) {
         'over its behaviour is named (TAKEN_OVER).', '',
         ...(() => { const live = new Set(liveInOriginal(M.c.map(x => x.name)));
             const dead = M.c.filter(x => !live.has(x.name)).map(x => `\`${x.name}\``);
-            return [`Dead in the original too (${dead.length}): candidates for removal.`, '', dead.join(', ') || '(none)', '',
+            const kept = new Set(require('./split-lib').KEPT_FOR_TESTS);
+            const keep = dead.filter(n => kept.has(n.replace(/`/g, '')));
+            const loose = dead.filter(n => !kept.has(n.replace(/`/g, '')));
+            return [`Dead in the original too, KEPT because film-engine's backend tests read them (split-lib KEPT_FOR_TESTS: the registries`,
+                `the tests check against, and dead UI they still assert exists; removing them is a decision with their tests) (${keep.length}):`, '',
+                keep.join(', ') || '(none)', '', `Dead in the original too and unclassified (${loose.length}): remove (split-lib REMOVED) or keep with a reason.`, '',
+                loose.join(', ') || '(none)', '',
                 `Reached in the original, taken over by React (${live.size}):`, '', ...[...live].map(n => `- \`${n}\`: ${TAKEN_OVER[n] || 'NOT NAMED'}`)]; })(),
         '',
         '## (d) Load-time core', '', M.d.map(x => `\`${x.name}\``).join(', '), '');
     return lines.join('\n');
 }
 
-module.exports = { measure, report, liveInOriginal, TAKEN_OVER };
+module.exports = { measure, report, liveInOriginal, TAKEN_OVER, blankComments };
 
 if (require.main === module) {
     const M = measure();

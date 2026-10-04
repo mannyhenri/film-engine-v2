@@ -1680,8 +1680,7 @@
     }
 
     // Element type management constants (FILM-100)
-    const ELEMENT_TYPES = ['action', 'scene-heading', 'character', 'dialogue', 'parenthetical', 'transition', 'centered', 'dual-dialogue', 'lyrics', 'note'];
-    const TAB_CYCLE = ['action', 'character', 'dialogue']; // Tab cycles through these
+    const ELEMENT_TYPES = ['action', 'scene-heading', 'character', 'dialogue', 'parenthetical', 'transition', 'centered', 'dual-dialogue', 'lyrics', 'note']; // Tab cycles through these
 
     // FILM-101: Configurable auto-formatting rules
     const AUTO_FORMAT_RULES = {
@@ -1756,9 +1755,6 @@
             note: /^\[\[.*\]\]\s*$/
         }
     };
-
-    // Alias for backwards compatibility
-    const AUTO_NEXT_TYPE = AUTO_FORMAT_RULES.nextType;
 
     function escapeHtml(text) {
         return text
@@ -1882,22 +1878,6 @@
         }
     }
     window.renderTitlePageCard = renderTitlePageCard;
-
-    // FILM-129: Revision Tracking
-    const REVISION_COLORS = ['white', 'blue', 'pink', 'yellow', 'green', 'goldenrod', 'buff', 'salmon', 'cherry'];
-
-    // AI Generate Functions
-    const AI_GENERATE_HINTS = {
-        'scene-heading': 'Describe the type of location you need (e.g., "A cozy coffee shop in Brooklyn" or "An abandoned warehouse")',
-        'action': 'Describe what should happen in this scene (e.g., "Sarah discovers a hidden letter in the desk drawer")',
-        'character': 'Describe the character entering or speaking (e.g., "A mysterious stranger in a trench coat")',
-        'dialogue': 'Describe what the character should say or convey (e.g., "Express reluctance to help but hint at past history")',
-        'parenthetical': 'Describe the emotional tone or action (e.g., "frustrated", "whispering")',
-        'transition': 'Describe the type of transition (e.g., "dramatic time jump" or "match cut to")',
-        'centered': 'Describe what centered text you need (e.g., "A poetic chapter title" or "Time card")',
-        'lyrics': 'Describe the song or mood (e.g., "A melancholic ballad about lost love")',
-        'note': 'Describe what note you need (e.g., "Production note about special effects needed")'
-    };
 
     // ── AI Chat: streaming send ────────────────────────────────────
 
@@ -2859,7 +2839,6 @@
         jobs: [], audition: null, emotionBox: '', daw: null, instruments: [], instrumentsError: null, rendering: null,
         open: {}, tab: {}, rollSel: null, snapDiv: 2,
     };
-    const MW_LANE_H = 64;
     function mwTime(ms) {
         const s = Math.max(0, Number(ms) || 0) / 1000;
         return Math.floor(s / 60) + ':' + String(Math.floor(s % 60)).padStart(2, '0') + '.' + String(Math.round((s % 1) * 10));
@@ -4313,23 +4292,6 @@
     }
 
 
-    /*
-     * ── Recompose: keep the performance, change the place ─────────────────
-     *
-     * "V6's framing and reaction are perfect, but not the background."
-     *
-     * Refine cannot do this — its negative refuses composition changes, and on
-     * a close-up the background IS most of the composition. Regenerate rebuilds
-     * everything and loses the performance. This keeps one and replaces the
-     * other.
-     *
-     * ONE implementation, reached from both the board and previs, because two
-     * surfaces with separately written confirmations come to disagree about
-     * what they are about to spend money on.
-     */
-    let RECOMPOSE = null;
-
-
     /**
      * Keep a picture and change one thing about it.
      *
@@ -4422,56 +4384,6 @@
         if (!btn) return;
         btn.disabled = !enabled;
         btn.title = enabled ? '' : 'Nothing can be generated until the preview can be read.';
-    }
-
-
-    /**
-     * ONE pre-spend confirmation for every button that buys an image.
-     *
-     * Each path had its own: some a native confirm(), one a rich modal, and
-     * only the storyboard regenerate offered a model picker or an editable
-     * prompt. Seven separately-written confirmations is how six of them come to
-     * lack the thing the seventh has — which is exactly what happened.
-     *
-     * `previewUrl` is the FREE route this path reads from; `send` receives the
-     * director's choices and makes the purchase. A path whose route cannot take
-     * an edited prompt passes `editable: false` and the box is read-only rather
-     * than offering an edit that would be silently dropped.
-     */
-
-    /**
-     * Which GENERATOR this one goes to.
-     *
-     * The tiers say how good; this says who. They are different questions and
-     * the picker only answered the first — "select the image or video generator
-     * on every generation" needs the provider named, not implied by a tier.
-     *
-     * `capability` is 'image' or 'video': video has no tiers at all, so for
-     * footage this is the whole choice.
-     */
-    async function generatorPicker(capability) {
-        let list = [];
-        try {
-            const cat = await api('/providers');
-            list = (cat.providers || [])
-                .filter(p => (p.capabilities || []).includes(capability))
-                .filter(p => p.credentials && p.credentials.set);
-        } catch (_) { return ''; }
-        if (list.length < 2) return '';     // no choice to offer
-
-        return `<div style="margin:10px 0;padding:9px 11px;border-radius:7px;background:rgba(255,255,255,.04);">
-            <div class="text-sm" style="opacity:.7;margin-bottom:6px;">Generator for this one</div>
-            <div style="display:flex;gap:6px;flex-wrap:wrap;">
-              <button type="button" class="btn btn-sm" data-gen="" onclick="pickGenerator('')"
-                      style="flex:1;min-width:110px;">Project default</button>
-              ${list.map(p => `<button type="button" class="btn btn-secondary btn-sm" data-gen="${esc(p.id)}"
-                    onclick="pickGenerator('${esc(p.id)}')" style="flex:1;min-width:110px;">
-                    ${esc(p.label || p.id)}</button>`).join('')}
-            </div>
-            <div class="text-sm" style="opacity:.6;margin-top:6px;" id="confirmGenProviderNote">
-              This generation only. Nothing is pinned to the project.
-            </div>
-          </div>`;
     }
 
     /** The models the chosen generator actually offers, by name a director uses. */

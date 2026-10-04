@@ -19,7 +19,8 @@ export const ENGINE = Object.entries(E).filter(([, v]) => typeof v === 'function
 export default function SubjectSheet() {
     usePageLoader('openSubjectSheet', E.openSubjectSheet);
     usePageLoader('renderSubjectSheet', E.renderSubjectSheet);
-    // Named in an onclick of core's renderLocationViews (the inspector's views panel), which stays core.
+    // Named in an onclick of core's renderLocationViews (the inspector's views panel), which stays core: dead in the app,
+    // kept because backend tests read it (tools/split-lib.js KEPT_FOR_TESTS).
     usePageLoader('sweepLocationCompass', E.sweepLocationCompass);
     // The music engine draws a scene's sound sheet with the same section block.
     usePageLoader('ssSection', E.ssSection);

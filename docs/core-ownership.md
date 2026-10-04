@@ -6,17 +6,21 @@ by name and errs toward more reach, which only keeps more in core.
 
 | category | declarations |
 |---|---|
-| (a) one owner, and every core caller moves with it: can move into that owner's engine | 0 |
+| (a) one owner, and every core caller moves with it: can move into that owner's engine | 1 |
 | (a2) as (a), but a caller that stays NAMES it (onclick, window[name]): moves if the owner provides it | 0 |
-| (e) one owner, but a caller that stays in core calls it in code: held in core until that caller moves | 3 |
+| (e) one owner, but a caller that stays in core calls it in code: held in core until that caller moves | 2 |
 | (b) two or more owners: stays core, or a shared module | 16 |
-| (c) reached by nobody this can see: dead, or reached only by a name built at run time | 29 |
+| (c) reached by nobody this can see: dead, or reached only by a name built at run time | 22 |
 | (d) load-time core (startup statements, shell.js, production-graph.js and what they reach) | 214 |
-| total | 262 |
+| total | 255 |
 
 Measured as one owner (`GROUPS` in the tool): component:ScreenplayDialogs as page:screenplay (the Screenplay's seven dialogs: their handlers call the screenplay engine, and the component imports from it).
 
 ## (a) By owner
+
+### page:screenplay (1)
+
+`AUTO_FORMAT_RULES`
 
 ## (b) By owner set
 
@@ -69,7 +73,6 @@ blocking callers do (or are themselves moved or removed).
 
 | declaration | owner | held by |
 |---|---|---|
-| `AUTO_FORMAT_RULES` | page:screenplay | `AUTO_NEXT_TYPE` |
 | `characterViewsHtml` | component:CharacterSheet | `renderCharacterViewsInto` |
 | `nextOnboardingStep` | component:CoreDialogs | assigns core's onboardingIndex with += (no verbatim form in a module) |
 
@@ -79,9 +82,14 @@ Not deleted: each is either dead, or reached by a name built at run time (`windo
 assembles). Checked against the original app (liveInOriginal): each was dead there too, or the React code that took
 over its behaviour is named (TAKEN_OVER).
 
-Dead in the original too (26): candidates for removal.
+Dead in the original too, KEPT because film-engine's backend tests read them (split-lib KEPT_FOR_TESTS: the registries
+the tests check against, and dead UI they still assert exists; removing them is a decision with their tests) (19):
 
-`acceptPlate`, `addScreenplayComment`, `AI_GENERATE_HINTS`, `AUTO_NEXT_TYPE`, `clearCommentHighlights`, `commentsVisible`, `DAW_ACTIONS`, `deleteLocationView`, `ELEMENT_TYPES`, `ENTITY_FIELDS`, `generateLocationImage`, `generatePropImage`, `generatorPicker`, `inspectEntity`, `loadScreenplayComments`, `MW_LANE_H`, `PV_MODES`, `RECOMPOSE`, `refineLocationView`, `renderCharacterViewsInto`, `renderCommentHighlights`, `renderLocationViews`, `REVISION_COLORS`, `screenplayComments`, `TAB_CYCLE`, `worldOccupancy`
+`acceptPlate`, `addScreenplayComment`, `clearCommentHighlights`, `commentsVisible`, `DAW_ACTIONS`, `deleteLocationView`, `ELEMENT_TYPES`, `ENTITY_FIELDS`, `generateLocationImage`, `generatePropImage`, `inspectEntity`, `loadScreenplayComments`, `PV_MODES`, `refineLocationView`, `renderCharacterViewsInto`, `renderCommentHighlights`, `renderLocationViews`, `screenplayComments`, `worldOccupancy`
+
+Dead in the original too and unclassified (0): remove (split-lib REMOVED) or keep with a reason.
+
+(none)
 
 Reached in the original, taken over by React (3):
 

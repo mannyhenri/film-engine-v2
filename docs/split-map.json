@@ -2484,11 +2484,11 @@
       "loadMusic",
       "loadPlayback"
     ],
-    "functions": 177,
-    "unreached": 18,
+    "functions": 176,
+    "unreached": 17,
     "sharedByChunks": 0,
     "declaredTwice": [],
     "bootVendors": [],
-    "bytes": 303181
+    "bytes": 298587
   }
 }

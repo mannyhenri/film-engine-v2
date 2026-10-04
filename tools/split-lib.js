@@ -204,6 +204,31 @@ const LOAD_TIME_CALLS = {
     loadProjects: 'core INIT: loadProjects().then(applyRoute) restores the route at boot (ProjectsPage registers it)',
 };
 
+/*
+ * Declarations REMOVED from the legacy core: nothing called them in the original app, and nothing here does
+ * (tools/tests/removed.test.js checks both, set-based). Listed so a removal is visible and argued, never silent; decided
+ * by the user on 2026-10-04 from docs/core-ownership.md's "dead in the original too" list. The split drops them like
+ * replaced code; their routes and MCP tools, where they had any, are untouched.
+ */
+const UNREAD = 'declared and read by nothing: the app, in the original or here, and no backend test';
+const REMOVED = {
+    generatorPicker: 'a generator dropdown nothing drew in the original (the confirmation has its own pickers)',
+    AI_GENERATE_HINTS: UNREAD, AUTO_NEXT_TYPE: UNREAD, MW_LANE_H: UNREAD, RECOMPOSE: UNREAD,
+    REVISION_COLORS: UNREAD, TAB_CYCLE: UNREAD,
+};
+/*
+ * Dead in the original app too, and KEPT, because film-engine's backend tests read them: the four registries are the
+ * lists those tests check against (DAW_ACTIONS, ELEMENT_TYPES, PV_MODES, worldOccupancy), and the rest is dead UI the
+ * tests still assert exists (the entity inspector and its location-views panel, two image generators). Removing them
+ * is a separate decision, with their tests. Listed so the next look at core's dead code starts here. A test can hold
+ * code by NAME or by a line of its TEXT (tools/tests/removed.test.js checks both).
+ */
+const KEPT_FOR_TESTS = ['DAW_ACTIONS', 'ELEMENT_TYPES', 'PV_MODES', 'worldOccupancy', 'inspectEntity', 'renderCharacterViewsInto',
+    'renderLocationViews', 'deleteLocationView', 'refineLocationView', 'acceptPlate', 'generateLocationImage', 'generatePropImage',
+    'ENTITY_FIELDS', // read by inspectEntity, kept
+    // The inline screenplay comments UI: screenplay-pagination pins two of its lines (an element_index built from bodyBlocks).
+    'addScreenplayComment', 'clearCommentHighlights', 'commentsVisible', 'loadScreenplayComments', 'renderCommentHighlights', 'screenplayComments'];
+
 /**
  * What React took from the legacy code, as replacedStatement() needs it: every replaced name -> its owner (a page id,
  * or "component:<Name>"), and the pages that bind again, on mount, what their chunk did at load (react.json "mount").
@@ -215,8 +240,9 @@ function replacedBy(react = {}, components = {}) {
         ...Object.entries(react).flatMap(([id, r]) => r.replaces.map(n => [n, id])),
         ...Object.entries(components).flatMap(([name, r]) => r.replaces.map(n => [n, `component:${name}`])),
     ]);
+    for (const n of Object.keys(REMOVED)) replaced.set(n, 'removed');
     const mounts = new Set(Object.entries(react).filter(([, r]) => r.mount).map(([id]) => id));
     return { replaced, mounts };
 }
 
-module.exports = { replacedBy, LOAD_TIME_CALLS, cutScript, loadTimeCalls, replacedStatement, parse, readSource, loaderMap, topLevelFunctions, topLevelElements, innerOf, words };
+module.exports = { REMOVED, KEPT_FOR_TESTS, replacedBy, LOAD_TIME_CALLS, cutScript, loadTimeCalls, replacedStatement, parse, readSource, loaderMap, topLevelFunctions, topLevelElements, innerOf, words };
