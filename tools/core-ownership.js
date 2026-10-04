@@ -269,7 +269,12 @@ function report(M) {
     for (const x of M.b) lines.push(`| \`${x.name}\` | ${x.owners.join(', ')} |`);
     lines.push('', '## (e) One owner, held in core', '', 'Each is used only by its owner, but a core declaration that stays calls it in code. It moves when its',
         'blocking callers do (or are themselves moved or removed).', '', '| declaration | owner | held by |', '|---|---|---|');
-    for (const x of M.e) lines.push(`| \`${x.name}\` | ${x.owner} | ${x.heldBy.map(h => (/ /.test(h) ? h : `\`${h}\``)).join(', ')} |`);
+    const keptForTests = new Set(require('./split-lib').KEPT_FOR_TESTS);
+    for (const x of M.e) {
+        // Held by code kept for film-engine's tests: the user decided (2026-10-04) to keep that code, so this is final.
+        const final = x.heldBy.some(h => keptForTests.has(h)) ? ' (final: its caller is kept for film-engine\'s tests, by the user\'s decision of 2026-10-04)' : '';
+        lines.push(`| \`${x.name}\` | ${x.owner} | ${x.heldBy.map(h => (/ /.test(h) ? h : `\`${h}\``)).join(', ')}${final} |`);
+    }
     lines.push('', '## (c) Reached by nobody this measurement can see', '',
         'Not deleted: each is either dead, or reached by a name built at run time (`window[name]`, a string the code',
         'assembles). Checked against the original app (liveInOriginal): each was dead there too, or the React code that took',
@@ -280,7 +285,7 @@ function report(M) {
             const keep = dead.filter(n => kept.has(n.replace(/`/g, '')));
             const loose = dead.filter(n => !kept.has(n.replace(/`/g, '')));
             return [`Dead in the original too, KEPT because film-engine's backend tests read them (split-lib KEPT_FOR_TESTS: the registries`,
-                `the tests check against, and dead UI they still assert exists; removing them is a decision with their tests) (${keep.length}):`, '',
+                `the tests check against, and dead UI they still assert exists; the user decided on 2026-10-04 to keep them with their tests) (${keep.length}):`, '',
                 keep.join(', ') || '(none)', '', `Dead in the original too and unclassified (${loose.length}): remove (split-lib REMOVED) or keep with a reason.`, '',
                 loose.join(', ') || '(none)', '',
                 `Reached in the original, taken over by React (${live.size}):`, '', ...[...live].map(n => `- \`${n}\`: ${TAKEN_OVER[n] || 'NOT NAMED'}`)]; })(),

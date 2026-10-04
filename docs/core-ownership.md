@@ -69,7 +69,7 @@ blocking callers do (or are themselves moved or removed).
 
 | declaration | owner | held by |
 |---|---|---|
-| `characterViewsHtml` | component:CharacterSheet | `renderCharacterViewsInto` |
+| `characterViewsHtml` | component:CharacterSheet | `renderCharacterViewsInto` (final: its caller is kept for film-engine's tests, by the user's decision of 2026-10-04) |
 
 ## (c) Reached by nobody this measurement can see
 
@@ -78,7 +78,7 @@ assembles). Checked against the original app (liveInOriginal): each was dead the
 over its behaviour is named (TAKEN_OVER).
 
 Dead in the original too, KEPT because film-engine's backend tests read them (split-lib KEPT_FOR_TESTS: the registries
-the tests check against, and dead UI they still assert exists; removing them is a decision with their tests) (19):
+the tests check against, and dead UI they still assert exists; the user decided on 2026-10-04 to keep them with their tests) (19):
 
 `acceptPlate`, `addScreenplayComment`, `clearCommentHighlights`, `commentsVisible`, `DAW_ACTIONS`, `deleteLocationView`, `ELEMENT_TYPES`, `ENTITY_FIELDS`, `generateLocationImage`, `generatePropImage`, `inspectEntity`, `loadScreenplayComments`, `PV_MODES`, `refineLocationView`, `renderCharacterViewsInto`, `renderCommentHighlights`, `renderLocationViews`, `screenplayComments`, `worldOccupancy`
 
