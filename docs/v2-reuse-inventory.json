@@ -1,0 +1,356 @@
+{
+  "ticket": "GRD-4659",
+  "epic": "GRD-4658",
+  "audited": "film-engine-v2 working tree (branch react-components) on 2026-10-04; human summary in docs/v2-reuse-audit.md",
+  "capabilities": [
+    {
+      "area": "electron-ipc",
+      "status": "verified",
+      "paths": [
+        "electron/main.cjs",
+        "electron/preload.cjs",
+        "electron/prompt-preload.cjs",
+        "electron/backend-runner.cjs"
+      ],
+      "tests": [
+        "electron/smoke-pages.cjs"
+      ],
+      "evidence": "The desktop shell has two IPC channels only (fe-prompt, fe-prompt-answer, a synchronous prompt window). Everything else goes over HTTP to the bundled backend, which main.cjs starts or reuses by version. No writing-specific IPC is needed; the writing slice is HTTP + MCP."
+    },
+    {
+      "area": "react-panels",
+      "status": "changed",
+      "paths": [
+        "src/pages"
+      ],
+      "tests": [
+        "src/pages/assets/AssetsPage.test.jsx",
+        "src/pages/brand/BrandPage.test.jsx"
+      ],
+      "evidence": "Pages are React, including the list controls, branding and engine moves (this checkout was fast-forwarded to origin/react-components d6a8a94 on 2026-10-04). The Writing style workbench is not committed: it exists only as untracked files in the working tree (listed under uncommitted); commit it before shipping the writing UI.",
+      "uncommitted": [
+        "src/components/WritingStyle/WritingStyleWorkbench.jsx",
+        "src/components/WritingStyle/WritingStyleWorkbench.test.jsx"
+      ]
+    },
+    {
+      "area": "project-script-records",
+      "status": "verified",
+      "paths": [
+        "backend/routes/projects.js",
+        "backend/routes/scripts.js",
+        "backend/db/schema.js"
+      ],
+      "tests": [
+        "backend/tests/script-revision.test.js",
+        "backend/tests/screenplay-change-safety.test.js"
+      ],
+      "evidence": "film_projects, film_scripts, film_script_elements and film_screenplay_* tables carry the screenplay. Script revisions and change-safety are tested (8 and 15 subtests pass). There is no per-scene writing state; see scene-readiness."
+    },
+    {
+      "area": "approvals",
+      "status": "changed",
+      "paths": [
+        "backend/lib/approval-guard.js",
+        "backend/lib/approval-envelope.js",
+        "backend/lib/artefact-fingerprint.js"
+      ],
+      "tests": [
+        "backend/tests/approval-envelope.test.js",
+        "backend/tests/conform-cost.test.js",
+        "backend/tests/staleness-cost.test.js"
+      ],
+      "evidence": "Generated artefacts use a fingerprint-bound approval: 409 STALE_APPROVAL names what moved and returns a fresh envelope (21 subtests pass). ARTEFACT_KINDS covers media (keyframe, video, voice, lipsync, music, sfx, ambient, post, plates, scene_card) but not writing profiles: the writing store approves with human_confirmed and a DB state flip, outside that contract. GRD-4660 must bring profile approval onto the envelope."
+    },
+    {
+      "area": "provider-adapters",
+      "status": "verified",
+      "paths": [
+        "backend/lib/providers/index.js",
+        "backend/routes/providers.js"
+      ],
+      "tests": [
+        "backend/tests/providers.test.js",
+        "backend/tests/providers-anthropic.test.js",
+        "backend/tests/generator-costs.test.js"
+      ],
+      "evidence": "Provider adapters, tiers and pricing are in place and tested, including an Anthropic adapter. The writing MVP deliberately makes no provider call: the attached assistant (ChatGPT or Claude) reads the context over MCP."
+    },
+    {
+      "area": "jobs",
+      "status": "changed",
+      "paths": [
+        "backend/lib/generation-jobs.js",
+        "backend/routes/generation-jobs.js",
+        "backend/routes/jobs.js"
+      ],
+      "tests": [
+        "backend/tests/generation-recovery.test.js",
+        "backend/tests/generation-handles.test.js",
+        "backend/tests/cancel-honest.test.js"
+      ],
+      "evidence": "Generation jobs have idempotent handles, failed-job recovery and honest cancel (46, 12 and 9 subtests pass). There are no leases, heartbeats or a reconciliation sweep, which GRD-4568 asks for. The writing slice does not need durable jobs; Blender and stereo work do."
+    },
+    {
+      "area": "assets-provenance",
+      "status": "changed",
+      "paths": [
+        "backend/lib/provenance.js",
+        "backend/routes/assets.js"
+      ],
+      "tests": [
+        "backend/tests/ops-compliance.test.js",
+        "backend/tests/flow-provenance.test.js"
+      ],
+      "evidence": "Provenance manifests are hashed (sha256 over the manifest) and stored in film_provenance_manifests; compliance and flow provenance tests pass. Portable asset storage as GRD-4571 defines it was not found. Writing provenance is separate: the profile context carries project, version, basis, evidence hash and sample ids."
+    },
+    {
+      "area": "mcp",
+      "status": "verified",
+      "paths": [
+        "backend/mcp-server.js",
+        "backend/lib/mcp-tools.js"
+      ],
+      "tests": [
+        "backend/tests/mcp-tools.test.js",
+        "backend/tests/mcp-first-writing.test.js"
+      ],
+      "evidence": "MCP exposes writing_style_read, writing_style_examples, writing_style_context and writing_style_propose. Evidence confirmation and profile approval are not MCP tools, by design (a person approves). 30 and 9 subtests pass."
+    },
+    {
+      "area": "writing-style",
+      "status": "missing",
+      "paths": [],
+      "tests": [],
+      "evidence": "Not in committed v2. An MVP exists only as untracked files in the working tree (listed under uncommitted): immutable, revocable samples; versioned profile proposals; human approval; feedback; portable export and import. Its 11 backend subtests pass in the working tree (the Jira note says 12). It also fails bug-hunt-fixes there: server.js returns handleWritingStyle( without awaiting it. No sample enrolled and no profile activated. Commit it, with that fix, before building on it.",
+      "uncommitted": [
+        "backend/lib/writing-style.js",
+        "backend/lib/writing-style-portable.js",
+        "backend/routes/writing-style.js",
+        "backend/db/migrations/130_writing_style.sql",
+        "docs/writing-style-mvp.md",
+        "backend/tests/writing-style.test.js",
+        "src/components/WritingStyle/WritingStyleWorkbench.test.jsx"
+      ]
+    },
+    {
+      "area": "scene-readiness",
+      "status": "missing",
+      "paths": [],
+      "tests": [],
+      "evidence": "No per-scene Draft / Reviewing / Production ready state and no full-text fingerprint per scene exist in schema, migrations, lib or routes. text_fingerprint exists only for music cues. This is GRD-4671."
+    },
+    {
+      "area": "blender-previz",
+      "status": "changed",
+      "paths": [
+        "backend/blender-previz.py",
+        "backend/blender-set.py",
+        "backend/lib/previs-camera.js",
+        "backend/lib/previs-blocking.js",
+        "backend/lib/worlds.js",
+        "backend/routes/previs.js",
+        "backend/routes/worlds.js"
+      ],
+      "tests": [
+        "backend/tests/previs-to-video.test.js",
+        "backend/tests/board-lock.test.js"
+      ],
+      "evidence": "Camera blocking feeds the video payload without rewriting it (17 subtests pass), worlds have versions (film_world_versions) and the board lock holds every frame-writing path (7 pass). Saved editable Blender worlds with an approved camera, and staleness from world edits to boards, are not there yet: GRD-4665 and GRD-4666."
+    },
+    {
+      "area": "render-export",
+      "status": "verified",
+      "paths": [
+        "backend/lib/nle-export.js",
+        "backend/lib/resolve-export.js",
+        "backend/lib/export-package.js",
+        "backend/lib/conform.js",
+        "backend/lib/video-audio-policy.js"
+      ],
+      "tests": [
+        "backend/tests/resolve-export.test.js",
+        "backend/tests/export-package.test.js",
+        "backend/tests/video-audio-handoff.test.js"
+      ],
+      "evidence": "Resolve and FCPXML export, packaging with relocatable media, conform and the audio policy are tested (4, 8 and 12 subtests pass). Stereo (SBS) output does not exist: GRD-4667 to GRD-4669."
+    }
+  ],
+  "fixtures": [
+    {
+      "name": "reference",
+      "status": "verified",
+      "tests": [
+        "backend/tests/dialogue-audio-reference.test.js",
+        "backend/tests/previs-to-video.test.js"
+      ],
+      "gap": ""
+    },
+    {
+      "name": "apply-lock",
+      "status": "verified",
+      "tests": [
+        "backend/tests/board-lock.test.js"
+      ],
+      "gap": ""
+    },
+    {
+      "name": "no_music",
+      "status": "verified",
+      "tests": [
+        "backend/tests/video-audio-handoff.test.js",
+        "backend/tests/video-editorial-ui.test.js"
+      ],
+      "gap": ""
+    },
+    {
+      "name": "nonzero-export-start",
+      "status": "gap",
+      "tests": [
+        "backend/tests/video-audio-handoff.test.js"
+      ],
+      "gap": "Nonzero SOURCE starts are held (a selected source trim matches Playback, the timeline route, conform and Premiere; invalid trims are refused). No fixture exports a timeline whose record start is not zero (for example a 01:00:00:00 start timecode). Kept as an explicit v2 gap for GRD-4669, where the SBS export must keep the exact edit mapping."
+    }
+  ],
+  "tickets": [
+    {
+      "key": "GRD-4566",
+      "decision": "integrate",
+      "reason": "Reuse approval-guard and approval-envelope (the 409 STALE_APPROVAL contract). GRD-4660 adds writing profiles as an approval kind; GRD-4566's cost-plan binding stays in its own epic."
+    },
+    {
+      "key": "GRD-4568",
+      "decision": "reuse",
+      "reason": "Reuse generation-jobs handles and recovery as they are. Leases and reconciliation stay in GRD-4568; the writing slice does not wait on them, Blender and stereo work do."
+    },
+    {
+      "key": "GRD-4571",
+      "decision": "reuse",
+      "reason": "Reuse provenance manifests for rendered media. Writing provenance already lives in the profile context; portable asset storage stays in GRD-4571."
+    },
+    {
+      "key": "GRD-4453",
+      "decision": "related",
+      "reason": "The self-hosted and AWS rendering program is not a dependency of the writing MVP; only its cost, job and provenance children are reused."
+    },
+    {
+      "key": "GRD-3598",
+      "decision": "lead-only",
+      "reason": "Done in legacy (iOS capture and previz). A migration lead for GRD-4665, not proof of v2 behavior."
+    },
+    {
+      "key": "GRD-1096",
+      "decision": "lead-only",
+      "reason": "Done in legacy (screenplay). v2's screenplay records and tests are the evidence now; this ticket is a lead only."
+    },
+    {
+      "key": "GRD-4600",
+      "decision": "related",
+      "reason": "Model catalogue and finishing. Related to stereo adapter choice in GRD-4667, not a duplicate of any child here."
+    }
+  ],
+  "plan": [
+    {
+      "key": "GRD-4659",
+      "title": "Verify reuse and define the first writing slice",
+      "after": []
+    },
+    {
+      "key": "GRD-4660",
+      "title": "Version, approval and job contracts (writing profiles on the approval envelope)",
+      "after": [
+        "GRD-4659"
+      ]
+    },
+    {
+      "key": "GRD-4671",
+      "title": "Per-scene writing readiness bound to a full-text fingerprint",
+      "after": [
+        "GRD-4659",
+        "GRD-4660"
+      ]
+    },
+    {
+      "key": "GRD-4661",
+      "title": "Guided samples and permitted screenplay imports",
+      "after": [
+        "GRD-4659",
+        "GRD-4660"
+      ]
+    },
+    {
+      "key": "GRD-4662",
+      "title": "Evidence-backed style profiles and author feedback",
+      "after": [
+        "GRD-4660",
+        "GRD-4661"
+      ]
+    },
+    {
+      "key": "GRD-4663",
+      "title": "Drafts with approved style context via v2 and ChatGPT or Claude",
+      "after": [
+        "GRD-4660",
+        "GRD-4661",
+        "GRD-4662"
+      ]
+    },
+    {
+      "key": "GRD-4664",
+      "title": "Blinded held-out pilot and Manny's release verdict",
+      "after": [
+        "GRD-4661",
+        "GRD-4662",
+        "GRD-4663"
+      ]
+    },
+    {
+      "key": "GRD-4665",
+      "title": "Editable Blender worlds and approved camera-blocked previz",
+      "after": [
+        "GRD-4659",
+        "GRD-4660"
+      ]
+    },
+    {
+      "key": "GRD-4666",
+      "title": "Pinned reference packages; board and video drift review",
+      "after": [
+        "GRD-4660",
+        "GRD-4665"
+      ]
+    },
+    {
+      "key": "GRD-4667",
+      "title": "Qualify the first stereo adapter, worker and player profile",
+      "after": [
+        "GRD-4659"
+      ]
+    },
+    {
+      "key": "GRD-4668",
+      "title": "Reviewable stereo shot variants",
+      "after": [
+        "GRD-4660",
+        "GRD-4667"
+      ]
+    },
+    {
+      "key": "GRD-4669",
+      "title": "SBS delivery gated on shot review, 2D master preserved",
+      "after": [
+        "GRD-4667",
+        "GRD-4668"
+      ]
+    },
+    {
+      "key": "GRD-4670",
+      "title": "Release gates and end-to-end evidence",
+      "after": [
+        "GRD-4660",
+        "GRD-4664"
+      ]
+    }
+  ],
+  "first_slice": "samples -> approved profile -> draft -> author review: GRD-4660 (profile approval on the envelope), then GRD-4661 to GRD-4664, with GRD-4671 alongside. The existing writing MVP is the starting point; commit it before building on it."
+}
