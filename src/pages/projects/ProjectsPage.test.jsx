@@ -2,6 +2,9 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, fireEvent, createEvent, act, within } from '@testing-library/react';
 import { installLegacy } from '../../test/setup.js';
 import ProjectsPage from './ProjectsPage.jsx';
+// The page's own actions are its engine's (moved from core): spied on here, not run (they confirm and call core).
+vi.mock('./engine.js', () => ({ openNewProject: vi.fn(), loadDemoProject: vi.fn(), deleteProjectById: vi.fn(), deleteAllProjects: vi.fn() }));
+const E = await import('./engine.js');
 
 // The project list, end to end against the fake core: the routes, bodies and lines the legacy list produced.
 // Also holds two backend page sub-tests that read the legacy list's onclick text (see SKIPPED-SUBTESTS.json):
@@ -91,19 +94,19 @@ describe('Projects', () => {
         expect(status).toContain('Could not archive: locked');
     });
 
-    it('the first run offers New and the demo; the list offers Demo and Delete All; delete one goes to core', async () => {
-        const { fake } = await openPage({ 'GET /projects': { projects: [], status_counts: {}, archived_count: 0 } });
+    it('the first run offers New and the demo; the list offers Demo and Delete All; delete one goes to the engine', async () => {
+        await openPage({ 'GET /projects': { projects: [], status_counts: {}, archived_count: 0 } });
         expect(screen.getByText('No projects yet')).toBeTruthy();
         fireEvent.click(screen.getByText('Load Demo Project'));
-        expect(fake.loadDemoProject).toHaveBeenCalled();
+        expect(E.loadDemoProject).toHaveBeenCalled();
         const again = await openPage();
         fireEvent.click(screen.getAllByText('Delete All')[0]);
-        expect(again.fake.deleteAllProjects).toHaveBeenCalled();
+        expect(E.deleteAllProjects).toHaveBeenCalled();
         fireEvent.click(card('a').querySelector('.project-delete-btn'));
-        expect(again.fake.deleteProjectById).toHaveBeenCalledWith('a', 'From <the> Mist');
+        expect(E.deleteProjectById).toHaveBeenCalledWith('a', 'From <the> Mist');
         expect(again.fake.openProject).not.toHaveBeenCalled();
         fireEvent.click(screen.getAllByText('+ New Project')[1]);
-        expect(again.fake.openNewProject).toHaveBeenCalled();
+        expect(E.openNewProject).toHaveBeenCalled();
     });
 
     it('drag to reorder: the card drops where it was dropped, shown at once, then the whole order is saved', async () => {

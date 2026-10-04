@@ -1188,10 +1188,16 @@
         "projectDrop",
         "projectStages",
         "openStagePicker",
-        "setProjectStage"
+        "setProjectStage",
+        "openNewProject",
+        "loadDemoProject",
+        "deleteProjectById",
+        "deleteAllProjects"
       ],
       "modals": [],
-      "provides": [],
+      "provides": [
+        "openNewProject"
+      ],
       "vendors": [],
       "mount": null
     },
@@ -2096,11 +2102,11 @@
       "loadMusic",
       "loadPlayback"
     ],
-    "functions": 408,
+    "functions": 404,
     "unreached": 26,
     "sharedByChunks": 0,
     "declaredTwice": [],
     "bootVendors": [],
-    "bytes": 604765
+    "bytes": 602505
   }
 }

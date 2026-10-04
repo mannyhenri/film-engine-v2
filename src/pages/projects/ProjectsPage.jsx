@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react';
 import { legacy } from '../../lib/legacy.js';
+import * as E from './engine.js';
 import { usePageLoader } from '../../lib/usePageLoader.js';
 
 /*
@@ -8,7 +9,8 @@ import { usePageLoader } from '../../lib/usePageLoader.js';
  * every create, delete and import; the React loader answers and returns its promise.
  *
  * Kept in core, reached through legacy.js: PROJECT_LIST (the filter, which core restores from storage at
- * boot), and the actions the shell shares (open, new, demo, delete, delete all, bundle import).
+ * boot), opening a project (shared with the shell), and the project actions only this page offers (new, demo, delete,
+ * delete all: engine.js, moved verbatim from core).
  */
 const LIST_PREFS = 'fe_project_list';
 function saveProjectListPrefs(list) {
@@ -61,6 +63,8 @@ export default function ProjectsPage() {
         } catch (err) { legacy.setStatus('Error: ' + err.message); }
     }
     usePageLoader('loadProjects', loadProjects);
+    // The sidebar's "+ New Project" (legacy markup) calls it by name.
+    usePageLoader('openNewProject', E.openNewProject);
 
     function setProjectFilter(status) {
         const LIST = legacy.PROJECT_LIST;
@@ -157,7 +161,7 @@ export default function ProjectsPage() {
                 <div>
                     <input type="file" id="projectBundleInput" accept=".tar.gz,.tgz" style={{ display: 'none' }} onChange={e => legacy.importBundle(e.target)} />
                     <button className="btn btn-secondary" onClick={() => document.getElementById('projectBundleInput').click()} style={{ marginRight: 8 }}>Import Bundle</button>
-                    <button className="btn btn-primary" onClick={() => legacy.openNewProject()}>+ New Project</button>
+                    <button className="btn btn-primary" onClick={() => E.openNewProject()}>+ New Project</button>
                 </div>
             </div>
             {/* importBundle (core) writes this element's text and display itself; React never sets either again. */}
@@ -166,15 +170,15 @@ export default function ProjectsPage() {
                 {firstRun && (
                     <div className="empty-state"><div className="icon">🎬</div><h3>No projects yet</h3><p>Create your first film project or load a demo.</p>
                         <div className="project-list-actions" style={{ justifyContent: 'center', marginTop: 12 }}>
-                            <button className="btn btn-primary" onClick={() => legacy.openNewProject()}>New Project</button>
-                            <button className="btn btn-secondary" onClick={() => legacy.loadDemoProject()}>Load Demo Project</button>
+                            <button className="btn btn-primary" onClick={() => E.openNewProject()}>New Project</button>
+                            <button className="btn btn-secondary" onClick={() => E.loadDemoProject()}>Load Demo Project</button>
                         </div></div>
                 )}
                 {view && !firstRun && <>
                     {!list.archived && (
                         <div className="project-list-actions">
-                            <button className="btn btn-secondary" onClick={() => legacy.loadDemoProject()}>Load Demo</button>
-                            <button className="btn btn-secondary" style={{ color: 'var(--gl-error)', borderColor: 'var(--gl-error)' }} onClick={() => legacy.deleteAllProjects()}
+                            <button className="btn btn-secondary" onClick={() => E.loadDemoProject()}>Load Demo</button>
+                            <button className="btn btn-secondary" style={{ color: 'var(--gl-error)', borderColor: 'var(--gl-error)' }} onClick={() => E.deleteAllProjects()}
                                 title="Deletes every project on the list. Archived projects are kept.">Delete All</button>
                         </div>
                     )}
@@ -214,7 +218,7 @@ export default function ProjectsPage() {
                             {p.archived_at
                                 ? <button className="project-archive-btn" onClick={e => { stop(e); setProjectArchived(p.id, false); }} title="Put it back on the project list">Restore</button>
                                 : <button className="project-archive-btn" onClick={e => { stop(e); setProjectArchived(p.id, true); }} title="Take it off the list. Nothing is deleted; restore it from Archived.">Archive</button>}
-                            <button className="project-delete-btn" onClick={e => { stop(e); legacy.deleteProjectById(p.id, p.title); }} title="Delete project">&times;</button>
+                            <button className="project-delete-btn" onClick={e => { stop(e); E.deleteProjectById(p.id, p.title); }} title="Delete project">&times;</button>
                         </div>
                     ))}
                 </>}
