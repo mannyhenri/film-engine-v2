@@ -1,3 +1,5 @@
+// folderPickerModal: the app's own markup, moved verbatim from the source (see CoreDialogs.jsx). A string module.
+export default `
     <!-- Choose a folder: where a project's files are saved. -->
     <div class="modal-overlay" id="folderPickerModal">
         <div class="modal" style="max-width:560px;">
@@ -16,3 +18,4 @@
             </div>
         </div>
     </div>
+`;

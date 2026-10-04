@@ -1,3 +1,5 @@
+// ibSetupModal: the app's own markup, moved verbatim from the source (see GraphDialogs.jsx). A string module.
+export default `
     <!-- Every attempt at one shot. They have always been kept on disk; this is
          the way back to one. -->
 
@@ -11,3 +13,4 @@
             <div id="ibSetupBody"></div>
         </div>
     </div>
+`;

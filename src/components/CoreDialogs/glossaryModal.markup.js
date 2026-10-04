@@ -1,3 +1,5 @@
+// glossaryModal: the app's own markup, moved verbatim from the source (see CoreDialogs.jsx). A string module.
+export default `
     <!-- Glossary Modal -->
     <div class="modal-overlay" id="glossaryModal">
         <div class="modal" style="max-width:600px;">
@@ -11,3 +13,4 @@
             </div>
         </div>
     </div>
+`;

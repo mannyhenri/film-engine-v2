@@ -1,3 +1,5 @@
+// frameViewerModal: the app's own markup, moved verbatim from the source (see CoreDialogs.jsx). A string module.
+export default `
     <!-- ════════════════════════════════════════════════════════════
          MODALS (14)
          ════════════════════════════════════════════════════════════ -->
@@ -22,3 +24,4 @@
             <div id="frameViewerCaption" class="text-sm" style="max-height:20vh;overflow:auto;"></div>
         </div>
     </div>
+`;

@@ -1,3 +1,5 @@
+// confirmGenModal: the app's own markup, moved verbatim from the source (see CoreDialogs.jsx). A string module.
+export default `
 <div class="modal-overlay" id="confirmGenModal">
         <div class="modal" style="max-width:820px;width:94vw;">
             <div class="modal-header">
@@ -13,3 +15,4 @@
             </div>
         </div>
     </div>
+`;

@@ -1,3 +1,5 @@
+// productionGuideModal: the app's own markup, moved verbatim from the source (see CoreDialogs.jsx). A string module.
+export default `
     <!-- Production Guide Modal -->
     <div class="modal-overlay" id="productionGuideModal">
         <div class="modal guide-modal">
@@ -18,3 +20,4 @@
             </div>
         </div>
     </div>
+`;

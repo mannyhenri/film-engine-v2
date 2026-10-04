@@ -1,3 +1,5 @@
+// projectOnboardingModal: the app's own markup, moved verbatim from the source (see CoreDialogs.jsx). A string module.
+export default `
     <!-- First-open Onboarding Modal -->
     <!-- Docked to the right edge rather than centred over the page: the tour
          navigates to each section as it describes it, so covering that section
@@ -27,3 +29,4 @@
             </div>
         </div>
     </div>
+`;

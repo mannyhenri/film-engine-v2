@@ -1,0 +1,9 @@
+{
+  "about": "The Production graph's in-between dialogs (ibSetupModal, ibDirectModal) are a React component, their markup moved verbatim; tools/split-map.js drops them from ModalHost. Their handlers are the graph engine's functions, which src/pages/productiongraph provides and registers, and core's; this component provides and replaces nothing.",
+  "provides": [],
+  "replaces": [],
+  "modals": [
+    "ibSetupModal",
+    "ibDirectModal"
+  ]
+}

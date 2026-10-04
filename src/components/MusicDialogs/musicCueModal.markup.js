@@ -1,3 +1,5 @@
+// musicCueModal: the app's own markup, moved verbatim from the source (see MusicDialogs.jsx). A string module.
+export default `
     <!-- Create Music Cue -->
     <div class="modal-overlay" id="musicCueModal">
         <div class="modal">
@@ -89,3 +91,4 @@
             </div>
         </div>
     </div>
+`;

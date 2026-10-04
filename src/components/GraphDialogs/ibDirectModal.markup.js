@@ -1,3 +1,5 @@
+// ibDirectModal: the app's own markup, moved verbatim from the source (see GraphDialogs.jsx). A string module.
+export default `
     <!-- In-betweens: direct the stretch, frame by frame and over time -->
     <div class="modal-overlay ib-overlay" id="ibDirectModal" onclick="ibCloseDirect()">
         <div class="modal-content" onclick="event.stopPropagation()" role="dialog" aria-labelledby="ibDirectTitle">
@@ -8,3 +10,4 @@
             <div id="ibDirectBody"></div>
         </div>
     </div>
+`;

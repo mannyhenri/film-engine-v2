@@ -1285,6 +1285,24 @@
         "characterSheetModal"
       ]
     },
+    "CoreDialogs": {
+      "provides": [],
+      "replaces": [],
+      "modals": [
+        "frameViewerModal",
+        "frameVersionsModal",
+        "backgroundPickerModal",
+        "confirmGenModal",
+        "shotCardModal",
+        "entityInspectModal",
+        "newProjectModal",
+        "folderPickerModal",
+        "plateViewerModal",
+        "glossaryModal",
+        "productionGuideModal",
+        "projectOnboardingModal"
+      ]
+    },
     "Gallery": {
       "provides": [
         "openGallery"
@@ -1301,6 +1319,22 @@
       ],
       "modals": [
         "galleryModal"
+      ]
+    },
+    "GraphDialogs": {
+      "provides": [],
+      "replaces": [],
+      "modals": [
+        "ibSetupModal",
+        "ibDirectModal"
+      ]
+    },
+    "MusicDialogs": {
+      "provides": [],
+      "replaces": [],
+      "modals": [
+        "soundGenModal",
+        "musicCueModal"
       ]
     },
     "ScreenplayDialogs": {
@@ -1818,10 +1852,7 @@
         "loadThreeD"
       ],
       "chunk": "stage3d",
-      "modals": [
-        "confirmGenModal",
-        "plateViewerModal"
-      ]
+      "modals": []
     },
     "videoshots": {
       "loader": [
@@ -1856,10 +1887,7 @@
         "loadPrevisPage"
       ],
       "chunk": "stage3d",
-      "modals": [
-        "confirmGenModal",
-        "plateViewerModal"
-      ]
+      "modals": []
     },
     "pipeline": {
       "loader": [
@@ -1932,7 +1960,7 @@
       "loadPlayback"
     ],
     "functions": 426,
-    "unreached": 29,
+    "unreached": 43,
     "sharedByChunks": 0,
     "declaredTwice": [],
     "bootVendors": [],

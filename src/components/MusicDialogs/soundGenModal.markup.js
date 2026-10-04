@@ -1,3 +1,5 @@
+// soundGenModal: the app's own markup, moved verbatim from the source (see MusicDialogs.jsx). A string module.
+export default `
         <!-- Generate one sound from a prompt, optionally in a shot's context. -->
         <div class="modal-overlay" id="soundGenModal">
             <div class="modal" style="max-width:560px;">
@@ -42,3 +44,4 @@
                 </div>
             </div>
         </div>
+`;

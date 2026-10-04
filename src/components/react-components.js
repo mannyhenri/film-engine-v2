@@ -2,14 +2,20 @@
 // each mounted once by App at boot, so what it provides is on window before any legacy script runs.
 import Casting from './Casting/Casting.jsx';
 import CharacterSheet from './CharacterSheet/CharacterSheet.jsx';
+import CoreDialogs from './CoreDialogs/CoreDialogs.jsx';
 import Gallery from './Gallery/Gallery.jsx';
+import GraphDialogs from './GraphDialogs/GraphDialogs.jsx';
+import MusicDialogs from './MusicDialogs/MusicDialogs.jsx';
 import ScreenplayDialogs from './ScreenplayDialogs/ScreenplayDialogs.jsx';
 import SubjectSheet from './SubjectSheet/SubjectSheet.jsx';
 
 export const REACT_COMPONENTS = [
     { name: 'Casting', Component: Casting },
     { name: 'CharacterSheet', Component: CharacterSheet },
+    { name: 'CoreDialogs', Component: CoreDialogs },
     { name: 'Gallery', Component: Gallery },
+    { name: 'GraphDialogs', Component: GraphDialogs },
+    { name: 'MusicDialogs', Component: MusicDialogs },
     { name: 'ScreenplayDialogs', Component: ScreenplayDialogs },
     { name: 'SubjectSheet', Component: SubjectSheet },
 ];

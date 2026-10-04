@@ -1,0 +1,9 @@
+{
+  "about": "The Music pages' dialogs (soundGenModal, musicCueModal) are a React component, their markup moved verbatim; tools/split-map.js drops them from ModalHost. Their handlers are the music engine's functions, which src/pages/music provides and registers, and core's; this component provides and replaces nothing.",
+  "provides": [],
+  "replaces": [],
+  "modals": [
+    "soundGenModal",
+    "musicCueModal"
+  ]
+}

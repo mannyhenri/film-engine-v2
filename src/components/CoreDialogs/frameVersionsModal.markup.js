@@ -1,3 +1,5 @@
+// frameVersionsModal: the app's own markup, moved verbatim from the source (see CoreDialogs.jsx). A string module.
+export default `
 <div class="modal-overlay" id="frameVersionsModal" onclick="closeFrameVersions()">
         <div class="modal-content" style="max-width:900px;" onclick="event.stopPropagation()">
             <div class="flex-between mb-16">
@@ -10,3 +12,4 @@
                         max-height:66vh;overflow:auto;"></div>
         </div>
     </div>
+`;

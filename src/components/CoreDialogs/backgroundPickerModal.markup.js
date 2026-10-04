@@ -1,3 +1,5 @@
+// backgroundPickerModal: the app's own markup, moved verbatim from the source (see CoreDialogs.jsx). A string module.
+export default `
     <!-- What is about to be sent, before a credit is spent. -->
     <!-- Which background goes behind them. Pictures, not names. -->
     <div class="modal-overlay" id="backgroundPickerModal">
@@ -19,3 +21,4 @@
             </div>
         </div>
     </div>
+`;

@@ -1,3 +1,5 @@
+// shotCardModal: the app's own markup, moved verbatim from the source (see CoreDialogs.jsx). A string module.
+export default `
 <div class="modal-overlay" id="shotCardModal">
         <div class="modal" style="max-width:820px;width:92vw;">
             <div class="modal-header">
@@ -57,3 +59,4 @@
             </div>
         </div>
     </div>
+`;

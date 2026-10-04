@@ -1,3 +1,5 @@
+// newProjectModal: the app's own markup, moved verbatim from the source (see CoreDialogs.jsx). A string module.
+export default `
 <div class="modal-overlay" id="newProjectModal">
         <div class="modal">
             <div class="modal-header"><h3>New Project</h3><button class="modal-close" onclick="closeModal('newProjectModal')">&times;</button></div>
@@ -83,3 +85,4 @@
             </div>
         </div>
     </div>
+`;

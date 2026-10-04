@@ -156,7 +156,8 @@ function generate({ write = true } = {}) {
     const sidebar = top.find(e => e.tag === 'nav' && /\bsidebar\b/.test(e.cls));
     const statusBar = top.find(e => e.id === 'statusBar');
     const accounted = new Set([main, sidebar, statusBar, ...allModals]);
-    const strays = [...top.filter(e => !accounted.has(e)), ...mainExtras.filter(e => !modals.includes(e))];
+    // A modal inside .main is placed either way: by ModalHost (legacy) or by the React page or component that owns it.
+    const strays = [...top.filter(e => !accounted.has(e)), ...mainExtras.filter(e => !allModals.includes(e))];
     if (strays.length) throw new Error('markup this tool does not place: ' + strays.map(e => e.tag + '#' + e.id).join(', '));
     if (pages.length !== Object.keys(loaders).length) throw new Error('pages and loaders disagree');
 

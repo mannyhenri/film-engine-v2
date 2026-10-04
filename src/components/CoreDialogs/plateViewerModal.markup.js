@@ -1,3 +1,5 @@
+// plateViewerModal: the app's own markup, moved verbatim from the source (see CoreDialogs.jsx). A string module.
+export default `
     <!-- Create Prop -->
     <!-- The style-book editor. Every camera facet the card carries has a
          control, and each says what it is FOR — height in particular, which is
@@ -29,3 +31,4 @@
             </div>
         </div>
     </div>
+`;
