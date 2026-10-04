@@ -2,6 +2,8 @@ import { useState } from 'react';
 import Modal, { openModal, closeModal } from '../../components/Modal.jsx';
 import { legacy } from '../../lib/legacy.js';
 import { usePageLoader } from '../../lib/usePageLoader.js';
+import { useListControls, ListControlsBar, ListNoMatch } from '../../lib/list-controls.jsx';
+import SURFACE from './list-surface.js';
 
 /*
  * Marketing, as React: artwork that ships beside the film. Same routes, bodies and status lines as the
@@ -87,6 +89,9 @@ export default function MarketingPage() {
     }
 
     const set = (k) => (e) => { const v = e.target.value; setForm(f => ({ ...f, [k]: v })); };
+    // Search, sort and filter the assets as read (never re-read), within the type the picker chose.
+    const controls = useListControls(SURFACE, assets && assets.map(a => ({ ...a, art: a.image_path ? 'has artwork' : 'no artwork yet' })));
+    const shown = controls.shown || [];
     return (
         <div className="page" id="page-marketing">
             <div className="flex-between mb-16">
@@ -105,13 +110,15 @@ export default function MarketingPage() {
                 generate it &mdash; generation uses the film&rsquo;s own style preset, so the art looks
                 like the film rather than like a different one.
             </p>
+            {assets && assets.length > 0 && <ListControlsBar list={controls} />}
             <div className="entity-grid" id="marketingGrid" style={{ gridTemplateColumns: 'repeat(auto-fill,minmax(280px,1fr))' }}>
+                {assets && assets.length > 0 && !shown.length && <ListNoMatch list={controls} />}
                 {assets && !assets.length && (
                     <div className="empty-state" style={{ gridColumn: '1/-1' }}><div className="icon">🎭</div>
                         <h3>No marketing assets</h3><p>Add a poster, key art or a social card. You can upload one you already made, or generate it from the film&rsquo;s own look.</p></div>
                 )}
-                {(assets || []).map(a => (
-                    <div key={a.id} className="entity-card">
+                {shown.map(a => (
+                    <div key={a.id} className="entity-card" data-asset-id={a.id}>
                         <div className="entity-card-header">
                             <div className="entity-avatar" style={{ background: 'var(--gl-bg-elevated)' }}>{TYPE_ICON[a.type] || '🎭'}</div>
                             <div>

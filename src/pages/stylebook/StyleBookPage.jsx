@@ -2,6 +2,8 @@ import { useRef, useState } from 'react';
 import Modal, { openModal, closeModal } from '../../components/Modal.jsx';
 import { legacy } from '../../lib/legacy.js';
 import { usePageLoader } from '../../lib/usePageLoader.js';
+import { useListControls, ListControlsBar, ListNoMatch } from '../../lib/list-controls.jsx';
+import SURFACE from './list-surface.js';
 
 /*
  * The Style Book, as React: the director's own shots, kept across every film. Same routes, bodies and
@@ -84,7 +86,6 @@ export default function StyleBookPage() {
     usePageLoader('applyStyleBookEntry', applyStyleBookEntry);
     const [book, setBook] = useState({ entries: [], note: '' });
     const [loadState, setLoadState] = useState('idle'); // idle | loading | ready | error:<msg>
-    const [filter, setFilter] = useState('');
     const [editing, setEditing] = useState({ id: '', form: EMPTY });
     const [media, setMedia] = useState(null); // null: new shot (nothing to list yet) | [] | 'error:<msg>'
     const [visual, setVisual] = useState({ url: '', note: '' });
@@ -179,8 +180,13 @@ export default function StyleBookPage() {
         } catch (err) { legacy.setStatus('Error: ' + err.message); }
     }
 
-    const q = filter.trim().toLowerCase();
-    const entries = book.entries.filter(e => !q || (e.name + ' ' + e.description + ' ' + e.tags + ' ' + JSON.stringify(e.camera || {})).toLowerCase().includes(q));
+    // One search: the list bar's (name, description, tags and the camera, via camera_text). The page had its own filter
+    // box before ListControls, which would have been a second search box doing the same thing.
+    const filtered = book.entries;
+    // Search, sort and filter what was read (never re-read); camera_text makes the camera searchable.
+    const controls = useListControls(SURFACE, loadState === 'ready' || book.entries.length
+        ? filtered.map(e => ({ ...e, camera_text: Object.values(e.camera || {}).join(' ') })) : null);
+    const entries = controls.shown || [];
     const f = editing.form;
     const field = (k, extra = {}) => ({ 'data-field': k, value: f[k], onChange: (ev) => { const v = ev.target.value; setEditing(s => ({ ...s, form: { ...s.form, [k]: v } })); }, ...extra });
 
@@ -189,8 +195,6 @@ export default function StyleBookPage() {
             <div className="flex-between mb-16" style={{ flexWrap: 'wrap', gap: 8 }}>
                 <h2>Style Book</h2>
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-                    <input id="styleBookFilter" type="text" placeholder="Filter by name, tag or lens" style={{ width: 220 }}
-                        value={filter} onChange={(e) => setFilter(e.target.value)} />
                     <button className="btn btn-primary" onClick={() => openEditor(null)}>+ Shot</button>
                 </div>
             </div>
@@ -200,16 +204,17 @@ export default function StyleBookPage() {
                 what the image and video prompts are built from, so a favourite angle reaches the next
                 generation with nothing else to change.
             </p>
+            {filtered.length > 0 && <ListControlsBar list={controls} />}
             <div id="styleBookGrid">
                 {loadState === 'loading' && !book.entries.length && <p className="text-sm text-muted">Loading…</p>}
                 {loadState.startsWith('error:') && <p className="text-sm">Could not load the style book: {loadState.slice(6)}</p>}
-                {loadState === 'ready' && !entries.length && (book.entries.length
-                    ? <p className="text-sm text-muted">Nothing matches that.</p>
-                    : <p className="text-sm text-muted">No shots yet. Add one when you see an angle you want again &mdash; a name and a lens is enough to start.</p>)}
+                {filtered.length > 0 && !entries.length && <ListNoMatch list={controls} />}
+                {loadState === 'ready' && !book.entries.length && (
+                    <p className="text-sm text-muted">No shots yet. Add one when you see an angle you want again &mdash; a name and a lens is enough to start.</p>)}
                 {!loadState.startsWith('error:') && entries.length > 0 && <>
                     <div className="entity-grid">
                         {entries.map(e => (
-                            <div key={e.id} className="entity-card">
+                            <div key={e.id} className="entity-card" data-entry-id={e.id}>
                                 {(e.media || []).length > 0 && <CardImage src={`${legacy.API_BASE}/film/style-book/media/${e.media[0].id}/file`} />}
                                 <div className="flex-between">
                                     <strong style={{ fontSize: 13 }}>{e.name}</strong>

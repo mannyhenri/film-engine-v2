@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { render, screen, fireEvent, act } from '@testing-library/react';
+import { render, screen, fireEvent, act, within } from '@testing-library/react';
 import { installLegacy } from '../../test/setup.js';
 import JobsQueuePage from './JobsQueuePage.jsx';
 
@@ -23,9 +23,9 @@ describe('Job Queue', () => {
         expect([...document.querySelectorAll('.stat-card')].map(c => c.textContent)).toEqual(['3Total jobs', '1Active', '1Failed', '1Complete']);
         const cards = [...document.querySelectorAll('#jobsQueueList .card')].map(c => c.textContent);
         expect(cards).toEqual(['video j1completeslow push <in>', 'image j2failedfluxquota', 'voice j3queuedNo prompt/model recorded']);
-        expect(screen.getByText('complete').style.color).toBe('rgb(22, 163, 74)');
-        expect(screen.getByText('failed').style.color).toBe('rgb(220, 38, 38)');
-        expect(screen.getByText('queued').style.color).toBe('rgb(245, 158, 11)');
+        expect(within(document.getElementById('jobsQueueList')).getByText('complete').style.color).toBe('rgb(22, 163, 74)');
+        expect(within(document.getElementById('jobsQueueList')).getByText('failed').style.color).toBe('rgb(220, 38, 38)');
+        expect(within(document.getElementById('jobsQueueList')).getByText('queued').style.color).toBe('rgb(245, 158, 11)');
     });
 
     it('no jobs says so; a failure shows the error and an empty list; Refresh asks again', async () => {
@@ -44,5 +44,21 @@ describe('Job Queue', () => {
         await act(async () => { await window.loadJobsQueuePage(); });
         expect(legacy.calls).toEqual([]);
         expect(legacy.status).toContain('Open a project first');
+    });
+
+    it('search, filter and sort the jobs shown; the summary still counts every job; no match says so', async () => {
+        await openPage();
+        const ids = () => [...document.querySelectorAll('#jobsQueueList .card .text-muted')].map(e => e.textContent).filter(t => /^j\d$/.test(t));
+        fireEvent.change(document.querySelector('[data-list-search]'), { target: { value: 'QUOTA' } });
+        expect(ids()).toEqual(['j2']);
+        expect(document.querySelector('.stat-card').textContent).toBe('3Total jobs');
+        fireEvent.change(document.querySelector('[data-list-search]'), { target: { value: 'nothing-here' } });
+        expect(document.querySelector('[data-list-nomatch]')).toBeTruthy();
+        fireEvent.click(screen.getByRole('button', { name: 'Clear search' }));
+        fireEvent.change(document.querySelector('[data-list-filter="status"]'), { target: { value: 'queued' } });
+        expect(ids()).toEqual(['j3']);
+        fireEvent.change(document.querySelector('[data-list-filter="status"]'), { target: { value: '' } });
+        fireEvent.change(document.querySelector('[data-list-sort]'), { target: { value: 'type' } });
+        expect(ids()).toEqual(['j2', 'j1', 'j3']);
     });
 });

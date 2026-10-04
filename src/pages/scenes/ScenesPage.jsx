@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { legacy } from '../../lib/legacy.js';
 import * as E from './engine.js';
+import { useListControls, ListControlsBar, ListNoMatch } from '../../lib/list-controls.jsx';
+import SURFACE from './list-surface.js';
 import { usePageLoader } from '../../lib/usePageLoader.js';
 
 /*
@@ -103,6 +105,9 @@ export default function ScenesPage() {
     }
 
     const list = scenes || [];
+    // Search, sort and filter what was read (never re-read).
+    const controls = useListControls(SURFACE, scenes);
+    const shownScenes = controls.shown || [];
     const written = list.filter(s => s.status === 'written').length;
     const driftShots = drift.reduce((n, s) => n + s.shots_behind.length, 0);
     const stop = (fn) => (e) => { e.stopPropagation(); fn(); };
@@ -118,11 +123,13 @@ export default function ScenesPage() {
             {/* Appears only with a selection, so the destructive control is not on screen in normal use. */}
             <div id="sceneBulkBar" className={'scene-bulk-bar' + (selected.size ? '' : ' hidden')}>
                 <span id="sceneBulkCount">{selected.size} selected</span>
-                <button className="btn btn-secondary btn-sm" onClick={() => setSelected(new Set(list.map(s => s.id)))}>Select all</button>
+                <button className="btn btn-secondary btn-sm" onClick={() => setSelected(new Set(shownScenes.map(s => s.id)))} title="The scenes shown: a search or filter never selects what it hides">Select all</button>
                 <button className="btn btn-secondary btn-sm" onClick={() => setSelected(new Set())}>Clear</button>
                 <button className="btn btn-danger btn-sm" onClick={deleteSelectedScenes}>Delete selected</button>
             </div>
+            <ListControlsBar list={controls} />
             <div id="scenesList">
+                {list.length > 0 && !shownScenes.length && <ListNoMatch list={controls} />}
                 {scenes && !list.length && <div className="empty-state"><div className="icon">&#127916;</div><h3>No scenes yet</h3><p>Upload a screenplay to auto-extract scenes.</p></div>}
                 {list.length > 0 && drift.length > 0 && (
                     <div className="card" id="sceneDriftBanner" style={{ borderColor: 'var(--gl-warning,#f59e0b)', background: 'rgba(245,158,11,.07)', padding: '12px 14px', marginBottom: 12 }}>
@@ -139,7 +146,7 @@ export default function ScenesPage() {
                         </p>
                     </div>
                 )}
-                {list.map(s => {
+                {shownScenes.map(s => {
                     const behind = drift.find(d => String(d.scene_number) === String(s.scene_number));
                     const lines = s.dialogue_lines || 0;
                     const shots = open[s.id];

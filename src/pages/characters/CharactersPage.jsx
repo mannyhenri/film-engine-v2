@@ -31,7 +31,7 @@ function CharacterCard({ c, onEdit, onDelete }) {
     const facts = [c.age_range || null, c.gender || null, c.height_m ? c.height_m + 'm' : null].filter(Boolean).join(' · ');
     const missing = [!c.gender ? 'gender' : null, !c.age_range ? 'age' : null].filter(Boolean);
     return (
-        <div className="entity-card" style={{ cursor: 'pointer' }} onClick={() => legacy.openCharacterSheet(c.id)} title="Open the character sheet">
+        <div className="entity-card" data-character-id={c.id} style={{ cursor: 'pointer' }} onClick={() => legacy.openCharacterSheet(c.id)} title="Open the character sheet">
             <div className="entity-card-header">
                 {c.reference_image_url && !plateFailed
                     ? <img src={legacy.plateSrc(c.reference_image_url, 160)}

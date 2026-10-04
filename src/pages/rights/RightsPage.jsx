@@ -2,6 +2,8 @@ import { useState } from 'react';
 import Modal, { openModal, closeModal } from '../../components/Modal.jsx';
 import { legacy } from '../../lib/legacy.js';
 import { usePageLoader } from '../../lib/usePageLoader.js';
+import { useListControls, ListControlsBar, ListNoMatch } from '../../lib/list-controls.jsx';
+import SURFACE from './list-surface.js';
 
 /*
  * Rights, as React. Recorded, never enforced: nothing here blocks a generation or an export.
@@ -45,7 +47,10 @@ export default function RightsPage() {
 
     const vocab = data && data.vocabulary;
     const rows = (data && data.rights) || [];
-    const shown = filter ? rows.filter(r => r.status === filter) : rows;
+    const inStatus = filter ? rows.filter(r => r.status === filter) : rows;
+    // Search, sort and filter within the status chosen above (never re-read).
+    const controls = useListControls(SURFACE, data ? inStatus : null);
+    const shown = controls.shown || [];
     const counts = (data && data.by_status) || {};
 
     function openRight(r) {
@@ -106,11 +111,13 @@ export default function RightsPage() {
                     ))}</div>
                 )}
             </div>
+            <ListControlsBar list={controls} />
             <div id="rightsList">
                 {loadError && <p className="text-sm text-muted">Could not read the register: {loadError}</p>}
-                {!loadError && data && !shown.length && <p className="text-sm text-muted">Nothing recorded{filter ? ' with that status.' : ' yet.'}</p>}
+                {!loadError && data && !inStatus.length && <p className="text-sm text-muted">Nothing recorded{filter ? ' with that status.' : ' yet.'}</p>}
+                {!loadError && inStatus.length > 0 && !shown.length && <ListNoMatch list={controls} />}
                 {!loadError && shown.map(r => (
-                    <div key={r.id} className="card" style={{ marginBottom: 6 }}>
+                    <div key={r.id} className="card" data-right-id={r.id} style={{ marginBottom: 6 }}>
                         <div className="flex-between" style={{ gap: 8, flexWrap: 'wrap', minWidth: 0 }}>
                             <div style={{ minWidth: 0 }}>
                                 <strong>{r.subject || ''}</strong>

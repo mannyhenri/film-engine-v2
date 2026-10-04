@@ -119,3 +119,18 @@ describe('Deliverables', () => {
         expect(status).toContain('Deliverable removed');
     });
 });
+
+describe('Deliverables: search, sort and filter (src/lib/list-controls.jsx)', () => {
+    it('the search and the platform filter narrow the deliverables', async () => {
+        try { localStorage.clear(); } catch (_) { /* none */ }
+        const other = { ...ROW, id: 'd2', key: '30_16x9', label: 'Broadcast 30', aspect_ratio: '16:9', platform: 'youtube', notes: '' };
+        await openPage({ 'GET /projects/p1/deliverables': { ...SERVED, deliverables: [ROW, other] } });
+        const keys = () => [...document.querySelectorAll('#deliverableList .card strong')].map(n => n.textContent);
+        expect(keys().length).toBe(2);
+        fireEvent.change(document.querySelector('[data-list-search]'), { target: { value: 'broadcast' } });
+        expect(keys()).toEqual(['Broadcast 30']);
+        fireEvent.change(document.querySelector('[data-list-search]'), { target: { value: '' } });
+        fireEvent.change(document.querySelector('[data-list-filter="platform"]'), { target: { value: 'meta' } });
+        expect(keys()).toEqual(['Reel <15>']);
+    });
+});

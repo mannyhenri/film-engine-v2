@@ -111,4 +111,19 @@ describe('Subtitles', () => {
         await openPage({ 'GET /projects/p1/subtitles?language=en': () => { throw new Error('nope'); } });
         expect(screen.getByText('Could not read the subtitles: nope')).toBeTruthy();
     });
+
+    it('the cues can be searched (text, speaker) and filtered; time order stays the default', async () => {
+        await openPage();
+        const texts = () => [...document.querySelectorAll('#subtitleList > .card strong')].map(n => n.textContent);
+        expect(texts()).toEqual(['Get <inside>.', '[door slams]']);
+        expect(document.querySelector('[data-list-sort]').value).toBe('time');
+        fireEvent.change(document.querySelector('[data-list-search]'), { target: { value: 'ray' } });
+        expect(texts()).toEqual(['Get <inside>.']);
+        fireEvent.change(document.querySelector('[data-list-search]'), { target: { value: 'zz-none' } });
+        expect(texts()).toEqual([]);
+        expect(document.querySelector('#subtitleList [data-list-nomatch]')).toBeTruthy();
+        fireEvent.change(document.querySelector('[data-list-search]'), { target: { value: '' } });
+        fireEvent.change(document.querySelector('[data-list-filter="kind"]'), { target: { value: 'closed caption' } });
+        expect(texts()).toEqual(['[door slams]']);
+    });
 });

@@ -62,4 +62,19 @@ describe('Render History', () => {
         await pick('sh1');
         expect(status).toContain('Error: boom');
     });
+
+    it('the ledger can be searched and filtered: only the matching renders are drawn', async () => {
+        await openPage();
+        await pick('sh1');
+        const rows = () => [...document.querySelectorAll('#renderTableWrap tr')].slice(1).map(tr => tr.cells[0].textContent);
+        expect(rows()).toEqual(['3', '2']);
+        fireEvent.change(document.querySelector('[data-list-search]'), { target: { value: 'VIDEO' } });
+        expect(rows()).toEqual(['2']);
+        fireEvent.change(document.querySelector('[data-list-search]'), { target: { value: 'nothing-like-this' } });
+        expect(rows()).toEqual([]);
+        expect(document.querySelector('[data-list-nomatch]')).toBeTruthy();
+        fireEvent.change(document.querySelector('[data-list-search]'), { target: { value: '' } });
+        fireEvent.change(document.querySelector('[data-list-filter="mode"]'), { target: { value: 'locked' } });
+        expect(rows()).toEqual(['3']);
+    });
 });

@@ -20,7 +20,7 @@ const blank = () => formFrom(null, LOCATION_FIELDS);
 function LocationCard({ l, onEdit, onDelete }) {
     const [plateFailed, setPlateFailed] = useState(false);
     return (
-        <div className="entity-card" style={{ cursor: 'pointer' }} onClick={() => legacy.openSubjectSheet('location', l.id)} title="Open the location sheet">
+        <div className="entity-card" data-location-id={l.id} style={{ cursor: 'pointer' }} onClick={() => legacy.openSubjectSheet('location', l.id)} title="Open the location sheet">
             {l.reference_image_url
                 ? <img src={legacy.plateSrc(l.reference_image_url, 480)} style={{ ...BANNER_STYLE, display: plateFailed ? 'none' : undefined }}
                        title="Click to see the plate full size"

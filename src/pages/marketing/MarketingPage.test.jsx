@@ -85,4 +85,18 @@ describe('Marketing', () => {
         expect(calls.find(c => c.method === 'DELETE').path).toBe('/marketing/k1');
         confirm.mockRestore();
     });
+
+    it('the assets can be searched (title, prompt) and filtered by whether they have artwork', async () => {
+        await openPage();
+        const ids = () => cards().map(c => c.querySelector('h3').textContent);
+        expect(ids()).toEqual(['Teaser <one>', 'Untitled']);
+        fireEvent.change(document.querySelector('[data-list-search]'), { target: { value: 'BLUE HOUR' } });
+        expect(ids()).toEqual(['Untitled']);
+        fireEvent.change(document.querySelector('[data-list-search]'), { target: { value: 'zz-none' } });
+        expect(ids()).toEqual([]);
+        expect(document.querySelector('#marketingGrid [data-list-nomatch]')).toBeTruthy();
+        fireEvent.change(document.querySelector('[data-list-search]'), { target: { value: '' } });
+        fireEvent.change(document.querySelector('[data-list-filter="art"]'), { target: { value: 'has artwork' } });
+        expect(ids()).toEqual(['Teaser <one>']);
+    });
 });

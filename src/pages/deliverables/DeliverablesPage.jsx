@@ -2,6 +2,8 @@ import { useState } from 'react';
 import Modal, { openModal, closeModal } from '../../components/Modal.jsx';
 import { legacy } from '../../lib/legacy.js';
 import { usePageLoader } from '../../lib/usePageLoader.js';
+import { useListControls, ListControlsBar, ListNoMatch } from '../../lib/list-controls.jsx';
+import SURFACE from './list-surface.js';
 
 /*
  * Deliverables, as React: one row per file that leaves the job. Replaces the
@@ -121,6 +123,9 @@ export default function DeliverablesPage() {
     const profiles = data?.profiles || [];
     const platforms = [...new Set(profiles.map(p => p.platform))].filter(Boolean);
     const rows = data?.rows;
+    // Search, sort and filter what was read (never re-read).
+    const controls = useListControls(SURFACE, rows || null);
+    const shown = controls.shown || [];
 
     return (
         <div className="page" id="page-deliverables">
@@ -143,13 +148,15 @@ export default function DeliverablesPage() {
                 its width, and Auto Reframe cannot invent the two-thirds that were never generated.
             </p>
             <div id="deliverableVerdict" className="mb-8"><Verdict v={verdict} /></div>
+            <ListControlsBar list={controls} />
             <div id="deliverableList">
                 {data?.error && <p className="text-sm text-muted">Could not read the deliverables: {data.error}</p>}
                 {rows && !rows.length && (
                     <p className="text-sm text-muted">No deliverables. Apply a package, or add one at a time. A film needs none of this &mdash; leave it empty and everything behaves exactly as it always has.</p>
                 )}
-                {rows && rows.map(d => (
-                    <div className="card" style={{ marginBottom: 6 }} key={d.id}>
+                {rows && rows.length > 0 && !shown.length && <ListNoMatch list={controls} />}
+                {shown.map(d => (
+                    <div className="card" style={{ marginBottom: 6 }} key={d.id} data-deliverable-id={d.id}>
                         <div className="flex-between" style={{ gap: 8, flexWrap: 'wrap', minWidth: 0 }}>
                             <div style={{ minWidth: 0 }}>
                                 <strong>{d.label || d.key}</strong>

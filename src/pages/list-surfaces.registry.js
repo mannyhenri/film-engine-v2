@@ -11,7 +11,5 @@ export const REQUIRED = {
 };
 // Not wired yet, each with its owner (REQUIRED); an owner removes a name here in the commit that wires it.
 export const PENDING = new Set([
-    'scenes', 'storyboard', 'shotboard', 'consistency', 'assets', 'jobsqueue', 'notes', 'renderhistory', 'moodboard',
-    'stylebook', 'marketing', 'subtitles', 'titles', 'rights', 'deliverables', 'projects',
     'productiongraph', 'playback', 'music', 'musiccues', 'musicws', 'screenplay', 'previs', 'threed', 'flows',
 ]);

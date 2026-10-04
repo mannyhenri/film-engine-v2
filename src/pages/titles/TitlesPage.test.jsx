@@ -96,3 +96,22 @@ describe('Titles & Credits', () => {
         confirm.mockRestore();
     });
 });
+
+describe('Titles: search, sort and filter (src/lib/list-controls.jsx)', () => {
+    const search = (id) => document.querySelector(`[data-list-controls="${id}"] [data-list-search]`);
+    it('the credits search narrows the roll (by name, role or character); the cards search narrows the cards', async () => {
+        try { localStorage.clear(); } catch (_) { /* none */ }
+        await openPage();
+        const credits = () => [...byId('creditList').querySelectorAll('.card strong')].map(n => n.textContent);
+        expect(credits().sort()).toEqual(['Ana', 'Crew <Person>']);
+        fireEvent.change(search('titles'), { target: { value: 'maya' } });   // a character name
+        expect(credits()).toEqual(['Ana']);
+        fireEvent.change(search('titles'), { target: { value: 'nobody' } });
+        expect(credits()).toEqual([]);
+        expect(byId('creditList').querySelector('[data-list-nomatch]')).toBeTruthy();
+        fireEvent.change(search('titles-cards'), { target: { value: 'zzz' } });
+        expect(byId('titleCardList').querySelectorAll('.card').length).toBe(0);
+        fireEvent.change(search('titles-cards'), { target: { value: 'harbour' } });
+        expect(byId('titleCardList').querySelectorAll('.card').length).toBe(1);
+    });
+});

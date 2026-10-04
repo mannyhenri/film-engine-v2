@@ -41,7 +41,7 @@ export function forgetPropCategories() { _propCategories = null; } // tests
 function PropCard({ p, onEdit, onDelete }) {
     const [plateFailed, setPlateFailed] = useState(false);
     return (
-        <div className="entity-card" style={{ cursor: 'pointer' }} onClick={() => legacy.openSubjectSheet('prop', p.id)} title="Open the prop sheet">
+        <div className="entity-card" data-prop-id={p.id} style={{ cursor: 'pointer' }} onClick={() => legacy.openSubjectSheet('prop', p.id)} title="Open the prop sheet">
             {p.reference_image_url
                 ? <img src={legacy.plateSrc(p.reference_image_url, 480)} style={{ ...BANNER_STYLE, display: plateFailed ? 'none' : undefined }}
                        title="Click to see the plate full size"

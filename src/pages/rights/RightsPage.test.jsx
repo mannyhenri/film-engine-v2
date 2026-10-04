@@ -104,3 +104,20 @@ describe('Rights', () => {
         expect(status[0]).toMatch(/serves no rights vocabulary/);
     });
 });
+
+describe('Rights: search, sort and filter (src/lib/list-controls.jsx)', () => {
+    it('the search narrows the register (by subject, owner, restrictions), within the status chosen', async () => {
+        try { localStorage.clear(); } catch (_) { /* none */ }
+        await openPage();
+        const subjects = () => [...byId('rightsList').querySelectorAll('.card strong')].map(n => n.textContent);
+        const search = document.querySelector('[data-list-search]');
+        expect(subjects().length).toBe(2);
+        fireEvent.change(search, { target: { value: 'J. DOE' } });
+        expect(subjects()).toEqual(['Maya <likeness>']);
+        fireEvent.change(search, { target: { value: 'trailers' } });
+        expect(subjects()).toEqual(['Drive-in score']);
+        fireEvent.change(byId('rightsFilter'), { target: { value: 'cleared' } });
+        expect(subjects()).toEqual([]);
+        expect(byId('rightsList').querySelector('[data-list-nomatch]')).toBeTruthy();
+    });
+});

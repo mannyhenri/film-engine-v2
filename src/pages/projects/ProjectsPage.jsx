@@ -2,6 +2,8 @@ import { useRef, useState } from 'react';
 import { legacy } from '../../lib/legacy.js';
 import * as E from './engine.js';
 import { usePageLoader } from '../../lib/usePageLoader.js';
+import { useListControls, ListControlsBar, ListNoMatch } from '../../lib/list-controls.jsx';
+import SURFACE from './list-surface.js';
 
 /*
  * The project list, as React. Replaces the legacy list functions listed in react.json: the same routes,
@@ -149,7 +151,14 @@ export default function ProjectsPage() {
     const counts = meta.status_counts || {};
     const onList = Object.values(counts).reduce((a, b) => a + b, 0);
     const firstRun = view && !list.archived && !list.status && projects.length === 0 && !meta.archived_count;
-    const canDrag = !list.archived && !list.status;
+    // Search, sort and filter within the stage chip and the Archived view (never re-read).
+    const controls = useListControls(SURFACE, view ? projects : null);
+    const shownProjects = controls.shown || [];
+    const ownOrder = controls.sort === 'order' && !controls.narrowed;
+    // A drag saves the WHOLE list's order, so it is offered only on the whole list in its own order: dragging a
+    // searched, filtered or re-sorted list would save an order nobody chose.
+    const canDrag = !list.archived && !list.status && ownOrder;
+    const DRAG_OFF = 'Drag to reorder works on the whole list in My order: clear the search and filters and choose My order to reorder.';
     const chip = (st, label, n) => (
         <button key={'f:' + st} className={'project-filter' + (list.status === st ? ' active' : '')} onClick={() => setProjectFilter(st)}>{label}<span className="n">{n}</span></button>
     );
@@ -179,7 +188,10 @@ export default function ProjectsPage() {
                         <div className="project-list-actions">
                             <button className="btn btn-secondary" onClick={() => E.loadDemoProject()}>Load Demo</button>
                             <button className="btn btn-secondary" style={{ color: 'var(--gl-error)', borderColor: 'var(--gl-error)' }} onClick={() => E.deleteAllProjects()}
-                                title="Deletes every project on the list. Archived projects are kept.">Delete All</button>
+                                disabled={controls.narrowed}
+                                title={controls.narrowed
+                                    ? 'Clear the search and filters first: Delete All deletes every project on the list, not only the ones shown.'
+                                    : 'Deletes every project on the list. Archived projects are kept.'}>Delete All</button>
                         </div>
                     )}
                     <div className="project-filters" id="projectFilters">
@@ -189,8 +201,13 @@ export default function ProjectsPage() {
                         <button className={'project-filter' + (list.archived ? ' active' : '')} onClick={toggleArchivedView}
                             title="Archived projects are off the list and kept whole; restore one from here">Archived<span className="n">{meta.archived_count || 0}</span></button>
                     </div>
+                    <ListControlsBar list={controls} />
+                    {!list.archived && !list.status && !ownOrder && projects.length > 1 && (
+                        <p className="text-sm text-muted" data-drag-off title={DRAG_OFF}>Reordering is off while the list is searched, filtered or sorted.</p>
+                    )}
                     {!projects.length && <div className="empty-state"><p>{list.archived ? 'Nothing archived' + (list.status ? ' at this stage' : '') + '.' : 'No project at this stage.'}</p></div>}
-                    {projects.map(p => (
+                    {projects.length > 0 && !shownProjects.length && <ListNoMatch list={controls} />}
+                    {shownProjects.map(p => (
                         <div key={p.id} className={'project-card' + (p.archived_at ? ' archived' : '')} data-project-id={p.id} onClick={() => legacy.openProject(p.id)}
                             {...(canDrag ? {
                                 draggable: true, onDragStart: e => projectDragStart(e, p.id), onDragOver: projectDragOver,

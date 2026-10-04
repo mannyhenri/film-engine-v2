@@ -17,15 +17,15 @@ const SURFACES = Object.fromEntries(Object.entries(import.meta.glob('./*/list-su
 afterEach(() => { vi.restoreAllMocks(); });
 
 /*
- * Each wired surface's page declares how it is mounted, beside its list-surface.js: list-wiring.test-recipe.jsx exports
+ * Each wired surface's page declares how it is mounted, beside its list-surface.js: list-wiring.test.recipe.jsx exports
  * { rowKey, open() }, open() mounting the page on rows and returning { rows, keys(), marked() }. Rows give every
  * declared field a distinct value, so each control narrows.
  */
-const WIRING = Object.fromEntries(Object.entries(import.meta.glob('./*/list-wiring.test-recipe.jsx', { eager: true }))
+const WIRING = Object.fromEntries(Object.entries(import.meta.glob('./*/list-wiring.test.recipe.jsx', { eager: true }))
     .map(([f, m]) => [f.split('/')[1], m.default]));
 
 // Wired surfaces whose recipe is still to be written, each with who writes it. An entry here that has a recipe fails.
-const NO_RECIPE_YET = { characters: 'v2', locations: 'v2', props: 'v2' };
+const NO_RECIPE_YET = {};
 const WIRED = [...new Set(Object.values(SURFACES).map(s => s.page))].sort();
 
 describe('every wired list is held by its page', () => {

@@ -2,6 +2,10 @@ import { useState } from 'react';
 import Modal, { openModal, closeModal } from '../../components/Modal.jsx';
 import { legacy } from '../../lib/legacy.js';
 import { usePageLoader } from '../../lib/usePageLoader.js';
+import { useListControls, ListControlsBar, ListNoMatch } from '../../lib/list-controls.jsx';
+import SURFACES from './list-surface.js';
+
+const [CREDITS_SURFACE, CARDS_SURFACE] = SURFACES;
 
 /*
  * Titles & Credits, as React. The vocabularies (credit sections, card types) are SERVED with the
@@ -36,7 +40,12 @@ export default function TitlesPage() {
     const cardTypes = (data && data.card_types) || [];
     const credits = (data && data.credits) || [];
     const cards = (data && data.cards) || [];
-    // Grouped by section in the served order, so the page reads the way the roll does.
+    // Search, sort and filter what was read (never re-read): the credits, and the title cards.
+    const creditControls = useListControls(CREDITS_SURFACE, data ? credits : null);
+    const cardControls = useListControls(CARDS_SURFACE, data ? cards : null);
+    const shownCredits = creditControls.shown || [];
+    const shownCards = cardControls.shown || [];
+    // Grouped by section in the served order, so the page reads the way the roll does; within a section, the order chosen.
     const order = sections.length ? sections : [...new Set(credits.map(c => c.section))];
 
     async function save(kind, id, body, required, label, collection) {
@@ -93,10 +102,12 @@ export default function TitlesPage() {
                 carried into the export.
             </p>
             <h3 className="mb-8">Title cards</h3>
+            <ListControlsBar list={cardControls} />
             <div id="titleCardList" className="mb-16">
                 {data && !cards.length && <p className="text-sm text-muted">No title cards. A main title and an end title are the two most films have.</p>}
-                {cards.map(c => (
-                    <div key={c.id} className="card" style={{ marginBottom: 8 }}>
+                {cards.length > 0 && !shownCards.length && <ListNoMatch list={cardControls} />}
+                {shownCards.map(c => (
+                    <div key={c.id} className="card" data-card-id={c.id} style={{ marginBottom: 8 }}>
                         <div className="flex-between" style={{ gap: 8, flexWrap: 'wrap', minWidth: 0 }}>
                             <div style={{ minWidth: 0 }}>
                                 <strong>{c.text || 'Untitled card'}</strong>
@@ -113,14 +124,16 @@ export default function TitlesPage() {
                 ))}
             </div>
             <h3 className="mb-8">Credits</h3>
+            <ListControlsBar list={creditControls} />
             <div id="creditList">
                 {loadError && <p className="text-sm text-muted">Could not read the titles: {loadError}</p>}
                 {!loadError && data && !credits.length && <p className="text-sm text-muted">No credits yet.</p>}
-                {!loadError && order.filter(sec => credits.some(c => c.section === sec)).map(sec => (
+                {!loadError && credits.length > 0 && !shownCredits.length && <ListNoMatch list={creditControls} />}
+                {!loadError && order.filter(sec => shownCredits.some(c => c.section === sec)).map(sec => (
                     <div key={sec}>
                         <h4 style={{ margin: '12px 0 6px', textTransform: 'capitalize' }}>{human(sec)}</h4>
-                        {credits.filter(c => c.section === sec).map(c => (
-                            <div key={c.id} className="card" style={{ marginBottom: 6 }}>
+                        {shownCredits.filter(c => c.section === sec).map(c => (
+                            <div key={c.id} className="card" data-credit-id={c.id} style={{ marginBottom: 6 }}>
                                 <div className="flex-between" style={{ gap: 8, flexWrap: 'wrap', minWidth: 0 }}>
                                     <div style={{ minWidth: 0 }}>
                                         <strong>{c.name || ''}</strong>

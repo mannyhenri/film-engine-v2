@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { legacy } from '../../lib/legacy.js';
 import { usePageLoader } from '../../lib/usePageLoader.js';
+import { useListControls, ListControlsBar, ListNoMatch } from '../../lib/list-controls.jsx';
+import SURFACE from './list-surface.js';
 
 /*
  * The Mood Board, as React: where a look is decided before anything generates. Its output is the style
@@ -69,6 +71,10 @@ export default function MoodBoardPage() {
     }
 
     const res = composed && composed.res;
+    // Search, sort and filter the entries as read (never re-read).
+    const controls = useListControls(SURFACE, entries);
+    const shown = controls.shown || [];
+
     return (
         <div className="page" id="page-moodboard">
             <div className="flex-between mb-16">
@@ -124,9 +130,11 @@ export default function MoodBoardPage() {
                         <p className="text-sm text-muted" style={{ marginTop: 6 }}>Settings written: {res.applied_specs.map(s => s.kind).join(', ')}</p>}
                 </>}
             </div>
+            {entries && entries.length > 0 && <ListControlsBar list={controls} />}
             <div id="moodEntries" className="entity-grid" style={{ gridTemplateColumns: 'repeat(auto-fill,minmax(260px,1fr))' }}>
                 {entries && !entries.length && <div className="text-muted" style={{ gridColumn: '1/-1' }}>Nothing on the board yet.</div>}
-                {(entries || []).map(e => <MoodEntry key={e.id} e={e} onRemove={() => moodBoardDelete(e.id)} />)}
+                {entries && entries.length > 0 && shown.length === 0 && <ListNoMatch list={controls} />}
+                {shown.map(e => <MoodEntry key={e.id} e={e} onRemove={() => moodBoardDelete(e.id)} />)}
             </div>
         </div>
     );
@@ -135,7 +143,7 @@ export default function MoodBoardPage() {
 function MoodEntry({ e, onRemove }) {
     const [broken, setBroken] = useState(false);
     return (
-        <div className="card">
+        <div className="card" data-entry-id={e.id}>
             <div className="flex-between"><strong>{e.spec_kind || e.kind}</strong>
                 <button className="btn btn-sm" onClick={onRemove}>Remove</button></div>
             {e.image_url && !broken && (

@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { legacy } from '../../lib/legacy.js';
 import { usePageLoader } from '../../lib/usePageLoader.js';
+import { useListControls, ListControlsBar, ListNoMatch } from '../../lib/list-controls.jsx';
+import SURFACE from './list-surface.js';
 
 /*
  * The Shot Board, as React: every shot in five status columns. Drag a card to another column to change
@@ -107,6 +109,9 @@ export default function ShotBoardPage() {
         } catch (err) { legacy.setStatus('Error: ' + err.message); }
     }
 
+    // Search, sort and filter the shots that were read (never re-read); each column shows its shown shots.
+    const controls = useListControls(SURFACE, shots);
+    const shown = controls.shown;
     const pid = shots && legacy.state.currentProject ? legacy.state.currentProject.id : '';
     const delta = runtime ? (runtime.cut_duration_ms - runtime.target_duration_ms) / 1000 : 0;
     return (
@@ -122,10 +127,12 @@ export default function ShotBoardPage() {
                     </>}
                 </div>
             </div>
+            <ListControlsBar list={controls} />
+            {shots && shots.length > 0 && shown.length === 0 && <ListNoMatch list={controls} />}
             <div className="kanban-board" id="kanbanBoard">
                 {shots && COLUMNS.map(([status, label]) => {
                     // A status the five do not name (none today) files under Pending, as the legacy board did.
-                    const inCol = shots.filter(s => (COLUMNS.some(c => c[0] === s.status) ? s.status : 'pending') === status);
+                    const inCol = shown.filter(s => (COLUMNS.some(c => c[0] === s.status) ? s.status : 'pending') === status);
                     return (
                         <div key={status} className={'kanban-column' + (dropCol === status ? ' drop-target' : '')} data-status={status}
                             onDragOver={(e) => { e.preventDefault(); setDropCol(status); }}

@@ -53,12 +53,14 @@ describe('Style Book', () => {
         expect(screen.getByText(/No shots yet/)).toBeTruthy();
     });
 
-    it('the filter searches name, tags and camera; nothing matching says so', async () => {
+    it('one search (the list bar) finds by name, tags and camera; nothing matching says so; the old box is gone', async () => {
         await openPage();
-        fireEvent.change(byId('styleBookFilter'), { target: { value: 'whip-pan' } });
+        expect(byId('styleBookFilter')).toBeNull();
+        const search = () => document.querySelector('#page-stylebook [data-list-search]');
+        fireEvent.change(search(), { target: { value: 'whip-pan' } });
         expect(document.querySelectorAll('#styleBookGrid .entity-card').length).toBe(1);
-        fireEvent.change(byId('styleBookFilter'), { target: { value: 'zzz' } });
-        expect(screen.getByText('Nothing matches that.')).toBeTruthy();
+        fireEvent.change(search(), { target: { value: 'zzz' } });
+        expect(document.querySelector('#styleBookGrid [data-list-nomatch]').textContent).toContain('zzz');
     });
 
     it('editing fills every camera field and PUTs the merged body', async () => {
@@ -206,5 +208,19 @@ describe('Style Book', () => {
         await act(async () => { await window.applyStyleBookEntry('sh1'); });
         expect(status).toContain('That entry carried nothing this shot could use');
         ask.mockRestore();
+    });
+
+    it('the book can be searched, by a lens too, and filtered by where a shot lives', async () => {
+        await openPage();
+        const names = () => [...document.querySelectorAll('#styleBookGrid .entity-card strong')].map(n => n.textContent);
+        expect(names()).toEqual(['Ozu <tatami>', 'Whip']);
+        fireEvent.change(document.querySelector('[data-list-search]'), { target: { value: '40MM' } });
+        expect(names()).toEqual(['Ozu <tatami>']);
+        fireEvent.change(document.querySelector('[data-list-search]'), { target: { value: 'zz-none' } });
+        expect(names()).toEqual([]);
+        expect(document.querySelector('[data-list-nomatch]')).toBeTruthy();
+        fireEvent.change(document.querySelector('[data-list-search]'), { target: { value: '' } });
+        fireEvent.change(document.querySelector('[data-list-filter="scope"]'), { target: { value: 'project' } });
+        expect(names()).toEqual(['Whip']);
     });
 });

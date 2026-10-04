@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { legacy } from '../../lib/legacy.js';
 import { usePageLoader } from '../../lib/usePageLoader.js';
+import { useListControls, ListControlsBar, ListNoMatch } from '../../lib/list-controls.jsx';
+import SURFACE from './list-surface.js';
 
 /*
  * The Consistency Studio (Explore -> Lock -> Verify), as React. Replaces the legacy functions listed in
@@ -108,7 +110,9 @@ function RefManager({ prof, type, subject, assets, roles, act }) {
     );
 }
 
-function SubjectGrid({ type, subjects, data, act }) {
+function SubjectGrid({ type, subjects, data, act, controls }) {
+    // A search or filter that left nothing of a non-empty list: say so, not "No characters".
+    if (controls && controls.total > 0 && !subjects.length) return <ListNoMatch list={controls} />;
     if (!subjects.length) {
         return (
             <div className="empty-state" style={{ gridColumn: '1/-1' }}><div className="icon">🔒</div><h3>No {type}s</h3>
@@ -328,6 +332,12 @@ export default function ConsistencyPage() {
     const locked = data ? Object.values(data.profiles).filter(p => p.status === 'locked').length : 0;
     const shotsReady = audit ? (audit.shots || []).filter(s => s.ready).length : 0;
     const grid = (t) => ({ display: tab === t ? 'grid' : 'none', gridTemplateColumns: 'repeat(auto-fill,minmax(300px,1fr))' });
+    // Search, sort and filter the subjects of the tab shown (read once, never re-read); the lock state is derived here.
+    const KIND = { characters: 'character', locations: 'location', props: 'prop' }[tab];
+    const lockOf = (type, subj) => { const p = data && data.bySubject[type + ':' + subj.id]; return p ? (p.status === 'locked' ? 'locked' : 'draft') : 'not locked'; };
+    const rows = data && KIND ? data.subjects[KIND].map(subj => ({ ...subj, lock: lockOf(KIND, subj) })) : null;
+    const controls = useListControls(SURFACE, rows);
+    const subjectsFor = (type) => (type === KIND && controls.shown ? controls.shown : data.subjects[type]);
 
     return (
         <div className="page" id="page-consistency">
@@ -346,9 +356,10 @@ export default function ConsistencyPage() {
             <div className="tab-bar mb-16" id="consistencyTabs">
                 {TABS.map(([t, label]) => <button key={t} className={'tab-btn' + (tab === t ? ' active' : '')} data-ctab={t} onClick={() => switchConsistencyTab(t)}>{label}</button>)}
             </div>
-            <div id="consistencyCharacters" className="consistency-tab entity-grid" style={grid('characters')}>{data && <SubjectGrid type="character" subjects={data.subjects.character} data={data} act={act} />}</div>
-            <div id="consistencyLocations" className="consistency-tab entity-grid" style={grid('locations')}>{data && <SubjectGrid type="location" subjects={data.subjects.location} data={data} act={act} />}</div>
-            <div id="consistencyProps" className="consistency-tab entity-grid" style={grid('props')}>{data && <SubjectGrid type="prop" subjects={data.subjects.prop} data={data} act={act} />}</div>
+            {KIND && <ListControlsBar list={controls} />}
+            <div id="consistencyCharacters" className="consistency-tab entity-grid" style={grid('characters')}>{data && <SubjectGrid type="character" subjects={subjectsFor('character')} data={data} act={act} controls={KIND === 'character' ? controls : null} />}</div>
+            <div id="consistencyLocations" className="consistency-tab entity-grid" style={grid('locations')}>{data && <SubjectGrid type="location" subjects={subjectsFor('location')} data={data} act={act} controls={KIND === 'location' ? controls : null} />}</div>
+            <div id="consistencyProps" className="consistency-tab entity-grid" style={grid('props')}>{data && <SubjectGrid type="prop" subjects={subjectsFor('prop')} data={data} act={act} controls={KIND === 'prop' ? controls : null} />}</div>
             <div id="consistencyAudit" className="consistency-tab" style={{ display: tab === 'audit' ? 'block' : 'none' }}>{data && <Audit audit={audit} />}</div>
             <div id="consistencyVerify" className="consistency-tab" style={{ display: tab === 'verify' ? 'block' : 'none' }}><Verify verify={verify} /></div>
         </div>

@@ -93,4 +93,18 @@ describe('Mood Board', () => {
         const { status } = await openPage({ 'GET /projects/p1/mood-board': () => { throw new Error('down'); } });
         expect(status).toContain('Could not read the mood board: down');
     });
+
+    it('the board can be searched and filtered: only the matching entries are drawn', async () => {
+        await openPage();
+        const cards = () => [...document.querySelectorAll('#moodEntries > .card')].map(c => c.querySelector('strong').textContent);
+        expect(cards()).toEqual(['palette', 'lens', 'image', 'image']);
+        fireEvent.change(document.querySelector('[data-list-search]'), { target: { value: 'TEAL' } });
+        expect(cards()).toEqual(['palette']);
+        fireEvent.change(document.querySelector('[data-list-search]'), { target: { value: 'zz-none' } });
+        expect(cards()).toEqual([]);
+        expect(document.querySelector('#moodEntries [data-list-nomatch]')).toBeTruthy();
+        fireEvent.change(document.querySelector('[data-list-search]'), { target: { value: '' } });
+        fireEvent.change(document.querySelector('[data-list-filter="spec"]'), { target: { value: 'lens' } });
+        expect(cards()).toEqual(['lens']);
+    });
 });

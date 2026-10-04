@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { legacy } from '../../lib/legacy.js';
 import { usePageLoader } from '../../lib/usePageLoader.js';
+import { useListControls, ListControlsBar, ListNoMatch } from '../../lib/list-controls.jsx';
+import SURFACE from './list-surface.js';
 
 /*
  * The Job Queue, as React. Replaces the legacy loader and its status badge: the same route, markup and
@@ -28,6 +30,8 @@ export default function JobsQueuePage() {
 
     const data = view?.data;
     const s = data?.summary || {};
+    // Search, sort and filter the jobs that were read (never re-read); the summary above counts every job.
+    const controls = useListControls(SURFACE, data ? data.jobs : null);
     return (
         <div className="page" id="page-jobsqueue">
             <div className="flex-between mb-16">
@@ -46,10 +50,12 @@ export default function JobsQueuePage() {
                     </div>
                 )}
             </div>
+            <ListControlsBar list={controls} />
             <div id="jobsQueueList">
+                {data && data.jobs.length > 0 && !controls.shown.length && <ListNoMatch list={controls} />}
                 {data && !data.jobs.length && <div className="card"><p className="text-muted">No generation jobs for this project yet.</p></div>}
-                {data && data.jobs.map(job => (
-                    <div className="card mb-8" key={job.id}>
+                {data && controls.shown.map(job => (
+                    <div className="card mb-8" key={job.id} data-job-id={job.id}>
                         <div className="flex-between">
                             <div><strong>{job.job_type}</strong> <span className="text-sm text-muted">{job.id}</span></div>
                             <StatusBadge status={job.status} />

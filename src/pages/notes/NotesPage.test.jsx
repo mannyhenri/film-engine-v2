@@ -139,4 +139,20 @@ describe('Notes & Reviews', () => {
         await act(async () => { await window.loadNotesPage(); });
         expect(legacy.status[0]).toMatch(/^Error: no fake route/);
     });
+
+    it('the chosen shot\'s notes can be searched, filtered by state and sorted by priority; no match says so', async () => {
+        await openPage();
+        await pickShot();
+        const items = () => [...document.querySelectorAll('#notesList .note-content')].map(e => e.textContent);
+        fireEvent.change(document.querySelector('[data-list-search]'), { target: { value: 'MANNY' } });
+        expect(items()).toEqual(['Hold on her face <longer>']);
+        fireEvent.change(document.querySelector('[data-list-search]'), { target: { value: 'zzz' } });
+        expect(document.querySelector('[data-list-nomatch]')).toBeTruthy();
+        fireEvent.click(screen.getByRole('button', { name: 'Clear search' }));
+        fireEvent.change(document.querySelector('[data-list-filter="state"]'), { target: { value: 'resolved' } });
+        expect(items()).toEqual(['Lower']);
+        fireEvent.change(document.querySelector('[data-list-filter="state"]'), { target: { value: '' } });
+        fireEvent.change(document.querySelector('[data-list-sort]'), { target: { value: 'priority' } });
+        expect(items()).toEqual(['Hold on her face <longer>', 'Lower']);
+    });
 });

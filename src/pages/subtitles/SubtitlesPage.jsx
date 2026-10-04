@@ -2,6 +2,8 @@ import { useRef, useState } from 'react';
 import Modal, { openModal, closeModal } from '../../components/Modal.jsx';
 import { legacy } from '../../lib/legacy.js';
 import { usePageLoader } from '../../lib/usePageLoader.js';
+import { useListControls, ListControlsBar, ListNoMatch } from '../../lib/list-controls.jsx';
+import SURFACE from './list-surface.js';
 
 /*
  * Subtitles, as React. One row per cue, in time order; a cue carries its language, speaker, position,
@@ -103,6 +105,9 @@ export default function SubtitlesPage() {
     }
 
     const f = editing.form;
+    // Search, sort and filter the cues as read (never re-read); duration and kind are derived for the sorts and filters.
+    const controls = useListControls(SURFACE, rows && rows.map(r => ({ ...r, duration_ms: (r.end_ms || 0) - (r.start_ms || 0), kind: r.is_cc ? 'closed caption' : 'subtitle' })));
+    const shown = controls.shown || [];
     return (
         <div className="page" id="page-subtitles">
             <div className="flex-between mb-16">
@@ -122,11 +127,13 @@ export default function SubtitlesPage() {
                 and none of which could be typed. Times are in seconds here and stored in
                 milliseconds.
             </p>
+            {!loadError && rows && rows.length > 0 && <ListControlsBar list={controls} />}
             <div id="subtitleList">
+                {!loadError && rows && rows.length > 0 && !shown.length && <ListNoMatch list={controls} />}
                 {loadError && <p className="text-sm text-muted">Could not read the subtitles: {loadError}</p>}
                 {!loadError && rows && !rows.length && <p className="text-sm text-muted">No cues in this language yet.</p>}
-                {!loadError && rows && rows.map(r => (
-                    <div key={r.id} className="card" style={{ marginBottom: 6 }}>
+                {!loadError && shown.map(r => (
+                    <div key={r.id} className="card" style={{ marginBottom: 6 }} data-cue-id={r.id}>
                         <div className="flex-between" style={{ gap: 8, flexWrap: 'wrap', minWidth: 0 }}>
                             <div style={{ minWidth: 0 }}>
                                 <div className="text-sm text-muted">{subTime(r.start_ms)} &rarr; {subTime(r.end_ms)}</div>

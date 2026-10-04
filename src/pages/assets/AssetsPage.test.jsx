@@ -77,4 +77,21 @@ describe('Assets', () => {
         const { status } = await openPage({ 'GET /projects/p1/assets': () => { throw new Error('down'); } });
         expect(status).toContain('Error: down');
     });
+
+    it('search, sort and type filter work within the pill; no match says so', async () => {
+        await openPage();
+        fireEvent.change(document.querySelector('[data-list-search]'), { target: { value: 'SCORE' } });
+        expect(rows().map(r => r.textContent)).toEqual([expect.stringContaining('score.mp3')]);
+        expect(document.querySelector('[data-list-count]').textContent).toBe('1 of 3 assets');
+        fireEvent.click(screen.getByRole('button', { name: 'Video (1)' }));
+        expect(rows()).toEqual([]);
+        expect(document.querySelector('[data-list-nomatch]')).toBeTruthy();
+        fireEvent.click(screen.getByRole('button', { name: 'Clear search' }));
+        expect(rows().map(r => r.textContent)).toEqual([expect.stringContaining('/d/1A.mp4')]);
+        fireEvent.click(screen.getByRole('button', { name: 'All (3)' }));
+        fireEvent.change(document.querySelector('[data-list-sort]'), { target: { value: 'largest' } });
+        expect(rows()[0].textContent).toContain('score.mp3');
+        fireEvent.change(document.querySelector('[data-list-filter="type"]'), { target: { value: 'keyframe' } });
+        expect(rows().length).toBe(1);
+    });
 });

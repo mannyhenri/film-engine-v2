@@ -158,4 +158,21 @@ describe('Shot Board', () => {
         expect(window.api.mock.calls.filter(c => (c[1] || {}).method === 'PUT').map(c => JSON.parse(c[1].body).status).sort())
             .toEqual(statuses.filter(s => s !== 'pending').sort()); // its own column (pending) writes nothing
     });
+
+    it('search, filter and sort narrow the cards each column shows; no match says so; the running order is untouched', async () => {
+        await openPage();
+        const cards = () => [...document.querySelectorAll('.kanban-card')].map(c => c.dataset.shot);
+        fireEvent.change(document.querySelector('[data-list-search]'), { target: { value: 'DISSOLVE' } });
+        expect(cards()).toEqual(['s2']);
+        expect(document.querySelector('[data-list-count]').textContent).toBe('1 of 5 shots');
+        expect(column('complete').querySelector('.count').textContent).toBe('1');
+        fireEvent.change(document.querySelector('[data-list-search]'), { target: { value: 'zzz' } });
+        expect(cards()).toEqual([]);
+        expect(document.querySelector('[data-list-nomatch]')).toBeTruthy();
+        fireEvent.click(screen.getByRole('button', { name: 'Clear search' }));
+        expect(cards().length).toBe(5);
+        fireEvent.change(document.querySelector('[data-list-filter="scene"]'), { target: { value: '3' } });
+        expect(cards()).toEqual(['s3']);
+        expect(window.state.shots.length).toBe(5); // the shared list is still every shot
+    });
 });

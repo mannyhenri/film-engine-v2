@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { legacy } from '../../lib/legacy.js';
 import { usePageLoader } from '../../lib/usePageLoader.js';
+import { useListControls, ListControlsBar, ListNoMatch } from '../../lib/list-controls.jsx';
+import SURFACE from './list-surface.js';
 
 /*
  * Render History, as React. Every shot of the film in one picker (from the status board, read once
@@ -37,6 +39,10 @@ export default function RenderHistoryPage() {
         } catch (err) { fail(err); }
     }
 
+    // Search, sort and filter the shot's ledger as read (never re-read).
+    const controls = useListControls(SURFACE, renders);
+    const shown = controls.shown || [];
+
     return (
         <div className="page" id="page-renderhistory">
             <div className="page-header"><h2>Render History</h2></div>
@@ -47,15 +53,17 @@ export default function RenderHistoryPage() {
                     {shots.map(s => <option key={s.id} value={s.id}>Sc{s.scene_number}/{s.shot_code}</option>)}
                 </select>
             </div>
+            {renders && renders.length > 0 && <ListControlsBar list={controls} />}
             <div id="renderTableWrap">
+                {renders && renders.length > 0 && shown.length === 0 && <ListNoMatch list={controls} />}
                 {renders === null && <p className="text-sm text-muted">Select a shot to view render history.</p>}
                 {renders && renders.length === 0 && <p className="text-sm text-muted">No renders for this shot.</p>}
-                {renders && renders.length > 0 && (
+                {shown.length > 0 && (
                     <table className="render-table">
                         <tbody>
                             <tr><th>Ver</th><th>Step</th><th>Model</th><th>Seed</th><th>Steps</th><th>Guidance</th><th>Mode</th><th>Duration</th><th>Date</th></tr>
-                            {renders.map((r, i) => (
-                                <tr key={r.id || i}>
+                            {shown.map((r, i) => (
+                                <tr key={r.id || i} data-render-id={r.id}>
                                     <td>{r.version}</td>
                                     <td><span className="badge">{r.step}</span></td>
                                     <td>{r.model_id || '-'}</td>

@@ -1,6 +1,8 @@
 import { useLayoutEffect, useState } from 'react';
 import { legacy, setLegacy } from '../../lib/legacy.js';
 import * as E from './engine.js';
+import { useListControls, ListControlsBar, ListNoMatch } from '../../lib/list-controls.jsx';
+import SURFACE from './list-surface.js';
 import { usePageLoader } from '../../lib/usePageLoader.js';
 
 /*
@@ -101,6 +103,9 @@ export default function StoryboardPage() {
     const open = board ? legacy.state.currentProject : null; // board only exists once core has loaded
     const frames = board && open && board.pid === open.id ? board.list : null;
     const project = (frames && open) || {};
+    // Search, sort and filter the frames that were read (never re-read); the viewer and the anchor keep the whole board.
+    const rows = frames && frames.map(f => ({ ...f, frame: f.image_url ? 'has a frame' : 'no frame yet' }));
+    const list = useListControls(SURFACE, rows);
     return (
         <div className="page" id="page-storyboard">
             <div className="flex-between mb-16">
@@ -157,7 +162,9 @@ export default function StoryboardPage() {
             </div>
             {/* Banners OUTSIDE the grid (a grid child takes a frame's cell); filled by core when the reports land. */}
             <div id="boardBanners"></div>
+            <ListControlsBar list={list} />
             <div id="storyboardGrid" className="entity-grid" style={{ gridTemplateColumns: 'repeat(auto-fill,minmax(340px,1fr))' }}>
+                {frames && frames.length > 0 && list.shown.length === 0 && <ListNoMatch list={list} />}
                 {frames && !frames.length && (
                     <div className="empty-state" style={{ gridColumn: '1/-1' }}>
                         <div className="icon">&#128444;</div>
@@ -165,7 +172,7 @@ export default function StoryboardPage() {
                         <p>Click "Generate All" to create storyboard frames from your scene cards.</p>
                     </div>
                 )}
-                {(frames || []).map(f => <FrameCard key={f.shot_id} f={f} project={project} protect={protect} />)}
+                {(list.shown || []).map(f => <FrameCard key={f.shot_id} f={f} project={project} protect={protect} />)}
             </div>
         </div>
     );
@@ -177,7 +184,7 @@ function FrameCard({ f, project, protect }) {
     const guide = ratioOf(f, project);
     const ratios = protect ? legacy.protectSelection(protect) : [];
     return (
-        <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+        <div className="card" data-frame-shot={f.shot_id} style={{ padding: 0, overflow: 'hidden' }}>
             <div style={{ position: 'relative', background: 'var(--surface-alt,var(--gl-bg-surface))', minHeight: 160 }}>
                 <img id={'img-' + f.shot_id} loading="lazy" src={legacy.frameSrc(f, 640)} alt=""
                     style={{ width: '100%', display: hidden ? 'none' : 'block', cursor: 'zoom-in' }} title="Open full screen"

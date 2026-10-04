@@ -140,3 +140,23 @@ describe('Projects', () => {
         expect(calls.filter(c => c.path === '/projects').length).toBe(2);                // the list is redrawn
     });
 });
+
+describe('Projects: search, sort and filter (src/lib/list-controls.jsx)', () => {
+    it('the search narrows the list; while narrowed or re-sorted, no drag is offered and Delete All is held', async () => {
+        try { localStorage.clear(); } catch (_) { /* none */ }
+        await openPage();
+        const titles = () => [...document.querySelectorAll('.project-card h3')].map(n => n.textContent);
+        expect(titles().length).toBe(3);
+        expect(card('a').getAttribute('draggable')).toBe('true');
+        fireEvent.change(document.querySelector('[data-list-search]'), { target: { value: 'fog' } });   // a logline
+        expect(titles()).toEqual(['From <the> Mist']);
+        expect(card('a').getAttribute('draggable')).toBeNull();
+        expect(screen.getByText('Delete All').disabled).toBe(true);
+        fireEvent.change(document.querySelector('[data-list-search]'), { target: { value: '' } });
+        expect(screen.getByText('Delete All').disabled).toBe(false);
+        fireEvent.change(document.querySelector('[data-list-sort]'), { target: { value: 'title' } });
+        expect(titles()).toEqual(['Drive-In', 'From <the> Mist', 'Lodgers']);
+        expect(card('a').getAttribute('draggable')).toBeNull();
+        expect(document.querySelector('[data-drag-off]')).toBeTruthy();
+    });
+});

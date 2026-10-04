@@ -168,4 +168,21 @@ describe('Consistency Studio', () => {
         await act(async () => { fireEvent.click(document.querySelectorAll('#consistencyTabs')[1].querySelector('[data-ctab="verify"]')); });
         expect(screen.getByText('Could not load verification checks: offline')).toBeTruthy();
     });
+
+    it('the subject tab shown can be searched and filtered by lock state; no match says so; another tab has its own list', async () => {
+        await openPage();
+        const ids = (grid) => [...document.querySelectorAll(`#${grid} [data-subject-id]`)].map(c => c.dataset.subjectId);
+        expect(ids('consistencyCharacters')).toEqual(['c1', 'c2']);
+        fireEvent.change(document.querySelector('[data-list-search]'), { target: { value: 'ray' } });
+        expect(ids('consistencyCharacters')).toEqual(['c2']);
+        fireEvent.change(document.querySelector('[data-list-search]'), { target: { value: 'nobody' } });
+        expect(document.querySelector('#consistencyCharacters [data-list-nomatch]')).toBeTruthy();
+        fireEvent.click(screen.getByRole('button', { name: 'Clear search' }));
+        fireEvent.change(document.querySelector('[data-list-filter="lock"]'), { target: { value: 'not locked' } });
+        expect(ids('consistencyCharacters')).toEqual(['c1', 'c2']);
+        tab('locations');
+        fireEvent.change(document.querySelector('[data-list-filter="lock"]'), { target: { value: 'locked' } });
+        expect(ids('consistencyLocations')).toEqual(['l1']);
+        expect(document.querySelector('[data-list-count]').textContent).toBe('1 of 1 subjects');
+    });
 });

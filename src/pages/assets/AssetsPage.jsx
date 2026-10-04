@@ -3,6 +3,8 @@ import Modal, { openModal, closeModal } from '../../components/Modal.jsx';
 import { legacy } from '../../lib/legacy.js';
 import { usePageLoader } from '../../lib/usePageLoader.js';
 import { formBody } from '../../lib/forms.js';
+import { useListControls, ListControlsBar, ListNoMatch } from '../../lib/list-controls.jsx';
+import SURFACE from './list-surface.js';
 
 /*
  * Assets, as React. Same routes, body and status lines as the legacy page, with two changes, both named:
@@ -73,7 +75,10 @@ export default function AssetsPage() {
 
     const all = assets || [];
     const inGroup = (g) => all.filter(a => (ASSET_GROUPS[g] || []).includes(a.asset_type));
-    const shown = filter ? inGroup(filter) : all;
+    const inPill = filter ? inGroup(filter) : all;
+    // Search, sort and filter within the pill (what was read; never re-read).
+    const controls = useListControls(SURFACE, assets ? inPill : null);
+    const shown = controls.shown || [];
     const pills = [{ label: 'All', value: '' }, ...Object.keys(ASSET_GROUPS).map(g => ({ label: g[0].toUpperCase() + g.slice(1), value: g }))];
     const field = (k) => ({ 'data-field': k, value: form[k], onChange: (e) => { const v = e.target.value; setForm(f => ({ ...f, [k]: v })); } });
 
@@ -90,15 +95,17 @@ export default function AssetsPage() {
                     </button>
                 ))}
             </div>
+            <ListControlsBar list={controls} />
             <div id="assetTableWrap">
-                {assets && !shown.length && (
+                {assets && inPill.length > 0 && !shown.length && <ListNoMatch list={controls} />}
+                {assets && !inPill.length && (
                     <div className="empty-state"><div className="icon">&#128230;</div><h3>No assets</h3><p>Register assets as they are generated.</p></div>
                 )}
                 {shown.length > 0 && (
                     <table className="asset-table"><tbody>
                         <tr><th>Type</th><th>Name</th><th>Format</th><th>Size</th><th>Date</th><th></th></tr>
                         {shown.map(a => (
-                            <tr key={a.id}>
+                            <tr key={a.id} data-asset-id={a.id}>
                                 <td><span className="badge">{a.asset_type}</span></td>
                                 <td>{a.file_name || a.file_path}</td>
                                 <td>{a.format || '-'}</td>

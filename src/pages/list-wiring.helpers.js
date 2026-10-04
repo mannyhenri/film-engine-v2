@@ -1,4 +1,4 @@
-// Shared by the list wiring recipes (src/pages/*/list-wiring.test-recipe.jsx).
+// Shared by the list wiring recipes (src/pages/*/list-wiring.test.recipe.jsx).
 
 /** Keys of the items a page draws, in DOM order, leaving out what a drawn-list bar has hidden. */
 export const drawn = (selector, attr) => () => [...document.querySelectorAll(selector)]

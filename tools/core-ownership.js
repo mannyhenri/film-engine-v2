@@ -54,7 +54,7 @@ const EXEMPT = {
     'src/lib/legacy.js': 'the bridge itself: LEGACY_GLOBALS lists every name React may reach, which is a registry, not a use (counted, it made every bridged function look shared by one more owner)',
     'src/pages/registry.js': 'generated: the list of page components, which names no core function',
     'src/pages/list-surfaces.registry.js': 'test data: which lists must be searchable, read only by src/pages/list-surfaces.test.jsx and list-wiring.test.jsx',
-    'src/pages/list-wiring.helpers.js': 'test helpers, imported only by the list wiring recipes (src/pages/<page>/list-wiring.test-recipe.jsx)',
+    'src/pages/list-wiring.helpers.js': 'test helpers, imported only by the list wiring recipes (src/pages/<page>/list-wiring.test.recipe.jsx)',
     'src/vendor/splat-viewer.js': 'a vendored bundle (three.js + Spark), minified: its short names would match core names by chance',
 };
 

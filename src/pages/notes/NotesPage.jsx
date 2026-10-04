@@ -3,6 +3,8 @@ import Modal, { openModal, closeModal } from '../../components/Modal.jsx';
 import { legacy } from '../../lib/legacy.js';
 import { usePageLoader } from '../../lib/usePageLoader.js';
 import { formBody } from '../../lib/forms.js';
+import { useListControls, ListControlsBar, ListNoMatch } from '../../lib/list-controls.jsx';
+import SURFACE from './list-surface.js';
 
 /*
  * Notes & Reviews, as React. Replaces the legacy functions listed in react.json:
@@ -44,6 +46,8 @@ export default function NotesPage() {
     }
 
     const shots = scenes.find(s => s.id === sceneId)?.shots || [];
+    // Search, sort and filter the chosen shot's notes (what was read; never re-read); open/resolved is derived here.
+    const controls = useListControls(SURFACE, notes && shotId ? notes.map(n => ({ ...n, state: n.resolved ? 'resolved' : 'open' })) : null);
 
     function onSceneChange(e) { setSceneId(e.target.value); setShotId(''); setNotes([]); }
     function onShotChange(e) { setShotId(e.target.value); if (e.target.value) loadShotNotes(e.target.value); }
@@ -103,11 +107,13 @@ export default function NotesPage() {
                     <button className="btn btn-success btn-sm" onClick={() => requireShot(() => openModal('reviewShotModal'))}>Review Shot</button>
                 </div>
             </div>
+            <ListControlsBar list={controls} />
             <div id="notesList">
                 {notes === null && sceneId === '' && <p className="text-sm text-muted">Select a scene and shot to view notes.</p>}
                 {notes && shotId && notes.length === 0 && <p className="text-sm text-muted">No notes for this shot.</p>}
-                {notes && shotId && notes.map(n => (
-                    <div key={n.id} className={'note-item' + (n.resolved ? ' resolved' : '')}>
+                {notes && shotId && notes.length > 0 && !controls.shown.length && <ListNoMatch list={controls} />}
+                {notes && shotId && controls.shown.map(n => (
+                    <div key={n.id} data-note-id={n.id} className={'note-item' + (n.resolved ? ' resolved' : '')}>
                         <div className="note-header">
                             <span className={'badge ' + n.note_type}>{n.note_type}</span>
                             <span className={'badge ' + n.priority}>{n.priority}</span>
