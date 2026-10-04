@@ -4,6 +4,9 @@ import path from 'path';
 import { render, screen, fireEvent, act } from '@testing-library/react';
 import { installLegacy } from '../../test/setup.js';
 import ScenesPage, { parseJsonArray } from './ScenesPage.jsx';
+// The page's dialogue generator is its engine's (moved from core): spied on here, not run (it confirms and spends).
+vi.mock('./engine.js', () => ({ generateSceneDialogue: vi.fn() }));
+const E = await import('./engine.js');
 
 const SCENES = { scenes: [
     { id: 's1', scene_number: 1, int_ext: 'INT.', location: 'DINER <night>', time_of_day: 'NIGHT', characters_present: '["RAY","JUNE"]', shot_count: 3, status: 'complete', dialogue_lines: 12 },
@@ -18,7 +21,6 @@ async function openPage({ routes = {}, drift = [] } = {}) {
     window.DRIFT = { shots: {}, scenes: [] };
     window.loadScreenplayDrift = vi.fn(async () => { window.DRIFT = { shots: {}, scenes: drift }; });
     window.updateSceneStatusIcons = vi.fn();
-    window.generateSceneDialogue = vi.fn();
     render(<ScenesPage />);
     await act(async () => { await window.loadScenes(); });
     return legacy;
@@ -51,11 +53,11 @@ describe('Scenes', () => {
         expect(document.getElementById('breakdownAllBtn').style.display).toBe('inline-flex');
     });
 
-    it('a scene with no dialogue has a disabled Dialogue button; one with lines hands off to the shared generator', async () => {
+    it('a scene with no dialogue has a disabled Dialogue button; one with lines hands off to the page\'s generator', async () => {
         await openPage();
         expect(screen.getByRole('button', { name: /Dialogue · 0/ }).disabled).toBe(true);
         fireEvent.click(screen.getByRole('button', { name: /Dialogue · 12/ }));
-        expect(window.generateSceneDialogue).toHaveBeenCalledWith('s1', 12);
+        expect(E.generateSceneDialogue).toHaveBeenCalledWith('s1', 12);
         expect(document.getElementById('scene-s1').classList.contains('expanded')).toBe(false); // the click did not open the row
     });
 

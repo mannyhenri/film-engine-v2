@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { legacy } from '../../lib/legacy.js';
+import * as E from './engine.js';
 import { usePageLoader } from '../../lib/usePageLoader.js';
 
 /*
@@ -153,7 +154,7 @@ export default function ScenesPage() {
                                     <p>{parseJsonArray(s.characters_present).join(', ') || 'No characters'} &middot; {s.shot_count || 0} shot(s)</p>
                                 </div>
                                 {lines
-                                    ? <button className="btn btn-sm" onClick={stop(() => legacy.generateSceneDialogue(s.id, lines))}
+                                    ? <button className="btn btn-sm" onClick={stop(() => E.generateSceneDialogue(s.id, lines))}
                                         title="Generate the dialogue for this scene's shots, then hear it in Playback. Spends one generation per line; lines already spoken are reused.">&#127908; Dialogue &middot; {lines}</button>
                                     : <button className="btn btn-sm" disabled style={{ opacity: 0.45, cursor: 'not-allowed' }} title="This scene has no dialogue">&#127908; Dialogue &middot; 0</button>}
                                 {s.status === 'written' && <button className="btn btn-sm" onClick={stop(() => breakdownScene(s.id))} title="Generate shots for this scene">&#9881; Break Down</button>}

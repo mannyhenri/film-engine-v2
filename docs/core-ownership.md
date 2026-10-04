@@ -6,13 +6,13 @@ by name and errs toward more reach, which only keeps more in core.
 
 | category | declarations |
 |---|---|
-| (a) one owner, and every core caller moves with it: can move into that owner's engine | 212 |
+| (a) one owner, and every core caller moves with it: can move into that owner's engine | 211 |
 | (a2) as (a), but a caller that stays NAMES it (onclick, window[name]): moves if the owner provides it | 0 |
 | (e) one owner, but a caller that stays in core calls it in code: held in core until that caller moves | 2 |
 | (b) two or more owners: stays core, or a shared module | 82 |
 | (c) reached by nobody this can see: dead, or reached only by a name built at run time | 29 |
 | (d) load-time core (startup statements, shell.js, production-graph.js and what they reach) | 214 |
-| total | 539 |
+| total | 538 |
 
 Measured as one owner (`GROUPS` in the tool): component:ScreenplayDialogs as page:screenplay (the Screenplay's seven dialogs: their handlers call the screenplay engine, and the component imports from it).
 
@@ -34,10 +34,6 @@ Measured as one owner (`GROUPS` in the tool): component:ScreenplayDialogs as pag
 
 `nextOnboardingStep`, `previousOnboardingStep`
 
-### page:scenes (2)
-
-`generateSceneDialogue`, `renderScreenplayEditor`
-
 ### page:edits (1)
 
 `EDIT_CHUNK`
@@ -45,6 +41,10 @@ Measured as one owner (`GROUPS` in the tool): component:ScreenplayDialogs as pag
 ### page:previs (1)
 
 `P_DEG`
+
+### page:scenes (1)
+
+`renderScreenplayEditor`
 
 ## (b) By owner set
 

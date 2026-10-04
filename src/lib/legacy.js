@@ -23,7 +23,6 @@ export const LEGACY_GLOBALS = [
     'loadScreenplayDrift',    // fill DRIFT from the screenplay-drift report (the storyboard reads it too)
     'DRIFT',                  // which scenes' shots were written from an earlier draft (a top-level `let`)
     'updateSceneStatusIcons', // the status icon beside each scene heading in the screenplay editor
-    'generateSceneDialogue',  // a scene's dialogue: one paid confirmation, then shot by shot (shared with screenplay)
     'EDIT_CHUNK',   // the upload piece size the server accepts per PUT (edits); a top-level const
     'MW',           // the music workstation's state: "Score this edit" sets MW.session before navigating (edits)
     'mwTime',       // ms -> m:ss.t, as every timing in the app is shown (edits)
@@ -37,7 +36,7 @@ export const LEGACY_GLOBALS = [
     'generateVideoFor', 'generateVoiceForShot', 'setClipCoverage', 'lipsyncShot', 'postShot', 'replaceBackground', 'stitchShot', // a video shot card's actions, shared with the board (videoshots)
     'PROJECT_LIST',          // the project list's filter (stage, archived) and drag state; core restores it from storage at boot (projects)
     'openProject',            // open a project (shared with the shell and the sidebar)
-    'loadProjects', 'previewProjectFolder', // the project list engine's bridge (src/pages/projects/engine.js)
+    'loadProjects', 'previewProjectFolder', 'loadScenes', // the project list engine's bridge (src/pages/projects/engine.js)
     'openFrameViewer',       // the frame viewer (core, shared with the board): Resume opens the shot you left (dashboard)
     'refreshProtectOptions', // the board and playback pickers offer the ratios this job ships (deliverables)
     'uploadReferenceImage',   // upload a reference picture: size check, the label's "Uploading…", the error left on it

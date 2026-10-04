@@ -1256,7 +1256,8 @@
         "updateSceneSelection",
         "deleteScene",
         "sceneDriftBadge",
-        "sceneDriftBanner"
+        "sceneDriftBanner",
+        "generateSceneDialogue"
       ],
       "modals": [],
       "provides": [],
@@ -2102,11 +2103,11 @@
       "loadMusic",
       "loadPlayback"
     ],
-    "functions": 404,
+    "functions": 403,
     "unreached": 26,
     "sharedByChunks": 0,
     "declaredTwice": [],
     "bootVendors": [],
-    "bytes": 602505
+    "bytes": 599527
   }
 }
