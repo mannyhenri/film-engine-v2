@@ -6,9 +6,9 @@ by name and errs toward more reach, which only keeps more in core.
 
 | category | declarations |
 |---|---|
-| (a) one owner, and every core caller moves with it: can move into that owner's engine | 211 |
+| (a) one owner, and every core caller moves with it: can move into that owner's engine | 210 |
 | (a2) as (a), but a caller that stays NAMES it (onclick, window[name]): moves if the owner provides it | 0 |
-| (e) one owner, but a caller that stays in core calls it in code: held in core until that caller moves | 2 |
+| (e) one owner, but a caller that stays in core calls it in code: held in core until that caller moves | 3 |
 | (b) two or more owners: stays core, or a shared module | 82 |
 | (c) reached by nobody this can see: dead, or reached only by a name built at run time | 29 |
 | (d) load-time core (startup statements, shell.js, production-graph.js and what they reach) | 214 |
@@ -30,9 +30,9 @@ Measured as one owner (`GROUPS` in the tool): component:ScreenplayDialogs as pag
 
 `askBackgroundInstruction`, `BG_INSTRUCTION`, `bgInstructionDone`, `generateVideoFor`, `lipsyncShot`, `pickCoverageRun`, `postShot`, `replaceBackground`, `setClipCoverage`, `stitchShot`
 
-### component:CoreDialogs (2)
+### component:CoreDialogs (1)
 
-`nextOnboardingStep`, `previousOnboardingStep`
+`previousOnboardingStep`
 
 ### page:edits (1)
 
@@ -184,6 +184,7 @@ blocking callers do (or are themselves moved or removed).
 |---|---|---|
 | `AUTO_FORMAT_RULES` | page:screenplay | `AUTO_NEXT_TYPE` |
 | `characterViewsHtml` | component:CharacterSheet | `renderCharacterViewsInto` |
+| `nextOnboardingStep` | component:CoreDialogs | assigns core's onboardingIndex with += (no verbatim form in a module) |
 
 ## (c) Reached by nobody this measurement can see
 

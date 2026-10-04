@@ -108,3 +108,35 @@ test('a group names a real component and page, each with a reason', () => {
         assert.ok(why && why.length > 20, `${comp}: no reason given`);
     }
 });
+
+test('a core name that legacy markup calls by name is never plainly movable', () => {
+    // src/components/**/*.html stays as it is (sidebar, status bar): an onclick="f(…)" there names f, so f moves only if
+    // its owner provides it on window (a2), and the report says the markup names it.
+    const html = fs.readdirSync(path.join(ROOT, 'src'), { recursive: true }).filter(f => f.endsWith('.html') && f !== 'index.html');
+    assert.ok(html.length > 0, 'no legacy markup found: the scan is broken');
+    const named = new Set(html.flatMap(f => [...read(`src/${f}`).matchAll(/\bon[a-z]+="([^"]*)"/g)].flatMap(m => [...m[1].matchAll(/([A-Za-z_$][\w$]*)\s*\(/g)].map(x => x[1]))));
+    const plain = M.a.filter(x => named.has(x.name)).map(x => x.name);
+    assert.deepStrictEqual(plain, [], 'called by name from legacy markup, measured as plainly movable');
+});
+
+test('nothing measured movable assigns a core value that stays in a way the bridge cannot rewrite', () => {
+    // The verbatim move rewrites a read of core's X as legacy.X and `X = v` as setLegacy('X', v), and nothing else:
+    // `X += 1` or `X++` on a core value that stays has no form in a module, so such a function is held (e).
+    const core = read('public/legacy/core.js');
+    const ast = acorn.parse(core, { ecmaVersion: 'latest' });
+    const where = new Map([...M.a, ...M.a2].map(x => [x.name, x.owner]));
+    const stays = (n) => !where.has(n);
+    const bad = [];
+    for (const n of ast.body) {
+        const name = n.type === 'FunctionDeclaration' ? n.id.name : null;
+        if (!name || !where.has(name)) continue;
+        const walk = (x) => {
+            if (!x || typeof x.type !== 'string') return;
+            const target = x.type === 'UpdateExpression' ? x.argument : x.type === 'AssignmentExpression' && x.operator !== '=' ? x.left : null;
+            if (target && target.type === 'Identifier' && M.callersOf(target.name) && stays(target.name)) bad.push(`${name}: ${core.slice(x.start, x.end)}`);
+            for (const k of Object.keys(x)) { const v = x[k]; if (Array.isArray(v)) v.forEach(walk); else if (v && typeof v.type === 'string') walk(v); }
+        };
+        walk(n.body);
+    }
+    assert.deepStrictEqual(bad, []);
+});

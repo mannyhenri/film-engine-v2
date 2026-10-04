@@ -16,7 +16,8 @@
  *   reach, closed over the edges. It stays core whoever else uses it.
  * Owners propagate down the edges: a helper inherits every owner of every core declaration that calls it.
  * Movable is a fixed point: a declaration moves with its one owner only if no core caller that STAYS calls it in code
- *   (a caller that only names it in a string is fine once the owner provides it).
+ *   (a caller that only names it in a string, or legacy markup's onclick, is fine once the owner provides it), and it
+ *   does not compound-assign or increment a core value that stays (no verbatim form: only X and `X = v` are rewritten).
  *
  * Matching by name errs toward MORE reach (a name in a string of prose counts), which only keeps more in core. That is
  * the safe direction for a move; a name it cannot see at all (built at run time, window[name]) is in (c), named.
@@ -98,11 +99,34 @@ function measure() {
         walk(n, null, null);
         for (const o of own) codeRefs.set(o, new Set([...seen].filter(r => r !== o)));
     }
-    /** caller -> { code: true } when it calls `name` in code, { code: false } when it only names it. */
+    // Legacy markup that stays as it is (src/**/*.html: the sidebar, the status bar) names functions in its handlers:
+    // a caller BY NAME that never moves.
+    const markupNames = new Map();
+    for (const f of fs.readdirSync(path.join(ROOT, 'src'), { recursive: true }).filter(f => f.endsWith('.html') && f !== 'index.html')) {
+        for (const m of read(`src/${f}`).matchAll(/\bon[a-z]+="([^"]*)"/g)) {
+            for (const x of m[1].matchAll(/([A-Za-z_$][\w$]*)\s*\(/g)) if (names.has(x[1])) markupNames.set(x[1], [...(markupNames.get(x[1]) || []), `markup:src/${f}`]);
+        }
+    }
+    // What each declaration assigns in a way the verbatim move cannot rewrite: `X op= v` or `X++` on a core name.
+    const compound = new Map();
+    for (const n of ast.body) {
+        if (n.type !== 'FunctionDeclaration') continue;
+        const out = [];
+        const walk = (x) => {
+            if (!x || typeof x.type !== 'string') return;
+            const t = x.type === 'UpdateExpression' ? x.argument : x.type === 'AssignmentExpression' && x.operator !== '=' ? x.left : null;
+            if (t && t.type === 'Identifier' && names.has(t.name)) out.push({ name: t.name, op: x.type === 'UpdateExpression' ? x.operator : x.operator });
+            for (const k of Object.keys(x)) { const v = x[k]; if (Array.isArray(v)) v.forEach(walk); else if (v && typeof v.type === 'string') walk(v); }
+        };
+        walk(n.body);
+        if (out.length) compound.set(n.id.name, out);
+    }
+    /** caller -> { code: true } when it calls `name` in code, { code: false } when it only names it (markup included). */
     const callersOf = (name) => {
         if (!names.has(name)) return null;
         const out = new Map();
         for (const [caller, callees] of edges) if (callees.has(name)) out.set(caller, { code: codeRefs.get(caller).has(name) });
+        for (const m of markupNames.get(name) || []) out.set(m, { code: false });
         return out;
     };
 
@@ -155,6 +179,8 @@ function measure() {
     for (let changed = true; changed;) {
         changed = false;
         for (const f of [...movable]) {
+            const blocked = (compound.get(f) || []).some(({ name }) => !(movable.has(name) && ownerOf(name) === ownerOf(f)));
+            if (blocked) { movable.delete(f); changed = true; continue; }
             for (const [caller, k] of callersOf(f)) {
                 const moves = movable.has(caller) && ownerOf(caller) === ownerOf(f);
                 if (!moves && k.code) { movable.delete(f); changed = true; break; }
@@ -168,7 +194,10 @@ function measure() {
         else if (movable.has(n)) {
             const named = [...callersOf(n)].filter(([caller]) => !(movable.has(caller) && ownerOf(caller) === os[0])).map(([caller]) => caller);
             (named.length ? a2 : a).push(named.length ? { name: n, owner: os[0], namedBy: named.sort() } : { name: n, owner: os[0] });
-        } else if (os.length === 1) e.push({ name: n, owner: os[0], heldBy: [...callersOf(n)].filter(([caller, k]) => k.code && !(movable.has(caller) && ownerOf(caller) === os[0])).map(([caller]) => caller).sort() });
+        } else if (os.length === 1) e.push({ name: n, owner: os[0], heldBy: [
+            ...[...callersOf(n)].filter(([caller, k]) => k.code && !(movable.has(caller) && ownerOf(caller) === os[0])).map(([caller]) => caller).sort(),
+            ...(compound.get(n) || []).filter(({ name }) => !(movable.has(name) && ownerOf(name) === os[0])).map(({ name, op }) => `assigns core's ${name} with ${op} (no verbatim form in a module)`),
+        ] });
         else if (os.length > 1) b.push({ name: n, owners: os });
         else c.push({ name: n });
     }
@@ -210,7 +239,7 @@ function report(M) {
     for (const x of M.b) lines.push(`| \`${x.name}\` | ${x.owners.join(', ')} |`);
     lines.push('', '## (e) One owner, held in core', '', 'Each is used only by its owner, but a core declaration that stays calls it in code. It moves when its',
         'blocking callers do (or are themselves moved or removed).', '', '| declaration | owner | held by |', '|---|---|---|');
-    for (const x of M.e) lines.push(`| \`${x.name}\` | ${x.owner} | ${x.heldBy.map(h => `\`${h}\``).join(', ')} |`);
+    for (const x of M.e) lines.push(`| \`${x.name}\` | ${x.owner} | ${x.heldBy.map(h => (/ /.test(h) ? h : `\`${h}\``)).join(', ')} |`);
     lines.push('', '## (c) Reached by nobody this measurement can see', '',
         'Not deleted: each is either dead, or reached by a name built at run time (`window[name]`, a string the code',
         'assembles). Check each before removing it.', '', M.c.map(x => `\`${x.name}\``).join(', ') || '(none)', '',
