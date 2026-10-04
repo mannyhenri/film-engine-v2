@@ -79,3 +79,21 @@ tombstone: id, hash and dates, with no text, no prose provenance, no sharing, an
 from imported profile files. Deleting a script does the same for its text and every sample taken
 from it. The workbench explains, before deletion, that saved screenplay revisions keep their own
 text and that anything already sent to an external provider follows that provider's retention.
+
+Style traits (GRD-4662). A trait is one plain-language rule or anti-pattern. It resolves to evidence,
+each excerpt carrying its location in an eligible sample, with counterexamples, or it is labelled an
+explicit user rule with where the user said it. Confidence comes from distinct supporting samples,
+less each counterexample. A trait's source separates the author's recurring style from genre, scene
+and character requirements, and only author style may enter the global profile. Active traits live
+in immutable versions: the author's global StyleProfileVersion and each project's
+ProjectStyleOverride (traits added for the project, and global traits disabled for it). The
+database refuses updates to old versions; a change, removal or rollback writes a new version whose
+parent is the one it replaces, with a plain-language diff. Corrections (before/after, optional spans,
+reason and scope, defaulting to the scene) and randomized A/B choices (with Neither) only create
+pending proposals. Accepting needs the exact proposal fingerprint, the author's confirmation and
+the current version; modify, reject, remove-for-this-project, remove-everywhere and restore work
+the same way. Drafts receive the layers in order of precedence: the scene's instructions and
+screenplay facts, then project style, then author style. A conflicting lower trait is listed under
+NOT APPLIED HERE with its reason, and dialogue traits never override a character's declared voice.
+MCP can read and propose (style_profile_read, style_trait_propose, style_correction_record);
+deciding stays with the author in the workbench.

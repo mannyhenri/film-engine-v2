@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { legacy } from '../../lib/legacy.js';
+import StyleTraits from './StyleTraits.jsx';
 
 // What deleting keeps and what it cannot reach, said before the person confirms (GRD-4661).
 const DELETE_NOTE = 'Its text is removed now and it stops being used for drafts immediately; any approved profile that used it becomes stale. '
@@ -124,6 +125,7 @@ export default function WritingStyleWorkbench() {
      {latest.state==='draft' && <button className="btn btn-primary" disabled={busy} onClick={()=>{if(window.confirm('I reviewed this profile and its original samples. Use this version for my future drafts?'))post(`/profiles/${latest.version}/approve`,{expected_version:latest.version,human_confirmed:true,approval_fingerprint:latest.evidence_hash});}}>Approve reviewed profile</button>}
     </div>}
     {view.profiles.length>1 && <details><summary>Previous profile versions</summary>{view.profiles.slice(1).map(p=><p key={p.version}>Version {p.version} · {p.state}: {p.guidance}</p>)}</details>}
+    <StyleTraits projectId={project.id} />
     <h3>3. Feedback and portable profile</h3>
     <label>What sounds like you, and what does not?<textarea style={field} value={feedback} onChange={e=>setFeedback(e.target.value)} /></label>
     <button className="btn" disabled={busy||!latest||!feedback.trim()} onClick={()=>post('/feedback',{profile_version:latest.version,text:feedback})}>Save feedback</button>

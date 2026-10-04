@@ -42,20 +42,22 @@ function languageOf(value) {
  if (typeof value !== 'string' || !/^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$/.test(value)) fail(400, 'language must be a language tag such as en or fr-CA');
  return value;
 }
+const sampleAccess = (db, sampleId) => db.prepare('SELECT project_id FROM film_writing_sample_access WHERE sample_id=? ORDER BY granted_at,project_id').all(sampleId).map(r => r.project_id);
+/** Why a sample may not be used as evidence in this project, or null when it may. Shared with lib/style-profile.js. */
+function sampleIneligibility(db, s, id) {
+ if (s.retention === 'deleted') return 'deleted';
+ if (s.retention === 'held_out') return 'held_out';
+ if (s.included !== 1) return 'excluded';
+ if (s.project_id !== id && !sampleAccess(db, s.id).includes(id)) return 'not_permitted_project';
+ if (s.authorship !== 'original_human') return 'not_original';
+ if (s.confirmed_original !== 1) return 'unconfirmed_original';
+ if (s.rights_confirmed !== 1 || !RIGHTS_BASES.includes(s.rights_basis)) return 'unpermitted';
+ return null;
+}
 function createWritingStyleStore(db, { actor = 'human' } = {}) {
  const project = id => { if (!db.prepare('SELECT id FROM film_projects WHERE id=?').get(id)) fail(404, 'Project not found'); };
- const access = sampleId => db.prepare('SELECT project_id FROM film_writing_sample_access WHERE sample_id=? ORDER BY granted_at,project_id').all(sampleId).map(r => r.project_id);
- // Why a sample may not be used as evidence in this project, or null when it may.
- function ineligible(s, id) {
-  if (s.retention === 'deleted') return 'deleted';
-  if (s.retention === 'held_out') return 'held_out';
-  if (s.included !== 1) return 'excluded';
-  if (s.project_id !== id && !access(s.id).includes(id)) return 'not_permitted_project';
-  if (s.authorship !== 'original_human') return 'not_original';
-  if (s.confirmed_original !== 1) return 'unconfirmed_original';
-  if (s.rights_confirmed !== 1 || !RIGHTS_BASES.includes(s.rights_basis)) return 'unpermitted';
-  return null;
- }
+ const access = sampleId => sampleAccess(db, sampleId);
+ const ineligible = (s, id) => sampleIneligibility(db, s, id);
  const categoriesOf = s => STYLE_CATEGORIES.filter(c => s.exercise === c || parse(s.tags, []).includes(c));
  // A deleted sample is a tombstone: id, hash and dates, never its words.
  const present = (s, id) => ({ ...s, tags:parse(s.tags, []), permitted_projects:access(s.id), eligibility:ineligible(s, id), shared_from:s.project_id === id ? null : s.project_id });
@@ -167,7 +169,26 @@ function createWritingStyleStore(db, { actor = 'human' } = {}) {
    .run(crypto.randomUUID(),id,body.profile_version,bounded(body.text,'Feedback',2000));
   return snapshot(id);
  }
- function context(id) {
+ function context(id, opts) {
+  const base = profileContext(id);
+  // Style layers (GRD-4662): scene, then project, then author. The approved project profile above is part of the project layer.
+  const style = require('./style-profile').createStyleStore(db).resolve(id, opts || {});
+  const sc = style.scene, project_ = style.applied.filter(t => t.layer === 'project'), author = style.applied.filter(t => t.layer === 'global');
+  const nothing = !base.provenance && !style.applied.length && !style.suppressed.length && !sc.facts.length && !sc.instructions.length && !sc.characters.length;
+  if (nothing) return base;
+  const line = t => `- [${t.kind === 'anti_pattern' ? 'avoid' : 'rule'}] ${t.statement}${t.exclusions && t.exclusions.length ? ` (not in: ${t.exclusions.join(', ')})` : ''}${t.yields_to_characters ? ` (does not override the declared voice of: ${t.yields_to_characters.join(', ')})` : ''}`;
+  const parts = ['\n\nSTYLE PRECEDENCE: the scene\'s instructions and screenplay facts, then project style, then author style. Where they conflict, the higher one wins. Style never changes a fact.'];
+  if (sc.facts.length || sc.instructions.length || sc.characters.length) parts.push('SCENE (binding):', ...sc.facts.map(f => `- Fact: ${f}`),
+   ...sc.instructions.map(i => `- Instruction (${i.category}): ${i.text}`), ...sc.characters.map(c => `- Character voice: ${c.name}: ${c.voice}`));
+  if (project_.length) parts.push('PROJECT STYLE:', ...project_.map(line));
+  if (base.text) parts.push(base.text.trim());
+  if (author.length) parts.push('AUTHOR STYLE:', ...author.map(line));
+  if (style.suppressed.length) parts.push('NOT APPLIED HERE (a higher layer wins):', ...style.suppressed.map(x => `- ${x.trait.statement}: ${x.reason}`));
+  return { text:parts.join('\n'), provenance:{ ...(base.provenance || { project_id:id, profile_version:null, learned_voice:false }),
+   style:{ global_version:style.global_version, override_version:style.override_version, applied:style.applied.map(t => ({ id:t.id, layer:t.layer, fingerprint:t.fingerprint })),
+    suppressed:style.suppressed.map(x => ({ trait_id:x.trait.id, layer:x.layer, by:x.by })), conflicts:style.conflicts } } };
+ }
+ function profileContext(id) {
   project(id);
   // Drafting on an approval whose evidence moved is refused once, by name; the version is then stale.
   const active = profiles(id).find(p => p.state === 'approved'), lost = active && refreshStale(id).find(x => x.version === active.version);
@@ -312,4 +333,4 @@ function createWritingStyleStore(db, { actor = 'human' } = {}) {
  };
 }
 function store(opts) { return createWritingStyleStore(require('../db/database').db, opts); }
-module.exports = { EXERCISES, STYLE_CATEGORIES, RIGHTS_BASES, SAMPLE_TYPES, RETENTION_STATES, INELIGIBLE_REASONS, PROFILE_STATES, ERROR_CODES, OPERATIONS, ACTOR_PERMISSIONS, createWritingStyleStore, store };
+module.exports = { sampleIneligibility, EXERCISES, STYLE_CATEGORIES, RIGHTS_BASES, SAMPLE_TYPES, RETENTION_STATES, INELIGIBLE_REASONS, PROFILE_STATES, ERROR_CODES, OPERATIONS, ACTOR_PERMISSIONS, createWritingStyleStore, store };

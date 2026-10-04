@@ -6206,6 +6206,25 @@ PRODUCTION_TOOLS.push(
       schema: { project_id: { type: 'string' }, expected_version: { type: 'integer' }, guidance: { type: 'string' }, sample_ids: { type: 'array', items: { type: 'string' } }, preference_source: { type: 'string', description:'Quote or locate an explicit user preference when proposing direct guidance with zero original samples. It remains inactive until human approval.' } },
       required: ['project_id','expected_version','guidance','sample_ids'] }
 );
+const { handleStyleProfile } = require('../routes/style-profile');
+// Style traits (GRD-4662): an agent reads and proposes. Accepting, rejecting, removing and restoring are the author's, in the workbench.
+PRODUCTION_TOOLS.push(
+    { name: 'style_profile_read', handler: handleStyleProfile, method: 'GET',
+      path: a => `/film/projects/${a.project_id}/style-profile`,
+      description: 'Read the author\'s style traits in force for this project (global profile, project overrides, what is suppressed and why), pending proposals, and version history with plain-language diffs. Precedence: scene instructions and screenplay facts, then project, then global.',
+      schema: { project_id: { type: 'string' } }, required: ['project_id'] },
+    { name: 'style_trait_propose', handler: handleStyleProfile, method: 'POST',
+      path: a => `/film/projects/${a.project_id}/style-profile/traits`,
+      body: a => ({ target: a.target, trait: a.trait }),
+      description: 'Propose one style trait (pending until the author accepts it). It must cite evidence spans {sample_id,start,end} from eligible samples, or be explicit_user_rule with preference_source quoting where the user said it. Only source author_style may target global; genre, scene and character requirements target project.',
+      schema: { project_id: { type: 'string' }, target: { type: 'string', enum: ['global', 'project'] }, trait: { type: 'object' } }, required: ['project_id', 'target', 'trait'] },
+    { name: 'style_correction_record', handler: handleStyleProfile, method: 'POST',
+      path: a => `/film/projects/${a.project_id}/style-profile/corrections`,
+      body: a => ({ before: a.before, after: a.after, reason: a.reason, scope: a.scope, before_span: a.before_span, after_span: a.after_span }),
+      description: 'Record a direct correction the author made (before/after text, optional spans and reason). It becomes a pending proposal scoped to the scene unless the author said project or global. It never becomes a rule on its own.',
+      schema: { project_id: { type: 'string' }, before: { type: 'string' }, after: { type: 'string' }, reason: { type: 'string' }, scope: { type: 'string', enum: ['scene', 'project', 'global'] }, before_span: { type: 'object' }, after_span: { type: 'object' } },
+      required: ['project_id', 'before', 'after'] }
+);
 const ALL_ROUTE_TOOLS = [...ROUTE_TOOLS, ...PRODUCTION_TOOLS];
 
 const _tools = [
