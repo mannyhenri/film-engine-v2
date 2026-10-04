@@ -30,12 +30,14 @@ const CHANGED = {
         pgLoad: 'project-switch fix (3ee8beb): a switch resets every per-project field of PG, the queue, picks and palette included',
     },
 };
-const PAGES = path.join(ROOT, 'src/pages');
-const ENGINES = fs.readdirSync(PAGES)
-    .filter(id => fs.existsSync(path.join(PAGES, id, 'react.json')))
-    .flatMap(id => fs.readdirSync(path.join(PAGES, id))
-        .filter(f => f.endsWith('.js') && !f.includes('.test.') && f !== 'reach.js' && f !== 'index.js')
-        .map(f => `src/pages/${id}/${f}`))
+// Pages and React components (src/components/<Name>/react.json) alike: an engine is an engine wherever it lives.
+const ownModules = (dir) => fs.readdirSync(path.join(ROOT, dir))
+    .filter(id => fs.existsSync(path.join(ROOT, dir, id, 'react.json')))
+    .flatMap(id => fs.readdirSync(path.join(ROOT, dir, id))
+        // A *.markup.js module holds markup as a string (a verbatim modal frame), not code.
+        .filter(f => f.endsWith('.js') && !f.includes('.test.') && f !== 'reach.js' && f !== 'index.js' && !f.endsWith('.markup.js'))
+        .map(f => `${dir}/${id}/${f}`));
+const ENGINES = [...ownModules('src/pages'), ...ownModules('src/components')]
     .filter(f => /^export \{/m.test(fs.readFileSync(path.join(ROOT, f), 'utf8')));
 
 // Every top-level declaration of the reference's scripts, by name -> its source text.

@@ -104,7 +104,9 @@ function assemble() {
      * source text do. The static render above is what the page DRAWS; this is what it RUNS.
      */
     const sourceBlock = (key, dir) => {
-        const files = fs.readdirSync(path.join(ROOT, dir)).filter(f => /\.jsx?$/.test(f) && !f.includes('.test.') && f !== 'index.jsx' && f !== 'reach.js').sort();
+        // A *.markup.js module is markup held as a string (a verbatim modal frame): the static render above draws it,
+        // and listing it again here would count every control in it twice.
+        const files = fs.readdirSync(path.join(ROOT, dir)).filter(f => /\.jsx?$/.test(f) && !f.includes('.test.') && f !== 'index.jsx' && f !== 'reach.js' && !f.endsWith('.markup.js')).sort();
         // .jsx and the page's own .js modules (playback's engine is player.js); reach.js is test reachability data, not page source.
         // Import lines dropped: they are wiring, not behaviour, and the page's no-bundler check reads them as ES modules in the page.
         const text = files.map(f => read(`${dir}/${f}`)).join('\n').replace(/^import\b[^\n]*$/gm, '// (import omitted in the test page)')

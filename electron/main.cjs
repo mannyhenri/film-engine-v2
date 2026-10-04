@@ -70,7 +70,10 @@ async function ensureBackend() {
     // System node, not Electron's: better-sqlite3 stays built for it, no electron-rebuild.
     backend = spawn(process.env.FE_NODE || 'node', [path.join(__dirname, 'backend-runner.cjs')], {
         cwd: path.join(__dirname, '..', 'backend'),
-        env: { ...process.env, PORT: String(new URL(API).port || 3100) },
+        env: { ...process.env, PORT: String(new URL(API).port || 3100),
+            // The smoke run is one client opening every page and several flows within a minute, against its own throwaway
+            // backend: the general limit (200/min, for a person) would refuse its later checks. Generation keeps its limit.
+            ...(SMOKE ? { RATE_LIMIT_MAX_GENERAL: process.env.RATE_LIMIT_MAX_GENERAL || '100000' } : {}) },
         stdio: ['pipe', 'inherit', 'inherit'],
     });
     backend.on('exit', (code) => { if (code) console.error(`[backend] exited ${code}`); backend = null; });
@@ -403,6 +406,45 @@ async function smoke(win) {
         await jsStep(`api('/settings', { method: 'PUT', body: JSON.stringify({ production_graph: ${flag} }) }).then(() => applyProductionFlag()).then(() => true, () => false)`);
         await back();
         await wait(500);
+    }
+    /*
+     * The location and prop sheets (React component SubjectSheet, its engine moved verbatim): a real location and a
+     * real prop open, and the sheet draws EVERY region the backend's registry declares (lib/subject-sheets.js), by its
+     * anchor, with no console error. Set-based over the registry, so a region the engine stops drawing fails here.
+     */
+    if (project && !process.env.FE_SMOKE_URL && !process.env.FE_SMOKE_PAGES) {
+        current = 'sheets';
+        const before = errors.length;
+        const { LOCATION_REGIONS, PROP_REGIONS } = require('../backend/lib/subject-sheets');
+        const found = await js(`(async () => { try {
+            const r = await api('/projects'); const list = Array.isArray(r) ? r : (r.projects || []);
+            for (const p of list.slice(0, 2)) {           // a couple: every project at once trips the rate limit
+                const [l, q] = await Promise.all([api('/projects/' + p.id + '/locations'), api('/projects/' + p.id + '/props')]);
+                if ((l.locations || []).length && (q.props || []).length) return { project: p.id, location: l.locations[0].id, prop: q.props[0].id };
+            }
+            const p = list[0];
+            const l = await api('/projects/' + p.id + '/locations', { method: 'POST', body: JSON.stringify({ name: 'Smoke dock' }) });
+            const q = await api('/projects/' + p.id + '/props', { method: 'POST', body: JSON.stringify({ name: 'Smoke lamp' }) });
+            return { project: p.id, location: (l.location || l).id, prop: (q.prop || q).id };
+        } catch (e) { return 'setup: ' + e.message; } })()`);
+        const results = [];
+        if (typeof found === 'string') results.push(found);
+        else {
+            await js(`openProject(${JSON.stringify(found.project)}, 'locations').then(() => true)`);
+            await new Promise(r => setTimeout(r, 1500));
+            for (const [kind, id, regions] of [['location', found.location, LOCATION_REGIONS], ['prop', found.prop, PROP_REGIONS]]) {
+                const drawn = await js(`openSubjectSheet(${JSON.stringify(kind)}, ${JSON.stringify(id)}).then(() => ({
+                    open: document.getElementById('subjectSheetModal').classList.contains('open'),
+                    name: document.getElementById('ssName').textContent,
+                    anchors: [...document.querySelectorAll('#ssBody [data-region]')].map(e => e.dataset.region) }), e => ({ error: e.message }))`);
+                const missing = drawn.error ? ['(threw: ' + drawn.error + ')'] : regions.map(r => r.anchor).filter(a => !drawn.anchors.includes(a));
+                if (!drawn.open || /Loading/.test(drawn.name || '') || missing.length) results.push(`${kind}: open=${drawn.open} name=${drawn.name} missing=${missing.join(',')}`);
+                await js(`closeModal('subjectSheetModal'); true`);
+            }
+            await js(`backToProjectList(); true`);
+        }
+        const ok = !results.length && errors.length === before;
+        report.push({ id: 'subject sheets', ok, want: 'subject sheets', active: ok ? 'subject sheets' : `${results.join(' | ')} errors=${errors.length - before}` });
     }
     // What the page opens: print previews stay in the app, API files download, other sites leave.
     if (!process.env.FE_SMOKE_URL && !process.env.FE_SMOKE_PAGES) {

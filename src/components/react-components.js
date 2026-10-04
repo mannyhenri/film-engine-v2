@@ -2,8 +2,10 @@
 // each mounted once by App at boot, so what it provides is on window before any legacy script runs.
 import Casting from './Casting/Casting.jsx';
 import Gallery from './Gallery/Gallery.jsx';
+import SubjectSheet from './SubjectSheet/SubjectSheet.jsx';
 
 export const REACT_COMPONENTS = [
     { name: 'Casting', Component: Casting },
     { name: 'Gallery', Component: Gallery },
+    { name: 'SubjectSheet', Component: SubjectSheet },
 ];

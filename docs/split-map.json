@@ -994,6 +994,60 @@
       "modals": [
         "galleryModal"
       ]
+    },
+    "SubjectSheet": {
+      "provides": [
+        "openSubjectSheet",
+        "renderSubjectSheet"
+      ],
+      "replaces": [
+        "openSubjectSheet",
+        "ssBusy",
+        "renderSubjectSheet",
+        "ssField",
+        "ssPlateControls",
+        "ssReach",
+        "ssChips",
+        "ssRefs",
+        "ssPlateMeta",
+        "ssViewFor",
+        "ssTile",
+        "ssPlanLabel",
+        "renderLocationSheet",
+        "psExtraViews",
+        "renderPropSheet",
+        "saveSheetSection",
+        "ssImportDescription",
+        "ssToggleSection",
+        "ssCopyDescription",
+        "ssSaveList",
+        "ssReadList",
+        "ssAddFlag",
+        "ssRemoveFlag",
+        "ssAddConstraint",
+        "ssRemoveConstraint",
+        "ssAddKeyword",
+        "ssRemoveKeyword",
+        "ssAddMaterial",
+        "ssRemoveMaterial",
+        "ssEditPlan",
+        "ssDeletePlanImage",
+        "ssEditPlatePlan",
+        "generateSheetView",
+        "saveSheetField",
+        "addPropState",
+        "removePropState",
+        "savePropStates",
+        "generateSheetPlate",
+        "generateLocationPlateFor",
+        "generatePropPlateFor",
+        "generateLocationVariant",
+        "openSubjectGallery",
+        "exportSubjectSheet"
+      ],
+      "modals": [
+        "subjectSheetModal"
+      ]
     }
   },
   "chunks": {
@@ -1787,11 +1841,11 @@
       "loadMusic",
       "loadPlayback"
     ],
-    "functions": 489,
-    "unreached": 19,
+    "functions": 449,
+    "unreached": 18,
     "sharedByChunks": 0,
     "declaredTwice": [],
     "bootVendors": [],
-    "bytes": 720989
+    "bytes": 668231
   }
 }

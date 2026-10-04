@@ -16,12 +16,14 @@ const traverse = require('@babel/traverse').default;
 const { JSDOM } = require('jsdom');
 
 const ROOT = path.join(__dirname, '..', '..');
-const PAGES = path.join(ROOT, 'src/pages');
-const MODULES = fs.readdirSync(PAGES)
-    .filter(id => fs.existsSync(path.join(PAGES, id, 'react.json')))
-    .flatMap(id => fs.readdirSync(path.join(PAGES, id))
-        .filter(f => f.endsWith('.js') && !f.includes('.test.') && f !== 'reach.js' && f !== 'index.js')
-        .map(f => `src/pages/${id}/${f}`));
+// Pages and React components (src/components/<Name>/react.json) alike: an engine is an engine wherever it lives.
+const ownModules = (dir) => fs.readdirSync(path.join(ROOT, dir))
+    .filter(id => fs.existsSync(path.join(ROOT, dir, id, 'react.json')))
+    .flatMap(id => fs.readdirSync(path.join(ROOT, dir, id))
+        // A *.markup.js module holds markup as a string (a verbatim modal frame), not code.
+        .filter(f => f.endsWith('.js') && !f.includes('.test.') && f !== 'reach.js' && f !== 'index.js' && !f.endsWith('.markup.js'))
+        .map(f => `${dir}/${id}/${f}`));
+const MODULES = [...ownModules('src/pages'), ...ownModules('src/components')];
 
 // What the browser provides: the window of a real DOM, plus the language's own globals.
 const BROWSER = (() => {

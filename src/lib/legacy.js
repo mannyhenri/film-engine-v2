@@ -46,6 +46,9 @@ export const LEGACY_GLOBALS = [
     'confirmPaidImage',       // the one confirmation every paid generation goes through: what is sent, what it costs
     'openCharacterSheet', 'openSubjectSheet', // the subject sheets (core: the board, graph and viewer open them too); a card click opens one
     'loadScreenplayPage',     // reload the screenplay editor after a location rename rewrote its headings (locations)
+    // The location and prop sheet's engine (src/components/SubjectSheet/engine.js) reaches these through its bridge:
+    'SS', 'ssSection', 'slotUpload', 'sheetEditable', 'toggleSheetMode', 'captureUploadControl', 'regeneratePlate', 'sweepLocationCompass',
+    'LIGHTING_TECHNIQUE_IDS', 'openGallery', 'loadProps',
     'regenerateStoryboard',   // regenerate one shot's frame: its own confirmation, the busy veil (board, viewer, shot drawer)
     // The storyboard board: state core shares with the frame viewer, the anchor and markup...
     'ANCHOR', 'FRAME_VIEWER', 'BOARD_ANCHOR', 'MARKUP',

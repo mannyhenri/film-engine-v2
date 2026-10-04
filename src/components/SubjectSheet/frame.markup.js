@@ -1,3 +1,7 @@
+// The location and prop sheet's modal frame: the app's own markup, moved verbatim from the source's
+// subjectSheetModal (its header's inline handlers are what the backend's layout checks read). A string module, not
+// an .html?raw import, so the static render (tools/assemble-page.js, esbuild) can bundle it as it is.
+export default `
     <!--
       A LOCATION AND A PROP ARE WORKSPACES TOO.
       The character card became a sheet and these stayed a form in a modal — the
@@ -22,3 +26,4 @@
             <div class="cs-body" id="ssBody"></div>
         </div>
     </div>
+`;

@@ -17,7 +17,8 @@ const COMPONENTS_DIR = 'src/components';
 const COMPONENTS = Object.fromEntries(fs.readdirSync(path.join(ROOT, COMPONENTS_DIR))
     .filter(n => exists(`${COMPONENTS_DIR}/${n}/react.json`))
     .map(n => [n, JSON.parse(read(`${COMPONENTS_DIR}/${n}/react.json`))]));
-const sourceOf = (dir) => fs.readdirSync(path.join(ROOT, dir)).filter(f => /\.jsx?$/.test(f) && !f.includes('.test.') && f !== 'reach.js').map(f => read(`${dir}/${f}`)).join('\n');
+// A component's own markup (a verbatim frame.html) is its source too: the modal it renders may be written there.
+const sourceOf = (dir) => fs.readdirSync(path.join(ROOT, dir)).filter(f => /\.(jsx?|html)$/.test(f) && !f.includes('.test.') && f !== 'reach.js').map(f => read(`${dir}/${f}`)).join('\n');
 const jsxOf = (id) => sourceOf(`${PAGES_DIR}/${id}`);
 /** Every owner of legacy code, pages and components alike: what it registers on window, replaces and renders. */
 const OWNERS = [
@@ -151,7 +152,8 @@ test('every React component: no loader, mounted by App through the generated lis
             if (!registersOn(src, fn)) bad.push(`${n}: never registers ${fn}`);
             if (!r.replaces.includes(fn)) bad.push(`${n}: provides ${fn} but react.json does not list it in replaces`);
         }
-        for (const m of r.modals || []) if (!new RegExp(`<Modal\\s+id="${m}"`).test(src)) bad.push(`${n}: does not render modal ${m}`);
+        // Through the shared <Modal>, or as its own overlay (a sheet with its own header): an element with the id and modal-overlay.
+        for (const m of r.modals || []) if (!new RegExp(`<Modal\\s+id="${m}"|className="modal-overlay[^"]*"\\s+id="${m}"|class="modal-overlay[^"]*"\\s+id="${m}"`).test(src)) bad.push(`${n}: does not render modal ${m}`);
     }
     assert.match(read('src/App.jsx'), /REACT_COMPONENTS\.map/, 'App does not mount the React components');
     assert.deepStrictEqual(bad, []);

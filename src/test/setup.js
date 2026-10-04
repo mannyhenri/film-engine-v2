@@ -55,6 +55,12 @@ export function installLegacy({ routes = {}, project = { id: 'p1' } } = {}) {
         uploadControl: vi.fn((target, url, o) => `<label class="btn btn-secondary btn-sm">${(o && o.label) || 'Upload'}<input type="file" data-import-target="${target}" data-url="${url}"></label>`),
         confirmPaidImage: vi.fn(),
         openCharacterSheet: vi.fn(), openSubjectSheet: vi.fn(), loadScreenplayPage: vi.fn(),
+        // The location and prop sheet's core half (src/components/SubjectSheet/engine.js bridges these).
+        SS: { kind: null, id: null, data: null, views: [], sections: [], propViews: [], times: [], collapsed: {} },
+        ssSection: vi.fn((anchorId, title, what, inner) => `<section id="${anchorId}"><h3>${title}</h3>${inner}</section>`),
+        slotUpload: vi.fn(() => '<label class="slot-upload">Upload</label>'), sheetEditable: vi.fn(() => false), toggleSheetMode: vi.fn(),
+        captureUploadControl: vi.fn(() => '<label class="capture">Upload</label>'), regeneratePlate: vi.fn(), sweepLocationCompass: vi.fn(),
+        LIGHTING_TECHNIQUE_IDS: [], openGallery: vi.fn(), loadProps: vi.fn(),
         regenerateStoryboard: vi.fn(),
         ANCHOR: { frames: [] }, FRAME_VIEWER: { frames: [] }, BOARD_ANCHOR: null, MARKUP: { cache: {} },
         loadBoardLock: vi.fn(), renderAnnotationFeedbackToggle: vi.fn(), renderAnchorChip: vi.fn(), loadBoardBanners: vi.fn(), markupPaintAll: vi.fn(),
