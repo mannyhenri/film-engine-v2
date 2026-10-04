@@ -104,7 +104,10 @@ test('no demo VALUE from the design ships in the console', () => {
      */
     const CODE = UI.split('\n').filter(l => !/^\s*(\/\*|\*|\/\/)/.test(l)).join('\n');
     const at = CODE.indexOf('function worldConsoleHtml');
-    const consoleSrc = CODE.slice(at);
+    // v2: the console is the 3D stage engine's, in its source <template> (tools/assemble-page.js); its source ends
+    // where that block does, not at the end of the page, where other components' text follows it.
+    const end = CODE.indexOf('</template>', at);
+    const consoleSrc = CODE.slice(at, end < 0 ? undefined : end);
     const leaked = demoValues().filter(v => consoleSrc.includes(v));
     assert.deepStrictEqual(leaked, [],
         `demo data from the design shipped in the console: ${leaked.join(', ')}`);

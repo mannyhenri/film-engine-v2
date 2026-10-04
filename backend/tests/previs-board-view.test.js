@@ -26,6 +26,8 @@ function load(world) {
     const doc = { getElementById: id => (id === 'weFrame' ? frame : null) };
     const fn = new Function('WORLD', 'SPLAT', 'document', `
         const API_BASE = 'http://api'; const worldFlagOn = () => true; const esc = s => String(s == null ? '' : s);
+        // v2: the 3D stage engine reads core's API_BASE through the bridge, as legacy.API_BASE.
+        const legacy = { get API_BASE() { return API_BASE; } };
         ${src}
         return { worldBoardSrc, worldViewMode, worldModeButtonsHtml, worldOverlayMenuHtml, worldToggleBoardOnion, PV_MODES, PV_MODE_NOTES };`);
     return { api: fn(world, { info: null }, doc), frame };
