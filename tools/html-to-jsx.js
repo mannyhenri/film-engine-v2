@@ -30,7 +30,8 @@ const EVENTS = { onclick: 'onClick', onchange: 'onChange', oninput: 'onInput', o
 const VOID = new Set(['input', 'br', 'hr', 'img', 'meta', 'link', 'source', 'col', 'area', 'wbr']);
 const BOOLEAN = new Set(['disabled', 'hidden', 'multiple', 'checked', 'selected', 'readonly', 'autofocus']);
 
-const js = (s) => JSON.stringify(s);
+// A non-breaking space is written as its escape: as a raw character it reads like an ordinary space in the source.
+const js = (s) => JSON.stringify(s).replace(/\u00a0/g, '\\u00a0');
 // A JSX attribute string takes no escapes and decodes entities, so a value with a backslash, a quote, a line break
 // or an ampersand goes in as an expression; anything else stays a plain quoted string.
 const attrValue = (v) => (/[\\"\n\r\t&]/.test(v) ? `{${js(v)}}` : js(v));
@@ -85,7 +86,8 @@ function attrs(el, resolve) {
 // collapsing written as {' '} where JSX would otherwise drop it (a line's edges, a text node of only space:
 // the gap between two inline buttons). Braces and angle brackets are literals.
 function text(s) {
-    const t = s.replace(/\s+/g, ' ');
+    // HTML collapses spaces, tabs and line breaks only; a non-breaking space (&nbsp;) is content and stays.
+    const t = s.replace(/[ \t\n\r\f]+/g, ' ');
     if (t === '') return '';
     if (t === ' ') return "{' '}";
     // One text node, as the markup has it: a text with a space at either edge is one expression, not a space

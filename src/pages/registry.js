@@ -50,8 +50,8 @@ export const PAGES = [
     { id: 'locations', Component: LocationsPage, chunk: null, react: true },
     { id: 'props', Component: PropsPage, chunk: null, react: true },
     { id: 'assets', Component: AssetsPage, chunk: null, react: true },
-    { id: 'musicws', Component: MusicwsPage, chunk: 'music' },
-    { id: 'musiccues', Component: MusiccuesPage, chunk: 'music' },
+    { id: 'musicws', Component: MusicwsPage, chunk: null, react: true },
+    { id: 'musiccues', Component: MusiccuesPage, chunk: null, react: true },
     { id: 'milestones', Component: MilestonesPage, chunk: null, react: true },
     { id: 'playback', Component: PlaybackPage, chunk: null, react: true },
     { id: 'notes', Component: NotesPage, chunk: null, react: true },
@@ -68,7 +68,7 @@ export const PAGES = [
     { id: 'budget', Component: BudgetPage, chunk: null, react: true },
     { id: 'threed', Component: ThreedPage, chunk: 'stage3d' },
     { id: 'videoshots', Component: VideoshotsPage, chunk: null, react: true },
-    { id: 'music', Component: MusicPage, chunk: 'music' },
+    { id: 'music', Component: MusicPage, chunk: null, react: true },
     { id: 'productiongraph', Component: ProductiongraphPage, chunk: null, react: true },
     { id: 'flows', Component: FlowsPage, chunk: 'graph' },
     { id: 'previs', Component: PrevisPage, chunk: 'stage3d' },
@@ -82,7 +82,6 @@ export const PAGES = [
 export const CHUNKS = {
     stage3d: { deps: ["three"] },
     graph: { deps: [] },
-    music: { deps: [] },
 };
 
 export const VENDORS = {

@@ -39,8 +39,8 @@ function walk(root) {
     const out = [];
     const visit = (n) => {
         if (n.nodeType === 1) { out.push('<' + describe_(n)); n.childNodes.forEach(visit); out.push('>'); }
-        // Text collapsed as a browser renders it, and never dropped: a space between two inline buttons is a gap.
-        else if (n.nodeType === 3) { const t = n.textContent.replace(/\s+/g, ' '); if (t) out.push('"' + t); }
+        // Text collapsed as a browser renders it (HTML whitespace only: &nbsp; is content), and never dropped: a space between two inline buttons is a gap.
+        else if (n.nodeType === 3) { const t = n.textContent.replace(/[ \t\n\r\f]+/g, ' '); if (t) out.push('"' + t); }
     };
     visit(root);
     return out;

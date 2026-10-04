@@ -88,6 +88,7 @@ export const LEGACY_GLOBALS = [
     'AI_PATH', 'API', 'AUTO_FORMAT_RULES', 'MAX_CHUNK_SIZE', 'SCRIPT_TIMING', 'TYPEWRITER', 'autoDetectTimer',
     'autocompleteItems', 'autocompleteSelectedIndex', 'autocompleteVisible', 'currentFountainContent',
     'currentScriptVersion', 'editorDirty', 'redoStack', 'screenplaySuggestions', 'undoStack',
+    '_shotAction', 'clearModal', 'getModalData', // the music engine's bridge (src/pages/music/engine.js)
 ];
 
 

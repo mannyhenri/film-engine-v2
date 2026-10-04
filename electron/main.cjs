@@ -283,6 +283,31 @@ async function smoke(win) {
         const ok = !st.error && st.blocks > 0 && st.headings > 0 && st.cards === st.headings && st.stats && st.after === st.blocks && !st.dirty && errors.length === before;
         report.push({ id: 'screenplay editor', ok, want: 'screenplay editor', active: ok ? `screenplay editor (${st.blocks} blocks, ${st.cards} cards)` : JSON.stringify(st) });
     }
+    /*
+     * The music engine (src/pages/music/engine.js) draws all three music pages React renders: the sound library's count
+     * and the cue grid on Music & Sound, the list on Music Cues, and the score session (or why there is none) in place
+     * of the Score's placeholder. Viewing only: nothing is generated, saved or played.
+     */
+    if (project && ['music', 'musiccues', 'musicws'].every(p => PAGES.includes(p))) {
+        current = 'music pages';
+        const before = errors.length;
+        const drawn = {
+            music: `(document.getElementById('soundLibCount').textContent.trim().length > 0) && document.getElementById('musicGrid').children.length > 0`,
+            musiccues: `document.getElementById('musicCueList').innerHTML.trim().length > 0`,
+            musicws: `!/Loading the score session/.test(document.getElementById('mwRoot').textContent)`,
+        };
+        const got = {};
+        for (const [page, test] of Object.entries(drawn)) {
+            await js(`navigateTo('${page}')`);
+            got[page] = false;
+            for (let t = 0; t < 40 && !got[page]; t++) {
+                got[page] = await js(test).catch(() => false);
+                if (!got[page]) await new Promise(r => setTimeout(r, 250));
+            }
+        }
+        const ok = Object.values(got).every(Boolean) && errors.length === before;
+        report.push({ id: 'music pages', ok, want: 'music pages', active: ok ? 'music pages (library, cue grid, cue list, score)' : JSON.stringify(got) + ` errors=${errors.length - before}` });
+    }
     // A launch with no address reopens the film and page you were on.
     if (project && !process.env.FE_SMOKE_URL && !process.env.FE_SMOKE_PAGES) {
         current = 'reopen';
