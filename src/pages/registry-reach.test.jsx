@@ -10,7 +10,8 @@
  *                   loader run, the button clicked, and the click must REACH something (an API request or
  *                   a core function). Presence alone would pass a dead button.
  *   React component -> the same, from src/components/<Name>/reach.js, which says how core OPENS it
- *                   (`open: { call, args }`, a name it provides) in place of a page loader.
+ *                   (`open: { call, args }`, a name it provides) in place of a page loader, and which other
+ *                   components a control hands over to (`alsoMount`), mounted beside it as App mounts them.
  *
  * An entry bound on neither side fails, naming it. The denominator is the backend's own registry,
  * imported, never a list typed here. Adding a React page means writing its reach.js, not editing this.
@@ -54,7 +55,10 @@ async function clickReaches(control) {
         // A component: mounted as App mounts it, then opened the way core opens it (a name it provides).
         const name = page.slice('component:'.length);
         const Component = (await COMPONENTS[`../components/${name}/${name}.jsx`]()).default;
-        render(<Component />);
+        // A control that opens another component (the character sheet's Voice opens Casting) needs that one mounted
+        // too, as App mounts every component: reach.js lists it, and the click must reach what IT does.
+        const also = await Promise.all((reach.alsoMount || []).map(async n => (await COMPONENTS[`../components/${n}/${n}.jsx`]()).default));
+        render(<><Component />{also.map((C, i) => <C key={i} />)}</>);
         expect(reach.open && reach.open.call, `${name}/reach.js: says nothing about how core opens it (open: { call, args })`).toBeTruthy();
         await act(async () => { await window[reach.open.call](...(reach.open.args || [])); });
     } else {

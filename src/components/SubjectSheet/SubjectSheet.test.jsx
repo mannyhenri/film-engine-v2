@@ -37,9 +37,14 @@ describe('SubjectSheet', () => {
         expect(ENGINE.filter(([n]) => typeof window[n] === 'function' && !REACT_JSON.provides.includes(n)).map(([n]) => n)).toEqual([]);
     });
 
-    it('every handler its HTML calls is an engine function or a core name the split keeps (LEGACY_GLOBALS)', () => {
+    it('every handler its HTML calls is an engine function, a core name the split keeps (LEGACY_GLOBALS), or a name a React page or component provides', () => {
         expect(HANDLERS.length).toBeGreaterThan(10);
         const engine = new Set(ENGINE.map(([n]) => n));
+        // What React registers on window by name (react.json loader and provides, pages and components).
+        for (const dir of ['src/pages', 'src/components']) for (const id of fs.readdirSync(path.join(ROOT, dir))) {
+            const f = path.join(ROOT, dir, id, 'react.json');
+            if (fs.existsSync(f)) { const r = JSON.parse(fs.readFileSync(f, 'utf8')); for (const n of [r.loader, ...(r.provides || [])]) if (n) engine.add(n); }
+        }
         const core = fs.readFileSync(path.join(ROOT, 'public/legacy/core.js'), 'utf8');
         const unknown = HANDLERS.filter(n => !engine.has(n) && !LEGACY_GLOBALS.includes(n)
             && !new RegExp(`^\\s{0,4}(async\\s+)?function\\s+${n}\\s*\\(`, 'm').test(core));

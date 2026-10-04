@@ -49,6 +49,8 @@ export const LEGACY_GLOBALS = [
     // The location and prop sheet's engine (src/components/SubjectSheet/engine.js) reaches these through its bridge:
     'SS', 'ssSection', 'slotUpload', 'sheetEditable', 'toggleSheetMode', 'captureUploadControl', 'regeneratePlate', 'sweepLocationCompass',
     'LIGHTING_TECHNIQUE_IDS', 'openGallery', 'loadProps',
+    // ...and the character sheet's (src/components/CharacterSheet/engine.js):
+    'csImg', 'renderSubjectSheet',
     'regenerateStoryboard',   // regenerate one shot's frame: its own confirmation, the busy veil (board, viewer, shot drawer)
     // The storyboard board: state core shares with the frame viewer, the anchor and markup...
     'ANCHOR', 'FRAME_VIEWER', 'BOARD_ANCHOR', 'MARKUP',

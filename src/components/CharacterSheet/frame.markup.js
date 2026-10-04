@@ -1,3 +1,7 @@
+// The character sheet's modal frame: the app's own markup, moved verbatim from the source's characterSheetModal (its
+// header's inline handlers are what the backend's layout checks read). A string module, so the static render
+// (tools/assemble-page.js, esbuild) bundles it as it is.
+export default `
     <!-- Create Character -->
     <!--
       The subject workspace.
@@ -36,3 +40,4 @@
             <div class="cs-body" id="csBody"></div>
         </div>
     </div>
+`;

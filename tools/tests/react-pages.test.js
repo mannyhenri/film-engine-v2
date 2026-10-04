@@ -81,7 +81,9 @@ test('nothing in the legacy code still defines or calls what a React page replac
     for (const f of files) {
         // navigateTo's loaders map names every page's loader; that entry is the call React answers.
         // Comments blanked in legacy JS, as the split does: a comment naming a function is not a call to it.
-        const text = (f.endsWith('.js') ? blankComments(read(f)) : read(f)).replace(/const loaders = \{[\s\S]*?\n\s*\};/, '').replace(/var [\w$, ]+;/g, '');
+        // HTML comments too, wherever they are (markup files, and markup inside a template string): prose, never a use.
+        const text = (f.endsWith('.js') ? blankComments(read(f)) : read(f)).replace(/<!--[\s\S]*?-->/g, '')
+            .replace(/const loaders = \{[\s\S]*?\n\s*\};/, '').replace(/var [\w$, ]+;/g, '');
         const ids = identifiers(text);
         // A loader may be CALLED (the React page registers it on window before core runs); never defined.
         for (const o of OWNERS) for (const n of o.replaces) {

@@ -164,8 +164,8 @@ describe('subject-gallery.test.js page checks (moved)', () => {
 
     it('every subject kind opens the same workspace: core opens it per kind, and there is one renderer', async () => {
         const { SUBJECT_KINDS } = createRequire(import.meta.url)(path.join(ROOT, 'backend/lib/subject-gallery.js'));
-        // Where the sheets open it: core (the character sheet) and the location and prop sheet's engine.
-        const core = ['public/legacy/core.js', 'src/components/SubjectSheet/engine.js'].map(f => fs.readFileSync(path.join(ROOT, f), 'utf8')).join('\n');
+        // Where the sheets open it: the character sheet's engine and the location and prop sheet's.
+        const core = ['src/components/CharacterSheet/engine.js', 'src/components/SubjectSheet/engine.js'].map(f => fs.readFileSync(path.join(ROOT, f), 'utf8')).join('\n');
         for (const kind of SUBJECT_KINDS) expect(core, `no Gallery control for a ${kind}`).toMatch(new RegExp(`openGallery\\(\\s*'${kind}'`));
         // One renderer: the card component, in this file only; and each kind's gallery draws through it.
         const sources = fs.readdirSync(path.join(ROOT, 'src'), { recursive: true }).filter(f => /\.jsx$/.test(f) && !f.includes('.test.'));

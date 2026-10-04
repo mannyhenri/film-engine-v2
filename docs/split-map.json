@@ -977,6 +977,48 @@
         "castingModal"
       ]
     },
+    "CharacterSheet": {
+      "provides": [
+        "openCharacterSheet",
+        "renderCharacterSheet",
+        "toggleSheetMode",
+        "sheetEditable",
+        "slotUpload"
+      ],
+      "replaces": [
+        "CS_VIEWS",
+        "CS_CATEGORIES",
+        "CS_LEGACY",
+        "SHEET",
+        "csBusy",
+        "openCharacterSheet",
+        "SHEET_MODE",
+        "sheetEditable",
+        "paintSheetModeButtons",
+        "toggleSheetMode",
+        "slotUpload",
+        "renderCharacterSheet",
+        "csPlatesByView",
+        "characterSheetHtml",
+        "csFilter",
+        "csReadFile",
+        "csCategoryPrompt",
+        "addSheetReference",
+        "generateSheetReference",
+        "addWardrobeItem",
+        "generateWardrobeItem",
+        "csSavePalette",
+        "addPaletteSwatch",
+        "removePaletteSwatch",
+        "paletteFromImage",
+        "csPalette",
+        "generateOfficialViews",
+        "exportCharacterSheet"
+      ],
+      "modals": [
+        "characterSheetModal"
+      ]
+    },
     "Gallery": {
       "provides": [
         "openGallery"
@@ -1841,11 +1883,11 @@
       "loadMusic",
       "loadPlayback"
     ],
-    "functions": 449,
-    "unreached": 18,
+    "functions": 426,
+    "unreached": 23,
     "sharedByChunks": 0,
     "declaredTwice": [],
     "bootVendors": [],
-    "bytes": 668231
+    "bytes": 629201
   }
 }

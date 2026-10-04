@@ -61,6 +61,7 @@ export function installLegacy({ routes = {}, project = { id: 'p1' } } = {}) {
         slotUpload: vi.fn(() => '<label class="slot-upload">Upload</label>'), sheetEditable: vi.fn(() => false), toggleSheetMode: vi.fn(),
         captureUploadControl: vi.fn(() => '<label class="capture">Upload</label>'), regeneratePlate: vi.fn(), sweepLocationCompass: vi.fn(),
         LIGHTING_TECHNIQUE_IDS: [], openGallery: vi.fn(), loadProps: vi.fn(),
+        csImg: (url) => `http://api.test${url}`, renderSubjectSheet: vi.fn(),
         regenerateStoryboard: vi.fn(),
         ANCHOR: { frames: [] }, FRAME_VIEWER: { frames: [] }, BOARD_ANCHOR: null, MARKUP: { cache: {} },
         loadBoardLock: vi.fn(), renderAnnotationFeedbackToggle: vi.fn(), renderAnchorChip: vi.fn(), loadBoardBanners: vi.fn(), markupPaintAll: vi.fn(),

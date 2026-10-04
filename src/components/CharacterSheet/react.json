@@ -1,0 +1,43 @@
+{
+  "about": "The character sheet is React (src/components/CharacterSheet/CharacterSheet.jsx renders the modal frame; engine.js, moved verbatim by tools/extract-engine.js, draws the sheet). tools/split-map.js drops the code and modal below. It owns the sheet mode both sheets share (SHEET_MODE, sheetEditable, paintSheetModeButtons, toggleSheetMode) and slotUpload. csImg stays in core (plateSrc, which every page uses, calls it). PROVIDED: openCharacterSheet and renderCharacterSheet (the Characters cards, core's inspector), toggleSheetMode, sheetEditable and slotUpload (the location and prop sheet).",
+  "provides": [
+    "openCharacterSheet",
+    "renderCharacterSheet",
+    "toggleSheetMode",
+    "sheetEditable",
+    "slotUpload"
+  ],
+  "replaces": [
+    "CS_VIEWS",
+    "CS_CATEGORIES",
+    "CS_LEGACY",
+    "SHEET",
+    "csBusy",
+    "openCharacterSheet",
+    "SHEET_MODE",
+    "sheetEditable",
+    "paintSheetModeButtons",
+    "toggleSheetMode",
+    "slotUpload",
+    "renderCharacterSheet",
+    "csPlatesByView",
+    "characterSheetHtml",
+    "csFilter",
+    "csReadFile",
+    "csCategoryPrompt",
+    "addSheetReference",
+    "generateSheetReference",
+    "addWardrobeItem",
+    "generateWardrobeItem",
+    "csSavePalette",
+    "addPaletteSwatch",
+    "removePaletteSwatch",
+    "paletteFromImage",
+    "csPalette",
+    "generateOfficialViews",
+    "exportCharacterSheet"
+  ],
+  "modals": [
+    "characterSheetModal"
+  ]
+}

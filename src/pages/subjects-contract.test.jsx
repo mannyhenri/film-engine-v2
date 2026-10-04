@@ -20,10 +20,13 @@ import PropsPage from './props/PropsPage.jsx';
 
 const CORE = fs.readFileSync(path.resolve(__dirname, '../../public/legacy/core.js'), 'utf8');
 const definedInCore = (n) => new RegExp(`^\\s{0,4}(async\\s+)?function\\s+${n}\\s*\\(`, 'm').test(CORE);
-// What a page reaches as legacy.X is defined by core OR registered by a React page (its loader, what it provides):
-// the Screenplay page owns loadScreenplayPage since it became React. Either way, a function that exists.
-const REACT_REGISTERED = new Set(Object.values(import.meta.glob('./*/react.json', { eager: true, import: 'default' }))
-    .flatMap(j => [j.loader, ...(j.provides || [])]));
+// What a page reaches as legacy.X is defined by core OR registered by a React page or component (its loader, what it
+// provides): the Screenplay page owns loadScreenplayPage, the CharacterSheet component openCharacterSheet. Either way,
+// a function that exists.
+const REACT_REGISTERED = new Set([
+    ...Object.values(import.meta.glob('./*/react.json', { eager: true, import: 'default' })),
+    ...Object.values(import.meta.glob('../components/*/react.json', { eager: true, import: 'default' })),
+].flatMap(j => [j.loader, ...(j.provides || [])]).filter(Boolean));
 const defined = (n) => definedInCore(n) || REACT_REGISTERED.has(n);
 
 describe('the character card (character-sheet.test.js, moved)', () => {
@@ -51,7 +54,7 @@ describe('the character card (character-sheet.test.js, moved)', () => {
         fireEvent.click(card);
         expect(window.openCharacterSheet).toHaveBeenCalledWith('c1');
         expect(LEGACY_GLOBALS).toContain('openCharacterSheet');
-        expect(definedInCore('openCharacterSheet'), 'openCharacterSheet does not exist').toBe(true);
+        expect(defined('openCharacterSheet'), 'openCharacterSheet does not exist (core, or provided by a React component: CharacterSheet)').toBe(true);
     });
 });
 
