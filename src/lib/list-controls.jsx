@@ -87,7 +87,11 @@ export function useListControls(surface, rows) {
     return { surface, rows, query, setQuery, sort, setSort, filters, setFilter, shown, matches, total: rows ? rows.length : 0, narrowed, clear };
 }
 
-/** The bar above a list: search, each filter, the sort, and how many are shown of how many. */
+/*
+ * The bar above a list: search, each filter, the sort, and how many are shown of how many. One compact row on every
+ * surface; it never wraps, and when space is short the search box and the selects shrink rather than push a second line.
+ */
+const CONTROL = { height: 26, padding: '0 6px', fontSize: 12, minWidth: 0 };
 export function ListControlsBar({ list }) {
     const { surface, rows, query, setQuery, sort, setSort, filters, setFilter, shown, matches, total, narrowed } = list;
     if (!shown) return null;
@@ -95,21 +99,23 @@ export function ListControlsBar({ list }) {
         : narrowed ? `${shown.length} of ${total} ${surface.noun}` : `${total} ${surface.noun}`;
     return (
         <div className="list-controls" data-list-controls={surface.id}
-             style={{ display: 'flex', gap: 8, alignItems: 'center', margin: '0 0 12px', flexWrap: 'wrap' }}>
-            <input type="search" className="input" data-list-search placeholder={surface.mode === 'find' ? `Find in ${surface.noun}` : `Search ${surface.noun}`} aria-label={`Search ${surface.noun}`}
-                   value={query} onChange={(e) => setQuery(e.target.value)} style={{ flex: '1 1 220px', maxWidth: 360 }} />
+             style={{ display: 'flex', flexWrap: 'nowrap', gap: 6, alignItems: 'center', margin: '0 0 8px', minWidth: 0 }}>
+            <input type="search" className="input" data-list-search placeholder={surface.mode === 'find' ? 'Find…' : 'Search…'} aria-label={`Search ${surface.noun}`}
+                   value={query} onChange={(e) => setQuery(e.target.value)} style={{ ...CONTROL, flex: '0 1 200px', maxWidth: 200 }} />
             {(surface.filters || []).map(f => (
-                <select key={f.id} data-list-filter={f.id} aria-label={f.label} value={filters[f.id] || ''} onChange={(e) => setFilter(f.id, e.target.value)}>
+                <select key={f.id} data-list-filter={f.id} aria-label={f.label} title={f.label} value={filters[f.id] || ''} onChange={(e) => setFilter(f.id, e.target.value)}
+                        style={{ ...CONTROL, flex: '0 1 auto', maxWidth: 140 }}>
                     <option value="">{f.label}: all</option>
                     {filterValues(rows, f).map(v => <option key={v} value={v}>{v}</option>)}
                 </select>
             ))}
             {(surface.sorts || []).length > 1 && (
-                <select data-list-sort aria-label="Sort" value={sort} onChange={(e) => setSort(e.target.value)}>
+                <select data-list-sort aria-label="Sort" title="Sort" value={sort} onChange={(e) => setSort(e.target.value)}
+                        style={{ ...CONTROL, flex: '0 1 auto', maxWidth: 160 }}>
                     {surface.sorts.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
                 </select>
             )}
-            <span className="text-sm text-muted" data-list-count>{count}</span>
+            <span className="text-muted" data-list-count style={{ fontSize: 12, whiteSpace: 'nowrap', flex: 'none' }}>{count}</span>
         </div>
     );
 }

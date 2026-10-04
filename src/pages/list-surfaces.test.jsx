@@ -11,7 +11,8 @@
  * content (sorts: []) must say why; a find surface keeps every row and marks the matches.
  */
 import { describe, it, expect } from 'vitest';
-import { applyListControls, findMatches, filterValues, sortOrder } from '../lib/list-controls.jsx';
+import { render } from '@testing-library/react';
+import { applyListControls, findMatches, filterValues, sortOrder, useListControls, ListControlsBar } from '../lib/list-controls.jsx';
 
 import { REQUIRED, PENDING } from './list-surfaces.registry.js';
 
@@ -82,5 +83,22 @@ describe.each(DECLARED.map(s => [`${s.page}${s.id && s.id !== s.page ? ` (${s.id
         const shown = applyListControls(surface, rows, { query: 'zzz-nothing' });
         if (surface.mode === 'find') { expect(shown.length).toBe(rows.length); expect(findMatches(surface, rows, 'zzz-nothing')).toEqual([]); }
         else expect(shown).toEqual([]);
+    });
+});
+
+// The bar is one compact row on every surface (the user, 2026-10-04: "must be minimal in one row across all uis"):
+// it never wraps, every control is small, and nothing in it asks for more than a modest width.
+describe('the controls bar is one compact row', () => {
+    it.each(DECLARED.map(s => [`${s.page}${s.id && s.id !== s.page ? ` (${s.id})` : ''}`, s]))('%s', (_, surface) => {
+        const Bar = () => <ListControlsBar list={useListControls(surface, rowsFor(surface))} />;
+        const { container, unmount } = render(<Bar />);
+        const bar = container.querySelector('[data-list-controls]');
+        expect(bar.style.flexWrap, 'wraps').toBe('nowrap');
+        expect(parseInt(bar.style.marginBottom || bar.style.margin.split(' ')[2], 10), 'gap below').toBeLessThanOrEqual(8);
+        for (const el of bar.querySelectorAll('input, select')) {
+            expect(parseInt(el.style.height, 10), `${el.tagName} height`).toBeLessThanOrEqual(28);
+            expect(parseInt(el.style.maxWidth, 10), `${el.tagName} max width`).toBeLessThanOrEqual(220);
+        }
+        unmount();
     });
 });
