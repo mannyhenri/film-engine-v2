@@ -1,7 +1,20 @@
 {
-  "about": "The dialogs core opens and drives (frame viewer, frame versions, background picker, paid confirmation, shot card, entity inspector, new project, folder picker, plate viewer, glossary, production guide, project onboarding) are a React component, their markup moved verbatim; tools/split-map.js drops them from ModalHost. Their code stays core; this component provides and replaces nothing.",
+  "about": "The dialogs core opens and drives (frame viewer, frame versions, background picker, paid confirmation, shot card, entity inspector, new project, folder picker, plate viewer, glossary, production guide, project onboarding) are a React component, their markup moved verbatim; tools/split-map.js drops them from ModalHost. What only these dialogs call moved into engine.js (verbatim, tools/extract-engine.js), and the component puts it on window while mounted; the rest of their code stays core.",
   "provides": [],
-  "replaces": [],
+  "replaces": [
+    "confirmGenResolve",
+    "createProject",
+    "filterGlossary",
+    "folderPickerChoose",
+    "loadNewProjectBrands",
+    "onProjectTypeChange",
+    "readBlockingPanel",
+    "readDirectingPanel",
+    "saveShotCard",
+    "setGuideTab",
+    "shotCardStyleValue",
+    "toggleOnboardingSide"
+  ],
   "modals": [
     "frameViewerModal",
     "frameVersionsModal",

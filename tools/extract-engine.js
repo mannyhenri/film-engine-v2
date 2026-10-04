@@ -90,8 +90,10 @@ function extract(spec) {
             const parent = p.parentPath;
             if (parent.isAssignmentExpression() && parent.node.left === p.node) {
                 if (parent.node.operator !== '=') throw new Error(`compound assignment to core value ${name}: rewrite by hand`);
-                edits.push({ start: parent.node.start, end: parent.node.end, text: `setLegacy('${name}', ${body.slice(parent.node.right.start, parent.node.right.end)})` });
-                parent.skip();
+                // Two edits that do not overlap the right-hand side, so a core value READ inside it is rewritten too:
+                // `X = ` -> `setLegacy('X', ` and a closing `)` after the value.
+                edits.push({ start: parent.node.start, end: parent.node.right.start, text: `setLegacy('${name}', ` });
+                edits.push({ start: parent.node.end, end: parent.node.end, text: ')' });
                 return;
             }
             if (parent.isUpdateExpression()) throw new Error(`${name}++/-- on a core value: rewrite by hand`);
@@ -102,11 +104,11 @@ function extract(spec) {
             edits.push({ start: p.node.start, end: p.node.end, text: `legacy.${name}` });
         },
     });
-    // Assignments' own right-hand sides may hold reads: apply innermost-last by sorting and skipping nested.
-    edits.sort((a, b) => b.start - a.start);
+    // Applied from the end; edits never overlap (an assignment is split around its value), and an insertion at the
+    // end of an assignment goes after any edit that ends at the same place.
+    edits.sort((a, b) => b.start - a.start || (b.end - b.start) - (a.end - a.start));
     let out = body;
-    let floor = Infinity;
-    for (const e of edits) { if (e.end > floor) continue; out = out.slice(0, e.start) + e.text + out.slice(e.end); floor = e.start; }
+    for (const e of edits) out = out.slice(0, e.start) + e.text + out.slice(e.end);
 
     const names = chosen.flatMap(s => s.names);
     const list = (xs) => xs.map(n => `    ${n},`).join('\n');

@@ -50,6 +50,9 @@ export const LEGACY_GLOBALS = [
     'SS', 'ssSection', 'slotUpload', 'sheetEditable', 'toggleSheetMode', 'regeneratePlate', 'openGallery', 'loadProps',
     // ...and the character sheet's (src/components/CharacterSheet/engine.js):
     'csImg', 'renderSubjectSheet', 'shootControl',
+    // The core dialogs' engine (src/components/CoreDialogs/engine.js) reaches these through its bridge:
+    'folderPickerApply', 'frameViewerPaint', 'renderGlossary', 'renderProductionGuide', 'CONFIRM_GEN', 'CONFIRM_GEN_EDITED',
+    'CONFIRM_GEN_FINAL_PROMPT', 'SHOT_CARD', 'guideTab', 'loadStoryboard',
     'characterViewsHtml',     // stays core: core's renderCharacterViewsInto calls it (core-ownership (e))
     'PRODUCTION_GRAPH_ON',    // whether production is one graph (a production-graph.js let): Flows reads it live
     'flowBackToGraph',        // Flows' way back to the graph (the Production graph page provides it)

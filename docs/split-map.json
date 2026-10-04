@@ -1656,7 +1656,20 @@
     },
     "CoreDialogs": {
       "provides": [],
-      "replaces": [],
+      "replaces": [
+        "confirmGenResolve",
+        "createProject",
+        "filterGlossary",
+        "folderPickerChoose",
+        "loadNewProjectBrands",
+        "onProjectTypeChange",
+        "readBlockingPanel",
+        "readDirectingPanel",
+        "saveShotCard",
+        "setGuideTab",
+        "shotCardStyleValue",
+        "toggleOnboardingSide"
+      ],
       "modals": [
         "frameViewerModal",
         "frameVersionsModal",
@@ -2083,11 +2096,11 @@
       "loadMusic",
       "loadPlayback"
     ],
-    "functions": 420,
-    "unreached": 38,
+    "functions": 408,
+    "unreached": 26,
     "sharedByChunks": 0,
     "declaredTwice": [],
     "bootVendors": [],
-    "bytes": 620017
+    "bytes": 604765
   }
 }

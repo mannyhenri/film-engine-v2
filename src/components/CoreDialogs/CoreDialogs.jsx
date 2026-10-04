@@ -1,4 +1,6 @@
+import { useLayoutEffect } from 'react';
 import VerbatimDialogs from '../VerbatimDialogs.jsx';
+import * as E from './engine.js';
 import frameViewerModal from './frameViewerModal.markup.js';
 import frameVersionsModal from './frameVersionsModal.markup.js';
 import backgroundPickerModal from './backgroundPickerModal.markup.js';
@@ -33,6 +35,14 @@ const DIALOGS = [
     { html: projectOnboardingModal },
 ];
 
+export const ENGINE = Object.entries(E).filter(([, v]) => typeof v === 'function');
+
 export default function CoreDialogs() {
+    // What only these dialogs call (engine.js): on window while mounted, as the dialogs' inline handlers call it by name.
+    useLayoutEffect(() => {
+        const prior = {};
+        for (const [name, fn] of ENGINE) { prior[name] = window[name]; window[name] = fn; }
+        return () => { for (const [name] of ENGINE) { if (prior[name] === undefined) delete window[name]; else window[name] = prior[name]; } };
+    }, []);
     return <VerbatimDialogs dialogs={DIALOGS} />;
 }

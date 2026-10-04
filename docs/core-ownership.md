@@ -6,13 +6,13 @@ by name and errs toward more reach, which only keeps more in core.
 
 | category | declarations |
 |---|---|
-| (a) one owner, and every core caller moves with it: can move into that owner's engine | 228 |
+| (a) one owner, and every core caller moves with it: can move into that owner's engine | 216 |
 | (a2) as (a), but a caller that stays NAMES it (onclick, window[name]): moves if the owner provides it | 0 |
 | (e) one owner, but a caller that stays in core calls it in code: held in core until that caller moves | 2 |
 | (b) two or more owners: stays core, or a shared module | 82 |
 | (c) reached by nobody this can see: dead, or reached only by a name built at run time | 29 |
 | (d) load-time core (startup statements, shell.js, production-graph.js and what they reach) | 214 |
-| total | 555 |
+| total | 543 |
 
 Measured as one owner (`GROUPS` in the tool): component:ScreenplayDialogs as page:screenplay (the Screenplay's seven dialogs: their handlers call the screenplay engine, and the component imports from it).
 
@@ -26,10 +26,6 @@ Measured as one owner (`GROUPS` in the tool): component:ScreenplayDialogs as pag
 
 `acceptAllStale`, `acceptScreenplayDrift`, `ANCHOR`, `anchorButton`, `anchorShotId`, `applyResync`, `BACKGROUND_PICKER_VIEWS`, `clearAnchor`, `confirmRecompose`, `dialogueTag`, `frameVersionLabel`, `frameVersionTitle`, `IMPACT`, `impactBanner`, `impactNotice`, `impactTag`, `importImageAsPng`, `importStoryboardImage`, `insertShotAfter`, `loadBoardBanners`, `loadBoardLock`, `loadImpact`, `noticeStrip`, `openFrameVersions`, `pickBackgroundView`, `playFromShot`, `previewResync`, `previsOpenFromBoard`, `recomposeFrame`, `renderAnchorChip`, `renderAnnotationFeedbackToggle`, `renderBackgroundChoices`, `restoreFrameVersion`, `runRecompose`, `runShotAudit`, `screenplayDriftNotice`, `screenplayDriftTag`, `sendFrameTo`, `setShotAspect`, `storyboardDrawAnnotations`, `storyboardFacetTags`, `storyboardImportButton`, `storyboardPrevisTag`, `toggleWhy`
 
-### component:CoreDialogs (14)
-
-`confirmGenResolve`, `createProject`, `filterGlossary`, `folderPickerChoose`, `loadNewProjectBrands`, `nextOnboardingStep`, `onProjectTypeChange`, `previousOnboardingStep`, `readBlockingPanel`, `readDirectingPanel`, `saveShotCard`, `setGuideTab`, `shotCardStyleValue`, `toggleOnboardingSide`
-
 ### page:videoshots (10)
 
 `askBackgroundInstruction`, `BG_INSTRUCTION`, `bgInstructionDone`, `generateVideoFor`, `lipsyncShot`, `pickCoverageRun`, `postShot`, `replaceBackground`, `setClipCoverage`, `stitchShot`
@@ -37,6 +33,10 @@ Measured as one owner (`GROUPS` in the tool): component:ScreenplayDialogs as pag
 ### page:projects (4)
 
 `deleteAllProjects`, `deleteProjectById`, `loadDemoProject`, `openNewProject`
+
+### component:CoreDialogs (2)
+
+`nextOnboardingStep`, `previousOnboardingStep`
 
 ### page:scenes (2)
 
