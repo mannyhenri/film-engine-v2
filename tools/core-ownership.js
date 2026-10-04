@@ -285,8 +285,31 @@ function report(M) {
                 loose.join(', ') || '(none)', '',
                 `Reached in the original, taken over by React (${live.size}):`, '', ...[...live].map(n => `- \`${n}\`: ${TAKEN_OVER[n] || 'NOT NAMED'}`)]; })(),
         '',
-        '## (d) Load-time core', '', M.d.map(x => `\`${x.name}\``).join(', '), '');
+        ...loadTimeReport());
     return lines.join('\n');
+}
+
+/*
+ * (d) split by tools/load-time.js: what RUNS while the scripts load (must stay in a classic script), and what is only
+ * REACHABLE from load-time code through something that runs later, grouped by the entry that reaches it.
+ */
+function loadTimeReport() {
+    const { loadTime } = require('./load-time');
+    const L = loadTime();
+    const entryOf = (n) => { let x = n; for (let i = 0; i < 1000 && L.reachable.get(x).via.startsWith('through '); i++) x = L.reachable.get(x).from; return x; };
+    const groups = new Map();
+    for (const [n] of L.reachable) { const e = entryOf(n); if (e !== n) groups.set(e, [...(groups.get(e) || []), n]); }
+    const entries = [...L.reachable].filter(([, x]) => !x.via.startsWith('through ')).sort((a, b) => a[1].via.localeCompare(b[1].via) || a[0].localeCompare(b[0]));
+    return ['## (d) Load-time core', '',
+        `Split by \`tools/load-time.js\` (held by \`tools/tests/load-time.test.js\`). ${L.runs.size + L.reachable.size} declarations:`, '',
+        `### Runs at load (${L.runs.size}): must stay in a classic script`, '',
+        'Top-level statements and initialisers that call something, IIFE bodies, every function they call synchronously',
+        '(array-method callbacks and Promise executors included), and the data that code reads while it runs.', '',
+        [...L.runs].sort().map(n => `\`${n}\``).join(', '), '',
+        `### Only reachable from load-time code (${L.reachable.size}): can move once its entry reaches it another way`, '',
+        'Each entry is reached by something that runs later; what it pulls in moves with it unless reached otherwise.', '',
+        '| entry | how | from | also reached through it |', '|---|---|---|---|',
+        ...entries.map(([n, x]) => `| \`${n}\` | ${x.via} | ${/ /.test(x.from) ? x.from : `\`${x.from}\``} | ${(groups.get(n) || []).sort().map(g => `\`${g}\``).join(', ')} |`), ''];
 }
 
 module.exports = { measure, report, liveInOriginal, TAKEN_OVER, blankComments };

@@ -6,21 +6,17 @@ by name and errs toward more reach, which only keeps more in core.
 
 | category | declarations |
 |---|---|
-| (a) one owner, and every core caller moves with it: can move into that owner's engine | 1 |
+| (a) one owner, and every core caller moves with it: can move into that owner's engine | 0 |
 | (a2) as (a), but a caller that stays NAMES it (onclick, window[name]): moves if the owner provides it | 0 |
 | (e) one owner, but a caller that stays in core calls it in code: held in core until that caller moves | 2 |
 | (b) two or more owners: stays core, or a shared module | 16 |
 | (c) reached by nobody this can see: dead, or reached only by a name built at run time | 22 |
 | (d) load-time core (startup statements, shell.js, production-graph.js and what they reach) | 214 |
-| total | 255 |
+| total | 254 |
 
 Measured as one owner (`GROUPS` in the tool): component:ScreenplayDialogs as page:screenplay (the Screenplay's seven dialogs: their handlers call the screenplay engine, and the component imports from it).
 
 ## (a) By owner
-
-### page:screenplay (1)
-
-`AUTO_FORMAT_RULES`
 
 ## (b) By owner set
 
@@ -99,4 +95,54 @@ Reached in the original, taken over by React (3):
 
 ## (d) Load-time core
 
-`_origShowModal`, `addCollapseAllControls`, `addLocationView`, `AFTER_WRITE`, `ANGLE_POLL`, `annotationFeedbackOn`, `api`, `API`, `API_BASE`, `applyGuideTooltips`, `applyNavFlow`, `applyOnboardingSide`, `applyRoute`, `applySectionGuideTooltips`, `auditSectionGuide`, `backToProjectList`, `beginGenerationBusy`, `blockingPanel`, `BOARD_ANCHOR`, `BUSY`, `cameraNoteCount`, `cardCollapseKey`, `checkHealth`, `closeAngleSheet`, `closeModal`, `closeProductionGuide`, `CONFIRM_GEN`, `CONFIRM_GEN_CAP`, `CONFIRM_GEN_DEFAULT`, `CONFIRM_GEN_EDITED`, `CONFIRM_GEN_FINAL_PROMPT`, `CONFIRM_GEN_IGNORE_STAGED`, `CONFIRM_GEN_MODEL`, `CONFIRM_GEN_OPTIONS`, `CONFIRM_GEN_OPTS`, `CONFIRM_GEN_PREVIEW_URL`, `CONFIRM_GEN_PROMPT`, `CONFIRM_GEN_PROVIDER`, `CONFIRM_GEN_QUALITY`, `CONFIRM_GEN_SIZE`, `CONFIRM_GEN_VIDEO_OPTIONS`, `CONFIRM_GEN_VIDEO_TIER`, `confirmChoices`, `confirmExtras`, `confirmGenArm`, `confirmGenEditedPrompt`, `confirmGeneration`, `confirmGenPromptEdited`, `confirmPaidImage`, `confirmPickers`, `confirmPromptBox`, `confirmRefine`, `cueExtensionOf`, `DEFAULT_API_BASE`, `defaultApiBase`, `deliveryLineHtml`, `dialogueAudioRowHtml`, `directingFallbacks`, `directingPanel`, `directShot`, `dismissProjectOnboarding`, `editShotCard`, `enhancePageGuideButtons`, `esc`, `escapeHtml`, `exploreAngles`, `feStore`, `fillBlockingPanel`, `fillDirectingPanel`, `fillLocationViews`, `FLOW`, `flushAfterWrite`, `focusWordCount`, `FRAME_VIEWER`, `frameBusy`, `frameSrc`, `frameViewerPaint`, `frameViewerShotId`, `frameViewerStep`, `GEN_BUSY_FREE`, `GEN_BUSY_URL`, `GENERATION_ORIGIN`, `genOptionsHtml`, `getNavGuideEntries`, `getOnboardingState`, `getOnboardingSteps`, `GLOSSARY`, `GUIDE_PAGE_ORDER`, `guideFocusPage`, `guideTab`, `initCollapsibleCards`, `initCollapsibleNav`, `initProductionGuide`, `LAST_RELOAD`, `LIVE`, `liveBusy`, `liveConnect`, `liveRefresh`, `locationViewChanged`, `markCurrentShot`, `MARKUP`, `MARKUP_KINDS`, `markupArm`, `markupClear`, `markupCommit`, `markupDisarm`, `markupDown`, `markupDraw`, `markupFeedBadge`, `markupImageRect`, `markupLoad`, `markupMove`, `markupOnPicture`, `markupPaint`, `markupPaintAll`, `markupPaintFeedBadge`, `markupPoint`, `markupShape`, `markupToolbar`, `markupUndo`, `markupUp`, `MAX_CHUNK_SIZE`, `maybeShowProjectOnboarding`, `MODAL_STACK`, `MODAL_Z_BASE`, `money`, `navGroupMembers`, `navigateTo`, `ONBOARDING_PAGES`, `onboardingIndex`, `onboardingStorageKey`, `openAngleSheet`, `openPlateViewer`, `openProductionGuide`, `openProject`, `PAGE_RELOAD`, `paintGenModels`, `paintGenOptions`, `paintProjectType`, `pickAngle`, `pickGenerator`, `pickGenModel`, `pickGenQuality`, `pickGenSize`, `pickVideoTier`, `PLATE_CAMERA_AFTER`, `previewShotPrompt`, `PROFESSIONAL_READINESS_GAPS`, `PROJECT_LIST`, `PROMPT_PART_LABEL`, `readCollapsedNav`, `readCollapsedSet`, `readRoute`, `refineFrame`, `refreshAfterWrite`, `refreshCurrentPage`, `regeneratePlate`, `regenerateStoryboard`, `RELOAD_THROTTLE_MS`, `renderBlockingChoices`, `renderGlossary`, `renderGuideList`, `renderGuideNextLinks`, `renderProductionGuide`, `renderProjectOnboarding`, `renderTitlePageCard`, `repreviewVideo`, `restackModals`, `revealNavGroupFor`, `ROUTE`, `SECTION_GUIDE`, `sel`, `setCardCollapsed`, `setGenOption`, `setNavGroupCollapsed`, `setOnboardingState`, `setStatus`, `setStatusDot`, `setVideoOption`, `SHOT_CARD`, `shotCardFill`, `shotCardStyleEdited`, `shotCardStyleFill`, `shotCardStyleNone`, `shotCardStyleSay`, `shotCardStyleUseFilm`, `shotCardVocab`, `shotDetailPanel`, `showModal`, `showModalHtml`, `spendsOnThisCall`, `SS`, `startProjectOnboarding`, `state`, `STATUS_STARTED`, `STATUS_TIMER`, `storyboardDialogueHtml`, `toggleWriterFocus`, `TOUR_SEQUENCE`, `TRAILING`, `TYPEWRITER`, `typewriterButtons`, `updateConversionEstimate`, `validateSectionGuide`, `VIDEO_REPREVIEW_TIMER`, `VIDEO_TIER_BLURB`, `videoEstimateHtml`, `videoOptionsHtml`, `videoPreviewUrl`, `videoTierRow`, `WALK`, `writeCollapsedNav`, `writeCollapsedSet`, `writeRoute`
+Split by `tools/load-time.js` (held by `tools/tests/load-time.test.js`). 214 declarations:
+
+### Runs at load (67): must stay in a classic script
+
+Top-level statements and initialisers that call something, IIFE bodies, every function they call synchronously
+(array-method callbacks and Promise executors included), and the data that code reads while it runs.
+
+`AFTER_WRITE`, `API`, `API_BASE`, `BOARD_ANCHOR`, `CONFIRM_GEN_PROMPT`, `DEFAULT_API_BASE`, `GENERATION_ORIGIN`, `GEN_BUSY_FREE`, `GEN_BUSY_URL`, `GUIDE_PAGE_ORDER`, `LIVE`, `MODAL_STACK`, `MODAL_Z_BASE`, `PROJECT_LIST`, `PROMPT_PART_LABEL`, `SECTION_GUIDE`, `SHOT_CARD`, `STATUS_STARTED`, `STATUS_TIMER`, `TOUR_SEQUENCE`, `addCollapseAllControls`, `api`, `applyGuideTooltips`, `applySectionGuideTooltips`, `auditSectionGuide`, `beginGenerationBusy`, `blockingPanel`, `cameraNoteCount`, `cardCollapseKey`, `checkHealth`, `cueExtensionOf`, `defaultApiBase`, `directingFallbacks`, `directingPanel`, `editShotCard`, `enhancePageGuideButtons`, `esc`, `escapeHtml`, `feStore`, `fillBlockingPanel`, `fillDirectingPanel`, `fillLocationViews`, `getNavGuideEntries`, `initCollapsibleCards`, `initCollapsibleNav`, `initProductionGuide`, `liveConnect`, `markCurrentShot`, `navGroupMembers`, `previewShotPrompt`, `readCollapsedNav`, `readCollapsedSet`, `refreshAfterWrite`, `renderBlockingChoices`, `restackModals`, `sel`, `setNavGroupCollapsed`, `setStatus`, `shotCardFill`, `shotCardStyleFill`, `shotCardStyleSay`, `shotCardVocab`, `showModal`, `spendsOnThisCall`, `state`, `validateSectionGuide`, `writeCollapsedNav`
+
+### Only reachable from load-time code (147): can move once its entry reaches it another way
+
+Each entry is reached by something that runs later; what it pulls in moves with it unless reached otherwise.
+
+| entry | how | from | also reached through it |
+|---|---|---|---|
+| `locationViewChanged` | by name | `renderBlockingChoices` | `SS`, `addLocationView`, `regeneratePlate` |
+| `money` | by name | `SECTION_GUIDE` |  |
+| `_origShowModal` | callback | core.js at load |  |
+| `PLATE_CAMERA_AFTER` | callback | core.js at load |  |
+| `renderGlossary` | callback | core.js at load | `GLOSSARY` |
+| `backToProjectList` | listener | shell.js at load |  |
+| `closeModal` | listener | core.js at load |  |
+| `dismissProjectOnboarding` | listener | core.js at load | `getOnboardingState`, `onboardingIndex`, `onboardingStorageKey`, `setOnboardingState` |
+| `FLOW` | listener | core.js at load |  |
+| `flushAfterWrite` | listener | core.js at load |  |
+| `frameViewerStep` | listener | core.js at load | `CONFIRM_GEN_IGNORE_STAGED`, `FRAME_VIEWER`, `MARKUP_KINDS`, `annotationFeedbackOn`, `confirmExtras`, `confirmGeneration`, `confirmRefine`, `directShot`, `frameBusy`, `frameSrc`, `frameViewerPaint`, `frameViewerShotId`, `markupArm`, `markupClear`, `markupCommit`, `markupDown`, `markupDraw`, `markupFeedBadge`, `markupImageRect`, `markupLoad`, `markupMove`, `markupOnPicture`, `markupPaint`, `markupPaintAll`, `markupPaintFeedBadge`, `markupPoint`, `markupShape`, `markupToolbar`, `markupUndo`, `markupUp`, `refineFrame`, `regenerateStoryboard`, `shotDetailPanel`, `storyboardDialogueHtml` |
+| `liveRefresh` | listener | core.js at load |  |
+| `markupDisarm` | listener | core.js at load | `MARKUP` |
+| `navigateTo` | listener | shell.js at load | `applyNavFlow`, `revealNavGroupFor` |
+| `openProductionGuide` | listener | core.js at load | `ONBOARDING_PAGES`, `PROFESSIONAL_READINESS_GAPS`, `applyOnboardingSide`, `closeProductionGuide`, `getOnboardingSteps`, `guideFocusPage`, `guideTab`, `renderGuideList`, `renderGuideNextLinks`, `renderProductionGuide`, `renderProjectOnboarding`, `startProjectOnboarding` |
+| `refreshCurrentPage` | listener | core.js at load | `BUSY`, `PAGE_RELOAD`, `RELOAD_THROTTLE_MS`, `TRAILING`, `WALK` |
+| `ROUTE` | listener | core.js at load |  |
+| `setCardCollapsed` | listener | `initCollapsibleCards` | `writeCollapsedSet` |
+| `toggleWriterFocus` | listener | core.js at load | `focusWordCount` |
+| `typewriterButtons` | listener | core.js at load | `TYPEWRITER` |
+| `updateConversionEstimate` | listener | core.js at load | `MAX_CHUNK_SIZE` |
+| `applyRoute` | promise | core.js at load | `maybeShowProjectOnboarding`, `openProject`, `paintProjectType`, `readRoute`, `setStatusDot` |
+| `writeRoute` | promise | core.js at load |  |
+| `closeAngleSheet` | reference | core.js at load |  |
+| `exploreAngles` | reference | core.js at load | `CONFIRM_GEN`, `CONFIRM_GEN_CAP`, `CONFIRM_GEN_DEFAULT`, `CONFIRM_GEN_EDITED`, `CONFIRM_GEN_FINAL_PROMPT`, `CONFIRM_GEN_OPTS`, `CONFIRM_GEN_PROVIDER`, `CONFIRM_GEN_QUALITY`, `CONFIRM_GEN_SIZE`, `confirmChoices`, `confirmGenArm`, `confirmGenEditedPrompt`, `confirmGenPromptEdited`, `confirmPaidImage`, `confirmPickers`, `confirmPromptBox`, `deliveryLineHtml`, `dialogueAudioRowHtml`, `genOptionsHtml`, `paintGenModels`, `paintGenOptions`, `pickGenModel`, `pickGenQuality`, `pickGenSize`, `pickGenerator` |
+| `openAngleSheet` | reference | core.js at load | `ANGLE_POLL`, `openPlateViewer`, `showModalHtml` |
+| `pickAngle` | reference | core.js at load |  |
+| `pickVideoTier` | reference | core.js at load | `CONFIRM_GEN_MODEL`, `CONFIRM_GEN_PREVIEW_URL`, `CONFIRM_GEN_VIDEO_TIER`, `VIDEO_TIER_BLURB`, `repreviewVideo`, `videoEstimateHtml`, `videoOptionsHtml`, `videoPreviewUrl`, `videoTierRow` |
+| `renderTitlePageCard` | reference | core.js at load |  |
+| `setGenOption` | reference | core.js at load | `CONFIRM_GEN_OPTIONS` |
+| `setVideoOption` | reference | core.js at load | `CONFIRM_GEN_VIDEO_OPTIONS`, `VIDEO_REPREVIEW_TIMER` |
+| `shotCardStyleEdited` | reference | core.js at load |  |
+| `shotCardStyleNone` | reference | core.js at load |  |
+| `shotCardStyleUseFilm` | reference | core.js at load |  |
+| `LAST_RELOAD` | timer | `refreshAfterWrite` |  |
+| `liveBusy` | timer | `refreshAfterWrite` |  |

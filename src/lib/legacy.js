@@ -89,7 +89,7 @@ export const LEGACY_GLOBALS = [
     
     // core handlers the Screenplay page's buttons call
     // ...and the editor's shared state, read as legacy.X and assigned with setLegacy (a core `let`).
-    'AI_PATH', 'API', 'AUTO_FORMAT_RULES', 'MAX_CHUNK_SIZE', 'TYPEWRITER', 
+    'AI_PATH', 'API', 'MAX_CHUNK_SIZE', 'TYPEWRITER', 
     
     
     '_shotAction', 'clearModal', 'getModalData', // the music engine's bridge (src/pages/music/engine.js)

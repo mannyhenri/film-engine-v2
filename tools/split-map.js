@@ -207,6 +207,7 @@ function generate({ write = true } = {}) {
         const part = s.node.declarations.filter(d => d.id.type === 'Identifier' && replaced.has(d.id.name)).map(d => d.id.name);
         if (part.length) throw new Error(`react.json replaces ${part.join(', ')} but not every name its declaration declares`);
     }
+    const allSegs = segs;
     segs = segs.filter(s => !replacedStatement(s.node, replaced, { mounts }));
     /*
      * Graph nodes: every top-level function declaration, class, and const/let/var
@@ -215,7 +216,9 @@ function generate({ write = true } = {}) {
      * other statement stays in core, in order, and its names are core roots.
      */
     // Top-level consts by name, for a read of one's property (AUTO_FORMAT_RULES.nextType): pure when that const is.
-    const constInit = new Map(segs.filter(s => s.node.type === 'VariableDeclaration' && s.node.kind === 'const')
+    // Read from every statement, dropped ones included: a const that leaves with its page still vouches for a
+    // property read of it (AUTO_NEXT_TYPE reads AUTO_FORMAT_RULES, and both leave).
+    const constInit = new Map(allSegs.filter(s => s.node.type === 'VariableDeclaration' && s.node.kind === 'const')
         .flatMap(s => s.node.declarations.filter(d => d.id.type === 'Identifier').map(d => [d.id.name, d.init])));
     const isPure = (n) => {
         if (!n) return true;

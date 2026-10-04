@@ -54,7 +54,7 @@ const live = (name) => new Proxy({}, {
     deleteProperty: (_, k) => delete legacy[name][k],
 });
 // Core's objects, as live proxies, in one destructuring statement for the same reason.
-const { AI_PATH, AUTO_FORMAT_RULES, TYPEWRITER, state } = Object.fromEntries(['AI_PATH', 'AUTO_FORMAT_RULES', 'TYPEWRITER', 'state'].map(n => [n, live(n)]));
+const { AI_PATH, TYPEWRITER, state } = Object.fromEntries(['AI_PATH', 'TYPEWRITER', 'state'].map(n => [n, live(n)]));
 // Core's values, read live as legacy.X and assigned with setLegacy: APP_AUTHOR, MAX_CHUNK_SIZE, feStore.
 
     // ══════════════════════════════════════════════════════════════
@@ -65,6 +65,82 @@ const { AI_PATH, AUTO_FORMAT_RULES, TYPEWRITER, state } = Object.fromEntries(['A
     let currentFountainContent = '';
 
     let editorDirty = false;
+
+ // Tab cycles through these
+
+    // FILM-101: Configurable auto-formatting rules
+    const AUTO_FORMAT_RULES = {
+        // What type comes next after Enter (non-empty line)
+        nextType: {
+            'scene-heading': 'action',
+            'action': 'action',
+            'character': 'dialogue',
+            'dialogue': 'character',  // Next speaker after dialogue
+            'parenthetical': 'dialogue',
+            'transition': 'scene-heading',
+            'centered': 'action',
+            'dual-dialogue': 'dialogue',
+            'lyrics': 'lyrics',
+            'note': 'action',
+            // A section heads what follows; a synopsis describes it. Both give
+            // way to action, which is what actually comes next on the page.
+            'section': 'action',
+            'synopsis': 'action'
+        },
+        // What type to switch to on empty line Enter
+        emptyLineType: {
+            'scene-heading': 'action',
+            'action': 'action',
+            'character': 'action',
+            'dialogue': 'action',      // Empty dialogue -> back to action
+            'parenthetical': 'dialogue',
+            'transition': 'action',
+            'centered': 'action',
+            'dual-dialogue': 'action',
+            'lyrics': 'action',
+            'note': 'action',
+            'section': 'action',
+            'synopsis': 'action'
+        },
+        // Context-aware Tab cycles
+        tabCycles: {
+            // Tab walks the order a page is actually written in.
+            'default': ['scene-heading', 'action', 'character', 'dialogue'],
+            'after-scene': ['action', 'character', 'dialogue'],
+            'in-dialogue': ['dialogue', 'parenthetical', 'character']
+        },
+        // Patterns for auto-detection
+        patterns: {
+            sceneHeading: /^[^\w\s.]*(INT|EXT|EST|INT\.?\/?EXT|I\/E)[\.\s]/i,
+            transition: /^[A-Z][A-Z\s]+:$/,
+            // A single leading period forces a heading; an ellipsis does not
+            // ("..same price." is dialogue). Same rule as the backend parser.
+            forcedSceneHeading: /^\.(?!\.)\S/,
+            forcedCharacter: /^@/,
+            forcedTransition: /^>/,
+            forcedAction: /^!/,
+            parenthetical: /^\s*\([^)]+\)\s*$/,
+
+            // The five that were unreachable. Every one has a forced marker in
+            // Fountain already, so the way in is the syntax the format defines
+            // rather than a toolbar — the same mechanism `.` uses to force a
+            // scene heading. A second convention would be a second thing to
+            // learn for a format that already has one.
+            //
+            // ORDER MATTERS for `centered`: it opens with `>` exactly as a
+            // forced transition does, and is distinguished only by the closing
+            // `<`. It must be tested first or every centered line becomes a
+            // transition.
+            centered: /^>.*<\s*$/,
+            section: /^#{1,6}\s*\S/,
+            // `=` is a synopsis; `===` is a page break. The lookahead keeps the
+            // two apart rather than letting a page break become a one-character
+            // synopsis.
+            synopsis: /^=(?!=)\s*\S/,
+            lyrics: /^~/,
+            note: /^\[\[.*\]\]\s*$/
+        }
+    };
 
     /**
      * Strip emphasis markers from a scene heading.
@@ -6943,6 +7019,7 @@ ${fountainText.slice(0, 50000)}`;
 export {
     currentFountainContent,
     editorDirty,
+    AUTO_FORMAT_RULES,
     stripEmphasisMarkers,
     autoDetectTimer,
     AUTO_DETECT_DELAY,

@@ -1540,7 +1540,8 @@
         "updateSceneNumbers",
         "updateScriptStats",
         "updateScriptStatsSummary",
-        "renderScreenplayEditor"
+        "renderScreenplayEditor",
+        "AUTO_FORMAT_RULES"
       ],
       "modals": [],
       "provides": [
@@ -2489,6 +2490,6 @@
     "sharedByChunks": 0,
     "declaredTwice": [],
     "bootVendors": [],
-    "bytes": 298587
+    "bytes": 295308
   }
 }

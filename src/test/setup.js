@@ -91,7 +91,7 @@ export function installLegacy({ routes = {}, project = { id: 'p1' } } = {}) {
         
         // The Screenplay engine's bridge: core's editor functions, and its shared state at core's initial values.
         escapeHtml: vi.fn(), focusWordCount: vi.fn(), loadCharacters: vi.fn(), loadLocations: vi.fn(), toggleWriterFocus: vi.fn(), typewriterButtons: vi.fn(), updateConversionEstimate: vi.fn(), 
-        AI_PATH: { connected: false, checked: 0 }, API: () => 'http://api.test/film', AUTO_FORMAT_RULES: {}, MAX_CHUNK_SIZE: 7000, TYPEWRITER: {}, 
+        AI_PATH: { connected: false, checked: 0 }, API: () => 'http://api.test/film', MAX_CHUNK_SIZE: 7000, TYPEWRITER: {}, 
         _shotAction: vi.fn(), clearModal: vi.fn(), getModalData: vi.fn(() => ({})),
         previsAspect: vi.fn(() => 16 / 9), WALK: { on: false, from: null, moved: false }, WORLD: { overlays: null, lens: 35, mode: 'keep', pinned: null, world: null },
         renderTitlePageCard: vi.fn(),

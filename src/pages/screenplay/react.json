@@ -297,7 +297,8 @@
     "updateSceneNumbers",
     "updateScriptStats",
     "updateScriptStatsSummary",
-    "renderScreenplayEditor"
+    "renderScreenplayEditor",
+    "AUTO_FORMAT_RULES"
   ],
   "modals": []
 }
