@@ -128,7 +128,7 @@
       '<button class="fe-burger" onclick="toggleDrawer()" aria-label="Menu" title="Menu">' +
       '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" ' +
       'stroke-width="2" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg></button>' +
-      '<div class="fe-brand" id="feBrand"><div class="fe-mark">FE</div>' +
+      '<div class="fe-brand" id="feBrand"><img class="fe-mark" src="./branding/filmengine-mark.svg" alt="Film Engine">' +
       '<div><div class="fe-proj" id="feProjName">Film Engine</div>' +
       '<div class="fe-projsub" id="feProjSub">AI production pipeline</div></div></div>' +
       '<div class="fe-track" id="feTrack"></div>';
@@ -292,7 +292,12 @@
     var open_ = window.state && window.state.currentProject;
     // Reset when no project is open, or the bar keeps naming a film you have
     // just left — which reads as the switch not having worked.
-    if (nm) nm.textContent = open_ ? (open_.title || 'Film Engine') : 'Film Engine';
+    if (nm) {
+      if (open_) nm.textContent = open_.title || 'Film Engine';
+      else if (!nm.querySelector('.fe-wordmark')) nm.innerHTML = '<img class="fe-wordmark" src="./branding/filmengine-wordmark.svg" alt="Film Engine"><span class="fe-brand-name">Film Engine</span>';
+    }
+    var mark = document.querySelector('#feBrand > .fe-mark');
+    if (mark) mark.hidden = !open_;
     // Says what clicking does. An affordance nobody can see is not one — the
     // only other route to the project list is in a sidebar this layout hides.
     if (sub) sub.textContent = open_ ? 'Switch project' : 'AI production pipeline';

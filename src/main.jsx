@@ -3,6 +3,7 @@ import { flushSync } from 'react-dom';
 import './styles/base.css';
 import './styles/redesign.css';
 import './styles/desktop.css';
+import './styles/branding.css';
 import { installPageLoader } from './lib/pages.js';
 import { restoreRoute } from './lib/remember-route.js';
 import App from './App.jsx';

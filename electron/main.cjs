@@ -20,9 +20,10 @@ const SMOKE = process.argv.includes('--smoke');
 // A smoke run gets its own throwaway Chromium profile: two checkouts can run it at once without sharing
 // one profile, and a test run never writes into the person's own app storage (remembered page, settings).
 if (SMOKE) app.setPath('userData', require('fs').mkdtempSync(require('path').join(require('os').tmpdir(), 'fe-smoke-')));
-// The iPhone app's icon in the macOS shape (tools/make-mac-icon.py from electron/icon-ios.png).
-const ICON = path.join(__dirname, 'icon.png');
+// Cut & Flow desktop identity. Windows uses its multi-resolution native icon.
+const ICON = path.join(__dirname, process.platform === 'win32' ? 'icon.ico' : 'icon.png');
 const BACKEND_VERSION = require('../backend/package.json').version;
+const { backendId, matchesBackend } = require('../backend/lib/backend-identity');
 let API = process.env.FE_API_BASE || 'http://localhost:3100';
 let backend = null;
 // The smoke run records what would leave the app instead of opening a browser.
@@ -63,8 +64,8 @@ function quit(code) { stopBackend(); app.exit(code); }
 async function ensureBackend() {
     if (!SMOKE || process.env.FE_SMOKE_REUSE) {
         const h = await health(API);
-        if (h && h.service === 'film-engine' && h.version === BACKEND_VERSION) return 'reused';
-        if (h) console.warn(`[film-engine] ${API} answers as ${h.service} ${h.version}, not film-engine ${BACKEND_VERSION}: starting this app's own backend`);
+        if (matchesBackend(h, BACKEND_VERSION)) return 'reused';
+        if (h) console.warn(`[film-engine] ${API} answers as ${h.service} ${h.version}, not ${backendId} ${BACKEND_VERSION}: starting this app's own backend`);
     }
     if (SMOKE || await health(API)) API = `http://localhost:${await freePort()}`;
     // System node, not Electron's: better-sqlite3 stays built for it, no electron-rebuild.
@@ -76,7 +77,7 @@ async function ensureBackend() {
     backend.on('exit', (code) => { if (code) console.error(`[backend] exited ${code}`); backend = null; });
     for (let i = 0; i < 80; i++) {
         const h = await health(API);
-        if (h && h.version === BACKEND_VERSION) return 'started';
+        if (matchesBackend(h, BACKEND_VERSION)) return 'started';
         if (!backend) break;
         await new Promise(r => setTimeout(r, 250));
     }

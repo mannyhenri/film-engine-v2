@@ -10,6 +10,8 @@ const { readSource, loaderMap, topLevelFunctions, replacedStatement } = require(
 const ROOT = path.join(__dirname, '..', '..');
 const plan = require('../port-plan.json');
 const src = readSource(path.join(ROOT, plan.source));
+// The desktop identity is a deliberate v2 shell transform, independent of legacy.
+src.shell = require('../branding.cjs').brandShell(src.shell);
 const read = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8');
 const exists = (p) => fs.existsSync(path.join(ROOT, p));
 const map = exists('docs/split-map.json') ? JSON.parse(read('docs/split-map.json')) : null;

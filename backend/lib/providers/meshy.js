@@ -130,7 +130,8 @@ function buildImageRequest(payload) {
 
     return body;
 }
-const DEFAULT_TEXT_MODEL = 'meshy-5';
+const DEFAULT_TEXT_MODEL = 'meshy-6-lite';
+const MESH_MODELS = Object.freeze(['meshy-6-lite', 'meshy-6', 'meshy-7.1', 'latest']);
 
 // Polling. Mesh generation is slow — minutes, not seconds — so the ceiling is
 // generous, but bounded: a task that never terminates must fail rather than
@@ -293,6 +294,10 @@ function buildRequest(payload) {
     const op = OPERATIONS[operation];
     if (!op) return { error: `meshy: unsupported operation "${operation}"` };
 
+    if (['text_to_mesh', 'image_to_mesh'].includes(operation) && p.model && !MESH_MODELS.includes(p.model)) {
+        return { error: `meshy: unsupported 3D model "${p.model}"; choose ${MESH_MODELS.join(', ')}` };
+    }
+
     if (operation === 'text_to_mesh') {
         const prompt = String(p.prompt || '').trim();
         if (!prompt) return { error: 'meshy: a prompt is required for text-to-mesh' };
@@ -360,11 +365,11 @@ async function run(payload, onProgress, opts, capability) {
     // getCredential returns { apiKey, meta } — the image path destructures it
     // and these two did not, so the mesh routes sent `Bearer [object Object]`
     // and Meshy answered 401 Invalid API key with a perfectly good key saved.
-    const { apiKey } = getCredential('meshy', 'MESHY_API_KEY');
-    if (!apiKey) return missingKey();
-
     const request = buildRequest(payload);
     if (request.error) return { ok: false, status: 400, error: request.error };
+
+    const { apiKey } = getCredential('meshy', 'MESHY_API_KEY');
+    if (!apiKey) return missingKey();
 
     const submitted = await call('POST', request.path, apiKey, request.body);
     if (!submitted.ok) return submitted;
@@ -391,6 +396,7 @@ async function run(payload, onProgress, opts, capability) {
     if (request.operation === 'text_to_mesh' && (payload || {}).refine !== false) {
         const refine = await call('POST', request.path, apiKey, {
             mode: 'refine',
+            ai_model: request.body.ai_model,
             preview_task_id: taskId,
             ...(payload.texture_prompt ? { texture_prompt: String(payload.texture_prompt).slice(0, 600) } : {}),
         });
@@ -616,6 +622,16 @@ function meterMeshy(capability, payload, result) {
         if (op === 'rig' || op === 'animate' || op === 'remesh') {
             return { unit: 'call', quantity: 1, model, free_operation: true };
         }
+        // Estimate all submitted stages, without claiming a provider receipt.
+        // Text generation refines by default; image generation textures by default.
+        const costs = { 'meshy-6-lite': [5, 15], 'meshy-6': [20, 30], 'meshy-7.1': [20, 30], latest: [20, 30] };
+        const cost = costs[model];
+        if (cost) {
+            const image = op === 'image_to_mesh' || p.image_url || p.image;
+            const textured = result && result.meta && typeof result.meta.textured === 'boolean'
+                ? result.meta.textured : (image ? p.should_texture !== false : p.refine !== false);
+            return { unit: 'call', quantity: 1, model, native_charged: cost[textured ? 1 : 0], provider_confirmed: false };
+        }
         return { unit: 'call', quantity: 1, model };
     }
     return null;
@@ -662,8 +678,10 @@ const adapter = {
     modelsByCapability: Object.freeze({
         image: Object.freeze(Object.fromEntries(IMAGE_MODELS.map(id => [id, {}]))),
         model3d: Object.freeze({
-            'meshy-5': { label: 'Meshy 5 (latest)' },
-            'meshy-4': { label: 'Meshy 4' },
+            'meshy-6-lite': { label: 'Meshy 6 Lite' },
+            'meshy-6': { label: 'Meshy 6' },
+            'meshy-7.1': { label: 'Meshy 7.1' },
+            latest: { label: 'Latest (currently Meshy 7.1)' },
         }),
     }),
     /*

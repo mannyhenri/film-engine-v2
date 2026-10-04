@@ -17,7 +17,8 @@
     "test:backend": "node tools/assemble-page.js && node tools/backend-tests.js",
     "pretest": "node tools/assemble-page.js",
     "test:ui": "vitest run",
-    "postinstall": "node tools/name-dev-electron.js"
+    "postinstall": "node tools/name-dev-electron.js",
+    "icons": "python3 tools/make-mac-icon.py && node tools/name-dev-electron.js"
   },
   "dependencies": {
     "react": "^18.3.1",

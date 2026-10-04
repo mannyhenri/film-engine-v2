@@ -29,14 +29,19 @@ function ensureSchema() {
         const sql = fs.readFileSync(path.join(migrationsDir, file), 'utf8');
 
         const migrate = db.transaction(() => {
+            // Another startup may have applied this after our initial snapshot.
+            // Check while holding the write lock, before executing migration SQL.
+            if (db.prepare('SELECT 1 FROM _film_migrations WHERE name = ?').get(file)) return false;
             db.exec(sql);
             db.prepare('INSERT INTO _film_migrations (name) VALUES (?)').run(file);
+            return true;
         });
 
         try {
-            migrate();
-            console.log(`  Migration applied: ${file}`);
-            count++;
+            if (migrate.immediate()) {
+                console.log(`  Migration applied: ${file}`);
+                count++;
+            }
         } catch (err) {
             console.error(`  Migration failed (${file}):`, err.message);
             throw err;

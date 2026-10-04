@@ -134,6 +134,8 @@ function generate({ write = true } = {}) {
     const loaders = loaderMap(src.app);
     const files = {};
     const out = (f, text) => { files[f] = text; };
+    // V2 owns its desktop identity; keep the pinned legacy source untouched.
+    src.shell = require('./branding.cjs').brandShell(src.shell);
 
     // ── Markup ──────────────────────────────────────────────────────────
     const top = topLevelElements(src.html);
@@ -170,7 +172,7 @@ function generate({ write = true } = {}) {
             + `import { memo } from 'react';\nimport LegacyElement from '../../components/LegacyElement.jsx';\nimport html from './markup.html?raw';\n\n`
             + `export default memo(function ${comp}() {\n    return <LegacyElement html={html} />;\n});\n`);
     }
-    out('src/components/Sidebar/sidebar.html', sidebar.outer + '\n');
+    out('src/components/Sidebar/sidebar.html', sidebar.outer.replace('src="assets/logo.png" alt="Gridlight"', 'src="./branding/filmengine-mark.svg" alt="Film Engine"') + '\n');
     out('src/components/StatusBar/status-bar.html', statusBar.outer + '\n');
     for (const m of modals) out(`src/components/modals/${m.id}.html`, m.outer + '\n');
     out('src/components/modals/index.js', HEADER('the modal overlays').replace('/*', '//').replace(' */', '')

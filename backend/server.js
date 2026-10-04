@@ -97,6 +97,7 @@ const { handleInbetweens } = require('./routes/inbetweens');
 const { handleMusicSessions } = require('./routes/music-sessions');
 const { handleAnnotations } = require('./routes/annotations');
 const { handleScreenplayAI } = require('./routes/screenplay-ai');
+const { handleWritingStyle } = require('./routes/writing-style');
 const { handleCharacters } = require('./routes/characters');
 const { handleSubtitles } = require('./routes/subtitles');
 const { handleAudioDeliverables } = require('./routes/audio-deliverables');
@@ -360,7 +361,7 @@ const server = http.createServer(async (req, res) => {
     // Health check
     if (pathname === '/api/health' || pathname === '/') {
         res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ status: 'ok', service: 'film-engine', version: require('./package.json').version }));
+        res.end(JSON.stringify({ status: 'ok', service: 'film-engine', version: require('./package.json').version, backend_id: require('./lib/backend-identity').backendId }));
         return;
     }
 
@@ -648,6 +649,8 @@ const server = http.createServer(async (req, res) => {
         if (parts[1] === 'projects' && parts[2] && (parts[3] === 'breakdown' || parts[3] === 'entities')) {
             return await handleBreakdown(req, res, parts);
         }
+
+        if (parts[1] === 'projects' && parts[2] && parts[3] === 'writing-style') return handleWritingStyle(req, res, parts);
 
         // Route: /film/projects/:id/screenplay-ai (FILM-112)
         if (parts[1] === 'projects' && parts[2] && parts[3] === 'screenplay-ai') {

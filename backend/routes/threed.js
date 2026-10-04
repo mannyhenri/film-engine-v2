@@ -438,19 +438,14 @@ function threedProviderFor(projectId, req) {
 }
 
 /** Gateway payload -> what the resolved adapter expects. */
-function threedPayloadFor(adapter, endpoint, payload) {
+function threedPayloadFor(adapter, endpoint, payload, explicitModel = false) {
     const p = { ...(payload || {}) };
     if ((adapter && (adapter.id || adapter.provider)) !== 'meshy') return p;
 
-    /*
-     * The gateway's model names are not Meshy's. build3DPayload sets a
-     * Gridlight default, and Meshy answers
-     * "AIModel must be one of [meshy-4 … meshy-t2]". Dropping an unrecognised
-     * name lets the adapter apply its own default rather than guessing a
-     * mapping between two vendors' model families.
-     */
-    const MESHY_MODELS = /^(meshy-4|meshy-5|meshy-6|meshy-7|latest|meshy-t1|meshy-t2)$/;
-    if (p.model && !MESHY_MODELS.test(String(p.model))) delete p.model;
+    // Only the builder's implicit gateway default is translated. An explicit
+    // model must reach Meshy's validation unchanged, so typos cannot buy a
+    // different model from the one the director selected.
+    if (!explicitModel && p.model === require('../lib/threed-prompt').DEFAULT_MODEL) delete p.model;
 
     if (endpoint === THREED_ENDPOINTS.fromImage) {
         // Meshy decides image-to-mesh by the presence of this field.
@@ -477,7 +472,7 @@ async function callThreeD(endpoint, payload, projectId, req) {
     const adapter = threedProviderFor(projectId, req);
     const id = adapter && (adapter.id || adapter.provider);
     if (adapter && id !== 'gridlight' && typeof adapter.generate === 'function') {
-        const result = await adapter.generate('model3d', threedPayloadFor(adapter, endpoint, payload));
+        const result = await adapter.generate('model3d', threedPayloadFor(adapter, endpoint, payload, Boolean(req && req.body && req.body.model)));
         if (result && result.ok) return result;
         // A provider that refuses is reported as itself, not as the gateway
         // being offline — the misdiagnosis this whole change exists to end.

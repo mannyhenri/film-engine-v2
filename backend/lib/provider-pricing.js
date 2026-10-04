@@ -553,13 +553,17 @@ const RATE_BOOK = {
     'meshy:model3d': {
         unit: 'call', native_unit: 'credit', native_per_unit: 20, usd_per_native: 0.02,
         models: {
+            // Historical Meshy 5 receipts retain their original estimate.
             'meshy-5': { native_per_unit: 10 },
+            'meshy-6-lite': { native_per_unit: 5 },
+            'meshy-7.1': { native_per_unit: 20 },
+            latest: { native_per_unit: 20 },
             'meshy-6': { native_per_unit: 20 },
             'meshy-7': { native_per_unit: 20 },
         },
-        source: 'https://docs.meshy.ai/en/webapp/pricing',
-        checked: '2026-08-22',
-        note: 'Text-to-3D and image-to-3D: 20 credits on Meshy 6/7, 10 on Meshy 5. Remesh, rigging and animation are free.',
+        source: 'https://docs.meshy.ai/en/api/pricing',
+        checked: '2026-10-04',
+        note: 'Mesh-only estimates: Meshy 6 Lite 5 credits; Meshy 6 and 7.1/latest 20. Texture stages cost extra (6 Lite with texture: 15); these per-call estimates do not include additional stages. Historical Meshy 5 estimates are retained.',
     },
 
     /*

@@ -571,6 +571,9 @@ function pinnedModelFor(capability, projectConfig, adapterOrId) {
     const adapter = adapterOrId ? (typeof adapterOrId === 'string' ? get(adapterOrId) : adapterOrId)
         : get(resolveId(capability, cfg));
     const offered = adapter ? modelIdsFor(adapter, capability) : null;
+    // Meshy validates 3D pins explicitly; an unsupported saved choice must
+    // fail locally rather than silently switching to a billable default.
+    if (capability === 'model3d' && adapter && adapter.id === 'meshy') return want.trim();
     return offered && offered.includes(want.trim()) ? want.trim() : null;
 }
 
