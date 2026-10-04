@@ -18,13 +18,13 @@ test('it measures every declaration of core.js, each in exactly one category', (
     const declared = acorn.parse(read('public/legacy/core.js'), { ecmaVersion: 'latest' }).body
         .flatMap(n => n.type === 'FunctionDeclaration' ? [n.id.name] : n.type === 'VariableDeclaration' ? n.declarations.filter(d => d.id.type === 'Identifier' && d.init).map(d => d.id.name) : []);
     assert.ok(declared.length > 400, `only ${declared.length} core declarations: the scan is broken`);
-    const placed = [...M.a.map(x => x.name), ...M.b.map(x => x.name), ...M.c.map(x => x.name), ...M.d.map(x => x.name)];
+    const placed = [...M.a, ...M.a2, ...M.e, ...M.b, ...M.c, ...M.d].map(x => x.name);
     assert.deepStrictEqual(placed.filter((n, i) => placed.indexOf(n) !== i), [], 'placed twice');
     assert.deepStrictEqual([...placed].sort(), [...new Set(declared)].sort(), 'the categories are not exactly core\'s declarations');
 });
 
 test('every owner is a real page or component', () => {
-    const owners = new Set([...M.a.map(x => x.owner), ...M.b.flatMap(x => x.owners)]);
+    const owners = new Set([...M.a, ...M.a2, ...M.e].map(x => x.owner).concat(M.b.flatMap(x => x.owners)));
     for (const o of owners) {
         const [kind, id] = o.split(':');
         const ok = o === 'app' || (kind === 'page' && fs.existsSync(path.join(ROOT, 'src/pages', id)))
@@ -44,7 +44,7 @@ test('every source file under src/ is read as some owner (a file nobody scans is
 
 test('an (a) declaration is reached by its owner and by no other owner and no load-time code', () => {
     assert.ok(M.a.length > 0, 'nothing with one owner: the measurement found no edges');
-    for (const x of M.a) {
+    for (const x of [...M.a, ...M.a2]) {
         assert.deepStrictEqual(M.ownersOf(x.name), [x.owner], `${x.name}`);
         assert.ok(!M.boot.has(x.name), `${x.name} is reached at load`);
     }
@@ -71,4 +71,40 @@ test('every core name on LEGACY_GLOBALS is reached by an owner (the bridge exist
     const globals = [...list.replace(/\/\/[^\n]*/g, '').matchAll(/'([\w$]+)'/g)].map(m => m[1]);
     const unreached = M.c.map(x => x.name).filter(n => globals.includes(n));
     assert.deepStrictEqual(unreached, [], 'on LEGACY_GLOBALS and measured as reached by nobody: the measurement cannot see legacy.X');
+});
+
+test('an (a) declaration is called only by core code that moves with it; (a2) only BY NAME from code that stays', () => {
+    // Moving f into owner O's engine breaks every core caller left behind that calls f in code. So an (a) member's
+    // core callers are all (a) for the same owner; an (a2) member's staying callers name it only in a string
+    // (onclick="f(", window[name]), which works once O provides f on window. Anything else is (e): one owner, held.
+    const where = new Map([...M.a.map(x => [x.name, `a:${x.owner}`]), ...M.a2.map(x => [x.name, `a:${x.owner}`])]);
+    const bad = [];
+    for (const x of [...M.a, ...M.a2]) {
+        for (const [caller, kinds] of M.callersOf(x.name)) {
+            if (where.get(caller) === `a:${x.owner}`) continue;
+            if (kinds.code) bad.push(`${x.name} (${x.owner}) is called in code by ${caller}, which stays`);
+            else if (M.a.includes(x)) bad.push(`${x.name} is named by ${caller}, which stays: it must be provided (a2), not (a)`);
+        }
+    }
+    assert.deepStrictEqual(bad, []);
+    for (const x of M.e) assert.ok(x.heldBy.length > 0, `${x.name} is held and names no caller`);
+});
+
+test('the two cases the sheet moves found are measured as held or provided, not as plainly movable', () => {
+    // Regressions from a real move: renderCharacterViewsInto (stays) calls characterViewsHtml; renderLocationViews
+    // (stays) calls sweepLocationCompass. Wherever those live now, neither may be plain (a) while its caller stays.
+    for (const [callee, caller] of [['characterViewsHtml', 'renderCharacterViewsInto'], ['sweepLocationCompass', 'renderLocationViews']]) {
+        if (!M.ownersOf || !M.callersOf(callee)) continue; // moved out of core already: nothing to measure
+        const plain = M.a.find(x => x.name === callee);
+        const callerMoves = M.a.find(x => x.name === caller);
+        assert.ok(!plain || callerMoves, `${callee} is plain (a) while ${caller} stays in core`);
+    }
+});
+
+test('a group names a real component and page, each with a reason', () => {
+    for (const [comp, [page, why]] of Object.entries(M.groups)) {
+        assert.ok(fs.existsSync(path.join(ROOT, 'src/components', comp.split(':')[1])), `${comp} does not exist`);
+        assert.ok(fs.existsSync(path.join(ROOT, 'src/pages', page.split(':')[1])), `${page} does not exist`);
+        assert.ok(why && why.length > 20, `${comp}: no reason given`);
+    }
 });

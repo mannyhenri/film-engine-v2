@@ -6,13 +6,21 @@ by name and errs toward more reach, which only keeps more in core.
 
 | category | declarations |
 |---|---|
-| (a) one owner: can move into that owner's engine | 92 |
-| (b) two or more owners: stays core, or a shared module | 228 |
+| (a) one owner, and every core caller moves with it: can move into that owner's engine | 234 |
+| (a2) as (a), but a caller that stays NAMES it (onclick, window[name]): moves if the owner provides it | 2 |
+| (e) one owner, but a caller that stays in core calls it in code: held in core until that caller moves | 2 |
+| (b) two or more owners: stays core, or a shared module | 82 |
 | (c) reached by nobody this can see: dead, or reached only by a name built at run time | 29 |
 | (d) load-time core (startup statements, shell.js, production-graph.js and what they reach) | 214 |
 | total | 563 |
 
+Measured as one owner (`GROUPS` in the tool): component:ScreenplayDialogs as page:screenplay (the Screenplay's seven dialogs: their handlers call the screenplay engine, and the component imports from it).
+
 ## (a) By owner
+
+### page:screenplay (152)
+
+`acceptAutoDetectSuggestion`, `afterCardEdit`, `analysisBadges`, `analysisByDimension`, `analysisMapHtml`, `analysisNoteHtml`, `analysisWhen`, `analyzeScreenplayLocal`, `appAuthor`, `applyAutocompleteItemToBlock`, `AUTO_DETECT_DELAY`, `AUTO_SAVE_DELAY`, `autocompleteItems`, `autocompleteSelectedIndex`, `autocompleteType`, `autocompleteVisible`, `autoDetectElementType`, `autoDetectTimer`, `autoSaveTimer`, `blockHoldsCaret`, `blockText`, `calculatePageEstimate`, `captureEditorState`, `checkScreenplaySuggestions`, `clearAutoDetectSuggestion`, `clearTitlePage`, `clearVersionSelection`, `compareSelectedVersions`, `computeDiff`, `createBlock`, `createFromAutocomplete`, `currentFountainContent`, `currentRevision`, `currentRevisionPagesChanged`, `currentSceneIndex`, `currentScriptVersion`, `currentTitlePage`, `currentViewMode`, `deleteAnalysis`, `deleteIndexCard`, `draggedCardIndex`, `draggedNavSceneIndex`, `editorDirty`, `editorToFountain`, `extractFormattedText`, `extractLocationFromSceneHeading`, `filterCharacters`, `filterLocations`, `getCurrentBlock`, `getCursorPath`, `getMarkAsRevision`, `hideAutocomplete`, `indexCardsData`, `initUndoStack`, `isEditorFurniture`, `isKnownCharacter`, `jumpToSceneFromCard`, `lastUndoTimestamp`, `loadAnalysis`, `loadLatestFountain`, `loadRevisionInfo`, `loadScriptTiming`, `loadScriptVersion`, `loadScriptVersions`, `loadTreatment`, `MAX_UNDO_ENTRIES`, `mmss`, `nextEditorBlock`, `normalizeEditor`, `onCardDragLeave`, `onCardDragOver`, `onCardDragStart`, `onCardDrop`, `onEditorInput`, `onSceneNavDragLeave`, `onSceneNavDragOver`, `onSceneNavDragStart`, `onSceneNavDrop`, `openIndexCard`, `openTitlePageModal`, `parseFountainToHTML`, `parseSceneBlocks`, `parseSceneOutline`, `parseTitlePageFromEditor`, `parseTitlePageFromFountain`, `performAutoSave`, `positionAutocomplete`, `pushUndoState`, `redoStack`, `renderFountainToEditor`, `renderIndexCards`, `renderScriptGutter`, `reorderScenes`, `restoreVersion`, `saveIndexCard`, `saveScreenplay`, `saveStatus`, `saveTitlePage`, `SCENE_NAV_UPDATE_DELAY`, `sceneActionText`, `sceneHeadingBlocks`, `sceneNavTimer`, `sceneNumbersLocked`, `screenplaySuggestions`, `SCRIPT_TIMING`, `scriptVersionsData`, `scrollToScene`, `selectAutocompleteItem`, `selectedVersions`, `serializeEditorToFountain`, `serializeTitlePageToFountain`, `setBlockElementType`, `setBlockText`, `setCursorToBlock`, `setCursorToEnd`, `setViewMode`, `shotCodesByScene`, `showAutocomplete`, `showAutoDetectSuggestion`, `showVersionDiff`, `SP_FURNITURE`, `SP_KEEP_EMPTY`, `SP_VIEWS`, `spBlock`, `startEditSceneNumber`, `stripEmphasisMarkers`, `sweepEmptyBlocks`, `textOf`, `timingRowsForHeadings`, `titlePageInnerHtml`, `toggleLockSceneNumbers`, `toggleVersionSelect`, `triggerAutocomplete`, `triggerAutoSave`, `triggerSceneNavUpdate`, `triggerUndoCapture`, `twBurst`, `UNDO_DEBOUNCE_DELAY`, `undoStack`, `undoTimer`, `updateCurrentSceneHighlight`, `updateEditorStats`, `updateEditorTitlePage`, `updateRevisionIndicator`, `updateRevisionPageMarkers`, `updateSaveStatus`, `updateSceneGutter`, `updateSceneNavigator`, `updateSceneNumberGutters`, `updateSceneNumbers`, `updateScriptStats`, `updateScriptStatsSummary`
 
 ### page:storyboard (44)
 
@@ -26,17 +34,13 @@ by name and errs toward more reach, which only keeps more in core.
 
 `askBackgroundInstruction`, `BG_INSTRUCTION`, `bgInstructionDone`, `generateVideoFor`, `lipsyncShot`, `pickCoverageRun`, `postShot`, `replaceBackground`, `setClipCoverage`, `stitchShot`
 
-### component:ScreenplayDialogs (6)
+### component:CharacterSheet (4)
 
-`clearTitlePage`, `deleteIndexCard`, `saveIndexCard`, `saveTitlePage`, `setBlockText`, `updateEditorTitlePage`
-
-### component:CharacterSheet (5)
-
-`characterViewsHtml`, `deleteCharacterView`, `generateCharacterImage`, `orbitRefsheet`, `showCharacterViews`
+`generateCharacterImage`, `orbitRefsheet`, `showCharacterViews`, `deleteCharacterView` (provide: named by characterViewsHtml)
 
 ### component:SubjectSheet (4)
 
-`captureUploadControl`, `LIGHTING_TECHNIQUE_IDS`, `SWEEP_NOTE`, `sweepLocationCompass`
+`captureUploadControl`, `LIGHTING_TECHNIQUE_IDS`, `SWEEP_NOTE`, `sweepLocationCompass` (provide: named by renderLocationViews)
 
 ### page:projects (4)
 
@@ -54,10 +58,6 @@ by name and errs toward more reach, which only keeps more in core.
 
 `P_DEG`
 
-### page:screenplay (1)
-
-`twBurst`
-
 ## (b) By owner set
 
 Which owners share what. Two owners that are one feature (a page and its own dialogs component) can move
@@ -65,7 +65,6 @@ their shared declarations together into one engine; the rest stays core or becom
 
 | owners | declarations |
 |---|---|
-| component:ScreenplayDialogs + page:screenplay | 146 |
 | page:productiongraph + page:videoshots | 16 |
 | component:CharacterSheet + component:SubjectSheet + page:marketing + page:music + page:productiongraph + page:videoshots | 10 |
 | page:productiongraph + page:storyboard | 7 |
@@ -85,7 +84,6 @@ their shared declarations together into one engine; the rest stays core or becom
 | component:CharacterSheet + component:SubjectSheet + page:marketing + page:moodboard + page:productiongraph | 1 |
 | component:CharacterSheet + component:SubjectSheet + page:marketing + page:music + page:previs + page:productiongraph + page:videoshots | 1 |
 | component:CharacterSheet + component:SubjectSheet + page:marketing + page:productiongraph | 1 |
-| component:ScreenplayDialogs + page:screenplay + page:settings | 1 |
 | component:SubjectSheet + page:music | 1 |
 | page:budget + page:playback + page:productiongraph + page:videoshots | 1 |
 | page:dashboard + page:productiongraph + page:storyboard | 1 |
@@ -100,79 +98,33 @@ their shared declarations together into one engine; the rest stays core or becom
 | page:previs + page:screenplay | 1 |
 | page:previs + page:storyboard | 1 |
 | page:projects + page:settings | 1 |
+| page:screenplay + page:settings | 1 |
 
 ## (b) Shared
 
 | declaration | owners |
 |---|---|
 | `_shotAction` | page:music, page:previs, page:videoshots |
-| `acceptAutoDetectSuggestion` | component:ScreenplayDialogs, page:screenplay |
-| `afterCardEdit` | component:ScreenplayDialogs, page:screenplay |
 | `AI_PATH` | page:previs, page:screenplay |
-| `analysisBadges` | component:ScreenplayDialogs, page:screenplay |
-| `analysisByDimension` | component:ScreenplayDialogs, page:screenplay |
-| `analysisMapHtml` | component:ScreenplayDialogs, page:screenplay |
-| `analysisNoteHtml` | component:ScreenplayDialogs, page:screenplay |
-| `analysisWhen` | component:ScreenplayDialogs, page:screenplay |
-| `analyzeScreenplayLocal` | component:ScreenplayDialogs, page:screenplay |
-| `APP_AUTHOR` | component:ScreenplayDialogs, page:screenplay, page:settings |
-| `appAuthor` | component:ScreenplayDialogs, page:screenplay |
-| `applyAutocompleteItemToBlock` | component:ScreenplayDialogs, page:screenplay |
+| `APP_AUTHOR` | page:screenplay, page:settings |
 | `approveStrip` | page:productiongraph, page:videoshots |
-| `AUTO_DETECT_DELAY` | component:ScreenplayDialogs, page:screenplay |
-| `AUTO_FORMAT_RULES` | component:ScreenplayDialogs, page:screenplay |
-| `AUTO_SAVE_DELAY` | component:ScreenplayDialogs, page:screenplay |
-| `autocompleteItems` | component:ScreenplayDialogs, page:screenplay |
-| `autocompleteSelectedIndex` | component:ScreenplayDialogs, page:screenplay |
-| `autocompleteType` | component:ScreenplayDialogs, page:screenplay |
-| `autocompleteVisible` | component:ScreenplayDialogs, page:screenplay |
-| `autoDetectElementType` | component:ScreenplayDialogs, page:screenplay |
-| `autoDetectTimer` | component:ScreenplayDialogs, page:screenplay |
-| `autoSaveTimer` | component:ScreenplayDialogs, page:screenplay |
 | `BACKGROUND_PICKER` | component:CoreDialogs, page:storyboard |
 | `backgroundPickerResolve` | component:CoreDialogs, page:storyboard |
 | `BATCH_CHOICES` | page:productiongraph, page:storyboard |
-| `blockHoldsCaret` | component:ScreenplayDialogs, page:screenplay |
-| `blockText` | component:ScreenplayDialogs, page:screenplay |
 | `BOARD_LOCK` | page:productiongraph, page:storyboard |
-| `calculatePageEstimate` | component:ScreenplayDialogs, page:screenplay |
 | `captureDestination` | component:CharacterSheet, component:SubjectSheet, page:marketing, page:music, page:productiongraph, page:videoshots |
-| `captureEditorState` | component:ScreenplayDialogs, page:screenplay |
 | `captureFor` | component:CharacterSheet, component:SubjectSheet, page:marketing, page:music, page:productiongraph, page:videoshots |
 | `captureMedia` | component:CharacterSheet, component:SubjectSheet, page:marketing, page:music, page:productiongraph, page:videoshots |
-| `checkScreenplaySuggestions` | component:ScreenplayDialogs, page:screenplay |
 | `checkUploadSize` | component:CharacterSheet, component:SubjectSheet, page:edits, page:exportpage, page:marketing, page:moodboard, page:music, page:previs, page:productiongraph, page:projects, page:screenplay, page:storyboard, page:stylebook, page:videoshots |
-| `clearAutoDetectSuggestion` | component:ScreenplayDialogs, page:screenplay |
 | `clearModal` | component:CoreDialogs, page:music |
-| `clearVersionSelection` | component:ScreenplayDialogs, page:screenplay |
 | `closeFrameVersions` | component:CoreDialogs, page:storyboard |
-| `compareSelectedVersions` | component:ScreenplayDialogs, page:screenplay |
-| `computeDiff` | component:ScreenplayDialogs, page:screenplay |
 | `confirmProjectDelete` | page:projects, page:settings |
 | `confirmUpscale` | page:productiongraph, page:videoshots |
 | `correctStation` | page:productiongraph, page:videoshots |
-| `createBlock` | component:ScreenplayDialogs, page:screenplay |
-| `createFromAutocomplete` | component:ScreenplayDialogs, page:screenplay |
 | `csImg` | component:CharacterSheet, component:SubjectSheet, page:characters, page:consistency, page:locations, page:moodboard, page:props, page:storyboard |
-| `currentFountainContent` | component:ScreenplayDialogs, page:screenplay |
-| `currentRevision` | component:ScreenplayDialogs, page:screenplay |
-| `currentRevisionPagesChanged` | component:ScreenplayDialogs, page:screenplay |
-| `currentSceneIndex` | component:ScreenplayDialogs, page:screenplay |
-| `currentScriptVersion` | component:ScreenplayDialogs, page:screenplay |
-| `currentTitlePage` | component:ScreenplayDialogs, page:screenplay |
-| `currentViewMode` | component:ScreenplayDialogs, page:screenplay |
-| `deleteAnalysis` | component:ScreenplayDialogs, page:screenplay |
 | `deleteSequence` | page:productiongraph, page:videoshots |
 | `downloadExport` | page:exportpage, page:videoshots |
-| `draggedCardIndex` | component:ScreenplayDialogs, page:screenplay |
-| `draggedNavSceneIndex` | component:ScreenplayDialogs, page:screenplay |
 | `DRIFT` | page:scenes, page:storyboard |
-| `editorDirty` | component:ScreenplayDialogs, page:screenplay |
-| `editorToFountain` | component:ScreenplayDialogs, page:screenplay |
-| `extractFormattedText` | component:ScreenplayDialogs, page:screenplay |
-| `extractLocationFromSceneHeading` | component:ScreenplayDialogs, page:screenplay |
-| `filterCharacters` | component:ScreenplayDialogs, page:screenplay |
-| `filterLocations` | component:ScreenplayDialogs, page:screenplay |
 | `fmtBytes` | page:edits, page:settings |
 | `FOLDER_PICKER` | component:CoreDialogs, page:settings |
 | `folderPickerApply` | component:CoreDialogs, page:settings |
@@ -182,65 +134,26 @@ their shared declarations together into one engine; the rest stays core or becom
 | `generateNextSequenceLeg` | page:productiongraph, page:videoshots |
 | `generateSequence` | page:productiongraph, page:videoshots |
 | `generateVoiceForShot` | page:productiongraph, page:videoshots |
-| `getCurrentBlock` | component:ScreenplayDialogs, page:screenplay |
-| `getCursorPath` | component:ScreenplayDialogs, page:screenplay |
-| `getMarkAsRevision` | component:ScreenplayDialogs, page:screenplay |
 | `getModalData` | component:CoreDialogs, page:music |
 | `getSceneStatusLabel` | page:scenes, page:screenplay |
-| `hideAutocomplete` | component:ScreenplayDialogs, page:screenplay |
 | `importBundle` | page:exportpage, page:projects |
-| `indexCardsData` | component:ScreenplayDialogs, page:screenplay |
-| `initUndoStack` | component:ScreenplayDialogs, page:screenplay |
-| `isEditorFurniture` | component:ScreenplayDialogs, page:screenplay |
-| `isKnownCharacter` | component:ScreenplayDialogs, page:screenplay |
 | `jsAttr` | component:CharacterSheet, component:CoreDialogs, component:SubjectSheet, page:marketing, page:music, page:previs, page:productiongraph, page:settings, page:videoshots |
-| `jumpToSceneFromCard` | component:ScreenplayDialogs, page:screenplay |
-| `lastUndoTimestamp` | component:ScreenplayDialogs, page:screenplay |
-| `loadAnalysis` | component:ScreenplayDialogs, page:screenplay |
 | `loadFolderPicker` | component:CoreDialogs, page:settings |
-| `loadLatestFountain` | component:ScreenplayDialogs, page:screenplay |
-| `loadRevisionInfo` | component:ScreenplayDialogs, page:screenplay |
 | `loadScreenplayDrift` | page:scenes, page:storyboard |
-| `loadScriptTiming` | component:ScreenplayDialogs, page:screenplay |
-| `loadScriptVersion` | component:ScreenplayDialogs, page:screenplay |
-| `loadScriptVersions` | component:ScreenplayDialogs, page:screenplay |
 | `loadSequences` | page:productiongraph, page:videoshots |
-| `loadTreatment` | component:ScreenplayDialogs, page:screenplay |
-| `MAX_UNDO_ENTRIES` | component:ScreenplayDialogs, page:screenplay |
 | `mediaUploadControl` | page:music, page:productiongraph, page:videoshots |
 | `mediaUrl` | page:music, page:playback, page:previs, page:productiongraph |
-| `mmss` | component:ScreenplayDialogs, page:screenplay |
 | `MW` | page:edits, page:music |
 | `mwTime` | page:edits, page:music |
 | `nativeCamera` | component:CharacterSheet, component:SubjectSheet, page:marketing, page:music, page:productiongraph, page:videoshots |
-| `nextEditorBlock` | component:ScreenplayDialogs, page:screenplay |
-| `normalizeEditor` | component:ScreenplayDialogs, page:screenplay |
-| `onCardDragLeave` | component:ScreenplayDialogs, page:screenplay |
-| `onCardDragOver` | component:ScreenplayDialogs, page:screenplay |
-| `onCardDragStart` | component:ScreenplayDialogs, page:screenplay |
-| `onCardDrop` | component:ScreenplayDialogs, page:screenplay |
-| `onEditorInput` | component:ScreenplayDialogs, page:screenplay |
-| `onSceneNavDragLeave` | component:ScreenplayDialogs, page:screenplay |
-| `onSceneNavDragOver` | component:ScreenplayDialogs, page:screenplay |
-| `onSceneNavDragStart` | component:ScreenplayDialogs, page:screenplay |
-| `onSceneNavDrop` | component:ScreenplayDialogs, page:screenplay |
 | `openFolderPicker` | component:CoreDialogs, page:settings |
 | `openFrameViewer` | page:dashboard, page:productiongraph, page:storyboard |
-| `openIndexCard` | component:ScreenplayDialogs, page:screenplay |
 | `openStrip` | page:productiongraph, page:videoshots |
-| `openTitlePageModal` | component:ScreenplayDialogs, page:screenplay |
-| `parseFountainToHTML` | component:ScreenplayDialogs, page:screenplay |
-| `parseSceneBlocks` | component:ScreenplayDialogs, page:screenplay |
-| `parseSceneOutline` | component:ScreenplayDialogs, page:screenplay |
-| `parseTitlePageFromEditor` | component:ScreenplayDialogs, page:screenplay |
-| `parseTitlePageFromFountain` | component:ScreenplayDialogs, page:screenplay |
 | `pb` | page:playback, page:previs |
-| `performAutoSave` | component:ScreenplayDialogs, page:screenplay |
 | `PLATE_CAMERA` | component:CharacterSheet, component:SubjectSheet, page:marketing, page:music, page:productiongraph, page:videoshots |
 | `plateShootButton` | component:CharacterSheet, component:SubjectSheet, page:marketing, page:music, page:productiongraph, page:videoshots |
 | `plateSrc` | component:CharacterSheet, component:SubjectSheet, page:characters, page:consistency, page:locations, page:moodboard, page:props, page:storyboard |
 | `plateViewsFor` | component:CharacterSheet, component:SubjectSheet, page:marketing, page:music, page:productiongraph, page:videoshots |
-| `positionAutocomplete` | component:ScreenplayDialogs, page:screenplay |
 | `previewFolderSeq` | component:CoreDialogs, page:projects, page:settings |
 | `previewProjectFolder` | component:CoreDialogs, page:projects, page:settings |
 | `previewSequence` | page:productiongraph, page:videoshots |
@@ -250,79 +163,19 @@ their shared declarations together into one engine; the rest stays core or becom
 | `protectOverlayHTML` | page:playback, page:storyboard |
 | `protectRatiosPlanned` | page:deliverables, page:playback, page:storyboard |
 | `protectSelection` | page:playback, page:storyboard |
-| `pushUndoState` | component:ScreenplayDialogs, page:screenplay |
-| `redoStack` | component:ScreenplayDialogs, page:screenplay |
 | `refreshProtectOptions` | page:deliverables, page:playback |
 | `renderBoardLock` | page:productiongraph, page:storyboard |
-| `renderFountainToEditor` | component:ScreenplayDialogs, page:screenplay |
-| `renderIndexCards` | component:ScreenplayDialogs, page:screenplay |
-| `renderScriptGutter` | component:ScreenplayDialogs, page:screenplay |
-| `reorderScenes` | component:ScreenplayDialogs, page:screenplay |
-| `restoreVersion` | component:ScreenplayDialogs, page:screenplay |
-| `saveScreenplay` | component:ScreenplayDialogs, page:screenplay |
-| `saveStatus` | component:ScreenplayDialogs, page:screenplay |
-| `SCENE_NAV_UPDATE_DELAY` | component:ScreenplayDialogs, page:screenplay |
-| `sceneActionText` | component:ScreenplayDialogs, page:screenplay |
-| `sceneHeadingBlocks` | component:ScreenplayDialogs, page:screenplay |
-| `sceneNavTimer` | component:ScreenplayDialogs, page:screenplay |
-| `sceneNumbersLocked` | component:ScreenplayDialogs, page:screenplay |
-| `screenplaySuggestions` | component:ScreenplayDialogs, page:screenplay |
-| `SCRIPT_TIMING` | component:ScreenplayDialogs, page:screenplay |
-| `scriptVersionsData` | component:ScreenplayDialogs, page:screenplay |
-| `scrollToScene` | component:ScreenplayDialogs, page:screenplay |
-| `selectAutocompleteItem` | component:ScreenplayDialogs, page:screenplay |
-| `selectedVersions` | component:ScreenplayDialogs, page:screenplay |
-| `serializeEditorToFountain` | component:ScreenplayDialogs, page:screenplay |
-| `serializeTitlePageToFountain` | component:ScreenplayDialogs, page:screenplay |
 | `setAnchor` | page:productiongraph, page:storyboard |
-| `setBlockElementType` | component:ScreenplayDialogs, page:screenplay |
-| `setCursorToBlock` | component:ScreenplayDialogs, page:screenplay |
-| `setCursorToEnd` | component:ScreenplayDialogs, page:screenplay |
-| `setViewMode` | component:ScreenplayDialogs, page:screenplay |
 | `shootControl` | component:CharacterSheet, component:SubjectSheet, page:marketing, page:music, page:productiongraph, page:videoshots |
 | `shootPlate` | component:CharacterSheet, component:SubjectSheet, page:marketing, page:music, page:productiongraph, page:videoshots |
 | `shootsWithCamera` | component:CharacterSheet, component:SubjectSheet, page:marketing, page:music, page:productiongraph, page:videoshots |
-| `shotCodesByScene` | component:ScreenplayDialogs, page:screenplay |
-| `showAutocomplete` | component:ScreenplayDialogs, page:screenplay |
-| `showAutoDetectSuggestion` | component:ScreenplayDialogs, page:screenplay |
-| `showVersionDiff` | component:ScreenplayDialogs, page:screenplay |
-| `SP_FURNITURE` | component:ScreenplayDialogs, page:screenplay |
-| `SP_KEEP_EMPTY` | component:ScreenplayDialogs, page:screenplay |
-| `SP_VIEWS` | component:ScreenplayDialogs, page:screenplay |
-| `spBlock` | component:ScreenplayDialogs, page:screenplay |
 | `ssSection` | component:SubjectSheet, page:music |
-| `startEditSceneNumber` | component:ScreenplayDialogs, page:screenplay |
 | `stitchSequence` | page:productiongraph, page:videoshots |
 | `streamSSE` | page:productiongraph, page:storyboard |
 | `streamSSEPost` | page:music, page:pipeline, page:previs, page:videoshots |
-| `stripEmphasisMarkers` | component:ScreenplayDialogs, page:screenplay |
 | `stripSequence` | page:productiongraph, page:videoshots |
-| `sweepEmptyBlocks` | component:ScreenplayDialogs, page:screenplay |
-| `textOf` | component:ScreenplayDialogs, page:screenplay |
-| `timingRowsForHeadings` | component:ScreenplayDialogs, page:screenplay |
-| `titlePageInnerHtml` | component:ScreenplayDialogs, page:screenplay |
 | `toggleBoardLock` | page:productiongraph, page:storyboard |
-| `toggleLockSceneNumbers` | component:ScreenplayDialogs, page:screenplay |
-| `toggleVersionSelect` | component:ScreenplayDialogs, page:screenplay |
-| `triggerAutocomplete` | component:ScreenplayDialogs, page:screenplay |
-| `triggerAutoSave` | component:ScreenplayDialogs, page:screenplay |
-| `triggerSceneNavUpdate` | component:ScreenplayDialogs, page:screenplay |
-| `triggerUndoCapture` | component:ScreenplayDialogs, page:screenplay |
-| `UNDO_DEBOUNCE_DELAY` | component:ScreenplayDialogs, page:screenplay |
-| `undoStack` | component:ScreenplayDialogs, page:screenplay |
-| `undoTimer` | component:ScreenplayDialogs, page:screenplay |
-| `updateCurrentSceneHighlight` | component:ScreenplayDialogs, page:screenplay |
-| `updateEditorStats` | component:ScreenplayDialogs, page:screenplay |
-| `updateRevisionIndicator` | component:ScreenplayDialogs, page:screenplay |
-| `updateRevisionPageMarkers` | component:ScreenplayDialogs, page:screenplay |
-| `updateSaveStatus` | component:ScreenplayDialogs, page:screenplay |
-| `updateSceneGutter` | component:ScreenplayDialogs, page:screenplay |
-| `updateSceneNavigator` | component:ScreenplayDialogs, page:screenplay |
-| `updateSceneNumberGutters` | component:ScreenplayDialogs, page:screenplay |
-| `updateSceneNumbers` | component:ScreenplayDialogs, page:screenplay |
 | `updateSceneStatusIcons` | page:scenes, page:screenplay |
-| `updateScriptStats` | component:ScreenplayDialogs, page:screenplay |
-| `updateScriptStatsSummary` | component:ScreenplayDialogs, page:screenplay |
 | `UPLOAD_BODY_LIMITS` | component:CharacterSheet, component:SubjectSheet, page:edits, page:exportpage, page:marketing, page:moodboard, page:music, page:previs, page:productiongraph, page:projects, page:screenplay, page:storyboard, page:stylebook, page:videoshots |
 | `uploadCapabilityMedia` | page:music, page:productiongraph, page:videoshots |
 | `uploadControl` | component:CharacterSheet, component:SubjectSheet, page:marketing, page:productiongraph |
@@ -333,6 +186,16 @@ their shared declarations together into one engine; the rest stays core or becom
 | `upscalePlanHtml` | page:productiongraph, page:videoshots |
 | `usd` | page:budget, page:playback, page:productiongraph, page:videoshots |
 | `WORLD` | page:previs, page:storyboard |
+
+## (e) One owner, held in core
+
+Each is used only by its owner, but a core declaration that stays calls it in code. It moves when its
+blocking callers do (or are themselves moved or removed).
+
+| declaration | owner | held by |
+|---|---|---|
+| `AUTO_FORMAT_RULES` | page:screenplay | `AUTO_NEXT_TYPE` |
+| `characterViewsHtml` | component:CharacterSheet | `renderCharacterViewsInto` |
 
 ## (c) Reached by nobody this measurement can see
 

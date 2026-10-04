@@ -15,6 +15,8 @@
  * Load-time core: what core's own top-level statements (the INIT block, listeners), shell.js and production-graph.js
  *   reach, closed over the edges. It stays core whoever else uses it.
  * Owners propagate down the edges: a helper inherits every owner of every core declaration that calls it.
+ * Movable is a fixed point: a declaration moves with its one owner only if no core caller that STAYS calls it in code
+ *   (a caller that only names it in a string is fine once the owner provides it).
  *
  * Matching by name errs toward MORE reach (a name in a string of prose counts), which only keeps more in core. That is
  * the safe direction for a move; a name it cannot see at all (built at run time, window[name]) is in (c), named.
@@ -53,6 +55,14 @@ const EXEMPT = {
     'src/vendor/splat-viewer.js': 'a vendored bundle (three.js + Spark), minified: its short names would match core names by chance',
 };
 
+/*
+ * Owners that are one feature, measured as one: a component that is a page's own dialogs imports from that page's
+ * engine, so what only the two of them use moves into the page's engine. Each entry says why.
+ */
+const GROUPS = {
+    'component:ScreenplayDialogs': ['page:screenplay', "the Screenplay's seven dialogs: their handlers call the screenplay engine, and the component imports from it"],
+};
+
 function measure() {
     const core = read('public/legacy/core.js');
     const ast = acorn.parse(core, { ecmaVersion: 'latest' });
@@ -68,8 +78,33 @@ function measure() {
     const names = new Set(decls.keys());
     const refs = (code, self) => [...tokens(code)].filter(t => names.has(t) && t !== self);
 
-    // Core -> core edges.
+    // Core -> core edges, and which of them are in CODE (an identifier) rather than only BY NAME (in a string: the HTML
+    // core draws, onclick="f(…)", or window[name]). Moving f out of core breaks a staying caller that calls it in code;
+    // one that only names it keeps working once f's new owner provides it on window.
     const edges = new Map([...decls].map(([n, t]) => [n, new Set(refs(t, n))]));
+    const codeRefs = new Map();
+    for (const n of ast.body) {
+        const own = n.type === 'FunctionDeclaration' ? [n.id.name] : n.type === 'VariableDeclaration' ? n.declarations.filter(d => d.id.type === 'Identifier' && d.init).map(d => d.id.name) : [];
+        if (!own.length) continue;
+        const seen = new Set();
+        const walk = (x, parent, key) => {
+            if (!x || typeof x.type !== 'string') return;
+            const isKey = parent && ((parent.type === 'MemberExpression' && key === 'property' && !parent.computed
+                && !(parent.object.type === 'Identifier' && (parent.object.name === 'window' || parent.object.name === 'legacy')))
+                || (parent.type === 'Property' && key === 'key' && !parent.computed && !parent.shorthand));
+            if (x.type === 'Identifier' && !isKey && names.has(x.name)) seen.add(x.name);
+            for (const k of Object.keys(x)) { const v = x[k]; if (Array.isArray(v)) v.forEach(y => walk(y, x, k)); else if (v && typeof v.type === 'string') walk(v, x, k); }
+        };
+        walk(n, null, null);
+        for (const o of own) codeRefs.set(o, new Set([...seen].filter(r => r !== o)));
+    }
+    /** caller -> { code: true } when it calls `name` in code, { code: false } when it only names it. */
+    const callersOf = (name) => {
+        if (!names.has(name)) return null;
+        const out = new Map();
+        for (const [caller, callees] of edges) if (callees.has(name)) out.set(caller, { code: codeRefs.get(caller).has(name) });
+        return out;
+    };
 
     // Load-time core: core's own statements, the shell and the graph setting's script, closed over the edges.
     const boot = new Set();
@@ -97,7 +132,8 @@ function measure() {
     for (const n of fs.readdirSync(path.join(ROOT, 'src/lib')).filter(isSource).filter(n => !EXEMPT[`src/lib/${n}`])) owners.push({ id: `lib:${n.replace(/\.[^.]+$/, '')}`, src: one(`src/lib/${n}`), files: [`src/lib/${n}`] });
     owners.push({ id: 'app', src: ['src/App.jsx', 'src/main.jsx'].filter(f => fs.existsSync(path.join(ROOT, f))).map(one).join('\n'), files: ['src/App.jsx', 'src/main.jsx'] });
     const own = new Map([...names].map(n => [n, new Set()]));
-    for (const o of owners) for (const n of refs(o.src, null)) own.get(n).add(o.id);
+    const groupOf = (id) => (GROUPS[id] ? GROUPS[id][0] : id);
+    for (const o of owners) for (const n of refs(o.src, null)) own.get(n).add(groupOf(o.id));
 
     // Owners flow down the edges to a fixpoint: a helper serves everyone its callers serve.
     let changed = true;
@@ -108,36 +144,60 @@ function measure() {
         }
     }
     const ownersOf = (n) => [...own.get(n)].sort();
-    const a = [], b = [], c = [], d = [];
+    /*
+     * Movable to its one owner O: owned by O alone, not load-time, and every core caller either moves to O too, or
+     * names it only BY NAME (then O must provide it: a2). A caller that stays and calls it in CODE holds it in core (e).
+     * A fixed point, since removing one declaration from the movable set can hold its callees.
+     */
+    const single = [...names].filter(n => !boot.has(n) && own.get(n).size === 1);
+    const movable = new Set(single);
+    const ownerOf = (n) => [...own.get(n)][0];
+    for (let changed = true; changed;) {
+        changed = false;
+        for (const f of [...movable]) {
+            for (const [caller, k] of callersOf(f)) {
+                const moves = movable.has(caller) && ownerOf(caller) === ownerOf(f);
+                if (!moves && k.code) { movable.delete(f); changed = true; break; }
+            }
+        }
+    }
+    const a = [], a2 = [], b = [], c = [], d = [], e = [];
     for (const n of names) {
         const os = ownersOf(n);
         if (boot.has(n)) d.push({ name: n, owners: os });
-        else if (os.length === 1) a.push({ name: n, owner: os[0] });
+        else if (movable.has(n)) {
+            const named = [...callersOf(n)].filter(([caller]) => !(movable.has(caller) && ownerOf(caller) === os[0])).map(([caller]) => caller);
+            (named.length ? a2 : a).push(named.length ? { name: n, owner: os[0], namedBy: named.sort() } : { name: n, owner: os[0] });
+        } else if (os.length === 1) e.push({ name: n, owner: os[0], heldBy: [...callersOf(n)].filter(([caller, k]) => k.code && !(movable.has(caller) && ownerOf(caller) === os[0])).map(([caller]) => caller).sort() });
         else if (os.length > 1) b.push({ name: n, owners: os });
         else c.push({ name: n });
     }
     const byName = (x, y) => x.name.localeCompare(y.name);
-    return { a: a.sort(byName), b: b.sort(byName), c: c.sort(byName), d: d.sort(byName), boot, edges, ownersOf, total: names.size, scanned: owners.flatMap(o => o.files), exempt: EXEMPT };
+    return { a: a.sort(byName), a2: a2.sort(byName), b: b.sort(byName), c: c.sort(byName), d: d.sort(byName), e: e.sort(byName), boot, edges, ownersOf, callersOf, total: names.size, scanned: owners.flatMap(o => o.files), exempt: EXEMPT, groups: GROUPS };
 }
 
 /** The report, as Markdown: the split by owner first, since that is what gets worked from. */
 function report(M) {
     const lines = [];
     const byOwner = new Map();
-    for (const x of M.a) byOwner.set(x.owner, [...(byOwner.get(x.owner) || []), x.name]);
+    for (const x of M.a) byOwner.set(x.owner, [...(byOwner.get(x.owner) || []), `\`${x.name}\``]);
+    for (const x of M.a2) byOwner.set(x.owner, [...(byOwner.get(x.owner) || []), `\`${x.name}\` (provide: named by ${x.namedBy.join(', ')})`]);
     lines.push('# Who owns the legacy core', '',
         'GENERATED by `node tools/core-ownership.js` from `public/legacy/core.js` and the React owners; held by',
         '`tools/tests/core-ownership.test.js`. Every top-level declaration of core, in exactly one category. Matching is',
         'by name and errs toward more reach, which only keeps more in core.', '',
         `| category | declarations |`, `|---|---|`,
-        `| (a) one owner: can move into that owner's engine | ${M.a.length} |`,
+        `| (a) one owner, and every core caller moves with it: can move into that owner's engine | ${M.a.length} |`,
+        `| (a2) as (a), but a caller that stays NAMES it (onclick, window[name]): moves if the owner provides it | ${M.a2.length} |`,
+        `| (e) one owner, but a caller that stays in core calls it in code: held in core until that caller moves | ${M.e.length} |`,
         `| (b) two or more owners: stays core, or a shared module | ${M.b.length} |`,
         `| (c) reached by nobody this can see: dead, or reached only by a name built at run time | ${M.c.length} |`,
         `| (d) load-time core (startup statements, shell.js, production-graph.js and what they reach) | ${M.d.length} |`,
         `| total | ${M.total} |`, '',
+        ...(Object.keys(M.groups).length ? ['Measured as one owner (`GROUPS` in the tool): ' + Object.entries(M.groups).map(([k, [v, why]]) => `${k} as ${v} (${why})`).join('; ') + '.', ''] : []),
         '## (a) By owner', '');
     for (const [o, ns] of [...byOwner].sort((x, y) => y[1].length - x[1].length || x[0].localeCompare(y[0]))) {
-        lines.push(`### ${o} (${ns.length})`, '', ns.map(n => `\`${n}\``).join(', '), '');
+        lines.push(`### ${o} (${ns.length})`, '', ns.join(', '), '');
     }
     // The shared set by WHICH owners share it: a pair that is one feature (a page and its own dialogs) moves together.
     const sets = new Map();
@@ -148,6 +208,9 @@ function report(M) {
     for (const [k, n] of [...sets].sort((x, y) => y[1] - x[1] || x[0].localeCompare(y[0]))) lines.push(`| ${k} | ${n} |`);
     lines.push('', '## (b) Shared', '', '| declaration | owners |', '|---|---|');
     for (const x of M.b) lines.push(`| \`${x.name}\` | ${x.owners.join(', ')} |`);
+    lines.push('', '## (e) One owner, held in core', '', 'Each is used only by its owner, but a core declaration that stays calls it in code. It moves when its',
+        'blocking callers do (or are themselves moved or removed).', '', '| declaration | owner | held by |', '|---|---|---|');
+    for (const x of M.e) lines.push(`| \`${x.name}\` | ${x.owner} | ${x.heldBy.map(h => `\`${h}\``).join(', ')} |`);
     lines.push('', '## (c) Reached by nobody this measurement can see', '',
         'Not deleted: each is either dead, or reached by a name built at run time (`window[name]`, a string the code',
         'assembles). Check each before removing it.', '', M.c.map(x => `\`${x.name}\``).join(', ') || '(none)', '',
@@ -160,5 +223,5 @@ module.exports = { measure, report };
 if (require.main === module) {
     const M = measure();
     fs.writeFileSync(path.join(ROOT, 'docs/core-ownership.md'), report(M));
-    console.log(`core: ${M.total} declarations — (a) ${M.a.length} one owner, (b) ${M.b.length} shared, (c) ${M.c.length} reached by nobody, (d) ${M.d.length} load-time`);
+    console.log(`core: ${M.total} declarations — (a) ${M.a.length} movable, (a2) ${M.a2.length} movable if provided, (e) ${M.e.length} one owner but held, (b) ${M.b.length} shared, (c) ${M.c.length} reached by nobody, (d) ${M.d.length} load-time`);
 }
