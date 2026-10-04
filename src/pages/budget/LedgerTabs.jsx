@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import Modal, { closeModal } from '../../components/Modal.jsx';
+import { useListControls, ListControlsBar, ListNoMatch } from '../../lib/list-controls.jsx';
+import SURFACE from './list-surface.js';
 
 /* The cost ledger: what was spent outside the meter, entered by hand, against the limit. */
 const TYPE_COLORS = { render_gpu: '#e91e63', image_generation: '#2196f3', video_generation: '#9c27b0', voice_synthesis: '#ff9800', music_generation: '#4caf50',
@@ -10,6 +12,7 @@ export const COST_TYPES = [['render_gpu', 'Render GPU'], ['image_generation', 'I
 export function LedgerTab({ ledger, onSetLimit, onAddEntry, onDelete }) {
     const { summary = {}, entries = [], forecast = {} } = ledger || {};
     const total = summary.total_spent || 0;
+    const list = useListControls(SURFACE, ledger ? entries : null);
     const limit = summary.budget_total || 0;
     const pct = limit > 0 ? Math.min(100, total / limit * 100).toFixed(1) : 0;
     const breakdown = summary.breakdown || [];
@@ -51,13 +54,15 @@ export function LedgerTab({ ledger, onSetLimit, onAddEntry, onDelete }) {
                 ))}</div>
             </>}</div>
             <h3 className="mb-8">Cost Ledger</h3>
+            {entries.length > 0 && <ListControlsBar list={list} />}
             <div id="budgetLedger">
                 {ledger && !entries.length && <p className="text-sm text-muted">No cost entries yet.</p>}
-                {entries.length > 0 && (
+                {entries.length > 0 && !list.shown.length && <ListNoMatch list={list} />}
+                {list.shown && list.shown.length > 0 && (
                     <table className="render-table"><tbody>
                         <tr><th>Type</th><th>Amount</th><th>Description</th><th>Model</th><th>Date</th><th></th></tr>
-                        {entries.map(e => (
-                            <tr key={e.id}>
+                        {list.shown.map(e => (
+                            <tr key={e.id} data-cost-id={e.id}>
                                 <td><span className="badge">{e.cost_type}</span></td>
                                 <td>${(e.amount || 0).toFixed(2)}</td>
                                 <td className="text-sm">{e.description || '-'}</td>

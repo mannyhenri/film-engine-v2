@@ -49,16 +49,29 @@ export default function BudgetPage() {
     }
     usePageLoader('loadSpend', loadSpend);
 
+    /*
+     * Every entry of the ledger, page by page: the route gives at most 200 a page, and a search, sort or filter over
+     * the newest 50 (what this read before) would miss the rest of the history without saying so.
+     */
+    async function readLedger(projectId) {
+        const entries = [];
+        for (let page = 1; ; page++) {
+            const l = await legacy.api('/projects/' + projectId + '/budget/ledger?limit=200&page=' + page);
+            entries.push(...(l.entries || []));
+            if (!(page < (l.pages || 1))) return entries;
+        }
+    }
+
     async function loadBudget() {
         if (!pid()) return;
         legacy.setStatus('Loading budget...');
         try {
             const [summary, l, forecast] = await Promise.all([
                 legacy.api('/projects/' + pid() + '/budget'),
-                legacy.api('/projects/' + pid() + '/budget/ledger?limit=50'),
+                readLedger(pid()),
                 legacy.api('/projects/' + pid() + '/budget/forecast'),
             ]);
-            setLedger({ summary, entries: l.entries || [], forecast });
+            setLedger({ summary, entries: l, forecast });
             legacy.setStatus('Budget loaded');
         } catch (err) { fail(err); }
     }

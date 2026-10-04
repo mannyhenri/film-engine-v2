@@ -13,22 +13,7 @@
 import { describe, it, expect } from 'vitest';
 import { applyListControls, findMatches, filterValues, sortOrder } from '../lib/list-controls.jsx';
 
-const REQUIRED = {
-    // film-engine-v2 agent
-    characters: 'v2', locations: 'v2', props: 'v2', scenes: 'v2', storyboard: 'v2', shotboard: 'v2', consistency: 'v2',
-    assets: 'v2', jobsqueue: 'v2', notes: 'v2', renderhistory: 'v2', moodboard: 'v2', stylebook: 'v2', marketing: 'v2',
-    subtitles: 'v2', titles: 'v2', rights: 'v2', deliverables: 'v2', projects: 'v2',
-    // film-engine agent
-    productiongraph: 'fe', videoshots: 'fe', playback: 'fe', music: 'fe', musiccues: 'fe', musicws: 'fe', screenplay: 'fe',
-    previs: 'fe', threed: 'fe', flows: 'fe', edits: 'fe', budget: 'fe',
-};
-// Not wired yet, each with its owner (REQUIRED); an owner removes a name here in the commit that wires it.
-const PENDING = new Set([
-    'scenes', 'storyboard', 'shotboard', 'consistency', 'assets', 'jobsqueue', 'notes', 'renderhistory', 'moodboard',
-    'stylebook', 'marketing', 'subtitles', 'titles', 'rights', 'deliverables', 'projects',
-    'productiongraph', 'videoshots', 'playback', 'music', 'musiccues', 'musicws', 'screenplay', 'previs', 'threed', 'flows',
-    'edits', 'budget',
-]);
+import { REQUIRED, PENDING } from './list-surfaces.registry.js';
 
 // Every declared surface: a page may declare more than one (export default one, or an array).
 const DECLARED = Object.entries(import.meta.glob('./*/list-surface.js', { eager: true }))

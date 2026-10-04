@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { legacy } from '../../lib/legacy.js';
 import { usePageLoader } from '../../lib/usePageLoader.js';
+import { useListControls, ListControlsBar, ListNoMatch } from '../../lib/list-controls.jsx';
+import SURFACE from './list-surface.js';
 import * as E from './engine.js'; // what a video shot card does that only this page uses, moved from core
 
 /*
@@ -183,6 +185,8 @@ export default function VideoShotsPage() {
     }
 
     const shots = view?.shots || [];
+    const list = useListControls(SURFACE, view ? shots : null);
+    const shown = list.shown || [];
     const framed = (s) => !!(s.keyframe_url || s.has_keyframe || (view?.assetsByShot[s.id] && (view.assetsByShot[s.id].storyboard || view.assetsByShot[s.id].keyframe)));
     const FIELD = { padding: 8, borderRadius: 6, background: 'var(--gl-bg-surface)', color: 'inherit', border: '1px solid var(--gl-border-default,#333)' };
 
@@ -238,6 +242,7 @@ export default function VideoShotsPage() {
                 <div id="sequenceList" style={{ marginTop: 14 }} />
             </div>
 
+            {shots.length > 0 && <ListControlsBar list={list} />}
             <div className="entity-grid" id="videoshotsGrid" style={{ gridTemplateColumns: 'repeat(auto-fill,minmax(260px,1fr))' }}>
                 {view && (
                     <div style={{ gridColumn: '1/-1', background: 'var(--gl-bg-surface)', border: '1px solid var(--gl-border-subtle)', borderRadius: 8, padding: '8px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -249,7 +254,8 @@ export default function VideoShotsPage() {
                     <div className="empty-state" style={{ gridColumn: '1/-1' }}><div className="icon">🎥</div><h3>No shots</h3>
                         <p>Create shots (Shot Board) first, then generate video clips from their storyboard keyframes.</p></div>
                 )}
-                {shots.map(s => <ShotCard key={s.id} s={s} job={view.jobByShot[s.id]} media={view.assetsByShot[s.id] || {}} pid={view.pid} />)}
+                {shots.length > 0 && !shown.length && <ListNoMatch list={list} />}
+                {shown.map(s => <ShotCard key={s.id} s={s} job={view.jobByShot[s.id]} media={view.assetsByShot[s.id] || {}} pid={view.pid} />)}
             </div>
         </div>
     );

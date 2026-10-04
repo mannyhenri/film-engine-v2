@@ -25,7 +25,7 @@ const LEDGER = [{ total_spent: 12, budget_total: 100, breakdown: [{ cost_type: '
     { avg_daily_spend: 4, days_until_exhausted: 22 }];
 const ROUTES = {
     'GET /projects/p1/spend': SPEND, 'GET /spend/subscription?project_id=p1': SUB,
-    'GET /projects/p1/budget': LEDGER[0], 'GET /projects/p1/budget/ledger?limit=50': LEDGER[1], 'GET /projects/p1/budget/forecast': LEDGER[2],
+    'GET /projects/p1/budget': LEDGER[0], 'GET /projects/p1/budget/ledger?limit=200&page=1': LEDGER[1], 'GET /projects/p1/budget/forecast': LEDGER[2],
 };
 async function openPage(routes = {}) {
     const legacy = installLegacy({ routes: { ...ROUTES, ...routes } });
@@ -103,6 +103,18 @@ describe('Budget: the page', () => {
         expect(bodies[1]).toEqual({});
         expect(status).toContain('Reconstructed 7 generation(s) — $4.00');
         alert.mockRestore();
+    });
+
+    it('Ledger: every page of it is read, so a search or sort covers the whole history, not the newest page', async () => {
+        const e = (id) => ({ id, cost_type: 'other', amount: 1, description: id, created_at: '2026-10-01' });
+        const { calls } = await openPage({
+            'GET /projects/p1/budget/ledger?limit=200&page=1': { entries: [e('a'), e('b')], pages: 2 },
+            'GET /projects/p1/budget/ledger?limit=200&page=2': { entries: [e('c')], pages: 2 },
+        });
+        expect(calls.filter(c => c.path.includes('/budget/ledger')).map(c => c.path)).toEqual([
+            '/projects/p1/budget/ledger?limit=200&page=1', '/projects/p1/budget/ledger?limit=200&page=2']);
+        fireEvent.click(tabBtn('Ledger'));
+        expect([...document.querySelectorAll('#budgetLedger tr[data-cost-id]')].map(r => r.getAttribute('data-cost-id'))).toEqual(['a', 'b', 'c']);
     });
 
     it('Ledger: summary against the limit, the breakdown, entries as text; delete asks first', async () => {

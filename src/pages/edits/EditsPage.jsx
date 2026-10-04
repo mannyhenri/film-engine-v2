@@ -1,4 +1,6 @@
 import { useRef, useState } from 'react';
+import { useListControls, ListControlsBar, ListNoMatch } from '../../lib/list-controls.jsx';
+import SURFACE from './list-surface.js';
 import Modal, { openModal, closeModal } from '../../components/Modal.jsx';
 import { legacy } from '../../lib/legacy.js';
 import { usePageLoader } from '../../lib/usePageLoader.js';
@@ -186,6 +188,7 @@ export default function EditsPage() {
 
     function openScoreSession(e, sessionId) { e.preventDefault(); legacy.MW.session = { id: sessionId }; legacy.navigateTo('musicws'); }
 
+    const list = useListControls(SURFACE, view.edits || null);
     const actions = { scoreThisEdit, importEditCut, rematchEditCut, renameEdit, deleteEditVersion, openScoreSession };
 
     return (
@@ -207,12 +210,14 @@ export default function EditsPage() {
                 Premiere sequence at 00:00.
             </p>
             <div id="editImportProgress" className="text-sm" style={{ margin: '8px 0' }}>{progress}</div>
+            {view.edits && view.edits.length > 0 && <ListControlsBar list={list} />}
             <div id="editsList">
                 {view.noProject && <p className="text-muted">Open a project to see its edits.</p>}
                 {view.error && <p className="text-sm" style={{ color: 'var(--danger,#e66)' }}>The edits could not be read: {view.error}</p>}
                 {view.edits === null && !view.noProject && !view.error && <p className="text-muted">Loading&hellip;</p>}
                 {view.edits && !view.edits.length && <p className="text-muted">No edit yet. Export your cut from Premiere and import it with the button above.</p>}
-                {view.edits && view.edits.map(e => <EditCard key={e.id} e={e} act={actions} />)}
+                {view.edits && view.edits.length > 0 && !list.shown.length && <ListNoMatch list={list} />}
+                {view.edits && list.shown.map(e => <EditCard key={e.id} e={e} act={actions} />)}
             </div>
 
             <Modal id="editRenameModal" title="Name this version" footer={<>
