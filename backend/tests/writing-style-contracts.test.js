@@ -30,6 +30,12 @@ function request(op,id,ctx){
   propose:['POST','profiles',{expected_version:ctx.version,guidance:'Plain verbs.',sample_ids:[ctx.sample]}],
   importProfile:['POST','import',{profile:PORTABLE}],
   approve:['POST',`profiles/${ctx.version}/approve`,{expected_version:ctx.version,human_confirmed:true}],
+  // GRD-4661
+  importSource:['POST','sources',{title:'Script',text:'INT. ROOM - DAY\n\nWords of mine.\n',owner:'Manny',rights_basis:'own_writing',rights_confirmed:true,authorship:'original_human',confirmed_original:true}],
+  updateSample:['POST',`samples/${ctx.sample}`,{sample_id:ctx.sample,tags:['dialogue']}],
+  setSampleAccess:['POST',`samples/${ctx.sample}/access`,{sample_id:ctx.sample,grant:ctx.other}],
+  deleteSource:['DELETE',`sources/${ctx.document}`,{document_id:ctx.document}],
+  deleteSample:['DELETE',`samples/${ctx.sample}`,{sample_id:ctx.sample}],
  })[op];
 }
 
@@ -40,7 +46,7 @@ test('every operation is addressable and maps to a declared permission',()=>{
   assert.ok(perms.has(perm),`${op} needs a declared permission, got ${perm}`);
   assert.ok(request(op,'p',{version:1,sample:'s'}),`${op} has no route`);
  }
- assert.equal(Object.keys(OPERATIONS).length,8);
+ assert.equal(Object.keys(OPERATIONS).length,13);
 });
 
 test('profile states: the schema accepts every declared state and refuses any other',()=>{
@@ -122,10 +128,12 @@ test('idempotency: a retried write with the same key creates nothing new, across
  const count=()=>['film_writing_samples','film_writing_profiles','film_writing_feedback','film_writing_imports']
   .map(t=>db.prepare(`SELECT COUNT(*) n FROM ${t} WHERE project_id=?`).get(id).n).join(',');
  const writes=Object.entries(OPERATIONS).filter(([,perm])=>perm!=='read').map(([op])=>op);
- assert.deepEqual(writes.sort(),['addSample','approve','feedback','importProfile','propose']);
- for(const op of ['addSample','propose','approve','feedback','importProfile']){
+ const ORDER=['addSample','propose','approve','feedback','importProfile','importSource','updateSample','setSampleAccess','deleteSource','deleteSample'];
+ assert.deepEqual(writes.sort(),[...ORDER].sort());
+ const other=project();
+ for(const op of ORDER){
   const version=store.snapshot(id).profiles[0]?.version||0;
-  const ctx={version:op==='propose'?version:version||1,sample};
+  const ctx={version:op==='propose'?version:version||1,sample,other,document:store.snapshot(id).sources[0]?.id};
   const [method,suffix,body]=request(op,id,ctx);
   if(op==='approve')body[FIELD]=store.snapshot(id).profiles[0].evidence_hash;
   const key=`key-${op}`;

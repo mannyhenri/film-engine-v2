@@ -2,11 +2,16 @@ const crypto = require('crypto');
 const ws = require('../lib/writing-style');
 // The operation a request addresses, so permission, idempotency and logging all name the same thing.
 function operationOf(method, action, parts) {
+ if (method==='POST' && action==='sources' && !parts[5]) return 'importSource';
+ if (method==='DELETE' && action==='sources' && parts[5]) return 'deleteSource';
+ if (method==='POST' && action==='samples' && parts[5] && parts[6]==='access') return 'setSampleAccess';
+ if (method==='POST' && action==='samples' && parts[5] && !parts[6]) return 'updateSample';
+ if (method==='DELETE' && action==='samples' && parts[5]) return 'deleteSample';
  if (method==='GET' && !action) return 'snapshot';
  if (method==='GET' && action==='samples') return 'snapshot';
  if (method==='GET' && action==='export') return 'portable';
  if (method==='GET' && action==='context') return 'context';
- if (method==='POST' && action==='samples') return 'addSample';
+ if (method==='POST' && action==='samples' && !parts[5]) return 'addSample';
  if (method==='POST' && action==='import') return 'importProfile';
  if (method==='POST' && action==='profiles' && !parts[5]) return 'propose';
  if (method==='POST' && action==='profiles' && parts[6]==='approve') return 'approve';
@@ -25,7 +30,12 @@ function handleWritingStyle(req,res,parts) {
   if (op==='snapshot') result = action==='samples' ? { examples:s.snapshot(id).samples } : s.snapshot(id);
   else if (op==='portable') result=s.portable(id);
   else if (op==='context') result=s.context(id);
-  else if (op==='addSample') result=s.addSample(id,{...body,source_meta:undefined});
+  else if (op==='addSample') result=s.addSample(id,{...body,source_meta:undefined,source_document_id:undefined,span_start:undefined,span_end:undefined});
+  else if (op==='importSource') result=s.importSource(id,body);
+  else if (op==='updateSample') result=s.updateSample(id,{...body,sample_id:parts[5]});
+  else if (op==='setSampleAccess') result=s.setSampleAccess(id,{...body,sample_id:parts[5]});
+  else if (op==='deleteSample') result=s.deleteSample(id,{...body,sample_id:parts[5]});
+  else if (op==='deleteSource') result=s.deleteSource(id,{...body,document_id:parts[5]});
   else if (op==='importProfile') result=s.importProfile(id,body);
   else if (op==='propose') result=s.propose(id,{...body,direct_rules:undefined});
   else if (op==='approve') result=s.approve(id,Number(parts[5]),body);

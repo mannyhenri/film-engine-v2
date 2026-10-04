@@ -62,3 +62,20 @@ payload replays without writing, including after a restart, and a reused key
 with another payload is refused. Permissions live in the store: MCP calls are
 the agent actor, which may read, draft and propose but never approve.
 Operational logs record only the code, operation and request id.
+
+Samples and permitted imports (GRD-4661). Learn my style is in the Screenplay toolbar, next to AI
+Chat. It offers short dialogue, action, description, comedy and suspense prompts, each answered in
+the author's own words. Every sample records its owner, rights basis (own_writing, licensed or
+permission_granted, confirmed), type, language, tags, inclusion, retention (active, held_out or
+deleted) and the other projects allowed to use it. A sample taken from an imported script also
+records the script's id and the character span it came from. Imported scripts are refused without
+a confirmed rights basis. They are kept on this machine, hashed, and cut into one sample per scene
+unless spans are given. A sample is never evidence if it is deleted, held out, excluded, not shared
+with the project, not original, unconfirmed, or without confirmed rights. Changing a used sample to
+any of these makes the approval that used it stale, so drafting stops using it at once. Coverage
+shows each category's usable samples and the gaps. A profile with gaps says so in the draft context
+and tells the model not to infer the author's preferences there. Deleting a sample leaves a
+tombstone: id, hash and dates, with no text, no prose provenance, no sharing, and every copy scrubbed
+from imported profile files. Deleting a script does the same for its text and every sample taken
+from it. The workbench explains, before deletion, that saved screenplay revisions keep their own
+text and that anything already sent to an external provider follows that provider's retention.

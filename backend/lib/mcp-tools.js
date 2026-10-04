@@ -6193,7 +6193,7 @@ PRODUCTION_TOOLS.push(
       schema: { project_id: { type: 'string' } }, required: ['project_id'] },
     { name: 'writing_style_examples', handler: handleWritingStyle, method: 'GET',
       path: a => `/film/projects/${a.project_id}/writing-style/samples`,
-      description: 'Read writing evidence with provenance and human-authorship labels. Only confirmed original_human samples are voice ground truth; AI-assisted screenplay text is not.',
+      description: 'Read writing evidence with provenance, rights, coverage and authorship labels. Only samples whose eligibility is null are voice ground truth; deleted, held-out, excluded, unpermitted, unshared and AI-assisted samples are not, and a deleted sample is a tombstone with no text.',
       schema: { project_id: { type: 'string' } }, required: ['project_id'] },
     { name: 'writing_style_context', handler: handleWritingStyle, method: 'GET',
       path: a => `/film/projects/${a.project_id}/writing-style/context`,

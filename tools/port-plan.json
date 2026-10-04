@@ -106,7 +106,9 @@
     "backend/routes/scenes.js": "GRD-4671: GET/POST /film/scenes/:id/writing-status and writing readiness on the scene list; exports locateSceneSpan for lib/scene-writing.js",
     "backend/routes/scripts.js": "GRD-4671: uploadScript, importFDX and updateScript settle scene writing readiness after the document is written",
     "backend/routes/approvals.js": "GRD-4671: the pre-spend envelope carries the shot's scene writing readiness as a warning input",
-    "backend/lib/approval-envelope.js": "GRD-4671: scene_writing_not_ready warning (info, never a block)"
+    "backend/lib/approval-envelope.js": "GRD-4671: scene_writing_not_ready warning (info, never a block)",
+    "backend/db/migrations/133_writing_samples_provenance.sql": "GRD-4661: writing samples record owner, rights basis, type, language, tags, inclusion, retention and source span; imported scripts stay local; per-project access",
+    "backend/tests/writing-samples.test.js": "v2 only (GRD-4661): set-based over the prompt categories and every reason a sample is not draft evidence; import spans, coverage gaps, deletion tombstones"
   },
   "pinToCore": {
     "twBurst": "stays next to const TYPEWRITER (core): screenplay-focus reads the typewriter's sound rules as the source text from TYPEWRITER to twBurst, which must be one script"
