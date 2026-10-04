@@ -10,7 +10,8 @@ export default {
         { id: 'location', label: 'Location', field: 'location', dir: 'asc' },
     ],
     filters: [
-        { id: 'status', label: 'Status', field: 'status' },
+        { id: 'status', label: 'Production status', field: 'status' },
+        { id: 'writing', label: 'Writing', field: 'writing_status' },
         { id: 'int_ext', label: 'INT/EXT', field: 'int_ext' },
         { id: 'time', label: 'Time of day', field: 'time_of_day' },
     ],

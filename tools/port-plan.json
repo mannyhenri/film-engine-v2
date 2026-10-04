@@ -92,14 +92,21 @@
     "backend/tests/loading-never-sticks.test.js": "a loading renderer's body is bounded by its own braces, not by the next top-level function: as core's declarations move into React engines, \"the next function\" can be far away and the slice ran into unrelated code",
     "backend/tests/screenplay-focus.test.js": "TYPEWRITER's declaration is read by its own braces rather than up to twBurst, which moved into the Screenplay engine (src/pages/screenplay/engine.js), whose source block precedes core in the assembled page",
     "backend/routes/screenplay-ai.js": "Writing-style MVP: project-scoped original evidence, reviewed profiles and draft context.",
-    "backend/lib/mcp-tools.js": "Writing-style MVP: project-scoped original evidence, reviewed profiles and draft context. callRoute marks its requests actor: agent, so service-layer permissions (writing-style approval) hold for MCP.",
+    "backend/lib/mcp-tools.js": "Writing-style MVP: project-scoped original evidence, reviewed profiles and draft context. callRoute marks its requests actor: agent, so service-layer permissions (writing-style approval) hold for MCP. GRD-4671: scene_writing_status_read and scene_writing_status_set.",
     "backend/routes/writing-style.js": "Writing-style MVP: project-scoped original evidence, reviewed profiles and draft context.",
     "backend/lib/writing-style.js": "Writing-style MVP: project-scoped original evidence, reviewed profiles and draft context.",
     "backend/db/migrations/130_writing_style.sql": "Writing-style MVP: project-scoped original evidence, reviewed profiles and draft context.",
     "backend/tests/writing-style.test.js": "Writing-style MVP: project-scoped original evidence, reviewed profiles and draft context.",
     "backend/lib/writing-style-portable.js": "Validated manual interchange with private writing plugin schema 1.0.0; imported evidence remains quarantined unless the human confirms eligible originals.",
     "backend/db/migrations/131_writing_contracts.sql": "GRD-4660: writing profiles take the shared lifecycle states (draft, ready_for_review, approved, stale, blocked, failed) and writes take stored idempotency keys",
-    "backend/tests/writing-style-contracts.test.js": "v2 only (GRD-4660): set-based over the writing-style registries: version_conflict, STALE_APPROVAL fingerprints, stale dependents, idempotent replay, agent permissions, hostile import, log redaction"
+    "backend/tests/writing-style-contracts.test.js": "v2 only (GRD-4660): set-based over the writing-style registries: version_conflict, STALE_APPROVAL fingerprints, stale dependents, idempotent replay, agent permissions, hostile import, log redaction",
+    "backend/lib/scene-writing.js": "GRD-4671: per-scene writing readiness (draft, reviewing, production_ready) bound to scene identity and a fingerprint of the full scene text, read against the latest Fountain so every write path resets it",
+    "backend/db/migrations/132_scene_writing_status.sql": "GRD-4671: scene writing readiness and its transition/reset history, separate from film_scenes.status",
+    "backend/tests/scene-writing-status.test.js": "v2 only (GRD-4671): set-based over every screenplay write path; identity, ambiguity, fingerprint concurrency, idempotency, MCP parity, no side effects, downstream warning",
+    "backend/routes/scenes.js": "GRD-4671: GET/POST /film/scenes/:id/writing-status and writing readiness on the scene list; exports locateSceneSpan for lib/scene-writing.js",
+    "backend/routes/scripts.js": "GRD-4671: uploadScript, importFDX and updateScript settle scene writing readiness after the document is written",
+    "backend/routes/approvals.js": "GRD-4671: the pre-spend envelope carries the shot's scene writing readiness as a warning input",
+    "backend/lib/approval-envelope.js": "GRD-4671: scene_writing_not_ready warning (info, never a block)"
   },
   "pinToCore": {
     "twBurst": "stays next to const TYPEWRITER (core): screenplay-focus reads the typewriter's sound rules as the source text from TYPEWRITER to twBurst, which must be one script"

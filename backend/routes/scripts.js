@@ -1187,6 +1187,10 @@ function uploadScript(req, res, projectId) {
     // rewrite, is the one that never fires.
     for (const id of stampAfter) stampScene(id);
 
+    // Writing readiness is read against the document; settle it now, so text restored later to an
+    // earlier version cannot bring back readiness that this change ended (lib/scene-writing.js).
+    require('../lib/scene-writing').refresh(db, projectId);
+
     res.writeHead(201, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({
         script: scriptRow,
@@ -1299,6 +1303,10 @@ function importFDX(req, res, projectId) {
         WHERE id = ? AND status = 'concept'
     `).run(projectId);
 
+    // Writing readiness is read against the document; settle it now, so text restored later to an
+    // earlier version cannot bring back readiness that this change ended (lib/scene-writing.js).
+    require('../lib/scene-writing').refresh(db, projectId);
+
     res.writeHead(201, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({
         script: scriptRow,
@@ -1396,6 +1404,10 @@ function updateScript(req, res, projectId, version) {
     if (sceneWarnings.length) {
         response.warnings = sceneWarnings;
     }
+
+    // Writing readiness is read against the document; settle it now, so text restored later to an
+    // earlier version cannot bring back readiness that this change ended (lib/scene-writing.js).
+    require('../lib/scene-writing').refresh(db, projectId);
 
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify(response));

@@ -50,6 +50,10 @@ function handleScenes(req, res, urlParts, query) {
             }
             if (req.method === 'GET') return sceneHistory(req, res, sceneId);
         }
+        // /film/scenes/:id/writing-status — writing readiness, separate from production status (GRD-4671)
+        if (urlParts[3] === 'writing-status' && (req.method === 'GET' || req.method === 'POST')) {
+            return sceneWritingStatus(req, res, sceneId);
+        }
         if (req.method === 'GET') return getScene(req, res, sceneId);
         if (req.method === 'PUT') return updateScene(req, res, sceneId);
         if (req.method === 'DELETE') return deleteScene(req, res, sceneId);
@@ -99,6 +103,12 @@ function listScenes(req, res, projectId) {
     }
     for (const scene of rows) {
         scene.dialogue_lines = lines[String(scene.scene_number)] || 0;
+    }
+
+    // Writing readiness, read against the current screenplay (lib/scene-writing.js). Removed scenes have none.
+    const writing = require('../lib/scene-writing').state(db, projectId);
+    for (const scene of rows) {
+        Object.assign(scene, writing.get(scene.id) || { writing_status: null, writing_fingerprint: null, writing_ambiguous: false });
     }
 
     res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -631,4 +641,22 @@ function updateScene(req, res, sceneId) {
         res, ['film', 'projects', scene.project_id, 'script'], {});
 }
 
-module.exports = { handleScenes };
+/**
+ * Read or change one scene's writing readiness. The UI and MCP (scene_writing_status_*) both come
+ * here, so they share one validation: expected fingerprint, project, idempotency.
+ */
+function sceneWritingStatus(req, res, sceneId) {
+    const sw = require('../lib/scene-writing');
+    try {
+        const out = req.method === 'GET' ? sw.read(db, sceneId)
+            : sw.transition(db, sceneId, req.body, req.actor === 'agent' ? 'agent' : 'human');
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify(out));
+    } catch (e) {
+        if (!e.status) throw e;
+        res.writeHead(e.status, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ...e.extra, error: e.message, code: e.code }));
+    }
+}
+
+module.exports = { handleScenes, locateSceneSpan };

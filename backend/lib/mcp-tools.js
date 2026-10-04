@@ -2291,6 +2291,26 @@ const PRODUCTION_TOOLS = [
         schema: { project_id: { type: 'string' } }, required: ['project_id'],
     },
     {
+        name: 'scene_writing_status_read',
+        handler: handleScenes, method: 'GET',
+        description: 'Read one scene\'s WRITING readiness (draft, reviewing, production_ready), the fingerprint of its full current text, and its transition history. Separate from production status (written, broken_down, ... approved). Pass the fingerprint to scene_writing_status_set.',
+        path: a => `/film/scenes/${a.scene_id}/writing-status`,
+        schema: { scene_id: { type: 'string' } }, required: ['scene_id'],
+    },
+    {
+        name: 'scene_writing_status_set',
+        handler: handleScenes, method: 'POST',
+        description: 'Explicitly set a scene\'s writing readiness after a person decided it. expected_fingerprint must be the one scene_writing_status_read returned; if the text changed since, this fails and nothing changes. Never set this because a draft was generated or a render finished. Production ready does not render, export, spend or mark production complete.',
+        path: a => `/film/scenes/${a.scene_id}/writing-status`,
+        body: a => ({ project_id: a.project_id, status: a.status, expected_fingerprint: a.expected_fingerprint, reason: a.reason, idempotency_key: a.idempotency_key }),
+        schema: {
+            project_id: { type: 'string' }, scene_id: { type: 'string' },
+            status: { type: 'string', enum: ['draft', 'reviewing', 'production_ready'] },
+            expected_fingerprint: { type: 'string' }, reason: { type: 'string' }, idempotency_key: { type: 'string' },
+        },
+        required: ['project_id', 'scene_id', 'status', 'expected_fingerprint'],
+    },
+    {
         name: 'scene_get',
         handler: handleScenes, method: 'GET',
         description: 'Read one scene: its heading, its text, and who is in it.',

@@ -231,7 +231,16 @@ async function preSpend(req, res, shotId, q) {
         },
         fingerprint,
         staleInputs: stale.map(s => (typeof s === 'string' ? s : (s && s.kind) || 'an input')),
+        sceneWriting: sceneWritingOf(shot),
     }, built, { action: Object.assign({ tool: spec.tool }, built.action || {}) })));
+}
+
+/** The shot's scene writing readiness, as a warning input; unreadable is simply absent. */
+function sceneWritingOf(shot) {
+    try {
+        const s = require('../lib/scene-writing').state(db, shot.project_id).get(shot.scene_id);
+        return s ? { status: s.writing_status, scene_id: shot.scene_id } : null;
+    } catch (_) { return null; }
 }
 
 /** The image path: the prompt preview already carries everything but the cost. */

@@ -92,6 +92,11 @@ const WARNINGS = Object.freeze([
             + 'refused one — so the frame is conditioned on less than the shot names',
     },
     {
+        // A warning, never a block (GRD-4671): camera, board and render approvals keep their own rules.
+        id: 'scene_writing_not_ready', severity: 'info',
+        why: 'the scene\'s writing is not marked Production ready, so its text may still change',
+    },
+    {
         id: 'over_budget', severity: 'block',
         why: 'this run\'s projection exceeds the ceiling it was given, and it will be refused',
     },
@@ -168,6 +173,9 @@ function preSpendEnvelope(input) {
     }
     const dropped = (o.droppedReferences || []).filter(Boolean);
     if (dropped.length) warnings.push(warning('reference_dropped', dropped.join('; ')));
+    if (o.sceneWriting && o.sceneWriting.status && o.sceneWriting.status !== 'production_ready') {
+        warnings.push(warning('scene_writing_not_ready', `writing status: ${o.sceneWriting.status}`));
+    }
     if (o.overBudget) {
         warnings.push(warning('over_budget',
             `projected ${o.overBudget.projected} against a ceiling of ${o.overBudget.ceiling}`));

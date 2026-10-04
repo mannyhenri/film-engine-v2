@@ -21,6 +21,10 @@ export function parseJsonArray(val) {
 }
 const plural = (n, word) => n + ' ' + word + (n === 1 ? '' : 's');
 const shotWarning = (n) => n > 0 ? '\n\nThis also deletes ' + plural(n, 'shot') + ' and their notes, versions and render history.' : '';
+// Writing readiness (GRD-4671): the three statuses lib/scene-writing.js declares. Separate from the production
+// status badge: a scene can be production-approved while its writing is still Draft.
+const WRITING = [['draft', 'Draft'], ['reviewing', 'Reviewing'], ['production_ready', 'Production ready']];
+const writingLabel = (v) => (WRITING.find(([id]) => id === v) || [v, v || ''])[1];
 const warn = { background: 'rgba(245,158,11,.16)', color: 'var(--gl-warning,#f59e0b)', border: '1px solid var(--gl-warning,#f59e0b)' };
 
 export default function ScenesPage() {
@@ -28,6 +32,7 @@ export default function ScenesPage() {
     const [drift, setDrift] = useState([]);
     const [selected, setSelected] = useState(() => new Set());
     const [open, setOpen] = useState({}); // scene id -> null (loading) | shots[] | 'error'
+    const [history, setHistory] = useState({}); // scene id -> writing transition events
 
     async function loadScenes() {
         if (!legacy.state.currentProject) return;
@@ -52,10 +57,23 @@ export default function ScenesPage() {
     async function toggleScene(id) {
         if (id in open) { setOpen(o => { const n = { ...o }; delete n[id]; return n; }); return; }
         setOpen(o => ({ ...o, [id]: null }));
+        legacy.api('/scenes/' + id + '/writing-status')
+            .then(r => setHistory(h => ({ ...h, [id]: r.history || [] })), () => setHistory(h => ({ ...h, [id]: [] })));
         try {
             const data = await legacy.api('/scenes/' + id);
             setOpen(o => (id in o ? { ...o, [id]: data.shots || [] } : o));
         } catch { setOpen(o => (id in o ? { ...o, [id]: 'error' } : o)); }
+    }
+
+    // An explicit, person-made change. It names the text it was read with; if the scene moved on, the server
+    // refuses and nothing changes here until the reload shows the current text.
+    async function setWriting(s, status) {
+        try {
+            await legacy.api('/scenes/' + s.id + '/writing-status', { method: 'POST',
+                body: JSON.stringify({ project_id: legacy.state.currentProject.id, status, expected_fingerprint: s.writing_fingerprint }) });
+            legacy.setStatus('Scene ' + s.scene_number + ' writing: ' + writingLabel(status));
+            loadScenes();
+        } catch (err) { legacy.setStatus('Could not change writing status: ' + err.message); }
     }
 
     const toggleSelect = (id) => setSelected(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
@@ -109,6 +127,7 @@ export default function ScenesPage() {
     const controls = useListControls(SURFACE, scenes);
     const shownScenes = controls.shown || [];
     const written = list.filter(s => s.status === 'written').length;
+    const writingCounts = WRITING.map(([id, label]) => [label, list.filter(s => s.writing_status === id).length]);
     const driftShots = drift.reduce((n, s) => n + s.shots_behind.length, 0);
     const stop = (fn) => (e) => { e.stopPropagation(); fn(); };
 
@@ -127,6 +146,7 @@ export default function ScenesPage() {
                 <button className="btn btn-secondary btn-sm" onClick={() => setSelected(new Set())}>Clear</button>
                 <button className="btn btn-danger btn-sm" onClick={deleteSelectedScenes}>Delete selected</button>
             </div>
+            {list.length > 0 && <p className="text-sm text-muted" id="sceneWritingCounts">Writing: {writingCounts.map(([label, n]) => `${label} ${n}`).join(' · ')}</p>}
             <ListControlsBar list={controls} />
             <div id="scenesList">
                 {list.length > 0 && !shownScenes.length && <ListNoMatch list={controls} />}
@@ -166,7 +186,15 @@ export default function ScenesPage() {
                                     : <button className="btn btn-sm" disabled style={{ opacity: 0.45, cursor: 'not-allowed' }} title="This scene has no dialogue">&#127908; Dialogue &middot; 0</button>}
                                 {s.status === 'written' && <button className="btn btn-sm" onClick={stop(() => breakdownScene(s.id))} title="Generate shots for this scene">&#9881; Break Down</button>}
                                 {behind && <span className="badge" style={warn} title={`${behind.shots_behind.length} shot card(s) here were written from an earlier draft of this scene`}>script changed</span>}
-                                <span className={'badge ' + (s.status || '')}>{(s.status || '').replace(/_/g, ' ')}</span>
+                                {s.writing_status && <>
+                                    <span className="badge scene-writing-badge" title="Writing readiness: whether this scene's text is done">Writing: {writingLabel(s.writing_status)}</span>
+                                    <select className="scene-writing-select" aria-label="Writing status" value={s.writing_status}
+                                        onClick={(e) => e.stopPropagation()} onChange={(e) => setWriting(s, e.target.value)}
+                                        title={s.writing_ambiguous ? 'Another scene has identical text, so this one cannot be marked ready' : 'Set when the writing is reviewed; any accepted text change returns it to Draft'}>
+                                        {WRITING.map(([id, label]) => <option key={id} value={id}>{label}</option>)}
+                                    </select>
+                                </>}
+                                <span className={'badge ' + (s.status || '')} title="Production status: how far the scene is through production">{(s.status || '').replace(/_/g, ' ')}</span>
                                 <button className="btn btn-sm scene-delete-btn" onClick={stop(() => deleteScene(s))} title="Delete this scene">&times;</button>
                                 <span className="scene-expand">&#9654;</span>
                             </div>
@@ -174,6 +202,14 @@ export default function ScenesPage() {
                                 {shots === null && <div className="loading-spinner"></div>}
                                 {shots === 'error' && <p className="text-sm" style={{ color: 'var(--gl-error)' }}>Failed to load shots.</p>}
                                 {Array.isArray(shots) && !shots.length && <p className="text-sm text-muted" style={{ padding: 8 }}>No shots in this scene.</p>}
+                                {Array.isArray(history[s.id]) && history[s.id].length > 0 && (
+                                    <ul className="scene-writing-history text-sm" style={{ margin: '4px 0 8px', paddingLeft: 18 }}>
+                                        {history[s.id].map((ev, i) => (
+                                            <li key={i}>{writingLabel(ev.prior_status)} → {writingLabel(ev.new_status)} · {ev.kind === 'auto_reset' ? 'automatic (text changed)' : ev.actor}
+                                                {ev.fingerprint ? ' · text ' + String(ev.fingerprint).slice(0, 8) : ''} · {ev.created_at}{ev.reason ? ' · ' + ev.reason : ''}</li>
+                                        ))}
+                                    </ul>
+                                )}
                                 {Array.isArray(shots) && shots.map(sh => (
                                     <div key={sh.id || sh.shot_code} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', fontSize: 12 }}>
                                         <span style={{ background: 'rgba(233,30,99,0.12)', color: 'var(--gl-brand-pink)', padding: '2px 6px', borderRadius: 4, fontWeight: 600, fontSize: 11 }}>{sh.shot_code}</span>
