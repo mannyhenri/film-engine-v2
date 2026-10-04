@@ -5,7 +5,7 @@ const assert = require('node:assert');
 const fs = require('fs');
 const path = require('path');
 const acorn = require('acorn');
-const { readSource, loaderMap, topLevelFunctions, replacedStatement } = require('../split-lib');
+const { readSource, loaderMap, topLevelFunctions, replacedStatement, replacedBy } = require('../split-lib');
 
 const ROOT = path.join(__dirname, '..', '..');
 const plan = require('../port-plan.json');
@@ -17,7 +17,7 @@ const map = exists('docs/split-map.json') ? JSON.parse(read('docs/split-map.json
 // generated markup; the legacy functions they replace are gone from every legacy file.
 const REACT = map ? (map.react || {}) : {};
 // And React components (src/components/<Name>/react.json, map.reactComponents) replace core code the same way.
-const REPLACED = new Set([...Object.values(REACT), ...Object.values(map ? (map.reactComponents || {}) : {})].flatMap(r => r.replaces));
+const { replaced: REPLACED, mounts: MOUNTS } = replacedBy(REACT, map ? (map.reactComponents || {}) : {});
 const ported = plan.rounds.slice(0, plan.currentRound).flat().filter(p => !REACT[p]);
 
 const LOADERS = loaderMap(src.app);
@@ -63,7 +63,7 @@ test('no code is lost or duplicated: every top-level statement of the source is 
     const norm = (code) => acorn.parse(code, { ecmaVersion: 'latest' }).body.map(n => code.slice(n.start, n.end));
     // Less what a React page replaced (functions, and its own constants): those leave the legacy code.
     const app = acorn.parse(src.app, { ecmaVersion: 'latest' }).body
-        .filter(n => !replacedStatement(n, REPLACED)).map(n => src.app.slice(n.start, n.end));
+        .filter(n => !replacedStatement(n, REPLACED, { mounts: MOUNTS })).map(n => src.app.slice(n.start, n.end));
     // The port adds exactly one statement: core's var placeholders for loaders that live in chunks.
     const placeholder = `var ${map.core.loaderPlaceholders.join(', ')};`;
     const port = [...norm(read('public/legacy/core.js')), ...chunkFiles().flatMap(f => norm(read(f)))].filter(t => t !== placeholder);
@@ -75,7 +75,7 @@ test('no code is lost or duplicated: every top-level statement of the source is 
     assert.deepStrictEqual(missing.map(t => t.slice(0, 60)), []);
     // The other two boot scripts are emitted whole, less what React replaced from them, statement for statement.
     for (const [f, file] of [['productionGraph', CORE_FILES[1]], ['shell', CORE_FILES[2]]]) {
-        const want = acorn.parse(src[f], { ecmaVersion: 'latest' }).body.filter(n => !replacedStatement(n, REPLACED)).map(n => src[f].slice(n.start, n.end));
+        const want = acorn.parse(src[f], { ecmaVersion: 'latest' }).body.filter(n => !replacedStatement(n, REPLACED, { mounts: MOUNTS })).map(n => src[f].slice(n.start, n.end));
         assert.deepStrictEqual(norm(read(file)), want, `${file}: not the source less what React replaced`);
     }
 });

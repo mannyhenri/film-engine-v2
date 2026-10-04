@@ -25,6 +25,9 @@ const ROOT = path.join(__dirname, '..', '..');
  * differs from the reference fails, so the list cannot outlive the change it records.
  */
 const CHANGED = {
+    'src/pages/previs/engine.js': {
+        worldSplatModule: "the splat viewer's import('./vendor/splat-viewer.js') resolved against the document in a classic script; in a module it would resolve against the module (and Vite rewrites it at build), so it is built from document.baseURI and marked @vite-ignore: the same URL, at run time",
+    },
     'src/pages/productiongraph/engine.js': {
         loadProductionGraph: 'project-switch fix (3ee8beb): the in-flight load is keyed by project, so a switch never waits on the previous film',
         pgLoad: 'project-switch fix (3ee8beb): a switch resets every per-project field of PG, the queue, picks and palette included',

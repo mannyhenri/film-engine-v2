@@ -30,7 +30,7 @@ const BROWSER = (() => {
     const { window } = new JSDOM('');
     const names = new Set([...Object.getOwnPropertyNames(window), ...Object.getOwnPropertyNames(globalThis)]);
     // Present in the app's browser and missing from jsdom.
-    for (const n of ['ResizeObserver', 'IntersectionObserver', 'requestAnimationFrame', 'cancelAnimationFrame', 'requestIdleCallback', 'structuredClone', 'crypto']) names.add(n);
+    for (const n of ['ResizeObserver', 'IntersectionObserver', 'CSS', 'requestAnimationFrame', 'cancelAnimationFrame', 'requestIdleCallback', 'structuredClone', 'crypto']) names.add(n);
     return names;
 })();
 
@@ -48,7 +48,10 @@ test('there are engine modules to check (this runs over something)', () => {
 for (const file of MODULES) {
     test(`${file}: every core name it uses goes through its bridge`, () => {
         const free = freeIdentifiers(fs.readFileSync(path.join(ROOT, file), 'utf8'));
-        const unbridged = free.filter(n => !BROWSER.has(n));
+        // A vendored library's global (THREE) is set by its own script, loaded before the page's loader
+        // (react.json "vendors", tools/tests/page-vendors.test.js): not a core name, and not bridged.
+        const vendorGlobals = new Set(Function(`return ${fs.readFileSync(path.join(ROOT, 'tools/split-map.js'), 'utf8').match(/const VENDORS = (\[[^\n]*\]);/)[1]}`)().map(v => v.global));
+        const unbridged = free.filter(n => !BROWSER.has(n) && !vendorGlobals.has(n));
         assert.deepStrictEqual(unbridged, [], `${file} uses these without declaring them; each is a core name that `
             + 'must be bridged (const X = (...a) => legacy.X(...a), and X in LEGACY_GLOBALS) so the split keeps it in core');
     });

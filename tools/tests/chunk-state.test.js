@@ -32,7 +32,12 @@ test('core code reads no top-level variable that lives in a page chunk', () => {
     const coreAst = parse(read('public/legacy/core.js'));
     const coreDeclared = new Set(coreAst.body.flatMap(n => n.type === 'VariableDeclaration' ? n.declarations.map(d => d.id.name) : n.type === 'FunctionDeclaration' ? [n.id.name] : []));
     const coreUses = identifiers(coreAst);
-    const chunks = fs.readdirSync(path.join(ROOT, 'public/legacy/chunks'));
+    // The chunks the split generates (docs/split-map.json): every page may be React, and then there are none, and
+    // no chunk file may be left on disk either (a stale one is read by nothing and tested by everything).
+    const chunks = Object.keys(JSON.parse(read('docs/split-map.json')).chunks).map(c => `${c}.js`);
+    const onDisk = fs.existsSync(path.join(ROOT, 'public/legacy/chunks')) ? fs.readdirSync(path.join(ROOT, 'public/legacy/chunks')) : [];
+    assert.deepStrictEqual(onDisk.filter(f => !chunks.includes(f)), [], 'chunk files the split does not generate are on disk');
+    if (!chunks.length) return; // no page chunk: core can read nothing that lives in one
     let vars = 0;
     const bad = [];
     for (const f of chunks) {

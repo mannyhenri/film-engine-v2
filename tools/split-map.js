@@ -16,7 +16,7 @@
  */
 const fs = require('fs');
 const path = require('path');
-const { readSource, loaderMap, parse, topLevelElements, innerOf, words, replacedStatement, cutScript, loadTimeCalls, LOAD_TIME_CALLS } = require('./split-lib');
+const { readSource, loaderMap, parse, topLevelElements, innerOf, words, replacedStatement, cutScript, loadTimeCalls, LOAD_TIME_CALLS, replacedBy } = require('./split-lib');
 
 const ROOT = path.join(__dirname, '..');
 const plan = require('./port-plan.json');
@@ -61,7 +61,8 @@ function readReactPages() {
         for (const k of ['loader', 'replaces', 'modals']) if (j[k] === undefined) throw new Error(`src/pages/${id}/react.json: no "${k}"`);
         if (!j.replaces.includes(j.loader)) throw new Error(`src/pages/${id}/react.json: the loader ${j.loader} must be among what it replaces`);
         for (const fn of j.provides || []) if (!j.replaces.includes(fn)) throw new Error(`src/pages/${id}/react.json: ${fn} is provided but not among what it replaces`);
-        out[id] = { loader: j.loader, replaces: j.replaces, modals: j.modals, provides: j.provides || [] };
+        if (j.mount && !fs.existsSync(path.join(dir, id, j.mount))) throw new Error(`src/pages/${id}/react.json: its mount ${j.mount} does not exist`);
+        out[id] = { loader: j.loader, replaces: j.replaces, modals: j.modals, provides: j.provides || [], vendors: j.vendors || [], mount: j.mount || null };
     }
     return out;
 }
@@ -124,6 +125,8 @@ function generate({ write = true } = {}) {
     const components = readReactComponents();
     const owners = ownersOf(react, components);
     const replaced = new Map(Object.entries(owners).flatMap(([o, r]) => r.replaces.map(n => [n, o.replace(/^page:/, '')])));
+    // The pages that bind again, on mount, what their chunk did at load (react.json "mount").
+    const { mounts } = replacedBy(react, components);
     const reactModals = new Set(Object.values(owners).flatMap(r => r.modals));
     const registered = new Set(Object.values(owners).flatMap(r => r.registers));
     // The other two boot scripts are emitted whole, less what React replaced from them.
@@ -197,12 +200,12 @@ function generate({ write = true } = {}) {
     const declared = new Set(segs.flatMap(s => s.node.type === 'FunctionDeclaration' ? [s.node.id.name]
         : s.node.type === 'VariableDeclaration' ? s.node.declarations.filter(d => d.id.type === 'Identifier').map(d => d.id.name) : []));
     for (const [n, id] of replaced) if (!declared.has(n) && !cutFrom.productionGraph.has(n) && !cutFrom.shell.has(n)) throw new Error(`${id.startsWith('component:') ? 'src/components/' + id.slice(10) : 'src/pages/' + id}/react.json replaces ${n}, which is not a top-level function or variable of any source script`);
-    const droppedVars = segs.filter(s => s.node.type === 'VariableDeclaration' && replacedStatement(s.node, replaced));
-    for (const s of segs) if (s.node.type === 'VariableDeclaration' && !replacedStatement(s.node, replaced)) {
+    const droppedVars = segs.filter(s => s.node.type === 'VariableDeclaration' && replacedStatement(s.node, replaced, { mounts }));
+    for (const s of segs) if (s.node.type === 'VariableDeclaration' && !replacedStatement(s.node, replaced, { mounts })) {
         const part = s.node.declarations.filter(d => d.id.type === 'Identifier' && replaced.has(d.id.name)).map(d => d.id.name);
         if (part.length) throw new Error(`react.json replaces ${part.join(', ')} but not every name its declaration declares`);
     }
-    segs = segs.filter(s => !replacedStatement(s.node, replaced));
+    segs = segs.filter(s => !replacedStatement(s.node, replaced, { mounts }));
     /*
      * Graph nodes: every top-level function declaration, class, and const/let/var
      * whose initialisers run nothing at load (functions, literals, empty
@@ -388,6 +391,7 @@ function generate({ write = true } = {}) {
 
     // Vendored libraries load with the chunks that use them, or at boot if core does.
     const VENDORS = [{ id: 'three', files: ['vendor/three.min.js', 'vendor/gltf-loader.js'], global: 'THREE' }];
+    for (const [id, r] of Object.entries(react)) for (const v of r.vendors) if (!VENDORS.some(x => x.id === v)) throw new Error(`src/pages/${id}/react.json: vendors names ${v}, which is not a vendored library`);
     const coreCodeWords = uses([...segs.filter(s => segOwner(s) === 'core').map(s => s.code), tail, src.productionGraph, src.shell].join('\n'));
     const bootVendors = VENDORS.filter(v => coreCodeWords.has(v.global));
     const chunkDeps = Object.fromEntries(chunks.map(c => [c, VENDORS.filter(v => !bootVendors.includes(v) && chunkCode[c].some(f => uses(f.code).has(v.global))).map(v => v.id)]));
@@ -423,7 +427,7 @@ function generate({ write = true } = {}) {
         + comps.map(n => `import ${n} from './${n}/${n}.jsx';`).join('\n') + `${comps.length ? '\n' : ''}\nexport const REACT_COMPONENTS = [${comps.map(n => `\n    { name: '${n}', Component: ${n} },`).join('')}${comps.length ? '\n' : ''}];\n`);
     out('src/pages/registry.js', `// GENERATED by tools/split-map.js. Every page, in source order. chunk: the script that loads on its first visit;\n// react: a React page (src/pages/<id>/react.json), remounted per open project (src/lib/project-epoch.js).\n`
         + pages.map(p => `import ${componentName(p.id)} from './${p.id}/index.jsx';`).join('\n')
-        + `\n\nexport const PAGES = [\n${pages.map(p => `    { id: '${p.id}', Component: ${componentName(p.id)}, chunk: ${ported.has(p.id) ? `'${chunkOf(p.id)}'` : 'null'}${react[p.id] ? ', react: true' : ''} },`).join('\n')}\n];\n`
+        + `\n\nexport const PAGES = [\n${pages.map(p => `    { id: '${p.id}', Component: ${componentName(p.id)}, chunk: ${ported.has(p.id) ? `'${chunkOf(p.id)}'` : 'null'}${react[p.id] ? ', react: true' : ''}${react[p.id] && react[p.id].vendors.length ? `, vendors: ${JSON.stringify(react[p.id].vendors).replace(/"/g, "'")}` : ''} },`).join('\n')}\n];\n`
         + `\n// Each chunk, and the vendored libraries it needs first.\nexport const CHUNKS = {\n${chunks.map(c => `    ${c}: { deps: ${JSON.stringify(chunkDeps[c])} },`).join('\n')}\n};\n`
         + `\nexport const VENDORS = {\n${VENDORS.filter(v => !bootVendors.includes(v)).map(v => `    ${v.id}: ${JSON.stringify(v.files)},`).join('\n')}\n};\n`);
 

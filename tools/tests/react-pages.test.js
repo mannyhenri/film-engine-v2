@@ -27,7 +27,8 @@ const OWNERS = [
 ];
 const registersOn = (src, fn) => new RegExp(`usePageLoader\\(\\s*'${fn}'`).test(src);
 const LEGACY_FILES = ['public/legacy/core.js', 'public/legacy/production-graph.js', 'public/legacy/shell.js',
-    ...fs.readdirSync(path.join(ROOT, 'public/legacy/chunks')).map(f => `public/legacy/chunks/${f}`)];
+    // The chunks the split generates (none, once every page is React).
+    ...Object.keys(JSON.parse(fs.readFileSync(path.join(ROOT, 'docs/split-map.json'), 'utf8')).chunks).map(c => `public/legacy/chunks/${c}.js`)];
 const identifiers = (code) => new Set(code.match(/[A-Za-z_$][\w$]*/g) || []);
 /** A script with its comments blanked, by the parser's own comment ranges (a regex would read `/*` in a string as one). */
 const blankComments = (code) => {

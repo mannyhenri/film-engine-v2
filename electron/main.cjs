@@ -308,6 +308,30 @@ async function smoke(win) {
         const ok = Object.values(got).every(Boolean) && errors.length === before;
         report.push({ id: 'music pages', ok, want: 'music pages', active: ok ? 'music pages (library, cue grid, cue list, score)' : JSON.stringify(got) + ` errors=${errors.length - before}` });
     }
+    /*
+     * The 3D stage engine (src/pages/previs/engine.js) draws both 3D pages React renders: the World Engine console on
+     * Previs (its view and shot rail), and the models page, with three.js loaded first (react.json vendors). Viewing
+     * only: no world is generated and nothing is saved.
+     */
+    if (project && ['previs', 'threed'].every(p => PAGES.includes(p))) {
+        current = '3d pages';
+        const before = errors.length;
+        const drawn = {
+            previs: `typeof THREE !== 'undefined' && !!document.querySelector('#page-previs #pvView')`,
+            threed: `typeof THREE !== 'undefined' && document.getElementById('page-threed').querySelectorAll('[id]').length > 3 && !/Loading/.test(document.getElementById('page-threed').textContent.slice(0, 400))`,
+        };
+        const got = {};
+        for (const [page, test] of Object.entries(drawn)) {
+            await js(`navigateTo('${page}')`);
+            got[page] = false;
+            for (let t = 0; t < 40 && !got[page]; t++) {
+                got[page] = await js(test).catch(() => false);
+                if (!got[page]) await new Promise(r => setTimeout(r, 250));
+            }
+        }
+        const ok = Object.values(got).every(Boolean) && errors.length === before;
+        report.push({ id: '3d pages', ok, want: '3d pages', active: ok ? '3d pages (console drawn, models page, three.js loaded)' : JSON.stringify(got) + ` errors=${errors.length - before}` });
+    }
     // A launch with no address reopens the film and page you were on.
     if (project && !process.env.FE_SMOKE_URL && !process.env.FE_SMOKE_PAGES) {
         current = 'reopen';
@@ -324,8 +348,10 @@ async function smoke(win) {
         const ok = st.active === 'page-notes' && st.film === project && errors.length === before;
         report.push({ id: 'reopen last film', ok, want: 'page-notes', active: ok ? 'page-notes' : `${st.active} film=${st.film}` });
     }
-    // Cold starts on deep links to chunked pages: the chunk (and its libraries) must load before its loader runs.
-    const deeps = [PAGES.find(p => p !== 'projects' && p !== 'dashboard' && CHUNKED.includes(p)), CHUNKED.includes('previs') && 'previs'].filter(Boolean);
+    // Cold starts on deep links: what a page needs must load before its loader runs: a chunked page's chunk (and its
+    // libraries), and Previs's three.js, which it declares itself (react.json vendors) now that it has no chunk. Previs
+    // is always checked, so this does not vanish when the last chunk does.
+    const deeps = [PAGES.find(p => p !== 'projects' && p !== 'dashboard' && CHUNKED.includes(p)), PAGES.includes('previs') && 'previs'].filter(Boolean);
     for (const deep of (project && !process.env.FE_SMOKE_URL && !process.env.FE_SMOKE_PAGES) ? deeps : []) {
         current = 'deeplink:' + deep;
         const before = errors.length;
@@ -333,14 +359,17 @@ async function smoke(win) {
         url.hash = `#/${project}/${deep}`;
         await win.loadURL(url.href);
         // Poll, so a slow machine fails on a real problem rather than on a fixed wait.
+        const chunked = CHUNKED.includes(deep);
+        const ready = chunked ? `!!(window.__fePages && window.__fePages.loaded().includes(${JSON.stringify(deep)}))`
+            : `typeof THREE !== 'undefined' && !!document.querySelector('#page-previs #pvView')`;
         for (let t = 0; t < 40; t++) {
-            if (await js(`!!(window.__fePages && window.__fePages.loaded().includes(${JSON.stringify(deep)}))`).catch(() => false)) break;
+            if (await js(ready).catch(() => false)) break;
             await new Promise(r => setTimeout(r, 250));
         }
         await new Promise(r => setTimeout(r, 1000)); // let its loader paint
-        const st = await js(`({ active: document.querySelector('.page.active')?.id, chunk: !!(window.__fePages && window.__fePages.loaded().includes(${JSON.stringify(deep)})), three: typeof THREE !== 'undefined' })`);
-        const ok = st.active === 'page-' + deep && st.chunk && errors.length === before && (deep !== 'previs' || st.three);
-        report.push({ id: 'deeplink→' + deep, ok, chunk: st.chunk, active: st.active, want: 'page-' + deep });
+        const st = await js(`({ active: document.querySelector('.page.active')?.id, loaded: ${ready}, three: typeof THREE !== 'undefined' })`);
+        const ok = st.active === 'page-' + deep && st.loaded && errors.length === before && (deep !== 'previs' || st.three);
+        report.push({ id: 'deeplink→' + deep, ok, chunk: chunked, active: st.active, want: 'page-' + deep });
     }
     if (process.env.FE_SMOKE_SHAPES) require('fs').writeFileSync(process.env.FE_SMOKE_SHAPES, JSON.stringify(shapes, null, 1));
     // The top bar's Sync screenplay: present in the rail, and its dialog compares (a dry run) when pressed.

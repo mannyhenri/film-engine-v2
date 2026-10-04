@@ -77,7 +77,9 @@ test('a page left before its chunk arrives runs nothing: only the page you are o
 });
 
 test('no chunk registers a DOMContentLoaded or load listener (chunks arrive after both)', () => {
+    // The chunks the split generates; with every page React there are none, and nothing to check.
     const dir = path.join(ROOT, 'public/legacy/chunks');
-    const bad = fs.readdirSync(dir).filter(f => /addEventListener\(\s*['"](DOMContentLoaded|load)['"]/.test(fs.readFileSync(path.join(dir, f), 'utf8')));
+    const chunks = Object.keys(JSON.parse(fs.readFileSync(path.join(ROOT, 'docs/split-map.json'), 'utf8')).chunks).map(c => `${c}.js`);
+    const bad = chunks.filter(f => /addEventListener\(\s*['"](DOMContentLoaded|load)['"]/.test(fs.readFileSync(path.join(dir, f), 'utf8')));
     assert.deepStrictEqual(bad, []);
 });

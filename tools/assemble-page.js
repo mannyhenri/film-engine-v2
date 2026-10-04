@@ -13,7 +13,7 @@
  */
 const fs = require('fs');
 const path = require('path');
-const { parse, readSource, topLevelElements, innerOf, replacedStatement } = require('./split-lib');
+const { parse, readSource, topLevelElements, innerOf, replacedStatement, replacedBy } = require('./split-lib');
 
 const ROOT = path.join(__dirname, '..');
 const plan = require('./port-plan.json');
@@ -40,10 +40,10 @@ function assemble() {
     const runs = [];
     const appAst = parse(src.app);
     // What a React page replaced (functions, its own constants) is in no port file, by design (src/pages/<id>/react.json).
-    const replaced = new Set([...Object.values(map.react || {}), ...Object.values(map.reactComponents || {})].flatMap(r => r.replaces));
+    const { replaced, mounts } = replacedBy(map.react, map.reactComponents);
     let prev = 0;
     for (const n of appAst.body) {
-        if (replacedStatement(n, replaced)) { prev = n.end; continue; }
+        if (replacedStatement(n, replaced, { mounts })) { prev = n.end; continue; }
         const lead = src.app.slice(prev, n.start); // comments and blank lines before it, as in the source
         prev = n.end;
         const t = src.app.slice(n.start, n.end);

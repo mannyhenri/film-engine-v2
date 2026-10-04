@@ -91,6 +91,7 @@ export const LEGACY_GLOBALS = [
     'autocompleteItems', 'autocompleteSelectedIndex', 'autocompleteVisible', 'currentFountainContent',
     'currentScriptVersion', 'editorDirty', 'redoStack', 'screenplaySuggestions', 'undoStack',
     '_shotAction', 'clearModal', 'getModalData', // the music engine's bridge (src/pages/music/engine.js)
+    'previsAspect', 'WALK', 'WORLD', 'P_DEG', // the 3D stage engine's bridge (src/pages/previs/engine.js)
 ];
 
 

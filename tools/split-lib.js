@@ -85,7 +85,7 @@ const words = (text) => new Set(text.match(/[A-Za-z_$][\w$]*/g) || []);
  * declaration of that name, or a const/let/var whose every declared name is replaced (the page's
  * own constants, e.g. BRAND_FIELDS_SERVED, which otherwise fall into core as dead code).
  */
-function replacedStatement(node, replaced) {
+function replacedStatement(node, replaced, { mounts } = {}) {
     if (node.type === 'FunctionDeclaration') return replaced.has(node.id.name);
     if (node.type === 'VariableDeclaration') return node.declarations.every(d => d.id.type === 'Identifier' && replaced.has(d.id.name));
     // `window.X = X;` exposing a replaced function: the React page registers X on window itself (react.json
@@ -112,7 +112,27 @@ function replacedStatement(node, replaced) {
                 for (const k of Object.keys(n)) { const v = n[k]; if (Array.isArray(v)) v.forEach(walk); else if (v && typeof v.type === 'string') walk(v); }
             };
             walk(e.arguments[1].body);
-            return called.size > 0 && [...called].every(n => replaced.has(n));
+            // Wholly the page's: dropped. Otherwise not decided here: the mount rule below may still own it.
+            if (called.size > 0 && [...called].every(n => replaced.has(n))) return true;
+        }
+        /*
+         * Anything else a chunk did when it LOADED (a listener whose handler also reads core, window.callback = …,
+         * Object.assign(window, {…})), when every replaced name it touches belongs to ONE owner whose react.json
+         * declares "mount": that page's mount module binds it again on mount, and tools/tests/page-mount.test.js
+         * holds every statement dropped this way to being bound there, verbatim. A statement touching two owners, or
+         * an owner with no mount, is kept, and the split's "still used" check names it.
+         */
+        if (mounts && mounts.size && replaced instanceof Map) {
+            const owners = new Set();
+            const walk = (n, parent, key) => {
+                if (!n || typeof n.type !== 'string') return;
+                const isKey = parent && ((parent.type === 'MemberExpression' && key === 'property' && !parent.computed)
+                    || (parent.type === 'Property' && key === 'key' && !parent.computed && !parent.shorthand));
+                if (n.type === 'Identifier' && !isKey && replaced.has(n.name)) owners.add(replaced.get(n.name));
+                for (const k of Object.keys(n)) { const v = n[k]; if (Array.isArray(v)) v.forEach(x => walk(x, n, k)); else if (v && typeof v.type === 'string') walk(v, n, k); }
+            };
+            walk(e, null, null);
+            if (owners.size === 1 && mounts.has([...owners][0])) return true;
         }
         return e.type === 'AssignmentExpression' && e.operator === '=' && e.left.type === 'MemberExpression' && !e.left.computed
             && e.left.object.type === 'Identifier' && e.left.object.name === 'window' && e.right.type === 'Identifier'
@@ -127,14 +147,14 @@ function replacedStatement(node, replaced) {
  * statements do. Used for every script the split emits whole (production-graph.js, shell.js), so a
  * react.json can replace code wherever the source keeps it. Returns the text and the names it declares.
  */
-function cutScript(code, replaced) {
+function cutScript(code, replaced, opts) {
     const ast = parse(code);
     let out = '', prev = 0;
     const declared = new Set();
     for (const n of ast.body) {
         if (n.type === 'FunctionDeclaration') declared.add(n.id.name);
         if (n.type === 'VariableDeclaration') for (const d of n.declarations) if (d.id.type === 'Identifier') declared.add(d.id.name);
-        if (!replacedStatement(n, replaced)) out += code.slice(prev, n.end);
+        if (!replacedStatement(n, replaced, opts)) out += code.slice(prev, n.end);
         prev = n.end;
     }
     return { code: out + code.slice(prev), declared };
@@ -184,4 +204,19 @@ const LOAD_TIME_CALLS = {
     loadProjects: 'core INIT: loadProjects().then(applyRoute) restores the route at boot (ProjectsPage registers it)',
 };
 
-module.exports = { LOAD_TIME_CALLS, cutScript, loadTimeCalls, replacedStatement, parse, readSource, loaderMap, topLevelFunctions, topLevelElements, innerOf, words };
+/**
+ * What React took from the legacy code, as replacedStatement() needs it: every replaced name -> its owner (a page id,
+ * or "component:<Name>"), and the pages that bind again, on mount, what their chunk did at load (react.json "mount").
+ * One answer for the split, the assembled test page and the parity test, so the three cannot disagree about what left.
+ * `react` and `components` are the maps split-map writes (docs/split-map.json "react" / "reactComponents").
+ */
+function replacedBy(react = {}, components = {}) {
+    const replaced = new Map([
+        ...Object.entries(react).flatMap(([id, r]) => r.replaces.map(n => [n, id])),
+        ...Object.entries(components).flatMap(([name, r]) => r.replaces.map(n => [n, `component:${name}`])),
+    ]);
+    const mounts = new Set(Object.entries(react).filter(([, r]) => r.mount).map(([id]) => id));
+    return { replaced, mounts };
+}
+
+module.exports = { replacedBy, LOAD_TIME_CALLS, cutScript, loadTimeCalls, replacedStatement, parse, readSource, loaderMap, topLevelFunctions, topLevelElements, innerOf, words };
