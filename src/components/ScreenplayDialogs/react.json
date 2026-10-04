@@ -1,0 +1,14 @@
+{
+  "about": "The Screenplay's seven dialogs are a React component (src/components/ScreenplayDialogs/ScreenplayDialogs.jsx), each the source's markup moved verbatim. tools/split-map.js drops them from ModalHost. Their handlers are the Screenplay engine's (the Screenplay page provides and registers them) and core's editor functions; this component provides and replaces nothing.",
+  "provides": [],
+  "replaces": [],
+  "modals": [
+    "sceneCardModal",
+    "newSceneCardModal",
+    "textConvertModal",
+    "suggestionsModal",
+    "versionDiffModal",
+    "titlePageModal",
+    "importScriptModal"
+  ]
+}

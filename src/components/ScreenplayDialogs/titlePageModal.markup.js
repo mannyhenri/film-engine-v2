@@ -1,3 +1,6 @@
+// The Screenplay's titlePageModal: the app's own markup, moved verbatim from the source (its inline handlers call the
+// Screenplay engine, which the Screenplay page puts on window, and core). A string module (see ScreenplayDialogs.jsx).
+export default `
     <!-- FILM-128: Title Page Modal -->
     <div class="modal-overlay" id="titlePageModal">
         <div class="modal modal-md title-page-modal">
@@ -52,3 +55,4 @@
             </div>
         </div>
     </div>
+`;

@@ -1,3 +1,6 @@
+// The Screenplay's textConvertModal: the app's own markup, moved verbatim from the source (its inline handlers call the
+// Screenplay engine, which the Screenplay page puts on window, and core). A string module (see ScreenplayDialogs.jsx).
+export default `
     <!-- FILM-118: Text-to-Screenplay Convert Modal -->
     <div class="modal-overlay" id="textConvertModal">
         <div class="modal modal-lg">
@@ -71,3 +74,4 @@
             </div>
         </div>
     </div>
+`;

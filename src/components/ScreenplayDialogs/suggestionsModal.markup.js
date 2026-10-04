@@ -1,3 +1,6 @@
+// The Screenplay's suggestionsModal: the app's own markup, moved verbatim from the source (its inline handlers call the
+// Screenplay engine, which the Screenplay page puts on window, and core). A string module (see ScreenplayDialogs.jsx).
+export default `
     <!-- FILM-121: Suggestions Panel Modal -->
     <div class="modal-overlay" id="suggestionsModal">
         <div class="modal modal-md">
@@ -30,3 +33,4 @@
             </div>
         </div>
     </div>
+`;

@@ -1303,6 +1303,19 @@
         "galleryModal"
       ]
     },
+    "ScreenplayDialogs": {
+      "provides": [],
+      "replaces": [],
+      "modals": [
+        "sceneCardModal",
+        "newSceneCardModal",
+        "textConvertModal",
+        "suggestionsModal",
+        "versionDiffModal",
+        "titlePageModal",
+        "importScriptModal"
+      ]
+    },
     "SubjectSheet": {
       "provides": [
         "openSubjectSheet",
@@ -1919,7 +1932,7 @@
       "loadPlayback"
     ],
     "functions": 426,
-    "unreached": 23,
+    "unreached": 29,
     "sharedByChunks": 0,
     "declaredTwice": [],
     "bootVendors": [],

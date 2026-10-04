@@ -1,3 +1,6 @@
+// The Screenplay's sceneCardModal: the app's own markup, moved verbatim from the source (its inline handlers call the
+// Screenplay engine, which the Screenplay page puts on window, and core). A string module (see ScreenplayDialogs.jsx).
+export default `
     <!-- Edit Milestone -->
     <!-- One scene, opened from its index card. Static markup shown by id, the
          way every other modal in this page works: a bespoke helper for two
@@ -22,3 +25,4 @@
             </div>
         </div>
     </div>
+`;

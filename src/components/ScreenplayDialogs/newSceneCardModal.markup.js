@@ -1,3 +1,6 @@
+// The Screenplay's newSceneCardModal: the app's own markup, moved verbatim from the source (its inline handlers call the
+// Screenplay engine, which the Screenplay page puts on window, and core). A string module (see ScreenplayDialogs.jsx).
+export default `
 <div class="modal-overlay" id="newSceneCardModal">
         <div class="modal">
             <div class="modal-header"><h3>New scene</h3><button class="modal-close" onclick="closeModal('newSceneCardModal')">&times;</button></div>
@@ -13,3 +16,4 @@
             </div>
         </div>
     </div>
+`;

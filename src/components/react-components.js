@@ -3,11 +3,13 @@
 import Casting from './Casting/Casting.jsx';
 import CharacterSheet from './CharacterSheet/CharacterSheet.jsx';
 import Gallery from './Gallery/Gallery.jsx';
+import ScreenplayDialogs from './ScreenplayDialogs/ScreenplayDialogs.jsx';
 import SubjectSheet from './SubjectSheet/SubjectSheet.jsx';
 
 export const REACT_COMPONENTS = [
     { name: 'Casting', Component: Casting },
     { name: 'CharacterSheet', Component: CharacterSheet },
     { name: 'Gallery', Component: Gallery },
+    { name: 'ScreenplayDialogs', Component: ScreenplayDialogs },
     { name: 'SubjectSheet', Component: SubjectSheet },
 ];

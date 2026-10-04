@@ -1,3 +1,6 @@
+// The Screenplay's versionDiffModal: the app's own markup, moved verbatim from the source (its inline handlers call the
+// Screenplay engine, which the Screenplay page puts on window, and core). A string module (see ScreenplayDialogs.jsx).
+export default `
     <!-- FILM-125: Version Diff Modal -->
     <div class="modal-overlay" id="versionDiffModal">
         <div class="modal modal-lg">
@@ -11,3 +14,4 @@
             </div>
         </div>
     </div>
+`;

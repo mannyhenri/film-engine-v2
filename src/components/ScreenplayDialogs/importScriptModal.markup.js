@@ -1,3 +1,6 @@
+// The Screenplay's importScriptModal: the app's own markup, moved verbatim from the source (its inline handlers call the
+// Screenplay engine, which the Screenplay page puts on window, and core). A string module (see ScreenplayDialogs.jsx).
+export default `
     <!-- FILM-131: Import Script Modal -->
     <div class="modal-overlay" id="importScriptModal">
         <div class="modal modal-md">
@@ -45,3 +48,4 @@
             </div>
         </div>
     </div>
+`;

@@ -11,17 +11,10 @@ import m8 from './newProjectModal.html?raw';
 import m9 from './folderPickerModal.html?raw';
 import m10 from './plateViewerModal.html?raw';
 import m11 from './musicCueModal.html?raw';
-import m12 from './sceneCardModal.html?raw';
-import m13 from './newSceneCardModal.html?raw';
-import m14 from './textConvertModal.html?raw';
-import m15 from './suggestionsModal.html?raw';
-import m16 from './versionDiffModal.html?raw';
-import m17 from './titlePageModal.html?raw';
-import m18 from './importScriptModal.html?raw';
-import m19 from './glossaryModal.html?raw';
-import m20 from './productionGuideModal.html?raw';
-import m21 from './projectOnboardingModal.html?raw';
-import m22 from './soundGenModal.html?raw';
+import m12 from './glossaryModal.html?raw';
+import m13 from './productionGuideModal.html?raw';
+import m14 from './projectOnboardingModal.html?raw';
+import m15 from './soundGenModal.html?raw';
 
 // In source order. inMain: the overlay sat inside .main in the source, and still does.
 export const MODALS = [
@@ -37,15 +30,8 @@ export const MODALS = [
     { id: 'folderPickerModal', html: m9, inMain: false },
     { id: 'plateViewerModal', html: m10, inMain: false },
     { id: 'musicCueModal', html: m11, inMain: false },
-    { id: 'sceneCardModal', html: m12, inMain: false },
-    { id: 'newSceneCardModal', html: m13, inMain: false },
-    { id: 'textConvertModal', html: m14, inMain: false },
-    { id: 'suggestionsModal', html: m15, inMain: false },
-    { id: 'versionDiffModal', html: m16, inMain: false },
-    { id: 'titlePageModal', html: m17, inMain: false },
-    { id: 'importScriptModal', html: m18, inMain: false },
-    { id: 'glossaryModal', html: m19, inMain: false },
-    { id: 'productionGuideModal', html: m20, inMain: false },
-    { id: 'projectOnboardingModal', html: m21, inMain: false },
-    { id: 'soundGenModal', html: m22, inMain: true },
+    { id: 'glossaryModal', html: m12, inMain: false },
+    { id: 'productionGuideModal', html: m13, inMain: false },
+    { id: 'projectOnboardingModal', html: m14, inMain: false },
+    { id: 'soundGenModal', html: m15, inMain: true },
 ];
