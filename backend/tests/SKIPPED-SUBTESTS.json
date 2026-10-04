@@ -622,6 +622,22 @@
         "name": "the header offers it, and it goes through the one confirmation then the run route",
         "reason": "reads onclick=\"pgRunChanged()\" out of the legacy page; the Production graph is React. Held in src/pages/productiongraph: ProductionGraphControls.test.jsx (the header button calls pgRunChanged) and ProductionGraphPage.test.jsx (pgRunChanged, run: the shared confirmation reads the free plan, nothing is posted before it, and its send posts the run route)"
       }
+    ],
+    "screenplay-focus.test.js": [
+      {
+        "name": "focus mode covers the page, hides the chrome, and every way out ends it",
+        "reason": "reads onclick=\"toggleWriterFocus()\" and onclick=\"toggleTypewriterSound()\" out of the legacy page; the Screenplay is React. Those buttons are held in src/pages/screenplay/ScreenplayControls.test.jsx (each calls the same function with the same arguments); every other assertion is kept verbatim in backend/tests/screenplay-backend-halves.test.js"
+      }
+    ],
+    "title-page-and-print.test.js": [
+      {
+        "name": "the title page is clickable on screen, outside the editable page",
+        "reason": "reads id=\"titlePageCard\" \u2026 onclick=\"openTitlePageModal()\" out of the legacy page; the Screenplay is React. The card's click is held in src/pages/screenplay/ScreenplayControls.test.jsx; the card's place and its refresh are kept verbatim in backend/tests/screenplay-backend-halves.test.js"
+      },
+      {
+        "name": "the printed script is a shooting script: scene numbers in both margins, eighths on the right",
+        "reason": "its regex reads SCRIPT_TIMING where the Screenplay engine reads the core let through the bridge, legacy.SCRIPT_TIMING (the one rewrite tools/tests/engine-verbatim.test.js allows). Kept in backend/tests/screenplay-backend-halves.test.js, verbatim but for accepting that form"
+      }
     ]
   }
 }

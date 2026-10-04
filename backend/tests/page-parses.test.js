@@ -16,7 +16,9 @@ const vm = require('vm');
 
 for (const rel of ['src/index.html', 'ios/FilmEngine/Web/index.html']) {
     test(`${rel}: every inline script compiles`, () => {
-        const html = fs.readFileSync(path.join(__dirname, '..', '..', rel), 'utf8');
+        // v2: a React page's source sits in <template data-react-source> (tools/assemble-page.js): inert text that never
+        // runs, and its regexes can hold `<script`, which this scan would read as a script block. Not a script; left out.
+        const html = fs.readFileSync(path.join(__dirname, '..', '..', rel), 'utf8').replace(/<template data-react-source="[^"]*">[\s\S]*?<\/template>/g, '');
         const blocks = [...html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/g)]
             .filter(m => !/\bsrc=|type="module"|application\/json|text\/template/.test(m[1]));
         assert.ok(blocks.length >= 2, `found ${blocks.length} inline scripts, so the scan is broken`);

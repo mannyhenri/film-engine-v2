@@ -317,7 +317,8 @@ test('the SPA script parses', () => {
     // Parsing cannot catch that one, but it does catch the whole class of
     // damage a bulk edit can do to an 18,000-line file that nothing compiles.
     const vm = require('vm');
-    const html = fs.readFileSync(INDEX_HTML, 'utf8');
+    // v2: React page source templates are inert text, not scripts (see page-parses.test.js); left out.
+    const html = fs.readFileSync(INDEX_HTML, 'utf8').replace(/<template data-react-source="[^"]*">[\s\S]*?<\/template>/g, '');
 
     const scripts = [...html.matchAll(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/gi)].map(m => m[1]);
     assert.ok(scripts.length, 'no inline script found — the parse is wrong');

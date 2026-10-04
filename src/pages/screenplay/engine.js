@@ -64,6 +64,7 @@ const updateSceneNavigator = (...a) => legacy.updateSceneNavigator(...a);
 const updateSceneNumbers = (...a) => legacy.updateSceneNumbers(...a);
 const updateSceneStatusIcons = (...a) => legacy.updateSceneStatusIcons(...a);
 const updateScriptStats = (...a) => legacy.updateScriptStats(...a);
+const API = (...a) => legacy.API(...a);
 const live = (name) => new Proxy({}, {
     get: (_, k) => legacy[name][k],
     set: (_, k, v) => { legacy[name][k] = v; return true; },
@@ -73,6 +74,12 @@ const live = (name) => new Proxy({}, {
     deleteProperty: (_, k) => delete legacy[name][k],
 });
 const state = live('state');
+const AI_PATH = live('AI_PATH');
+const AUTO_FORMAT_RULES = live('AUTO_FORMAT_RULES');
+const TYPEWRITER = live('TYPEWRITER');
+const feStore = live('feStore');
+const redoStack = live('redoStack');
+const undoStack = live('undoStack');
 
     // FILM-102: Keyboard shortcuts
     const KEYBOARD_SHORTCUTS = {
@@ -148,7 +155,7 @@ const state = live('state');
     }
 
     function editorUndo() {
-        if (legacy.undoStack.length === 0) {
+        if (undoStack.length === 0) {
             setStatus('Nothing to undo');
             return;
         }
@@ -156,11 +163,11 @@ const state = live('state');
         // Push current state to redo stack
         const currentState = captureEditorState();
         if (currentState) {
-            legacy.redoStack.push(currentState);
+            redoStack.push(currentState);
         }
 
         // Pop from undo stack
-        const previousState = legacy.undoStack.pop();
+        const previousState = undoStack.pop();
 
         // Restore
         const editor = document.getElementById('screenplayEditor');
@@ -174,7 +181,7 @@ const state = live('state');
     }
 
     function editorRedo() {
-        if (legacy.redoStack.length === 0) {
+        if (redoStack.length === 0) {
             setStatus('Nothing to redo');
             return;
         }
@@ -182,11 +189,11 @@ const state = live('state');
         // Push current state to undo stack
         const currentState = captureEditorState();
         if (currentState) {
-            legacy.undoStack.push(currentState);
+            undoStack.push(currentState);
         }
 
         // Pop from redo stack
-        const nextState = legacy.redoStack.pop();
+        const nextState = redoStack.pop();
 
         // Restore
         const editor = document.getElementById('screenplayEditor');
@@ -438,15 +445,15 @@ const state = live('state');
 
     /** One key's sound, or none: modifiers, shortcuts and arrows stay silent. */
     function typewriterKey(event) {
-        if (!legacy.TYPEWRITER.on() || event.ctrlKey || event.metaKey || event.altKey) return;
+        if (!TYPEWRITER.on() || event.ctrlKey || event.metaKey || event.altKey) return;
         const k = event.key || '';
         const printable = k.length === 1;
         if (!printable && !['Enter', 'Backspace', 'Tab', 'Delete'].includes(k)) return;
-        const ctx = legacy.TYPEWRITER.audio();
+        const ctx = TYPEWRITER.audio();
         if (!ctx) return;
         const now = ctx.currentTime;
-        if (now - legacy.TYPEWRITER.last < 0.025) return;   // a held key is a rattle, not a roar
-        legacy.TYPEWRITER.last = now;
+        if (now - TYPEWRITER.last < 0.025) return;   // a held key is a rattle, not a roar
+        TYPEWRITER.last = now;
         const vary = 0.85 + Math.random() * 0.3;
         if (k === 'Enter') {
             for (let i = 0; i < 6; i++) twBurst(ctx, now + i * 0.03, { freq: 1800 * vary, dur: 0.02, gain: 0.18 });
@@ -465,8 +472,8 @@ const state = live('state');
     }
 
     function toggleTypewriterSound() {
-        legacy.TYPEWRITER.set(!legacy.TYPEWRITER.on());
-        if (legacy.TYPEWRITER.on()) legacy.TYPEWRITER.audio();
+        TYPEWRITER.set(!TYPEWRITER.on());
+        if (TYPEWRITER.on()) TYPEWRITER.audio();
         typewriterButtons();
         const ed = document.getElementById('screenplayEditor');
         if (ed && document.body.classList.contains('sp-focus')) ed.focus();
@@ -674,7 +681,7 @@ const state = live('state');
 
             if (text === '') {
                 // Empty block: use emptyLineType rules
-                const emptyType = legacy.AUTO_FORMAT_RULES.emptyLineType[finalType] || 'action';
+                const emptyType = AUTO_FORMAT_RULES.emptyLineType[finalType] || 'action';
                 if (emptyType !== finalType) {
                     setBlockElementType(block, emptyType);
                     const selector = document.getElementById('elementTypeSelector');
@@ -695,7 +702,7 @@ const state = live('state');
                 // "finished this line, now write the next thing" means.
                 const nextType = tail
                     ? finalType
-                    : (legacy.AUTO_FORMAT_RULES.nextType[finalType] || 'action');
+                    : (AUTO_FORMAT_RULES.nextType[finalType] || 'action');
 
                 const newBlock = createBlock(tail || '', nextType);
                 block.parentNode.insertBefore(newBlock, block.nextSibling);
@@ -743,7 +750,7 @@ const state = live('state');
     function getContextualTabCycle(block, currentType) {
         // If in dialogue context, use dialogue cycle
         if (['dialogue', 'parenthetical'].includes(currentType)) {
-            return legacy.AUTO_FORMAT_RULES.tabCycles['in-dialogue'];
+            return AUTO_FORMAT_RULES.tabCycles['in-dialogue'];
         }
 
         // Check if we're right after a scene heading
@@ -762,10 +769,10 @@ const state = live('state');
             prevBlock = prevBlock.previousElementSibling;
         }
         if (prevBlock && prevBlock.dataset.elementType === 'scene-heading') {
-            return legacy.AUTO_FORMAT_RULES.tabCycles['after-scene'];
+            return AUTO_FORMAT_RULES.tabCycles['after-scene'];
         }
 
-        return legacy.AUTO_FORMAT_RULES.tabCycles['default'];
+        return AUTO_FORMAT_RULES.tabCycles['default'];
     }
 
     // Immediate element type detection (called on Enter, no debounce)
@@ -776,35 +783,35 @@ const state = live('state');
         // with `>` and only the closing `<` separates them. Kept in the same
         // order as autoDetectElementType, because two classifiers that disagree
         // about what a line is are worse than one that is wrong.
-        if (legacy.AUTO_FORMAT_RULES.patterns.centered.test(text)) return 'centered';
-        if (legacy.AUTO_FORMAT_RULES.patterns.section.test(text)) return 'section';
-        if (legacy.AUTO_FORMAT_RULES.patterns.synopsis.test(text)) return 'synopsis';
-        if (legacy.AUTO_FORMAT_RULES.patterns.lyrics.test(text)) return 'lyrics';
-        if (legacy.AUTO_FORMAT_RULES.patterns.note.test(text)) return 'note';
+        if (AUTO_FORMAT_RULES.patterns.centered.test(text)) return 'centered';
+        if (AUTO_FORMAT_RULES.patterns.section.test(text)) return 'section';
+        if (AUTO_FORMAT_RULES.patterns.synopsis.test(text)) return 'synopsis';
+        if (AUTO_FORMAT_RULES.patterns.lyrics.test(text)) return 'lyrics';
+        if (AUTO_FORMAT_RULES.patterns.note.test(text)) return 'note';
 
         // Check for forced element markers
-        if (legacy.AUTO_FORMAT_RULES.patterns.forcedSceneHeading.test(text)) {
+        if (AUTO_FORMAT_RULES.patterns.forcedSceneHeading.test(text)) {
             return 'scene-heading';
         }
-        if (legacy.AUTO_FORMAT_RULES.patterns.forcedCharacter.test(text)) {
+        if (AUTO_FORMAT_RULES.patterns.forcedCharacter.test(text)) {
             return 'character';
         }
-        if (legacy.AUTO_FORMAT_RULES.patterns.forcedTransition.test(text)) {
+        if (AUTO_FORMAT_RULES.patterns.forcedTransition.test(text)) {
             return 'transition';
         }
 
         // Check for scene heading
-        if (legacy.AUTO_FORMAT_RULES.patterns.sceneHeading.test(text)) {
+        if (AUTO_FORMAT_RULES.patterns.sceneHeading.test(text)) {
             return 'scene-heading';
         }
 
         // Check for transition (ALL CAPS ending with :)
-        if (legacy.AUTO_FORMAT_RULES.patterns.transition.test(text) && text.length > 3) {
+        if (AUTO_FORMAT_RULES.patterns.transition.test(text) && text.length > 3) {
             return 'transition';
         }
 
         // Check for parenthetical in dialogue context
-        if (legacy.AUTO_FORMAT_RULES.patterns.parenthetical.test(text) &&
+        if (AUTO_FORMAT_RULES.patterns.parenthetical.test(text) &&
             ['dialogue', 'character'].includes(currentType)) {
             return 'parenthetical';
         }
@@ -1994,7 +2001,7 @@ const state = live('state');
     function loadAIChatHistory() {
         if (!state.currentProject) return;
         const key = `aiChat_${state.currentProject.id}`;
-        const saved = legacy.feStore.get(key);
+        const saved = feStore.get(key);
         if (saved) {
             try {
                 state.aiChat = JSON.parse(saved);
@@ -2010,7 +2017,7 @@ const state = live('state');
     function saveAIChatHistory() {
         if (!state.currentProject) return;
         const key = `aiChat_${state.currentProject.id}`;
-        legacy.feStore.set(key, JSON.stringify(state.aiChat || []));
+        feStore.set(key, JSON.stringify(state.aiChat || []));
     }
 
     function renderAIChatMessages() {
@@ -2215,20 +2222,20 @@ const state = live('state');
         // Cheap and cached: presence changes on the scale of a session, not a
         // keystroke, and asking on every render would spend a request per typed
         // character to learn the same thing.
-        if (Date.now() - legacy.AI_PATH.checked > 60000) {
+        if (Date.now() - AI_PATH.checked > 60000) {
             try {
                 const r = await api('/agent');
-                legacy.AI_PATH.connected = !!r.connected;
-                legacy.AI_PATH.client = r.client;
-                legacy.AI_PATH.alternatives = r.ai_endpoints || [];
-            } catch (_) { legacy.AI_PATH.connected = false; }
-            legacy.AI_PATH.checked = Date.now();
+                AI_PATH.connected = !!r.connected;
+                AI_PATH.client = r.client;
+                AI_PATH.alternatives = r.ai_endpoints || [];
+            } catch (_) { AI_PATH.connected = false; }
+            AI_PATH.checked = Date.now();
         }
 
         el.style.display = 'block';
-        if (legacy.AI_PATH.connected) {
+        if (AI_PATH.connected) {
             el.style.background = 'rgba(34,197,94,0.10)';
-            el.innerHTML = `<strong>${esc(legacy.AI_PATH.client || 'An agent host')} is connected.</strong> `
+            el.innerHTML = `<strong>${esc(AI_PATH.client || 'An agent host')} is connected.</strong> `
                 + 'Ask it to do the writing — it already has your screenplay in context and costs nothing '
                 + 'extra. Using this panel instead sends the request to the server and spends this '
                 + 'project\u2019s API key.';
@@ -2295,7 +2302,7 @@ const state = live('state');
             let liveBubble = null;
 
             await streamPostSSE(
-                legacy.API() + `/projects/${state.currentProject.id}/screenplay-ai/stream`,
+                API() + `/projects/${state.currentProject.id}/screenplay-ai/stream`,
                 {
                     mode: mode,
                     message: message,
@@ -2778,7 +2785,7 @@ ${fountainText.slice(0, 50000)}`;
             let liveBubble = null;
 
             await streamPostSSE(
-                legacy.API() + `/projects/${state.currentProject.id}/screenplay-ai/stream`,
+                API() + `/projects/${state.currentProject.id}/screenplay-ai/stream`,
                 {
                     mode: 'brainstorm',
                     message: analysisMessage,
@@ -3264,7 +3271,7 @@ ${fountainText.slice(0, 50000)}`;
                 }
 
                 currentAbortController = new AbortController();
-                const response = await fetch(`${legacy.API()}/projects/${state.currentProject.id}/text-to-screenplay/preview`, {
+                const response = await fetch(`${API()}/projects/${state.currentProject.id}/text-to-screenplay/preview`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
