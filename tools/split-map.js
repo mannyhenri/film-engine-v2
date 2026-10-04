@@ -288,7 +288,11 @@ function generate({ write = true } = {}) {
         ...pages.filter(p => !ported.has(p.id) && !react[p.id]).map(p => stripHtmlComments(p.outer))].join('\n');
     // What the React pages use of the legacy app is core, at boot.
     const fixedCoreWords = new Set([...uses(fixedCore), ...legacyGlobals]);
-    for (const n of legacyGlobals) if (!nodeOfName.has(n) && !uses(fixedCore).has(n)) throw new Error(`LEGACY_GLOBALS names ${n}, which the legacy code does not define`);
+    // A name on LEGACY_GLOBALS is defined by core, or registered on window by a React page (its loader, what it
+    // provides) or component (what it provides): legacy.X reads window, which is where usePageLoader puts those.
+    const reactRegistered = new Set([...Object.values(react).flatMap(r => [r.loader, ...r.provides]),
+        ...Object.values(components).flatMap(c => c.provides || [])]);
+    for (const n of legacyGlobals) if (!nodeOfName.has(n) && !uses(fixedCore).has(n) && !reactRegistered.has(n)) throw new Error(`LEGACY_GLOBALS names ${n}, which neither the legacy code nor a React page or component defines`);
     /*
      * Nothing left may call what a React page replaced: a leftover onclick="addNote()" or a call
      * from another page would now throw. navigateTo's loaders map is the one allowed mention (its

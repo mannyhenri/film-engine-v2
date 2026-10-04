@@ -20,6 +20,11 @@ import PropsPage from './props/PropsPage.jsx';
 
 const CORE = fs.readFileSync(path.resolve(__dirname, '../../public/legacy/core.js'), 'utf8');
 const definedInCore = (n) => new RegExp(`^\\s{0,4}(async\\s+)?function\\s+${n}\\s*\\(`, 'm').test(CORE);
+// What a page reaches as legacy.X is defined by core OR registered by a React page (its loader, what it provides):
+// the Screenplay page owns loadScreenplayPage since it became React. Either way, a function that exists.
+const REACT_REGISTERED = new Set(Object.values(import.meta.glob('./*/react.json', { eager: true, import: 'default' }))
+    .flatMap(j => [j.loader, ...(j.provides || [])]));
+const defined = (n) => definedInCore(n) || REACT_REGISTERED.has(n);
 
 describe('the character card (character-sheet.test.js, moved)', () => {
     async function cardOf() {
@@ -66,7 +71,7 @@ describe('a successful location save is not reported as an error (page-handlers.
         expect(status).toContain('Location saved. Screenplay updated: 1 occurrence(s) renamed (v2)');
         // What that branch calls in core is a real core function (the original bug: a name nothing defined).
         expect(window.loadScreenplayPage).toHaveBeenCalled();
-        expect(definedInCore('loadScreenplayPage'), 'saveLocation reloads the screenplay through a loader nothing defines').toBe(true);
+        expect(defined('loadScreenplayPage'), 'saveLocation reloads the screenplay through a loader nothing defines').toBe(true);
         confirm.mockRestore();
     });
 });

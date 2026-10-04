@@ -28,6 +28,14 @@ const registersOn = (src, fn) => new RegExp(`usePageLoader\\(\\s*'${fn}'`).test(
 const LEGACY_FILES = ['public/legacy/core.js', 'public/legacy/production-graph.js', 'public/legacy/shell.js',
     ...fs.readdirSync(path.join(ROOT, 'public/legacy/chunks')).map(f => `public/legacy/chunks/${f}`)];
 const identifiers = (code) => new Set(code.match(/[A-Za-z_$][\w$]*/g) || []);
+/** A script with its comments blanked, by the parser's own comment ranges (a regex would read `/*` in a string as one). */
+const blankComments = (code) => {
+    const ranges = [];
+    require('acorn').parse(code, { ecmaVersion: 'latest', onComment: (block, text, start, end) => ranges.push([start, end]) });
+    let out = code;
+    for (const [a, b] of ranges.reverse()) out = out.slice(0, a) + out.slice(a, b).replace(/[^\n]/g, ' ') + out.slice(b);
+    return out;
+};
 const legacyGlobals = (() => {
     const m = /LEGACY_GLOBALS\s*=\s*\[([\s\S]*?)\];/.exec(read('src/lib/legacy.js'));
     return [...m[1].matchAll(/'([\w$]+)'/g)].map(x => x[1]);
@@ -71,7 +79,8 @@ test('nothing in the legacy code still defines or calls what a React page replac
         ...fs.readdirSync(path.join(ROOT, PAGES_DIR)).filter(id => exists(`${PAGES_DIR}/${id}/markup.html`)).map(id => `${PAGES_DIR}/${id}/markup.html`)];
     for (const f of files) {
         // navigateTo's loaders map names every page's loader; that entry is the call React answers.
-        const text = read(f).replace(/const loaders = \{[\s\S]*?\n\s*\};/, '').replace(/var [\w$, ]+;/g, '');
+        // Comments blanked in legacy JS, as the split does: a comment naming a function is not a call to it.
+        const text = (f.endsWith('.js') ? blankComments(read(f)) : read(f)).replace(/const loaders = \{[\s\S]*?\n\s*\};/, '').replace(/var [\w$, ]+;/g, '');
         const ids = identifiers(text);
         // A loader may be CALLED (the React page registers it on window before core runs); never defined.
         for (const o of OWNERS) for (const n of o.replaces) {
@@ -98,7 +107,9 @@ test('React reaches the legacy app only through LEGACY_GLOBALS, and each of thos
     const core = LEGACY_FILES.slice(0, 3).map(read).join('\n');
     for (const n of legacyGlobals) {
         const onWindow = new RegExp(`^\\s{0,4}(async\\s+)?function\\s+${n}\\s*\\(|window\\.${n}\\s*=|^\\s{0,4}(let|const|var)\\s+${n}\\b`, 'm').test(core);
-        if (!onWindow) bad.push(`${n}: not a top-level function or window.${n} in core, so React cannot reach it`);
+        // Or a React page or component registers it on window (its loader, what it provides): legacy.X reads window.
+        const registered = OWNERS.some(o => o.registers.includes(n));
+        if (!onWindow && !registered) bad.push(`${n}: not a top-level function or window.${n} in core, nor registered by a React page or component, so React cannot reach it`);
     }
     assert.deepStrictEqual(bad, []);
 });

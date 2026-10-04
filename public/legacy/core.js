@@ -1555,7 +1555,7 @@
     }
     // React port: page loaders that live in chunks, declared here so navigateTo's loaders map
     // evaluates before their chunk loads; each chunk's own function declaration fills its name in.
-    var loadProjects, loadDashboard, loadScenes, loadShotBoard, loadStoryboard, loadCharacters, loadLocations, loadProps, loadAssets, loadMusicCues, loadMusicWorkstation, loadMilestones, loadNotesPage, loadRenderPage, loadEditsPage, loadExportPage, loadPipeline, loadFlowsPage, loadProductionGraph, loadMoodBoardPage, loadStyleBook, loadPrevisPage, loadSettings, loadJobsQueuePage, loadBrands, loadDeliverables, loadRights, loadTitles, loadSubtitles, loadMarketing, loadConsistency, loadSpend, loadBudget, loadThreeD, loadVideoShots, loadMusic, loadPlayback;
+    var loadProjects, loadDashboard, loadScreenplayPage, loadScenes, loadShotBoard, loadStoryboard, loadCharacters, loadLocations, loadProps, loadAssets, loadMusicCues, loadMusicWorkstation, loadMilestones, loadNotesPage, loadRenderPage, loadEditsPage, loadExportPage, loadPipeline, loadFlowsPage, loadProductionGraph, loadMoodBoardPage, loadStyleBook, loadPrevisPage, loadSettings, loadJobsQueuePage, loadBrands, loadDeliverables, loadRights, loadTitles, loadSubtitles, loadMarketing, loadConsistency, loadSpend, loadBudget, loadThreeD, loadVideoShots, loadMusic, loadPlayback;
 
 
     function navigateTo(page) {
@@ -5660,34 +5660,6 @@
             character_dialogue: characterDialogue,
             scene_lengths: sceneLengths // FILM-126: Include for scene length bars
         };
-    }
-
-    function loadScreenplayPage() {
-        loadScriptVersions();
-        loadLatestFountain();
-        // FILM-121: Check for entity suggestions
-        checkScreenplaySuggestions();
-        // FILM-124: Update scene status icons after a small delay to ensure editor is rendered
-        setTimeout(updateSceneStatusIcons, 500);
-        /*
-         * The gutter is painted AFTER the editor has content and a layout.
-         *
-         * Its markers are positioned from each scene heading's own offsetTop,
-         * so painting before the Fountain has rendered puts every marker at 0 —
-         * which looks like the gutter is broken rather than early. The shot
-         * codes come from the shot list, which the same delay covers.
-         */
-        SCRIPT_TIMING = null;
-        setTimeout(async () => {
-            // The shot codes are a bonus, not a prerequisite: a screenplay with
-            // no breakdown yet still has eighths and a screen time, and failing
-            // the whole gutter for want of a shot list would hide them.
-            try {
-                const data = await api(`/projects/${state.currentProject.id}/shotlist`);
-                state.shots = data.shots || [];
-            } catch (_) { /* no breakdown yet */ }
-            renderScriptGutter();
-        }, 600);
     }
 
     // FILM-124: Update scene heading status icons in the screenplay editor

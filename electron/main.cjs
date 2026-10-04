@@ -251,6 +251,35 @@ async function smoke(win) {
         const ok = !st.error && st.nodes > 0 && !st.missing.length && (!st.shot || drawer > 0) && errors.length === before;
         report.push({ id: 'graph draws', ok, want: 'graph draws', active: ok ? `graph draws (${st.nodes} nodes, drawer for ${st.shot})` : `error=${st.error || ''} nodes=${st.nodes} missing=${(st.missing || []).join(',')} drawer=${drawer}` });
     }
+    /*
+     * The Screenplay page's engine (src/pages/screenplay/engine.js) drives the editor React renders: the project's real
+     * Fountain is drawn into it as blocks, the index cards draw a card per scene heading, the statistics panel opens,
+     * and back in the editor the blocks are the same. Reading only: nothing is typed and nothing is saved.
+     */
+    if (project && PAGES.includes('screenplay')) {
+        current = 'screenplay editor';
+        const before = errors.length;
+        await js(`navigateTo('screenplay')`);
+        for (let t = 0; t < 40; t++) {
+            if (await js(`document.querySelectorAll('#screenplayEditor [data-element-type]').length > 0`).catch(() => false)) break;
+            await new Promise(r => setTimeout(r, 250));
+        }
+        const st = await js(`(async () => {
+            const ed = document.getElementById('screenplayEditor');
+            const blocks = ed.querySelectorAll('[data-element-type]').length;
+            const headings = ed.querySelectorAll('[data-element-type="scene-heading"]').length;
+            setViewMode('cards');
+            await new Promise(r => setTimeout(r, 300));
+            const cards = document.querySelectorAll('#indexCardsGrid > *').length;
+            setViewMode('editor');
+            toggleScriptStats();
+            const stats = document.getElementById('scriptStatsContent').classList.contains('open');
+            toggleScriptStats();
+            return { blocks, headings, cards, stats, after: ed.querySelectorAll('[data-element-type]').length, dirty: !!editorDirty };
+        })()`).catch(e => ({ error: String(e) }));
+        const ok = !st.error && st.blocks > 0 && st.headings > 0 && st.cards === st.headings && st.stats && st.after === st.blocks && !st.dirty && errors.length === before;
+        report.push({ id: 'screenplay editor', ok, want: 'screenplay editor', active: ok ? `screenplay editor (${st.blocks} blocks, ${st.cards} cards)` : JSON.stringify(st) });
+    }
     // A launch with no address reopens the film and page you were on.
     if (project && !process.env.FE_SMOKE_URL && !process.env.FE_SMOKE_PAGES) {
         current = 'reopen';
