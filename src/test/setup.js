@@ -67,15 +67,16 @@ export function installLegacy({ routes = {}, project = { id: 'p1' } } = {}) {
         csImg: (url) => `http://api.test${url}`, renderSubjectSheet: vi.fn(),
         PRODUCTION_GRAPH_ON: false, flowBackToGraph: vi.fn(),
         regenerateStoryboard: vi.fn(),
-        ANCHOR: { frames: [] }, FRAME_VIEWER: { frames: [] }, BOARD_ANCHOR: null, MARKUP: { cache: {} },
-        loadBoardLock: vi.fn(), renderAnnotationFeedbackToggle: vi.fn(), renderAnchorChip: vi.fn(), loadBoardBanners: vi.fn(), markupPaintAll: vi.fn(),
-        generateAllStoryboards: vi.fn(), toggleBoardLock: vi.fn(), clearAnchor: vi.fn(),
-        frameSrc: (f, w) => `frame:${f.shot_code}@${w}`, storyboardDrawAnnotations: vi.fn(),
-        protectSelection: (v) => (v ? [v] : []), protectOverlayHTML: (r, ratios) => `<i class="protect">${ratios.join(',')}@${r.toFixed(2)}</i>`, setShotAspect: vi.fn(),
-        anchorButton: (f) => `<button class="anchor-btn">anchor ${f.shot_code}</button>`, directShot: vi.fn(), exploreAngles: vi.fn(), refineFrame: vi.fn(),
-        storyboardImportButton: (f) => `<label><input data-import-target="storyboard-image" data-shot="${f.shot_id}"></label>`, openFrameVersions: vi.fn(),
-        frameVersionTitle: () => 'versions title', frameVersionLabel: (f) => `v${f.asset_version || 1}`, playFromShot: vi.fn(), insertShotAfter: vi.fn(),
-        storyboardFacetTags: (f) => `<span class="facet">facets ${f.shot_code}</span>`, storyboardDialogueHtml: (d) => (d && d.length ? `<p class="dlg">${d.length} lines</p>` : ''),
+        FRAME_VIEWER: { frames: [] }, BOARD_ANCHOR: null, MARKUP: { cache: {} },
+        markupPaintAll: vi.fn(), generateAllStoryboards: vi.fn(), toggleBoardLock: vi.fn(),
+        frameSrc: (f, w) => `frame:${f.shot_code}@${w}`,
+        protectSelection: (v) => (v ? [v] : []), protectOverlayHTML: (r, ratios) => `<i class="protect">${ratios.join(',')}@${r.toFixed(2)}</i>`,
+        directShot: vi.fn(), exploreAngles: vi.fn(), refineFrame: vi.fn(),
+        storyboardDialogueHtml: (d) => (d && d.length ? `<p class="dlg">${d.length} lines</p>` : ''),
+        // The storyboard engine's bridge (core): what its moved functions call.
+        annotationFeedbackOn: vi.fn(() => false), confirmChoices: vi.fn(), confirmExtras: vi.fn(), confirmGenArm: vi.fn(), cueExtensionOf: vi.fn(),
+        frameBusy: vi.fn(), markupDisarm: vi.fn(), markupDraw: vi.fn(), markupLoad: vi.fn(), markupPaintFeedBadge: vi.fn(), paintGenOptions: vi.fn(),
+        renderBoardLock: vi.fn(), BOARD_LOCK: { locked: false },
         markupToolbar: (id) => `<span class="markup-tools">markup ${id}</span>`,
         paintProjectType: vi.fn(), setStatusDot: vi.fn(), confirmProjectDelete: vi.fn(async () => true), backToProjectList: vi.fn(), openFolderPicker: vi.fn(),
         saveProductionGraphFlag: vi.fn(), feStore: { set: vi.fn(), remove: vi.fn(), get: vi.fn() }, checkHealth: vi.fn(), DEFAULT_API_BASE: 'http://default.test', APP_AUTHOR: null,
@@ -124,4 +125,19 @@ afterEach(() => {
     cleanup();
     for (const n of LEGACY_GLOBALS) delete window[n];
     if (bad.length) throw new Error('a direct child of a CSS grid is neither a card nor full-width, so it takes a card\'s cell:\n  ' + bad.join('\n  '));
+});
+
+/*
+ * The storyboard's own card parts and board actions, moved from core into src/pages/storyboard/engine.js. Its tests
+ * mock the engine with these (vi.mock('./engine.js', ...)): the same markers the legacy fakes drew, so a test reads
+ * which part the page put where.
+ */
+export const BOARD_ENGINE_FAKES = () => ({
+    ANCHOR: { frames: [] },
+    loadBoardLock: vi.fn(), renderAnnotationFeedbackToggle: vi.fn(), renderAnchorChip: vi.fn(), loadBoardBanners: vi.fn(),
+    clearAnchor: vi.fn(), storyboardDrawAnnotations: vi.fn(), setShotAspect: vi.fn(),
+    anchorButton: (f) => `<button class="anchor-btn">anchor ${f.shot_code}</button>`,
+    storyboardImportButton: (f) => `<label><input data-import-target="storyboard-image" data-shot="${f.shot_id}"></label>`, openFrameVersions: vi.fn(),
+    frameVersionTitle: () => 'versions title', frameVersionLabel: (f) => `v${f.asset_version || 1}`, playFromShot: vi.fn(), insertShotAfter: vi.fn(),
+    storyboardFacetTags: (f) => `<span class="facet">facets ${f.shot_code}</span>`,
 });

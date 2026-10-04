@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useLayoutEffect, useState } from 'react';
 import { legacy, setLegacy } from '../../lib/legacy.js';
+import * as E from './engine.js';
 import { usePageLoader } from '../../lib/usePageLoader.js';
 
 /*
@@ -29,12 +30,14 @@ export function ratioOf(frame, project) {
 
 const Html = ({ html, as: Tag = 'span', ...rest }) => <Tag {...rest} dangerouslySetInnerHTML={{ __html: html }} />;
 
+export const ENGINE = Object.entries(E).filter(([, v]) => typeof v === 'function');
+
 export default function StoryboardPage() {
     const [board, setBoard] = useState(null); // { pid, list }: the frames, and whose project they are
     const [protect, setProtect] = useState('');
 
     async function loadStoryboard() {
-        legacy.loadBoardLock();
+        E.loadBoardLock();
         if (!legacy.state.currentProject) return;
         legacy.setStatus('Loading storyboard...');
         const pid = legacy.state.currentProject.id;
@@ -52,24 +55,31 @@ export default function StoryboardPage() {
                 const a = data.anchor_shot_id ? list.find(f => f.shot_id === data.anchor_shot_id) : null;
                 setLegacy('BOARD_ANCHOR', a ? { shot_id: a.shot_id, shot_code: a.shot_code } : null);
             }
-            legacy.ANCHOR.frames = list;
+            E.ANCHOR.frames = list;
             legacy.FRAME_VIEWER.frames = list; // so the viewer can step between shots without the grid
             setBoard({ pid, list });
-            legacy.renderAnnotationFeedbackToggle();
-            legacy.renderAnchorChip();
+            E.renderAnnotationFeedbackToggle();
+            E.renderAnchorChip();
             legacy.setStatus(list.length + ' storyboard frame(s)');
             // The warnings, after the pictures: additive, and seconds slower on a real project.
-            legacy.loadBoardBanners();
+            E.loadBoardBanners();
         } catch (err) { legacy.setStatus('Error: ' + err.message); }
     }
     usePageLoader('loadStoryboard', loadStoryboard);
+    // What only the board reaches of core, moved into engine.js: on window while mounted, because the HTML core and the
+    // engine draw (cards' shared parts, the frame viewer, the background picker and frame versions dialogs) calls it by name.
+    useLayoutEffect(() => {
+        const prior = {};
+        for (const [name, fn] of ENGINE) { prior[name] = window[name]; window[name] = fn; }
+        return () => { for (const [name] of ENGINE) { if (prior[name] === undefined) delete window[name]; else window[name] = prior[name]; } };
+    }, []);
 
     async function setAnnotationFeedback(on) {
         if (!legacy.state.currentProject) return;
         try {
             const p = await legacy.api('/projects/' + legacy.state.currentProject.id, { method: 'PUT', body: JSON.stringify({ annotation_feedback: on ? 1 : 0 }) });
             legacy.state.currentProject = { ...legacy.state.currentProject, ...p };
-            legacy.renderAnnotationFeedbackToggle();
+            E.renderAnnotationFeedbackToggle();
             // Said plainly, because it is the part that surprises people: a mark is not consumed by the generation that acts on it.
             legacy.setStatus(on
                 ? 'Marks carrying a note now steer this shot’s prompt, and keep doing so until deleted.'
@@ -77,7 +87,7 @@ export default function StoryboardPage() {
             for (const shotId of Object.keys(legacy.MARKUP.cache)) legacy.markupPaintAll(shotId); // every badge is now wrong
         } catch (err) {
             legacy.setStatus('Could not change that: ' + err.message);
-            legacy.renderAnnotationFeedbackToggle();
+            E.renderAnnotationFeedbackToggle();
         }
     }
 
@@ -114,7 +124,7 @@ export default function StoryboardPage() {
                     {/* The frame currently being shot from. Shown by core only while an anchor is set. */}
                     <span id="anchorChip" style={{ display: 'none', alignItems: 'center', gap: 6, fontSize: 13, padding: '3px 8px', borderRadius: 999, border: '1px solid var(--gl-brand-pink,#ec4899)' }}>
                         <span id="anchorChipText"></span>
-                        <button className="btn btn-sm" style={{ padding: '0 6px' }} onClick={() => legacy.clearAnchor()}
+                        <button className="btn btn-sm" style={{ padding: '0 6px' }} onClick={() => E.clearAnchor()}
                             title="Put the anchor down — shots go back to generating from their plates">clear</button>
                     </span>
                     <button className="btn btn-primary" onClick={() => legacy.generateAllStoryboards()}>Generate All</button>
@@ -168,7 +178,7 @@ function FrameCard({ f, project, protect }) {
                     style={{ width: '100%', display: hidden ? 'none' : 'block', cursor: 'zoom-in' }} title="Open full screen"
                     onClick={() => legacy.openFrameViewer(f.shot_id)}
                     onError={() => setHidden(true)}
-                    onLoad={(e) => { setAspect(e.currentTarget.naturalWidth / e.currentTarget.naturalHeight); legacy.storyboardDrawAnnotations(f.shot_id); }} />
+                    onLoad={(e) => { setAspect(e.currentTarget.naturalWidth / e.currentTarget.naturalHeight); E.storyboardDrawAnnotations(f.shot_id); }} />
                 <canvas id={'annot-' + f.shot_id} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none' }}></canvas>
                 {/* What the placement keeps, and (dimmed) what it throws away; readable only against the whole frame. */}
                 <Html as="div" className="board-protect" data-shot={f.shot_id}
@@ -184,25 +194,25 @@ function FrameCard({ f, project, protect }) {
                 <strong>Sc{f.scene_number} / {f.shot_code}</strong>
                 {/* Shoot this one at its own ratio: a 9:16 crop keeps a third of the width. Blank inherits the project's. */}
                 <select data-field="aspect_ratio" title="Generate this shot at its own ratio" defaultValue={f.aspect_ratio || ''}
-                    onChange={(e) => legacy.setShotAspect(f.shot_id, e.target.value)}
+                    onChange={(e) => E.setShotAspect(f.shot_id, e.target.value)}
                     style={{ width: 'auto', display: 'inline-block', marginLeft: 8, fontSize: 11 }}>
                     {RATIO_CHOICES.map(r => <option key={r} value={r}>{r || 'project ratio'}</option>)}
                 </select>
                 <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 6 }}>
-                    <Html style={{ display: 'contents' }} html={legacy.anchorButton(f)} />
+                    <Html style={{ display: 'contents' }} html={E.anchorButton(f)} />
                     <button className="btn btn-secondary btn-sm" onClick={() => legacy.directShot(f.shot_id)} title="Who and what is in this shot, and where the camera is">Direct</button>
                     <button className="btn btn-secondary btn-sm" onClick={() => legacy.regenerateStoryboard(f.shot_id)}
                         title={f.image_url ? 'Generate this frame again from the card — shows you the prompt first' : 'This shot has no frame yet — generate its first one. You will see the prompt before anything is spent.'}>
                         {f.image_url ? 'Regen' : 'Generate'}</button>
                     <button className="btn btn-secondary btn-sm" onClick={() => legacy.exploreAngles(f.shot_id)} title="Explore four angles: four separate images, one camera each, at the project resolution. Pick one and it becomes the frame.">4 angles</button>
                     <button className="btn btn-secondary btn-sm" onClick={() => legacy.refineFrame(f.shot_id)} title="Keep this picture and change one thing about it">Refine</button>
-                    <Html style={{ display: 'contents' }} html={legacy.storyboardImportButton(f)} />
-                    <button className="btn btn-secondary btn-sm" onClick={() => legacy.openFrameVersions(f.shot_id)} title={legacy.frameVersionTitle(f)}>{legacy.frameVersionLabel(f)}</button>
-                    <button className="btn btn-secondary btn-sm" onClick={() => legacy.playFromShot(f.shot_id)} title="Watch the cut starting from this shot">&#9654;</button>
-                    <button className="btn btn-secondary btn-sm" onClick={() => legacy.insertShotAfter(f.shot_id)} title="Add a new shot immediately after this one, in the same scene">+ Shot</button>
+                    <Html style={{ display: 'contents' }} html={E.storyboardImportButton(f)} />
+                    <button className="btn btn-secondary btn-sm" onClick={() => E.openFrameVersions(f.shot_id)} title={E.frameVersionTitle(f)}>{E.frameVersionLabel(f)}</button>
+                    <button className="btn btn-secondary btn-sm" onClick={() => E.playFromShot(f.shot_id)} title="Watch the cut starting from this shot">&#9654;</button>
+                    <button className="btn btn-secondary btn-sm" onClick={() => E.insertShotAfter(f.shot_id)} title="Add a new shot immediately after this one, in the same scene">+ Shot</button>
                 </div>
                 {/* Its own target, so the drift and impact marks are painted in by core when those reports land. */}
-                <Html as="div" data-facets={f.shot_id} html={legacy.storyboardFacetTags(f)} />
+                <Html as="div" data-facets={f.shot_id} html={E.storyboardFacetTags(f)} />
                 {f.description && <p className="text-sm" style={{ marginTop: 6, lineHeight: 1.45 }}>{f.description}</p>}
                 <Html as="div" html={legacy.storyboardDialogueHtml(f.dialogue)} />
                 <Html as="div" style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 8 }} html={legacy.markupToolbar(f.shot_id, 'annot-' + f.shot_id, 'img-' + f.shot_id)} />

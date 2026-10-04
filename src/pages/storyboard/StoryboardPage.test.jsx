@@ -1,8 +1,29 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, act } from '@testing-library/react';
 import { installLegacy } from '../../test/setup.js';
 import { setLegacy } from '../../lib/legacy.js';
 import StoryboardPage, { ratioOf, RATIO_CHOICES } from './StoryboardPage.jsx';
+
+/*
+ * The board's own card parts and actions moved from core into engine.js; here they are the same fakes the legacy
+ * core had (src/test/setup.js BOARD_ENGINE_FAKES), reset before each test, and merged into the `fake` a test reads.
+ */
+vi.mock('./engine.js', async () => {
+    const { BOARD_ENGINE_FAKES } = await import('../../test/setup.js');
+    return Object.fromEntries(Object.entries(BOARD_ENGINE_FAKES()).map(([k, v]) => [k, typeof v === 'function' && !vi.isMockFunction(v) ? vi.fn(v) : v]));
+});
+const E = await import('./engine.js');
+const { BOARD_ENGINE_FAKES } = await import('../../test/setup.js');
+beforeEach(() => {
+    const fresh = BOARD_ENGINE_FAKES();
+    for (const [k, v] of Object.entries(E)) {
+        if (!vi.isMockFunction(v)) continue;
+        v.mockReset();
+        if (!vi.isMockFunction(fresh[k])) v.mockImplementation(fresh[k]);
+    }
+    E.ANCHOR.frames = [];
+});
+const withEngine = (legacy) => { Object.assign(legacy.fake, E); return legacy; };
 
 const FRAMES = [
     { shot_id: 'a', shot_code: '1A', scene_number: 1, image_url: '/x.png', description: 'Ray <enters>', dialogue: [{}, {}], aspect_ratio: '' },
@@ -10,7 +31,7 @@ const FRAMES = [
 ];
 const BOARD = { frames: FRAMES, annotation_feedback: 1, anchor_shot_id: 'a' };
 async function openPage(routes = {}, project = { id: 'p1', aspect_ratio: '16:9' }) {
-    const legacy = installLegacy({ routes: { 'GET /projects/p1/storyboard': BOARD, ...routes }, project });
+    const legacy = withEngine(installLegacy({ routes: { 'GET /projects/p1/storyboard': BOARD, ...routes }, project }));
     render(<StoryboardPage />);
     await act(async () => { await window.loadStoryboard(); });
     return legacy;
@@ -113,7 +134,7 @@ describe('Storyboard', () => {
     });
 
     it('setLegacy writes a listed global, and refuses an unlisted name or a function', () => {
-        installLegacy();
+        withEngine(installLegacy());
         setLegacy('BOARD_ANCHOR', { shot_id: 'z' });
         expect(window.BOARD_ANCHOR).toEqual({ shot_id: 'z' });
         expect(() => setLegacy('nope', 1)).toThrow(/not in LEGACY_GLOBALS/);
@@ -128,7 +149,7 @@ describe('Storyboard', () => {
 
     it('MOVED: the frames are painted before any report is waited for (the banners are started after, never awaited)', async () => {
         let release;
-        const legacy = installLegacy({ routes: { 'GET /projects/p1/storyboard': BOARD } });
+        const legacy = withEngine(installLegacy({ routes: { 'GET /projects/p1/storyboard': BOARD } }));
         legacy.fake.loadBoardBanners.mockImplementation(() => new Promise(r => { release = r; })); // a report that never lands
         render(<StoryboardPage />);
         await act(async () => { await window.loadStoryboard(); });
@@ -141,9 +162,9 @@ describe('Storyboard', () => {
 describe('Storyboard: an answer for a project you have left', () => {
     it('draws nothing and writes nothing onto the project now open', async () => {
         let releaseA;
-        const { fake } = installLegacy({ routes: {
+        const { fake } = withEngine(installLegacy({ routes: {
             'GET /projects/p1/storyboard': () => new Promise(r => { releaseA = () => r({ frames: [{ shot_id: 's1', shot_code: '1A' }], anchor_shot_id: 's1', annotation_feedback: 1 }); }),
-        } });
+        } }));
         render(<StoryboardPage />);
         let pending;
         act(() => { pending = window.loadStoryboard(); });
@@ -157,7 +178,7 @@ describe('Storyboard: an answer for a project you have left', () => {
     });
 
     it('a board drawn for a project is not drawn once no project is open (nothing renders against no project)', async () => {
-        const { fake } = installLegacy({ routes: { 'GET /projects/p1/storyboard': { frames: FRAMES } } });
+        const { fake } = withEngine(installLegacy({ routes: { 'GET /projects/p1/storyboard': { frames: FRAMES } } }));
         const view = render(<StoryboardPage />);
         await act(async () => { await window.loadStoryboard(); });
         const cards = () => document.querySelectorAll('#storyboardGrid > .card').length;

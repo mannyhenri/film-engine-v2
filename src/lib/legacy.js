@@ -58,14 +58,14 @@ export const LEGACY_GLOBALS = [
     'flowBackToGraph',        // Flows' way back to the graph (the Production graph page provides it)
     'regenerateStoryboard',   // regenerate one shot's frame: its own confirmation, the busy veil (board, viewer, shot drawer)
     // The storyboard board: state core shares with the frame viewer, the anchor and markup...
-    'ANCHOR', 'FRAME_VIEWER', 'BOARD_ANCHOR', 'MARKUP',
+    'FRAME_VIEWER', 'BOARD_ANCHOR', 'MARKUP',
     // ...what keeps the board's header and banners in step (core writes into them by id)...
-    'loadBoardLock', 'renderAnnotationFeedbackToggle', 'renderAnchorChip', 'loadBoardBanners', 'markupPaintAll',
-    'generateAllStoryboards', 'toggleBoardLock', 'clearAnchor',
+    'markupPaintAll',
+    'generateAllStoryboards', 'toggleBoardLock', 
     // ...and each card's shared parts, used by the viewer and the Production graph too.
-    'frameSrc', 'storyboardDrawAnnotations', 'protectSelection', 'protectOverlayHTML', 'setShotAspect',
-    'anchorButton', 'directShot', 'exploreAngles', 'refineFrame', 'storyboardImportButton', 'openFrameVersions',
-    'frameVersionTitle', 'frameVersionLabel', 'playFromShot', 'insertShotAfter', 'storyboardFacetTags', 'storyboardDialogueHtml', 'markupToolbar',
+    'frameSrc', 'protectSelection', 'protectOverlayHTML', 
+    'directShot', 'exploreAngles', 'refineFrame', 
+    'storyboardDialogueHtml', 'markupToolbar',
     'money', 'usd',          // how money is printed everywhere: $0.00, and finer under a dollar (budget, export, the confirmations)
     // Settings: the shell it updates after a save, the shared dialogs, and the connection state core owns.
     'paintProjectType', 'setStatusDot', 'confirmProjectDelete', 'backToProjectList', 'openFolderPicker', 'saveProductionGraphFlag',
@@ -95,6 +95,8 @@ export const LEGACY_GLOBALS = [
     'currentScriptVersion', 'editorDirty', 'redoStack', 'screenplaySuggestions', 'undoStack',
     '_shotAction', 'clearModal', 'getModalData', // the music engine's bridge (src/pages/music/engine.js)
     'previsAspect', 'WALK', 'WORLD', 'P_DEG', // the 3D stage engine's bridge (src/pages/previs/engine.js)
+    // The storyboard engine's bridge (src/pages/storyboard/engine.js):
+    'annotationFeedbackOn', 'confirmChoices', 'confirmExtras', 'confirmGenArm', 'cueExtensionOf', 'frameBusy', 'markupDisarm', 'markupDraw', 'markupLoad', 'markupPaintFeedBadge', 'paintGenOptions', 'renderBoardLock', 'BOARD_LOCK',
 ];
 
 
