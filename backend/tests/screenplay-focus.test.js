@@ -52,7 +52,12 @@ function sandbox(prefOn) {
     };
     ctx.window.AudioContext = Ctx;
     vm.createContext(ctx);
-    const tw = HTML.slice(HTML.indexOf('const TYPEWRITER = {'), HTML.indexOf('function twBurst('));
+    // v2: TYPEWRITER's declaration read by its own braces, not "up to twBurst": twBurst is in the Screenplay engine now
+    // (the editor core moved), whose source block the assembled page puts before core, where TYPEWRITER stays.
+    const twAt = HTML.indexOf('const TYPEWRITER = {');
+    let twEnd = HTML.indexOf('{', twAt);
+    for (let d = 0; twEnd < HTML.length; twEnd++) { if (HTML[twEnd] === '{') d++; else if (HTML[twEnd] === '}' && --d === 0) break; }
+    const tw = HTML.slice(twAt, HTML.indexOf(';', twEnd) + 1) + '\n';
     vm.runInContext(tw.replace('const TYPEWRITER', 'var TYPEWRITER') + fnSrc('twBurst') + fnSrc('twThump') + fnSrc('twBell')
         + fnSrc('typewriterKey') + 'function focusWordCount(){}', ctx);
     const press = (key, mods = {}) => { ctx.TYPEWRITER.last = -1; ctx.typewriterKey({ key, ...mods }); };
