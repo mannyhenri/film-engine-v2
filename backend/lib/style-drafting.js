@@ -109,7 +109,10 @@ function createDraftingStore(db, { actor = 'human', generate } = {}) {
   const ownerOk = s => (b.owner !== undefined ? s.owner === b.owner : (!profileOwners.size || profileOwners.has(s.owner)));
   const excluded = {}, filtered = { owner:0, language:0, sample_type:0, diversity:0, budget:0 };
   // 1. Unavailable samples leave first: they are never ranked, whatever they say.
+  // Internal only (the pilot): samples kept out by id. Not a contract field, so no host can pass it.
+  const kept = new Set(Array.isArray(b.exclude_sample_ids) ? b.exclude_sample_ids : []);
   const eligible = visible.filter(s => { if (s.eligibility) { excluded[s.eligibility] = (excluded[s.eligibility] || 0) + 1; return false; } return true; })
+   .filter(s => !kept.has(s.id) || ((excluded.pilot_excluded = (excluded.pilot_excluded || 0) + 1), false))
    .filter(s => ownerOk(s) || (filtered.owner++, false))
    .filter(s => s.language === language || (filtered.language++, false))
    .filter(s => !types || types.includes(s.sample_type) || (filtered.sample_type++, false));
@@ -336,4 +339,5 @@ function createDraftingStore(db, { actor = 'human', generate } = {}) {
 function store(opts) { return createDraftingStore(require('../db/database').db, opts); }
 /** Where provider calls go when no generator is passed: the project's LLM adapter by default (tests inject a recorder). */
 function setDefaultGenerator(fn) { const prev = defaultGenerate; defaultGenerate = fn; return prev; }
-module.exports = { setDefaultGenerator, CONTRACTS, UI_OPERATIONS, PROVIDERS, PROVENANCE_FIELDS, PROMPT_TEMPLATE_VERSION, hunks, createDraftingStore, store };
+const defaultGenerator = () => defaultGenerate;
+module.exports = { setDefaultGenerator, defaultGenerator, CONTRACTS, UI_OPERATIONS, PROVIDERS, PROVENANCE_FIELDS, PROMPT_TEMPLATE_VERSION, hunks, createDraftingStore, store };
