@@ -3,7 +3,7 @@ import Modal, { openModal, closeModal } from '../../components/Modal.jsx';
 import { legacy } from '../../lib/legacy.js';
 import { usePageLoader } from '../../lib/usePageLoader.js';
 import { formBody } from '../../lib/forms.js';
-import { describeFromScreenplay, DESCRIBE_TITLE, formFrom } from '../../lib/subjects.js';
+import { describeFromScreenplay, DESCRIBE_TITLE, formFrom, useSubjectList, SubjectListBar, SubjectNoMatch } from '../../lib/subjects.jsx';
 
 /*
  * Characters, as React. Same routes, bodies and status lines as the legacy page; one change, named:
@@ -136,6 +136,8 @@ export default function CharactersPage() {
         } catch (err) { legacy.setStatus('Error: ' + err.message); }
     }
 
+    // Search and sort what was read (no second request); the sort is remembered for this page.
+    const list = useSubjectList('characters', characters, { fields: ['description', 'age_range', 'gender'] });
     const field = (k) => ({ 'data-field': k, value: form[k], onChange: (e) => { const v = e.target.value; setForm(f => ({ ...f, [k]: v })); } });
     const pair = { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 };
 
@@ -148,11 +150,13 @@ export default function CharactersPage() {
                     <button className="btn btn-primary" onClick={newCharacter}>+ Character</button>
                 </div>
             </div>
+            <SubjectListBar list={list} noun="characters" />
             <div className="entity-grid" id="characterGrid">
+                {characters && characters.length > 0 && list.shown.length === 0 && <SubjectNoMatch list={list} noun="characters" />}
                 {characters && characters.length === 0 && (
                     <div className="empty-state" style={{ gridColumn: '1/-1' }}><div className="icon">&#128100;</div><h3>No characters</h3><p>Add characters for your film production.</p></div>
                 )}
-                {(characters || []).map(c => <CharacterCard key={c.id} c={c} onEdit={editCharacter} onDelete={deleteCharacter} />)}
+                {(list.shown || []).map(c => <CharacterCard key={c.id} c={c} onEdit={editCharacter} onDelete={deleteCharacter} />)}
             </div>
 
             <Modal id="characterModal" title={editing.id ? 'Edit Character' : 'New Character'}>

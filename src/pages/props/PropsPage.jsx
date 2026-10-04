@@ -3,7 +3,7 @@ import Modal, { openModal, closeModal } from '../../components/Modal.jsx';
 import { legacy } from '../../lib/legacy.js';
 import { usePageLoader } from '../../lib/usePageLoader.js';
 import { formBody } from '../../lib/forms.js';
-import { describeFromScreenplay, DESCRIBE_TITLE, formFrom, BANNER_STYLE } from '../../lib/subjects.js';
+import { describeFromScreenplay, DESCRIBE_TITLE, formFrom, BANNER_STYLE, useSubjectList, SubjectListBar, SubjectNoMatch, byName } from '../../lib/subjects.jsx';
 
 /*
  * Props, as React. Same routes, bodies and status lines as the legacy page; two changes, named:
@@ -23,6 +23,9 @@ const FALLBACK = [{ id: 'generic', label: 'Generic' }];
  * prop_categories), never typed here: a hand-written list offered `clothing` and `personal`, which the
  * CHECK constraint on film_props.category refuses. Read once; a failure keeps the fallback.
  */
+// Beyond the common sorts: grouped by category, then by name.
+const SORTS = [{ id: 'category', label: 'Category', order: (a, b) => String(a.category || 'generic').localeCompare(String(b.category || 'generic')) || byName(a, b) }];
+
 let _propCategories = null;
 async function propCategories() {
     if (!_propCategories) {
@@ -120,7 +123,10 @@ export default function PropsPage() {
 
     const all = props || [];
     const pills = ['all', ...new Set(all.map(p => p.category || 'generic'))];
-    const shown = filter !== 'all' ? all.filter(p => (p.category || 'generic') === filter) : all;
+    const inCategory = filter !== 'all' ? all.filter(p => (p.category || 'generic') === filter) : all;
+    // Search and sort within the category pill; the sort is remembered for this page.
+    const list = useSubjectList('props', props ? inCategory : null, { fields: ['description', 'category'], sorts: SORTS });
+    const shown = list.shown || [];
     const field = (k) => ({ 'data-field': k, value: form[k], onChange: (e) => { const v = e.target.value; setForm(f => ({ ...f, [k]: v })); } });
 
     return (
@@ -135,8 +141,10 @@ export default function PropsPage() {
             <div className="filter-pills" id="propFilters">
                 {props && pills.map(c => <button key={c} className={'filter-pill' + (c === filter ? ' active' : '')} onClick={() => setFilter(c)}>{c}</button>)}
             </div>
+            <SubjectListBar list={list} noun="props" />
             <div className="entity-grid" id="propGrid">
-                {props && shown.length === 0 && (
+                {props && inCategory.length > 0 && shown.length === 0 && <SubjectNoMatch list={list} noun="props" />}
+                {props && inCategory.length === 0 && (
                     <div className="empty-state" style={{ gridColumn: '1/-1' }}><div className="icon">&#127917;</div><h3>No props</h3><p>Add props used in your production.</p></div>
                 )}
                 {shown.map(p => <PropCard key={p.id} p={p} onEdit={editProp} onDelete={deleteProp} />)}

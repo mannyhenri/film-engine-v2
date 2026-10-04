@@ -1,5 +1,5 @@
 {
-  "about": "This page is React (src/pages/characters/CharactersPage.jsx). tools/split-map.js stops generating it, drops the legacy code and modal below, and fails if anything left still calls them. The character sheet, casting and plate tools stay in core; they call loadCharacters() and editCharacter() by name, which the page registers on window (editCharacter is PROVIDED). describeFromScreenplay, the subjects chunk's only function, is src/lib/subjects.js now that all three subject pages are React.",
+  "about": "This page is React (src/pages/characters/CharactersPage.jsx). tools/split-map.js stops generating it, drops the legacy code and modal below, and fails if anything left still calls them. The character sheet, casting and plate tools stay in core; they call loadCharacters() and editCharacter() by name, which the page registers on window (editCharacter is PROVIDED). describeFromScreenplay, the subjects chunk's only function, is src/lib/subjects.jsx now that all three subject pages are React.",
   "loader": "loadCharacters",
   "provides": ["editCharacter"],
   "replaces": ["loadCharacters", "editCharacter", "saveCharacter", "deleteCharacter", "editingCharacterOriginalName", "describeFromScreenplay"],

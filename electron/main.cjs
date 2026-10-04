@@ -491,6 +491,30 @@ async function smoke(win) {
         const results = [];
         if (typeof found === 'string') results.push(found);
         else {
+            /*
+             * Search on a subject list, in the real app: on Characters, typing one character's name (as a person types:
+             * React reads an input through its native setter and an input event) shows only cards that match it, the
+             * count says "n of total", and clearing shows them all again.
+             */
+            await js(`openProject(${JSON.stringify(found.project)}, 'characters').then(() => true)`);
+            await new Promise(r => setTimeout(r, 1500));
+            const searched = await js(`(async () => {
+                const type = (v) => { const el = document.querySelector('#page-characters [data-subject-search]');
+                    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(el, v);
+                    el.dispatchEvent(new Event('input', { bubbles: true })); };
+                const cards = () => [...document.querySelectorAll('#characterGrid .entity-card')];
+                const names = () => cards().map(c => c.querySelector('h3').textContent);
+                const all = names(); if (!all.length) return { error: 'no characters to search' };
+                const target = all[all.length - 1], term = target.slice(0, 4);
+                type(term); await new Promise(r => setTimeout(r, 100));
+                // A hit matches by name or by what the card shows (its description, age, gender): every card shown says it.
+                const hits = names(), shows = cards().map(c => c.textContent.toLowerCase().includes(term.toLowerCase()));
+                const count = document.querySelector('#page-characters [data-subject-count]').textContent;
+                type(''); await new Promise(r => setTimeout(r, 100));
+                return { term, target, all: all.length, hits, shows, count, back: names().length };
+            })()`).catch(e => ({ error: e.message }));
+            if (searched.error || !searched.hits.includes(searched.target) || searched.shows.includes(false)
+                || searched.count !== `${searched.hits.length} of ${searched.all} characters` || searched.back !== searched.all) results.push(`search: ${JSON.stringify(searched)}`);
             await js(`openProject(${JSON.stringify(found.project)}, 'locations').then(() => true)`);
             await new Promise(r => setTimeout(r, 1500));
             for (const [kind, id, regions] of [['location', found.location, LOCATION_REGIONS], ['prop', found.prop, PROP_REGIONS]]) {

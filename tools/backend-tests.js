@@ -28,10 +28,15 @@ function run(f) {
         const log = fs.createWriteStream(path.join(OUT, f + '.log'));
         const p = spawn(process.execPath, args, { cwd: DIR });
         p.stdout.pipe(log); p.stderr.pipe(log);
+        // Counted from the log once the log stream has FINISHED: the process can close before its last lines (the
+        // "ℹ pass N" summary) are flushed to the file, and a file read then counted 0 (a summary of 4716 where the
+        // logs held 4730).
         p.on('close', (code) => {
-            const text = fs.readFileSync(path.join(OUT, f + '.log'), 'utf8');
-            const n = (k) => +((text.match(new RegExp(`ℹ ${k} (\\d+)`)) || [0, 0])[1]);
-            resolve({ f, ok: code === 0, pass: n('pass'), fail: n('fail'), skipped: (skips[f] || []).length });
+            log.end(() => {
+                const text = fs.readFileSync(path.join(OUT, f + '.log'), 'utf8');
+                const n = (k) => +((text.match(new RegExp(`ℹ ${k} (\\d+)`)) || [0, 0])[1]);
+                resolve({ f, ok: code === 0, pass: n('pass'), fail: n('fail'), skipped: (skips[f] || []).length });
+            });
         });
     });
 }
