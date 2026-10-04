@@ -1,0 +1,20 @@
+{
+  "about": "A SHARED module of core as a boot-mounted component with no dialogs: the protect ratios a job's deliverables plan (engine.js, moved verbatim). It provides exactly what it replaces.",
+  "provides": [
+    "protectOptionsHTML",
+    "refreshProtectOptions",
+    "protectRatiosPlanned",
+    "protectBoxFor",
+    "protectOverlayHTML",
+    "protectSelection"
+  ],
+  "replaces": [
+    "protectOptionsHTML",
+    "refreshProtectOptions",
+    "protectRatiosPlanned",
+    "protectBoxFor",
+    "protectOverlayHTML",
+    "protectSelection"
+  ],
+  "modals": []
+}

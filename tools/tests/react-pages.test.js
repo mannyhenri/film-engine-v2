@@ -125,7 +125,11 @@ test('every page loader the legacy code calls exists: declared in legacy code, o
     // The backend's page-handlers check of the same name reads the assembled page, where a React
     // page's loader is only a placeholder `var`; it is skipped there (SKIPPED-SUBTESTS.json) and
     // held here, where both halves of the app are visible.
-    const code = LEGACY_FILES.map(read).join('\n');
+    // The legacy code: core's scripts AND what has moved out of them verbatim into page and component engines, which
+    // still calls loaders the same way (core keeps shrinking, so it alone stops being the place they are called from).
+    const engines = ['src/pages', COMPONENTS_DIR].flatMap(d => fs.readdirSync(path.join(ROOT, d))
+        .filter(n => exists(`${d}/${n}/engine.js`)).map(n => `${d}/${n}/engine.js`));
+    const code = [...LEGACY_FILES, ...engines].map(read).join('\n');
     const declared = new Set([...code.matchAll(/(?:async\s+)?function\s+([A-Za-z_$][\w$]*)\s*\(|(?:let|const)\s+([A-Za-z_$][\w$]*)\s*=/g)].map(m => m[1] || m[2]));
     const reactLoaders = new Set(OWNERS.flatMap(o => o.registers));
     const calls = [...code.matchAll(/(?:^|[^\w.$])(load[A-Z][\w$]*)\s*\(/gm)].map(m => m[1]);
@@ -246,5 +250,26 @@ test('every shared component provides exactly what it replaces', () => {
         for (const x of rep) if (!p.has(x)) bad.push(`${n}: replaces ${x} and does not provide it`);
         for (const x of p) if (!rep.has(x)) bad.push(`${n}: provides ${x}, which it does not replace`);
     }
+    assert.deepStrictEqual(bad, []);
+});
+
+// Every source the app runs, less one file: legacy scripts, and React source (not tests).
+const OUTSIDE_TEXT = (except) => [...LEGACY_FILES, ...fs.readdirSync(path.join(ROOT, 'src'), { recursive: true })
+    .filter(f => /\.(jsx?|html)$/.test(f) && !f.includes('.test.') && f !== 'index.html').map(f => `src/${f}`)].filter(f => f !== except).map(read).join('\n'); // not the generated test page: it holds every engine
+
+test('a shared component never reassigns what it exports (window holds the value it had at mount)', () => {
+    // It puts each export on window once, at mount; an exported `let` the engine later reassigns would leave window
+    // with the old value. So a value that is reassigned (DRIFT) stays core, and the engine assigns it with setLegacy.
+    const bad = [];
+    for (const [n] of SHARED) {
+        const code = read(`${COMPONENTS_DIR}/${n}/engine.js`);
+        const exported = new Set((code.match(/^export \{([\s\S]*?)\};/m) || [, ''])[1].split(',').map(s => s.trim()).filter(Boolean));
+        // ...that anything OUTSIDE the engine reads: a counter only the engine reads (previewFolderSeq) is not read stale.
+        const outside = OUTSIDE_TEXT(`${COMPONENTS_DIR}/${n}/engine.js`);
+        const readOutside = (name) => new RegExp(`(^|[^\\w$])${name.replace(/\$/g, '\\$')}\\b`).test(outside);
+        const reassigned = (name) => new RegExp(`(\\+\\+|--)\\s*${name}\\b|\\b${name}\\s*(\\+\\+|--|[-+*/]?=(?!=))`).test(code.replace(new RegExp(`^ {0,4}(const|let|var)\\s+${name}\\b`, 'gm'), ''));
+        for (const name of exported) if (reassigned(name) && readOutside(name)) bad.push(`${n}: reassigns ${name}, which code outside the engine reads`);
+    }
+    assert.ok(SHARED.length >= 2);
     assert.deepStrictEqual(bad, []);
 });

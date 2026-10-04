@@ -1699,10 +1699,21 @@
         "toggleWhy",
         "BACKGROUND_PICKER",
         "backgroundPickerResolve",
-        "closeFrameVersions"
+        "closeFrameVersions",
+        "generateAllStoryboards",
+        "renderBoardLock",
+        "setAnchor",
+        "toggleBoardLock",
+        "BATCH_CHOICES",
+        "BOARD_LOCK"
       ],
       "modals": [],
-      "provides": [],
+      "provides": [
+        "generateAllStoryboards",
+        "renderBoardLock",
+        "setAnchor",
+        "toggleBoardLock"
+      ],
       "vendors": [],
       "mount": null
     },
@@ -1972,7 +1983,9 @@
         "uploadControl",
         "uploadReferenceImage",
         "csImg",
-        "plateSrc"
+        "plateSrc",
+        "mediaUploadControl",
+        "uploadCapabilityMedia"
       ],
       "replaces": [
         "captureDestination",
@@ -1992,7 +2005,9 @@
         "uploadControl",
         "uploadReferenceImage",
         "csImg",
-        "plateSrc"
+        "plateSrc",
+        "mediaUploadControl",
+        "uploadCapabilityMedia"
       ],
       "modals": []
     },
@@ -2003,6 +2018,53 @@
         "soundGenModal",
         "musicCueModal"
       ]
+    },
+    "PageHelpers": {
+      "provides": [
+        "jsAttr",
+        "clearModal",
+        "getModalData",
+        "streamSSE"
+      ],
+      "replaces": [
+        "jsAttr",
+        "clearModal",
+        "getModalData",
+        "streamSSE"
+      ],
+      "modals": []
+    },
+    "ProtectRatios": {
+      "provides": [
+        "protectOptionsHTML",
+        "refreshProtectOptions",
+        "protectRatiosPlanned",
+        "protectBoxFor",
+        "protectOverlayHTML",
+        "protectSelection"
+      ],
+      "replaces": [
+        "protectOptionsHTML",
+        "refreshProtectOptions",
+        "protectRatiosPlanned",
+        "protectBoxFor",
+        "protectOverlayHTML",
+        "protectSelection"
+      ],
+      "modals": []
+    },
+    "SceneDrift": {
+      "provides": [
+        "loadScreenplayDrift",
+        "getSceneStatusLabel",
+        "updateSceneStatusIcons"
+      ],
+      "replaces": [
+        "loadScreenplayDrift",
+        "getSceneStatusLabel",
+        "updateSceneStatusIcons"
+      ],
+      "modals": []
     },
     "ScreenplayDialogs": {
       "provides": [],
@@ -2021,7 +2083,8 @@
       "provides": [
         "openSubjectSheet",
         "renderSubjectSheet",
-        "sweepLocationCompass"
+        "sweepLocationCompass",
+        "ssSection"
       ],
       "replaces": [
         "openSubjectSheet",
@@ -2070,7 +2133,8 @@
         "captureUploadControl",
         "LIGHTING_TECHNIQUE_IDS",
         "SWEEP_NOTE",
-        "sweepLocationCompass"
+        "sweepLocationCompass",
+        "ssSection"
       ],
       "modals": [
         "subjectSheetModal"
@@ -2420,11 +2484,11 @@
       "loadMusic",
       "loadPlayback"
     ],
-    "functions": 197,
+    "functions": 177,
     "unreached": 18,
     "sharedByChunks": 0,
     "declaredTwice": [],
     "bootVendors": [],
-    "bytes": 330623
+    "bytes": 303181
   }
 }

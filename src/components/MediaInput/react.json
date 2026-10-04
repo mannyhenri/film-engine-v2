@@ -18,7 +18,9 @@
     "uploadControl",
     "uploadReferenceImage",
     "csImg",
-    "plateSrc"
+    "plateSrc",
+    "mediaUploadControl",
+    "uploadCapabilityMedia"
   ],
   "replaces": [
     "captureDestination",
@@ -38,7 +40,9 @@
     "uploadControl",
     "uploadReferenceImage",
     "csImg",
-    "plateSrc"
+    "plateSrc",
+    "mediaUploadControl",
+    "uploadCapabilityMedia"
   ],
   "modals": []
 }

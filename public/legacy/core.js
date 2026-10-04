@@ -1170,16 +1170,6 @@
         }
     }
 
-    function getModalData(modalId) {
-        const modal = document.getElementById(modalId);
-        const data = {};
-        modal.querySelectorAll('[data-field]').forEach(el => {
-            const val = el.type === 'range' || el.type === 'number' ? Number(el.value) : el.value.trim();
-            if (val !== '' && val !== 0) data[el.dataset.field] = val;
-        });
-        return data;
-    }
-
     function setModalData(modalId, data) {
         const modal = document.getElementById(modalId);
         modal.querySelectorAll('[data-field]').forEach(el => {
@@ -1190,13 +1180,6 @@
             // avoid. Sliders keep their 0, since a range has no empty state.
             if (el.type === 'number') el.value = (v === null || v === undefined || v === '') ? '' : v;
             else el.value = v != null ? v : (el.type === 'range' ? 0 : '');
-        });
-    }
-
-    function clearModal(modalId) {
-        const modal = document.getElementById(modalId);
-        modal.querySelectorAll('[data-field]').forEach(el => {
-            el.value = el.type === 'range' || el.type === 'number' ? (el.min || 0) : '';
         });
     }
 
@@ -1930,75 +1913,6 @@
 
     const AI_PATH = { connected: false, checked: 0 };
 
-    // FILM-124: Update scene heading status icons in the screenplay editor
-    function updateSceneStatusIcons() {
-        const editor = document.getElementById('screenplayEditor');
-        if (!editor || !state.scenes || state.scenes.length === 0) return;
-
-        const sceneHeadings = editor.querySelectorAll('[data-element-type="scene-heading"]');
-
-        sceneHeadings.forEach((heading, index) => {
-            // Remove existing status icon if any
-            const existingIcon = heading.querySelector('.scene-status-icon');
-            if (existingIcon) existingIcon.remove();
-
-            // Try to match scene by number or location
-            const headingText = heading.textContent.trim();
-            const sceneNumAttr = heading.dataset.sceneNumber;
-
-            // Find matching scene in state
-            let matchedScene = null;
-
-            // First try by scene number attribute
-            if (sceneNumAttr) {
-                matchedScene = state.scenes.find(s => String(s.scene_number) === sceneNumAttr);
-            }
-
-            // Fallback: try by location
-            if (!matchedScene) {
-                const locMatch = headingText.match(/(?:INT|EXT|INT\.?\/EXT)[\.\s]+([^-]+)/i);
-                if (locMatch) {
-                    const location = locMatch[1].trim().toUpperCase();
-                    matchedScene = state.scenes.find(s =>
-                        s.location && s.location.toUpperCase() === location
-                    );
-                }
-            }
-
-            // Fallback: match by index if scene count matches heading count
-            if (!matchedScene && state.scenes.length === sceneHeadings.length) {
-                matchedScene = state.scenes[index];
-            }
-
-            // Add status icon if we found a matching scene
-            if (matchedScene && matchedScene.status) {
-                const icon = document.createElement('span');
-                icon.className = `scene-status-icon ${matchedScene.status}`;
-                icon.title = getSceneStatusLabel(matchedScene.status);
-
-                // Icon based on status
-                if (matchedScene.status === 'broken_down') {
-                    icon.innerHTML = '✓';
-                } else if (matchedScene.status === 'written') {
-                    icon.innerHTML = '⏱';
-                } else {
-                    icon.innerHTML = '○';
-                }
-
-                heading.insertBefore(icon, heading.firstChild);
-            }
-        });
-    }
-
-    function getSceneStatusLabel(status) {
-        const labels = {
-            'written': 'Ready for breakdown',
-            'broken_down': 'Breakdown complete',
-            'pending': 'Not yet written',
-            'removed': 'Removed from screenplay', failed: 'FAILED' };
-        return labels[status] || status;
-    }
-
     // ══════════════════════════════════════════════════════════════
     // CHARACTERS
     // ══════════════════════════════════════════════════════════════
@@ -2491,26 +2405,6 @@
         },
     };
 
-    /* ── shared pieces ─────────────────────────────────────────────────── */
-
-    /*
-     * `reach` is HTML and arrives as its own argument.
-     *
-     * It was concatenated into the title, which ssSection escapes — so every
-     * "→ prompt" and "not sent" mark rendered as literal `<span …>` text. The
-     * marks are the whole difference between a sheet and a form, so they get a
-     * parameter rather than being smuggled through a field that is escaped.
-     */
-    function ssSection(anchorId, title, what, inner, reach) {
-        return `<section class="ss-region" data-region="${anchorId}">
-            <div class="ss-region-head">
-                <h4>${esc(title)}${reach || ''}</h4>
-                ${what ? `<p class="ss-what">${esc(what)}</p>` : ''}
-            </div>
-            ${inner}
-        </section>`;
-    }
-
     let PLATE_CAMERA_AFTER = null;
 
     /*
@@ -2533,118 +2427,6 @@
         PLATE_CAMERA_AFTER = null;
         if (after && typeof window[after] === 'function') window[after]();
     };
-
-    /**
-     * Upload footage or sound made outside Film Engine.
-     *
-     * Same shape as uploadControl() and deliberately a separate builder,
-     * because these differ in the two things that matter: what the picker will
-     * let you select, and whether the file belongs to a SHOT or a SCENE. A
-     * music bed posted at a shot would attach a whole scene's score to one shot
-     * and read as working; the server refuses it, and the control never offers
-     * it in the first place.
-     */
-    function mediaUploadControl(capability, media, scope, ownerId, opts) {
-        const o = opts || {};
-        const accept = media === 'video'
-            ? 'video/mp4,video/quicktime,video/webm,video/x-matroska,.mp4,.mov,.webm,.mkv'
-            : 'audio/wav,audio/mpeg,audio/mp4,audio/flac,audio/ogg,.wav,.mp3,.m4a,.flac,.ogg';
-        /*
-         * A sequence has its own import route rather than sharing the shot one:
-         * a clip dropped on a sequence must also mark that sequence complete
-         * and point at the file, or the page still shows it as never run.
-         */
-        // A cue's audio has its own route: it must LINK the file to the cue, not
-        // merely land it on the scene. An asset carries no level, no fades and
-        // no place on the sheet, so an upload that stops at the scene is a file
-        // nobody hears.
-        const url = scope === 'cue'
-            ? `/music-cues/${ownerId}/audio`
-            : scope === 'sequence'
-                ? `/sequences/${ownerId}/import`
-                : `/${scope === 'scene' ? 'scenes' : 'shots'}/${ownerId}/media/${capability}/import`;
-        return `<label class="btn btn-secondary btn-sm" style="cursor:pointer;margin:0;"
-                       title="${esc(o.title || `Use ${media === 'video' ? 'a clip' : 'audio'} you made elsewhere — it is stored exactly where a generated one goes`)}"
-                       onclick="event.stopPropagation();">${esc(o.label || 'Upload')}
-                    <input type="file" data-import-target="${capability}-media"
-                           accept="${accept}" style="display:none"
-                           onclick="event.stopPropagation();"
-                           onchange="uploadCapabilityMedia(event, '${capability}', '${url}', '${o.after || ''}', '${scope === 'shot' ? ownerId : ''}')">
-                </label>${shootControl(
-                    `${capability}-media`, url, accept,
-                    `data-import-target="${capability}-media"`,
-                    `uploadCapabilityMedia(event, '${capability}', '${url}', '${o.after || ''}', '${scope === 'shot' ? ownerId : ''}')`,
-                    o)}`;
-    }
-
-    async function uploadCapabilityMedia(event, capability, url, after, shotId) {
-        const file = event.target.files && event.target.files[0];
-        if (!file) return;
-
-        /*
-         * NOTHING STANDS BETWEEN THE FILE AND THE UPLOAD.
-         *
-         * This used to ask, with a native prompt(), whether the clip contained
-         * more than one shot — before sending anything. Cancelling that dialog
-         * abandoned the upload with nothing said, so pressing Escape on an
-         * unexpected question silently discarded the clip and the symptom was
-         * "playback doesn't include the video" for a file that had never
-         * reached the server. A native modal also cannot be seen in a
-         * screenshot, so the page merely appeared to have stopped.
-         *
-         * The question is asked afterwards, on the shot card, where the answer
-         * is better informed anyway: a director who has watched the clip back
-         * knows what is in it.
-         */
-        const label = event.target.closest('label');
-        const original = label && label.firstChild && label.firstChild.textContent;
-        /*
-         * Media files are large and the read alone is slow, so the control has
-         * to say it is working. A silent 40-second upload is indistinguishable
-         * from a dead button, which is how the GLB import came to be reported
-         * as broken when it was not.
-         */
-        if (label && label.firstChild) label.firstChild.textContent = 'Uploading… ';
-        setStatus(`Uploading ${file.name} (${(file.size / 1048576).toFixed(1)}MB)…`, true);
-        try {
-            // Was a second copy of the ceiling, hardcoded at 112MB. One rule,
-            // mirrored from the server and held equal to it by test.
-            checkUploadSize(file, url);
-            const data = await new Promise((resolve, reject) => {
-                const r = new FileReader();
-                r.onload = () => resolve(r.result);
-                r.onerror = () => reject(new Error('That file could not be read.'));
-                r.readAsDataURL(file);
-            });
-            const res = await api(url, {
-                method: 'POST',
-                body: JSON.stringify({ data, name: file.name }),
-            });
-            /*
-             * A refused coverage is reported ON ITS OWN. The upload succeeded
-             * and the file is on its shot; saying "uploaded" alone would let a
-             * director believe 1B and 1C are inside it when they still play
-             * their own frames.
-             */
-            setStatus(`${file.name} uploaded as ${res.asset_type}`
-                + (res.duration_ms ? ` (${(res.duration_ms / 1000).toFixed(1)}s)` : '')
-                + '. It plays in Playback now.'
-                + (capability === 'video' && shotId
-                    ? ' If this one clip covers several shots, say so with “Covers…” on the card.' : ''));
-            if (capability === 'video' && shotId) window.__lastUploadedClip = res.asset_id;
-            if (after && typeof window[after] === 'function') window[after]();
-        } catch (err) {
-            setStatus(`${file.name} was not uploaded: ${err.message}`);
-            if (label) {
-                label.style.borderColor = 'var(--gl-danger,#ef4444)';
-                label.title = 'Not uploaded: ' + err.message;
-                setTimeout(() => { label.style.borderColor = ''; }, 8000);
-            }
-        } finally {
-            if (label && label.firstChild && original) label.firstChild.textContent = original;
-            event.target.value = '';
-        }
-    }
 
     async function generateLocationImage(locId) {
         return confirmPaidImage({
@@ -2682,24 +2464,6 @@
                 } catch (err) { setStatus('Error generating image: ' + err.message); }
             },
         });
-    }
-
-    /**
-     * A JS string literal safe inside a double-quoted HTML attribute.
-     *
-     * `JSON.stringify` emits DOUBLE quotes, which terminate onclick="…" — the
-     * handler is cut off mid-argument and the browser silently keeps the
-     * truncated prefix. Every source check still passes, because the text is
-     * all present in the template; only the rendered attribute is broken.
-     * That is the grep-versus-behaviour failure this codebase has paid for
-     * more than once.
-     */
-    function jsAttr(value) {
-        return "'" + String(value === undefined || value === null ? '' : value)
-            .replace(/\\/g, '\\\\')
-            .replace(/'/g, "\\'")
-            .replace(/"/g, '&quot;')
-            .replace(/\n/g, ' ') + "'";
     }
 
     /**
@@ -2993,21 +2757,6 @@
             b.style.borderRight = '';
             b.title = '';
         });
-    }
-
-
-    // ══════════════════════════════════════════════════════════════
-    // SSE STREAMING HELPER
-    // ══════════════════════════════════════════════════════════════
-    function streamSSE(path, onEvent, onDone, onError) {
-        const es = new EventSource(API() + path);
-        es.onmessage = e => {
-            const data = JSON.parse(e.data);
-            if (data.done) { es.close(); onDone?.(data); }
-            else onEvent(data);
-        };
-        es.onerror = () => { es.close(); onError?.(); };
-        return es;
     }
 
     // POST-based SSE (EventSource is GET-only). Streams `data: {json}\n\n` events.
@@ -3568,23 +3317,6 @@
             + `<span id="mkfeed-${canvasId}" class="text-sm" style="opacity:.75;align-self:center;"></span>`;
     }
 
-    async function setAnchor(shotId) {
-        if (!state.currentProject) return;
-        try {
-            const r = await api('/projects/' + state.currentProject.id + '/anchor', {
-                method: 'PUT', body: JSON.stringify({ shot_id: shotId }),
-            });
-            state.currentProject.anchor_shot_id = r.anchor_shot_id;
-            setStatus(`Shooting from ${r.shot_code}. Press Regen on another shot to rebuild it `
-                + 'from that frame — same set, same placement, new camera.');
-            loadStoryboard();
-        } catch (err) {
-            // The common refusal is anchoring a frame that does not exist yet,
-            // and the message says so rather than "400".
-            setStatus('Could not anchor that: ' + err.message);
-        }
-    }
-
     // ── PAR-026: do these marks reach the next prompt? ─────────────────────
     //
     // The same arrows mean two different things depending on one project
@@ -4025,129 +3757,6 @@
      */
     let DRIFT = { shots: {}, scenes: [] };
 
-    async function loadScreenplayDrift() {
-        DRIFT = { shots: {}, scenes: [] };
-        if (!state.currentProject) return;
-        try {
-            const res = await api(`/projects/${state.currentProject.id}/screenplay-drift`);
-            DRIFT.scenes = res.scenes || [];
-            for (const sc of DRIFT.scenes) {
-                for (const sh of sc.shots_behind) {
-                    DRIFT.shots[sh.shot_id] = { scene: sc.scene_number, generated: sh.generated };
-                }
-            }
-        } catch (_) { /* the board still renders; the warning is additive */ }
-    }
-
-    /*
-     * ONE renderer for the protect frame, because there are now two surfaces
-     * that draw it and a second copy is how the board and the playback come to
-     * disagree about what a placement keeps.
-     *
-     * `frameRatio` is the PICTURE's ratio, never the container's. A board tile
-     * is letterboxed inside its cell and the playback stage is the project's
-     * shape while the clip may be a hair off it — measuring the container would
-     * draw a guide that is right about the box and wrong about the shot.
-     */
-    function protectBoxFor(frameRatio, want) {
-        let w = 100, h = 100;
-        if (want < frameRatio) w = (want / frameRatio) * 100;   // narrower: side bars
-        else h = (frameRatio / want) * 100;                     // taller: top and bottom
-        return { w, h, left: (100 - w) / 2, top: (100 - h) / 2 };
-    }
-
-    function protectOverlayHTML(frameRatio, ratios) {
-        const parsed = (ratios || [])
-            .map(r => { const [w, h] = String(r).split(':').map(Number); return { r, v: w / h }; })
-            .filter(x => Number.isFinite(x.v) && x.v > 0)
-            .sort((a, b) => a.v - b.v);
-        if (!parsed.length || !Number.isFinite(frameRatio) || frameRatio <= 0) return '';
-
-        /*
-         * The NARROWEST placement carries the mask, because it is the one that
-         * decides whether the shot survives. Drawing a mask per ratio would
-         * stack four translucent blacks and make the tightest crop the
-         * brightest region on screen, which is exactly backwards.
-         */
-        const tight = protectBoxFor(frameRatio, parsed[0].v);
-        let html = `<div style="position:absolute;left:${tight.left}%;top:${tight.top}%;`
-            + `width:${tight.w}%;height:${tight.h}%;`
-            + `box-shadow:0 0 0 9999px rgba(0,0,0,0.55);`
-            + `outline:2px solid var(--gl-brand-pink,#ff4d8d);"></div>`;
-
-        // Every other placement as an outline only — the frame it would take,
-        // without a second opinion about brightness.
-        for (const p of parsed.slice(1)) {
-            const b = protectBoxFor(frameRatio, p.v);
-            html += `<div style="position:absolute;left:${b.left}%;top:${b.top}%;`
-                + `width:${b.w}%;height:${b.h}%;`
-                + `outline:1px dashed rgba(255,255,255,0.8);"></div>`;
-        }
-
-        const label = parsed.map(p => `${esc(p.r)} ${Math.round(protectBoxFor(frameRatio, p.v).w)}%`)
-            .join('  ·  ');
-        html += `<div style="position:absolute;left:6px;bottom:6px;font-size:11px;font-weight:600;`
-            + `color:#fff;text-shadow:0 1px 2px #000;white-space:nowrap;">`
-            + `keeps ${label} of the width</div>`;
-        return html;
-    }
-
-    /*
-     * The ratios THIS JOB actually ships, read from the deliverable set.
-     *
-     * A hardcoded 9:16/4:5/1:1 list asks the director to remember which
-     * placements the campaign bought. The deliverable rows already say, and
-     * they are the same rows `needs_native_shots` is computed from — so the
-     * guide on the board and the warning on the deliverables page are answering
-     * from one source rather than two.
-     *
-     * Falls back to the standard three when nothing is planned yet, because a
-     * spot with no deliverables is usually a spot nobody has scoped, not a spot
-     * that ships one file.
-     */
-    function protectRatiosPlanned() {
-        const rows = (state.deliverableRows || []);
-        const seen = [];
-        for (const d of rows) {
-            const r = String(d.aspect_ratio || '').trim();
-            if (r && !seen.includes(r)) seen.push(r);
-        }
-        return seen;
-    }
-
-    function protectOptionsHTML(selected) {
-        const planned = protectRatiosPlanned();
-        const opts = ['<option value="">off</option>'];
-        if (planned.length) {
-            opts.push(`<option value="all">all planned (${planned.length})</option>`);
-            for (const r of planned) opts.push(`<option value="${esc(r)}">${esc(r)}</option>`);
-        }
-        for (const r of ['9:16', '4:5', '1:1', '16:9']) {
-            if (!planned.includes(r)) opts.push(`<option value="${r}">${r}</option>`);
-        }
-        const html = opts.join('');
-        return selected ? html.replace(`value="${selected}"`, `value="${selected}" selected`) : html;
-    }
-
-    /** Expand a select value into the list of ratios to draw. */
-    function protectSelection(value) {
-        if (!value) return [];
-        if (value === 'all') return protectRatiosPlanned();
-        return [value];
-    }
-
-    /** Keep both pickers offering what the job actually ships. */
-    function refreshProtectOptions() {
-        for (const id of ['boardProtectRatio', 'pbProtectRatio']) {
-            const sel = document.getElementById(id);
-            if (!sel) continue;
-            const keep = sel.value;
-            sel.innerHTML = protectOptionsHTML(keep);
-            // A ratio that is no longer planned must not stay silently selected.
-            if (sel.value !== keep) { sel.value = ''; }
-        }
-    }
-
     function frameSrc(f, width) {
         const base = `${API_BASE}/film/storyboards/${state.currentProject.id}/${encodeURIComponent(f.shot_code)}.png`;
         const q = [];
@@ -4431,144 +4040,6 @@
         if (!rows) return '';
         return '<div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--gl-border,rgba(255,255,255,.12));">'
             + rows + '</div>';
-    }
-
-    /** The model choice for a batch, captured from the shared confirmation. */
-    let BATCH_CHOICES = null;
-
-    async function generateAllStoryboards() {
-        if (!state.currentProject) return;
-
-        /*
-         * The batch had NO confirmation at all — the most expensive control in
-         * the app, generating every unshot frame in the film, went straight to
-         * the provider. Every single-frame path was gated and this one was not,
-         * which is the wrong way round.
-         *
-         * The prompt is READ-ONLY here and says why: a batch composes one
-         * prompt PER SHOT, so there is no single text to edit, and offering one
-         * would silently apply it to every frame in the film. The model choice
-         * still applies — that is a decision about the whole run.
-         */
-        BATCH_CHOICES = null;
-        const shots = (state.shots || []);
-        const todo = shots.filter(x => !x.has_keyframe && !x.keyframe);
-        const first = (todo[0] || shots[0] || {});
-        const shotId = first.shot_id || first.id;
-        if (shotId) {
-            const go = await new Promise(resolve => confirmPaidImage({
-                title: `Generate ${todo.length || shots.length} frame(s)`,
-                note: `This generates every shot that has no frame yet — ${todo.length || shots.length} `
-                    + 'of them — and each one costs credits. The prompt below is the FIRST shot, '
-                    + 'shown so you can see the shape of what is sent.',
-                previewUrl: `/shots/${shotId}/prompt`,
-                editable: false,
-                notEditableWhy: 'A batch composes a different prompt for every shot, so there is no '
-                    + 'single text to edit. Regenerate one frame to edit its prompt.',
-                send: choices => { BATCH_CHOICES = choices; resolve(true); },
-            }).then(() => resolve(BATCH_CHOICES !== null)));
-            if (!go) return;
-        }
-
-        const prog = document.getElementById('storyboardProgress');
-        const bar = document.getElementById('storyboardProgressBar');
-        const lbl = document.getElementById('storyboardProgressLabel');
-        const pct = document.getElementById('storyboardProgressPct');
-        const imgProg = document.getElementById('storyboardImageProgress');
-        const imgLbl = document.getElementById('storyboardImageLabel');
-        const imgStep = document.getElementById('storyboardImageStep');
-        const imgBar = document.getElementById('storyboardImageBar');
-        prog.style.display = 'block';
-        imgProg.style.display = 'none';
-        bar.style.width = '0%';
-        lbl.textContent = 'Starting storyboard generation...';
-        pct.textContent = '0%';
-
-        let totalShots = 1;
-
-        const useRefs = document.getElementById('useReferencesToggle').checked;
-        /*
-         * The batch is a GET stream, so the model choice rides in the query
-         * rather than a body — captured from the confirmation above. Without
-         * this the picker would be shown, chosen, and ignored.
-         */
-        const batchQ = new URLSearchParams({
-            ...(useRefs ? { use_references: 'true' } : {}),
-            ...((BATCH_CHOICES && BATCH_CHOICES.quality) ? { quality: BATCH_CHOICES.quality } : {}),
-        }).toString();
-        const storyboardUrl = '/projects/' + state.currentProject.id + '/storyboard/generate/stream'
-            + (batchQ ? `?${batchQ}` : '');
-
-        streamSSE(
-            storyboardUrl,
-            (ev) => {
-                if (ev.type === 'status' && ev.total_shots) {
-                    totalShots = ev.total_shots;
-                }
-
-                if (ev.type === 'scene') {
-                    lbl.textContent = 'Scene ' + ev.scene_number + (ev.location ? ' — ' + ev.location : '');
-                }
-
-                if (ev.type === 'progress') {
-                    const shotP = ((ev.shot_index || 0) / totalShots) * 100;
-                    if (ev.phase === 'generating') {
-                        bar.style.width = shotP + '%';
-                        pct.textContent = Math.round(shotP) + '%';
-                        lbl.textContent = 'Generating ' + (ev.shot_code || '...');
-                        imgProg.style.display = 'block';
-                        imgLbl.textContent = 'Preparing...';
-                        imgStep.textContent = '';
-                        imgBar.style.width = '0%';
-                    } else if (ev.phase === 'complete') {
-                        const doneP = (((ev.shot_index || 0) + 1) / totalShots) * 100;
-                        bar.style.width = doneP + '%';
-                        pct.textContent = Math.round(doneP) + '%';
-                        lbl.textContent = ev.shot_code + ' complete';
-                        imgProg.style.display = 'none';
-                        // Refresh the image in the grid if visible
-                        const grid = document.getElementById('storyboardGrid');
-                        if (ev.image_url && grid) {
-                            const imgs = grid.querySelectorAll('img');
-                            imgs.forEach(img => {
-                                if (img.src.includes(ev.shot_code)) {
-                                    img.src = API_BASE + ev.image_url + '?t=' + Date.now();
-                                    img.style.display = 'block';
-                                }
-                            });
-                        }
-                    }
-                }
-
-                // Per-image generation progress (step-by-step like gridlight-chat)
-                if (ev.type === 'image_progress') {
-                    imgProg.style.display = 'block';
-                    if (ev.message) {
-                        imgLbl.textContent = ev.message;
-                    }
-                    if (typeof ev.step === 'number' && ev.total_steps) {
-                        const stepPct = Math.round((ev.step / ev.total_steps) * 100);
-                        imgBar.style.width = stepPct + '%';
-                        imgStep.textContent = 'Step ' + ev.step + '/' + ev.total_steps + ' (' + stepPct + '%)';
-                        imgLbl.textContent = 'Generating...';
-                    }
-                }
-            },
-            () => {
-                bar.style.width = '100%';
-                pct.textContent = '100%';
-                lbl.textContent = 'Complete!';
-                imgProg.style.display = 'none';
-                setTimeout(() => { prog.style.display = 'none'; }, 2000);
-                loadStoryboard();
-                setStatus('Storyboard generation complete');
-            },
-            () => {
-                prog.style.display = 'none';
-                imgProg.style.display = 'none';
-                setStatus('Storyboard generation failed');
-            }
-        );
     }
 
     /**
@@ -4911,52 +4382,8 @@
             await loadStoryboard();
         } catch (err) { done(); setStatus('Could not refine: ' + err.message); }
     }
-
-
-    /*
-     * Locking the board: "I feel it's done."
-     *
-     * Every frame on a finished board was paid for, judged and kept, and every
-     * one sits behind a Regen button that costs money and REPLACES the picture.
-     * Nothing distinguished a draft from the shot, so the only protection was
-     * remembering. The state is shown on the button itself rather than in the
-     * status bar, because a locked board whose buttons still look armed reads
-     * as the buttons being broken.
-     */
-    let BOARD_LOCK = { locked: false, locked_at: null };
     /* The frame this project is currently shooting from, if any. */
     let BOARD_ANCHOR = null;
-
-    function renderBoardLock() {
-        const btn = document.getElementById('boardLockBtn');
-        if (!btn) return;
-        btn.textContent = BOARD_LOCK.locked ? '🔒 Locked — unlock' : 'Lock board';
-        btn.title = BOARD_LOCK.locked
-            ? `Locked ${BOARD_LOCK.locked_at || ''}. Generating, refining and restoring are refused. `
-              + 'Editing cards and previewing prompts still work.'
-            : 'Lock the board when you are happy with it — nothing that replaces a frame will run until you unlock';
-        // The buttons that spend money say so, rather than failing on click.
-        document.querySelectorAll('[onclick*="generateAllStoryboards"], [onclick*="regenerateStoryboard"], [onclick*="refineFrame"], [data-import-target="storyboard-image"]')
-            .forEach(b => { if (b.id !== 'boardLockBtn') b.disabled = !!BOARD_LOCK.locked; });
-    }
-
-    async function toggleBoardLock() {
-        if (!state.currentProject) return;
-        const url = `/projects/${state.currentProject.id}/board-lock`;
-        try {
-            if (BOARD_LOCK.locked) {
-                BOARD_LOCK = await api(url, { method: 'DELETE' });
-                setStatus('Board unlocked. Frames can be generated again.');
-            } else {
-                BOARD_LOCK = await api(url, { method: 'PUT', body: JSON.stringify({}) });
-                setStatus(`Board locked — ${BOARD_LOCK.frames} frame${BOARD_LOCK.frames === 1 ? '' : 's'} held. `
-                    + 'Nothing that replaces a frame will run until you unlock.');
-            }
-            renderBoardLock();
-        } catch (err) {
-            setStatus('Could not change the lock: ' + err.message);
-        }
-    }
 
 
     /*

@@ -66,6 +66,11 @@ export default function StoryboardPage() {
         } catch (err) { legacy.setStatus('Error: ' + err.message); }
     }
     usePageLoader('loadStoryboard', loadStoryboard);
+    // The board's own actions, which the Production graph's engine also reaches (through its bridge) by name.
+    usePageLoader('generateAllStoryboards', E.generateAllStoryboards);
+    usePageLoader('renderBoardLock', E.renderBoardLock);
+    usePageLoader('setAnchor', E.setAnchor);
+    usePageLoader('toggleBoardLock', E.toggleBoardLock);
     // What only the board reaches of core, moved into engine.js: on window while mounted, because the HTML core and the
     // engine draw (cards' shared parts, the frame viewer, the background picker and frame versions dialogs) calls it by name.
     useLayoutEffect(() => {
@@ -127,8 +132,8 @@ export default function StoryboardPage() {
                         <button className="btn btn-sm" style={{ padding: '0 6px' }} onClick={() => E.clearAnchor()}
                             title="Put the anchor down — shots go back to generating from their plates">clear</button>
                     </span>
-                    <button className="btn btn-primary" onClick={() => legacy.generateAllStoryboards()}>Generate All</button>
-                    <button className="btn btn-secondary" id="boardLockBtn" onClick={() => legacy.toggleBoardLock()}
+                    <button className="btn btn-primary" onClick={() => E.generateAllStoryboards()}>Generate All</button>
+                    <button className="btn btn-secondary" id="boardLockBtn" onClick={() => E.toggleBoardLock()}
                         title="Lock the board when you are happy with it — nothing that replaces a frame will run until you unlock">Lock board</button>
                 </div>
             </div>

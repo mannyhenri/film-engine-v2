@@ -435,6 +435,118 @@ const { state } = Object.fromEntries(['state'].map(n => [n, live(n)]));
         }
     }
 
+    /**
+     * Upload footage or sound made outside Film Engine.
+     *
+     * Same shape as uploadControl() and deliberately a separate builder,
+     * because these differ in the two things that matter: what the picker will
+     * let you select, and whether the file belongs to a SHOT or a SCENE. A
+     * music bed posted at a shot would attach a whole scene's score to one shot
+     * and read as working; the server refuses it, and the control never offers
+     * it in the first place.
+     */
+    function mediaUploadControl(capability, media, scope, ownerId, opts) {
+        const o = opts || {};
+        const accept = media === 'video'
+            ? 'video/mp4,video/quicktime,video/webm,video/x-matroska,.mp4,.mov,.webm,.mkv'
+            : 'audio/wav,audio/mpeg,audio/mp4,audio/flac,audio/ogg,.wav,.mp3,.m4a,.flac,.ogg';
+        /*
+         * A sequence has its own import route rather than sharing the shot one:
+         * a clip dropped on a sequence must also mark that sequence complete
+         * and point at the file, or the page still shows it as never run.
+         */
+        // A cue's audio has its own route: it must LINK the file to the cue, not
+        // merely land it on the scene. An asset carries no level, no fades and
+        // no place on the sheet, so an upload that stops at the scene is a file
+        // nobody hears.
+        const url = scope === 'cue'
+            ? `/music-cues/${ownerId}/audio`
+            : scope === 'sequence'
+                ? `/sequences/${ownerId}/import`
+                : `/${scope === 'scene' ? 'scenes' : 'shots'}/${ownerId}/media/${capability}/import`;
+        return `<label class="btn btn-secondary btn-sm" style="cursor:pointer;margin:0;"
+                       title="${esc(o.title || `Use ${media === 'video' ? 'a clip' : 'audio'} you made elsewhere — it is stored exactly where a generated one goes`)}"
+                       onclick="event.stopPropagation();">${esc(o.label || 'Upload')}
+                    <input type="file" data-import-target="${capability}-media"
+                           accept="${accept}" style="display:none"
+                           onclick="event.stopPropagation();"
+                           onchange="uploadCapabilityMedia(event, '${capability}', '${url}', '${o.after || ''}', '${scope === 'shot' ? ownerId : ''}')">
+                </label>${shootControl(
+                    `${capability}-media`, url, accept,
+                    `data-import-target="${capability}-media"`,
+                    `uploadCapabilityMedia(event, '${capability}', '${url}', '${o.after || ''}', '${scope === 'shot' ? ownerId : ''}')`,
+                    o)}`;
+    }
+
+    async function uploadCapabilityMedia(event, capability, url, after, shotId) {
+        const file = event.target.files && event.target.files[0];
+        if (!file) return;
+
+        /*
+         * NOTHING STANDS BETWEEN THE FILE AND THE UPLOAD.
+         *
+         * This used to ask, with a native prompt(), whether the clip contained
+         * more than one shot — before sending anything. Cancelling that dialog
+         * abandoned the upload with nothing said, so pressing Escape on an
+         * unexpected question silently discarded the clip and the symptom was
+         * "playback doesn't include the video" for a file that had never
+         * reached the server. A native modal also cannot be seen in a
+         * screenshot, so the page merely appeared to have stopped.
+         *
+         * The question is asked afterwards, on the shot card, where the answer
+         * is better informed anyway: a director who has watched the clip back
+         * knows what is in it.
+         */
+        const label = event.target.closest('label');
+        const original = label && label.firstChild && label.firstChild.textContent;
+        /*
+         * Media files are large and the read alone is slow, so the control has
+         * to say it is working. A silent 40-second upload is indistinguishable
+         * from a dead button, which is how the GLB import came to be reported
+         * as broken when it was not.
+         */
+        if (label && label.firstChild) label.firstChild.textContent = 'Uploading… ';
+        setStatus(`Uploading ${file.name} (${(file.size / 1048576).toFixed(1)}MB)…`, true);
+        try {
+            // Was a second copy of the ceiling, hardcoded at 112MB. One rule,
+            // mirrored from the server and held equal to it by test.
+            checkUploadSize(file, url);
+            const data = await new Promise((resolve, reject) => {
+                const r = new FileReader();
+                r.onload = () => resolve(r.result);
+                r.onerror = () => reject(new Error('That file could not be read.'));
+                r.readAsDataURL(file);
+            });
+            const res = await api(url, {
+                method: 'POST',
+                body: JSON.stringify({ data, name: file.name }),
+            });
+            /*
+             * A refused coverage is reported ON ITS OWN. The upload succeeded
+             * and the file is on its shot; saying "uploaded" alone would let a
+             * director believe 1B and 1C are inside it when they still play
+             * their own frames.
+             */
+            setStatus(`${file.name} uploaded as ${res.asset_type}`
+                + (res.duration_ms ? ` (${(res.duration_ms / 1000).toFixed(1)}s)` : '')
+                + '. It plays in Playback now.'
+                + (capability === 'video' && shotId
+                    ? ' If this one clip covers several shots, say so with “Covers…” on the card.' : ''));
+            if (capability === 'video' && shotId) window.__lastUploadedClip = res.asset_id;
+            if (after && typeof window[after] === 'function') window[after]();
+        } catch (err) {
+            setStatus(`${file.name} was not uploaded: ${err.message}`);
+            if (label) {
+                label.style.borderColor = 'var(--gl-danger,#ef4444)';
+                label.title = 'Not uploaded: ' + err.message;
+                setTimeout(() => { label.style.borderColor = ''; }, 8000);
+            }
+        } finally {
+            if (label && label.firstChild && original) label.firstChild.textContent = original;
+            event.target.value = '';
+        }
+    }
+
 export {
     previsAspect,
     csImg,
@@ -454,4 +566,6 @@ export {
     uploadControl,
     plateShootButton,
     uploadReferenceImage,
+    mediaUploadControl,
+    uploadCapabilityMedia,
 };

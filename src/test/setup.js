@@ -75,7 +75,7 @@ export function installLegacy({ routes = {}, project = { id: 'p1' } } = {}) {
         // The storyboard engine's bridge (core): what its moved functions call.
         annotationFeedbackOn: vi.fn(() => false), confirmChoices: vi.fn(), confirmExtras: vi.fn(), confirmGenArm: vi.fn(), cueExtensionOf: vi.fn(),
         frameBusy: vi.fn(), markupDisarm: vi.fn(), markupDraw: vi.fn(), markupLoad: vi.fn(), markupPaintFeedBadge: vi.fn(), paintGenOptions: vi.fn(),
-        renderBoardLock: vi.fn(), BOARD_LOCK: { locked: false },
+        renderBoardLock: vi.fn(), streamSSE: vi.fn(),
         markupToolbar: (id) => `<span class="markup-tools">markup ${id}</span>`,
         paintProjectType: vi.fn(), setStatusDot: vi.fn(), confirmProjectDelete: vi.fn(async () => true), backToProjectList: vi.fn(), openFolderPicker: vi.fn(),
         saveProductionGraphFlag: vi.fn(), feStore: { set: vi.fn(), remove: vi.fn(), get: vi.fn() }, checkHealth: vi.fn(), DEFAULT_API_BASE: 'http://default.test', APP_AUTHOR: null,
@@ -137,6 +137,7 @@ export const BOARD_ENGINE_FAKES = () => ({
     ANCHOR: { frames: [] },
     loadBoardLock: vi.fn(), renderAnnotationFeedbackToggle: vi.fn(), renderAnchorChip: vi.fn(), loadBoardBanners: vi.fn(),
     clearAnchor: vi.fn(), storyboardDrawAnnotations: vi.fn(), setShotAspect: vi.fn(),
+    generateAllStoryboards: vi.fn(), toggleBoardLock: vi.fn(), renderBoardLock: vi.fn(), setAnchor: vi.fn(),
     anchorButton: (f) => `<button class="anchor-btn">anchor ${f.shot_code}</button>`,
     storyboardImportButton: (f) => `<label><input data-import-target="storyboard-image" data-shot="${f.shot_id}"></label>`, openFrameVersions: vi.fn(),
     frameVersionTitle: () => 'versions title', frameVersionLabel: (f) => `v${f.asset_version || 1}`, playFromShot: vi.fn(), insertShotAfter: vi.fn(),

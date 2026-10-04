@@ -51,7 +51,19 @@
     "toggleWhy",
     "BACKGROUND_PICKER",
     "backgroundPickerResolve",
-    "closeFrameVersions"
+    "closeFrameVersions",
+    "generateAllStoryboards",
+    "renderBoardLock",
+    "setAnchor",
+    "toggleBoardLock",
+    "BATCH_CHOICES",
+    "BOARD_LOCK"
   ],
-  "modals": []
+  "modals": [],
+  "provides": [
+    "generateAllStoryboards",
+    "renderBoardLock",
+    "setAnchor",
+    "toggleBoardLock"
+  ]
 }

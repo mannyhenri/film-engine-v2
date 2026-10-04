@@ -1,0 +1,14 @@
+{
+  "about": "A SHARED module of core as a boot-mounted component with no dialogs: the screenplay-drift report and the scene status icons (engine.js, moved verbatim). It provides exactly what it replaces. DRIFT stays core (it is reassigned, so it cannot be a window copy).",
+  "provides": [
+    "loadScreenplayDrift",
+    "getSceneStatusLabel",
+    "updateSceneStatusIcons"
+  ],
+  "replaces": [
+    "loadScreenplayDrift",
+    "getSceneStatusLabel",
+    "updateSceneStatusIcons"
+  ],
+  "modals": []
+}

@@ -18,6 +18,7 @@ const {
     confirmChoices,
     confirmExtras,
     confirmGenArm,
+    confirmPaidImage,
     cueExtensionOf,
     esc,
     escapeHtml,
@@ -33,10 +34,10 @@ const {
     navigateTo,
     paintGenOptions,
     plateSrc,
-    renderBoardLock,
     setStatus,
     showModal,
     showModalHtml,
+    streamSSE,
 } = Object.fromEntries([
     'annotationFeedbackOn',
     'api',
@@ -45,6 +46,7 @@ const {
     'confirmChoices',
     'confirmExtras',
     'confirmGenArm',
+    'confirmPaidImage',
     'cueExtensionOf',
     'esc',
     'escapeHtml',
@@ -60,10 +62,10 @@ const {
     'navigateTo',
     'paintGenOptions',
     'plateSrc',
-    'renderBoardLock',
     'setStatus',
     'showModal',
     'showModalHtml',
+    'streamSSE',
 ].map(n => [n, (...a) => legacy[n](...a)]));
 const live = (name) => new Proxy({}, {
     get: (_, k) => legacy[name][k],
@@ -75,7 +77,7 @@ const live = (name) => new Proxy({}, {
 });
 // Core's objects, as live proxies, in one destructuring statement for the same reason.
 const { WORLD, state } = Object.fromEntries(['WORLD', 'state'].map(n => [n, live(n)]));
-// Core's values, read live as legacy.X and assigned with setLegacy: API_BASE, BOARD_LOCK, CONFIRM_GEN, DRIFT, FRAME_VIEWER.
+// Core's values, read live as legacy.X and assigned with setLegacy: API_BASE, CONFIRM_GEN, DRIFT, FRAME_VIEWER.
 
     /**
      * Fill the banner strip above the board, after the frames are painted.
@@ -351,6 +353,23 @@ const { WORLD, state } = Object.fromEntries(['WORLD', 'state'].map(n => [n, live
         const f = (ANCHOR.frames || []).find(x => x.shot_id === id);
         text.textContent = '\u2693 shooting from ' + (f ? f.shot_code : 'a frame');
         chip.style.display = 'inline-flex';
+    }
+
+    async function setAnchor(shotId) {
+        if (!state.currentProject) return;
+        try {
+            const r = await api('/projects/' + state.currentProject.id + '/anchor', {
+                method: 'PUT', body: JSON.stringify({ shot_id: shotId }),
+            });
+            state.currentProject.anchor_shot_id = r.anchor_shot_id;
+            setStatus(`Shooting from ${r.shot_code}. Press Regen on another shot to rebuild it `
+                + 'from that frame — same set, same placement, new camera.');
+            loadStoryboard();
+        } catch (err) {
+            // The common refusal is anchoring a frame that does not exist yet,
+            // and the message says so rather than "400".
+            setStatus('Could not anchor that: ' + err.message);
+        }
     }
 
     async function clearAnchor() {
@@ -889,6 +908,144 @@ const { WORLD, state } = Object.fromEntries(['WORLD', 'state'].map(n => [n, live
         } catch (err) { setStatus('Error: ' + err.message); }
     }
 
+    /** The model choice for a batch, captured from the shared confirmation. */
+    let BATCH_CHOICES = null;
+
+    async function generateAllStoryboards() {
+        if (!state.currentProject) return;
+
+        /*
+         * The batch had NO confirmation at all — the most expensive control in
+         * the app, generating every unshot frame in the film, went straight to
+         * the provider. Every single-frame path was gated and this one was not,
+         * which is the wrong way round.
+         *
+         * The prompt is READ-ONLY here and says why: a batch composes one
+         * prompt PER SHOT, so there is no single text to edit, and offering one
+         * would silently apply it to every frame in the film. The model choice
+         * still applies — that is a decision about the whole run.
+         */
+        BATCH_CHOICES = null;
+        const shots = (state.shots || []);
+        const todo = shots.filter(x => !x.has_keyframe && !x.keyframe);
+        const first = (todo[0] || shots[0] || {});
+        const shotId = first.shot_id || first.id;
+        if (shotId) {
+            const go = await new Promise(resolve => confirmPaidImage({
+                title: `Generate ${todo.length || shots.length} frame(s)`,
+                note: `This generates every shot that has no frame yet — ${todo.length || shots.length} `
+                    + 'of them — and each one costs credits. The prompt below is the FIRST shot, '
+                    + 'shown so you can see the shape of what is sent.',
+                previewUrl: `/shots/${shotId}/prompt`,
+                editable: false,
+                notEditableWhy: 'A batch composes a different prompt for every shot, so there is no '
+                    + 'single text to edit. Regenerate one frame to edit its prompt.',
+                send: choices => { BATCH_CHOICES = choices; resolve(true); },
+            }).then(() => resolve(BATCH_CHOICES !== null)));
+            if (!go) return;
+        }
+
+        const prog = document.getElementById('storyboardProgress');
+        const bar = document.getElementById('storyboardProgressBar');
+        const lbl = document.getElementById('storyboardProgressLabel');
+        const pct = document.getElementById('storyboardProgressPct');
+        const imgProg = document.getElementById('storyboardImageProgress');
+        const imgLbl = document.getElementById('storyboardImageLabel');
+        const imgStep = document.getElementById('storyboardImageStep');
+        const imgBar = document.getElementById('storyboardImageBar');
+        prog.style.display = 'block';
+        imgProg.style.display = 'none';
+        bar.style.width = '0%';
+        lbl.textContent = 'Starting storyboard generation...';
+        pct.textContent = '0%';
+
+        let totalShots = 1;
+
+        const useRefs = document.getElementById('useReferencesToggle').checked;
+        /*
+         * The batch is a GET stream, so the model choice rides in the query
+         * rather than a body — captured from the confirmation above. Without
+         * this the picker would be shown, chosen, and ignored.
+         */
+        const batchQ = new URLSearchParams({
+            ...(useRefs ? { use_references: 'true' } : {}),
+            ...((BATCH_CHOICES && BATCH_CHOICES.quality) ? { quality: BATCH_CHOICES.quality } : {}),
+        }).toString();
+        const storyboardUrl = '/projects/' + state.currentProject.id + '/storyboard/generate/stream'
+            + (batchQ ? `?${batchQ}` : '');
+
+        streamSSE(
+            storyboardUrl,
+            (ev) => {
+                if (ev.type === 'status' && ev.total_shots) {
+                    totalShots = ev.total_shots;
+                }
+
+                if (ev.type === 'scene') {
+                    lbl.textContent = 'Scene ' + ev.scene_number + (ev.location ? ' — ' + ev.location : '');
+                }
+
+                if (ev.type === 'progress') {
+                    const shotP = ((ev.shot_index || 0) / totalShots) * 100;
+                    if (ev.phase === 'generating') {
+                        bar.style.width = shotP + '%';
+                        pct.textContent = Math.round(shotP) + '%';
+                        lbl.textContent = 'Generating ' + (ev.shot_code || '...');
+                        imgProg.style.display = 'block';
+                        imgLbl.textContent = 'Preparing...';
+                        imgStep.textContent = '';
+                        imgBar.style.width = '0%';
+                    } else if (ev.phase === 'complete') {
+                        const doneP = (((ev.shot_index || 0) + 1) / totalShots) * 100;
+                        bar.style.width = doneP + '%';
+                        pct.textContent = Math.round(doneP) + '%';
+                        lbl.textContent = ev.shot_code + ' complete';
+                        imgProg.style.display = 'none';
+                        // Refresh the image in the grid if visible
+                        const grid = document.getElementById('storyboardGrid');
+                        if (ev.image_url && grid) {
+                            const imgs = grid.querySelectorAll('img');
+                            imgs.forEach(img => {
+                                if (img.src.includes(ev.shot_code)) {
+                                    img.src = legacy.API_BASE + ev.image_url + '?t=' + Date.now();
+                                    img.style.display = 'block';
+                                }
+                            });
+                        }
+                    }
+                }
+
+                // Per-image generation progress (step-by-step like gridlight-chat)
+                if (ev.type === 'image_progress') {
+                    imgProg.style.display = 'block';
+                    if (ev.message) {
+                        imgLbl.textContent = ev.message;
+                    }
+                    if (typeof ev.step === 'number' && ev.total_steps) {
+                        const stepPct = Math.round((ev.step / ev.total_steps) * 100);
+                        imgBar.style.width = stepPct + '%';
+                        imgStep.textContent = 'Step ' + ev.step + '/' + ev.total_steps + ' (' + stepPct + '%)';
+                        imgLbl.textContent = 'Generating...';
+                    }
+                }
+            },
+            () => {
+                bar.style.width = '100%';
+                pct.textContent = '100%';
+                lbl.textContent = 'Complete!';
+                imgProg.style.display = 'none';
+                setTimeout(() => { prog.style.display = 'none'; }, 2000);
+                loadStoryboard();
+                setStatus('Storyboard generation complete');
+            },
+            () => {
+                prog.style.display = 'none';
+                imgProg.style.display = 'none';
+                setStatus('Storyboard generation failed');
+            }
+        );
+    }
+
     /** The location's views, as a picture-led choice rather than an id. */
     let BACKGROUND_PICKER = null;
 
@@ -1112,12 +1269,55 @@ const { WORLD, state } = Object.fromEntries(['WORLD', 'state'].map(n => [n, live
         await runRecompose(shotId, version);
     }
 
+    /*
+     * Locking the board: "I feel it's done."
+     *
+     * Every frame on a finished board was paid for, judged and kept, and every
+     * one sits behind a Regen button that costs money and REPLACES the picture.
+     * Nothing distinguished a draft from the shot, so the only protection was
+     * remembering. The state is shown on the button itself rather than in the
+     * status bar, because a locked board whose buttons still look armed reads
+     * as the buttons being broken.
+     */
+    let BOARD_LOCK = { locked: false, locked_at: null };
+
     async function loadBoardLock() {
         if (!state.currentProject) return;
         try {
-            setLegacy('BOARD_LOCK', await api(`/projects/${state.currentProject.id}/board-lock`));
-        } catch (_) { setLegacy('BOARD_LOCK', { locked: false, locked_at: null }); }
+            BOARD_LOCK = await api(`/projects/${state.currentProject.id}/board-lock`);
+        } catch (_) { BOARD_LOCK = { locked: false, locked_at: null }; }
         renderBoardLock();
+    }
+
+    function renderBoardLock() {
+        const btn = document.getElementById('boardLockBtn');
+        if (!btn) return;
+        btn.textContent = BOARD_LOCK.locked ? '🔒 Locked — unlock' : 'Lock board';
+        btn.title = BOARD_LOCK.locked
+            ? `Locked ${BOARD_LOCK.locked_at || ''}. Generating, refining and restoring are refused. `
+              + 'Editing cards and previewing prompts still work.'
+            : 'Lock the board when you are happy with it — nothing that replaces a frame will run until you unlock';
+        // The buttons that spend money say so, rather than failing on click.
+        document.querySelectorAll('[onclick*="generateAllStoryboards"], [onclick*="regenerateStoryboard"], [onclick*="refineFrame"], [data-import-target="storyboard-image"]')
+            .forEach(b => { if (b.id !== 'boardLockBtn') b.disabled = !!BOARD_LOCK.locked; });
+    }
+
+    async function toggleBoardLock() {
+        if (!state.currentProject) return;
+        const url = `/projects/${state.currentProject.id}/board-lock`;
+        try {
+            if (BOARD_LOCK.locked) {
+                BOARD_LOCK = await api(url, { method: 'DELETE' });
+                setStatus('Board unlocked. Frames can be generated again.');
+            } else {
+                BOARD_LOCK = await api(url, { method: 'PUT', body: JSON.stringify({}) });
+                setStatus(`Board locked — ${BOARD_LOCK.frames} frame${BOARD_LOCK.frames === 1 ? '' : 's'} held. `
+                    + 'Nothing that replaces a frame will run until you unlock.');
+            }
+            renderBoardLock();
+        } catch (err) {
+            setStatus('Could not change the lock: ' + err.message);
+        }
     }
 
     /**
@@ -1189,6 +1389,7 @@ export {
     ANCHOR,
     anchorShotId,
     renderAnchorChip,
+    setAnchor,
     clearAnchor,
     anchorButton,
     renderAnnotationFeedbackToggle,
@@ -1212,6 +1413,8 @@ export {
     runShotAudit,
     acceptAllStale,
     setShotAspect,
+    BATCH_CHOICES,
+    generateAllStoryboards,
     BACKGROUND_PICKER,
     backgroundPickerResolve,
     renderBackgroundChoices,
@@ -1220,7 +1423,10 @@ export {
     confirmRecompose,
     runRecompose,
     recomposeFrame,
+    BOARD_LOCK,
     loadBoardLock,
+    renderBoardLock,
+    toggleBoardLock,
     insertShotAfter,
     playFromShot,
 };

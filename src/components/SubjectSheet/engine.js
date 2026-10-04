@@ -25,7 +25,6 @@ const {
     shootControl,
     showModal,
     slotUpload,
-    ssSection,
     uploadControl,
 } = Object.fromEntries([
     'api',
@@ -42,7 +41,6 @@ const {
     'shootControl',
     'showModal',
     'slotUpload',
-    'ssSection',
     'uploadControl',
 ].map(n => [n, (...a) => legacy[n](...a)]));
 const live = (name) => new Proxy({}, {
@@ -179,6 +177,26 @@ const { SS } = Object.fromEntries(['SS'].map(n => [n, live(n)]));
             body.innerHTML = `<div class="empty-state"><h3>Could not open the sheet</h3>
                 <p>${esc(err.message)}</p></div>`;
         }
+    }
+
+    /* ── shared pieces ─────────────────────────────────────────────────── */
+
+    /*
+     * `reach` is HTML and arrives as its own argument.
+     *
+     * It was concatenated into the title, which ssSection escapes — so every
+     * "→ prompt" and "not sent" mark rendered as literal `<span …>` text. The
+     * marks are the whole difference between a sheet and a form, so they get a
+     * parameter rather than being smuggled through a field that is escaped.
+     */
+    function ssSection(anchorId, title, what, inner, reach) {
+        return `<section class="ss-region" data-region="${anchorId}">
+            <div class="ss-region-head">
+                <h4>${esc(title)}${reach || ''}</h4>
+                ${what ? `<p class="ss-what">${esc(what)}</p>` : ''}
+            </div>
+            ${inner}
+        </section>`;
     }
 
     /** A field a director types straight into. Saved on blur, never on a timer. */
@@ -1101,6 +1119,7 @@ export {
     openSubjectSheet,
     ssBusy,
     renderSubjectSheet,
+    ssSection,
     ssField,
     ssPlateControls,
     ssReach,

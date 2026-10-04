@@ -8,6 +8,9 @@ import Gallery from './Gallery/Gallery.jsx';
 import GraphDialogs from './GraphDialogs/GraphDialogs.jsx';
 import MediaInput from './MediaInput/MediaInput.jsx';
 import MusicDialogs from './MusicDialogs/MusicDialogs.jsx';
+import PageHelpers from './PageHelpers/PageHelpers.jsx';
+import ProtectRatios from './ProtectRatios/ProtectRatios.jsx';
+import SceneDrift from './SceneDrift/SceneDrift.jsx';
 import ScreenplayDialogs from './ScreenplayDialogs/ScreenplayDialogs.jsx';
 import SubjectSheet from './SubjectSheet/SubjectSheet.jsx';
 import VideoPipeline from './VideoPipeline/VideoPipeline.jsx';
@@ -21,6 +24,9 @@ export const REACT_COMPONENTS = [
     { name: 'GraphDialogs', Component: GraphDialogs },
     { name: 'MediaInput', Component: MediaInput },
     { name: 'MusicDialogs', Component: MusicDialogs },
+    { name: 'PageHelpers', Component: PageHelpers },
+    { name: 'ProtectRatios', Component: ProtectRatios },
+    { name: 'SceneDrift', Component: SceneDrift },
     { name: 'ScreenplayDialogs', Component: ScreenplayDialogs },
     { name: 'SubjectSheet', Component: SubjectSheet },
     { name: 'VideoPipeline', Component: VideoPipeline },

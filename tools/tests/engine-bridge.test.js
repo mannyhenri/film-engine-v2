@@ -30,7 +30,7 @@ const BROWSER = (() => {
     const { window } = new JSDOM('');
     const names = new Set([...Object.getOwnPropertyNames(window), ...Object.getOwnPropertyNames(globalThis)]);
     // Present in the app's browser and missing from jsdom.
-    for (const n of ['ResizeObserver', 'IntersectionObserver', 'CSS', 'requestAnimationFrame', 'cancelAnimationFrame', 'requestIdleCallback', 'structuredClone', 'crypto']) names.add(n);
+    for (const n of ['ResizeObserver', 'IntersectionObserver', 'CSS', 'requestAnimationFrame', 'cancelAnimationFrame', 'requestIdleCallback', 'structuredClone', 'crypto', 'EventSource']) names.add(n);
     return names;
 })();
 

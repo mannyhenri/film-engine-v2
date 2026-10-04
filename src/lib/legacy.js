@@ -95,7 +95,7 @@ export const LEGACY_GLOBALS = [
     '_shotAction', 'clearModal', 'getModalData', // the music engine's bridge (src/pages/music/engine.js)
     'previsAspect', 'WALK', 'WORLD', // the 3D stage engine's bridge (src/pages/previs/engine.js)
     // The storyboard engine's bridge (src/pages/storyboard/engine.js):
-    'annotationFeedbackOn', 'confirmChoices', 'confirmExtras', 'confirmGenArm', 'cueExtensionOf', 'frameBusy', 'markupDisarm', 'markupDraw', 'markupLoad', 'markupPaintFeedBadge', 'paintGenOptions', 'renderBoardLock', 'BOARD_LOCK',
+    'annotationFeedbackOn', 'confirmChoices', 'confirmExtras', 'confirmGenArm', 'cueExtensionOf', 'frameBusy', 'markupDisarm', 'markupDraw', 'markupLoad', 'markupPaintFeedBadge', 'paintGenOptions', 'renderBoardLock', 'streamSSE',
     'renderTitlePageCard', // the screenplay editor's title-page card (core keeps it: Sync screenplay redraws it)
     'loadVideoShots', 'CONFIRM_GEN_VIDEO_TIER', // the Video Shots engine's bridge (src/pages/videoshots/engine.js)
 ];

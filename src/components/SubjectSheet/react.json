@@ -3,7 +3,8 @@
   "provides": [
     "openSubjectSheet",
     "renderSubjectSheet",
-    "sweepLocationCompass"
+    "sweepLocationCompass",
+    "ssSection"
   ],
   "replaces": [
     "openSubjectSheet",
@@ -52,7 +53,8 @@
     "captureUploadControl",
     "LIGHTING_TECHNIQUE_IDS",
     "SWEEP_NOTE",
-    "sweepLocationCompass"
+    "sweepLocationCompass",
+    "ssSection"
   ],
   "modals": [
     "subjectSheetModal"

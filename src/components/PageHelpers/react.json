@@ -1,0 +1,16 @@
+{
+  "about": "A SHARED module of core as a boot-mounted component with no dialogs: jsAttr, getModalData and clearModal (engine.js, moved verbatim). It provides exactly what it replaces.",
+  "provides": [
+    "jsAttr",
+    "clearModal",
+    "getModalData",
+    "streamSSE"
+  ],
+  "replaces": [
+    "jsAttr",
+    "clearModal",
+    "getModalData",
+    "streamSSE"
+  ],
+  "modals": []
+}

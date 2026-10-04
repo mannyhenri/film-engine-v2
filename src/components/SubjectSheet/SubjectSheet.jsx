@@ -21,6 +21,8 @@ export default function SubjectSheet() {
     usePageLoader('renderSubjectSheet', E.renderSubjectSheet);
     // Named in an onclick of core's renderLocationViews (the inspector's views panel), which stays core.
     usePageLoader('sweepLocationCompass', E.sweepLocationCompass);
+    // The music engine draws a scene's sound sheet with the same section block.
+    usePageLoader('ssSection', E.ssSection);
     useLayoutEffect(() => {
         const prior = {};
         for (const [name, fn] of ENGINE) { prior[name] = window[name]; window[name] = fn; }
