@@ -76,7 +76,8 @@ export default function RightsPage() {
         catch (err) { legacy.setStatus('Error: ' + err.message); }
     }
 
-    const options = (list) => (list || []).map(v => <option key={v} value={v}>{v}</option>);
+    // As core's vocabOptions drew them: the served value kept, its underscores shown as spaces.
+    const options = (list) => (list || []).map(v => <option key={v} value={v}>{String(v).replace(/_/g, ' ')}</option>);
     const f = editing.form;
     const v = vocab || {};
 

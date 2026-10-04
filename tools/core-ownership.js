@@ -205,6 +205,36 @@ function measure() {
     return { a: a.sort(byName), a2: a2.sort(byName), b: b.sort(byName), c: c.sort(byName), d: d.sort(byName), e: e.sort(byName), boot, edges, ownersOf, callersOf, total: names.size, scanned: owners.flatMap(o => o.files), exempt: EXEMPT, groups: GROUPS };
 }
 
+/*
+ * A declaration nobody reaches in v2 is either dead in the original app too, or was reached there by code that a React
+ * page rewrote: then that page must do what it did. Each such case is named here with where its behaviour lives now
+ * and the test that holds it (tools/tests/core-ownership.test.js fails on a new one, and on a stale entry).
+ */
+const TAKEN_OVER = {
+    requireCurrentProjectForOps: 'src/pages/jobsqueue/JobsQueuePage.jsx: no project, "Open a project first" (JobsQueuePage.test.jsx)',
+    setModalData: 'src/lib/subjects.js: a record into a form, empty numbers and unknown options as setModalData left them (subjects-contract.test.jsx)',
+    vocabOptions: 'the Titles and Rights dialogs: the served value kept, underscores shown as spaces (src/pages/vocab-labels.test.jsx)',
+};
+
+/** Which of `names` the ORIGINAL app reached: from its markup's handlers, its load-time statements and its shell. */
+function liveInOriginal(names) {
+    const { readSource } = require('./split-lib');
+    const src = readSource(path.join(ROOT, 'reference/fb8c770/src/index.html'));
+    const decls = new Map(); const boot = [];
+    for (const code of [src.app, src.productionGraph]) for (const n of acorn.parse(code, { ecmaVersion: 'latest' }).body) {
+        const t = blankComments(code.slice(n.start, n.end));
+        if (n.type === 'FunctionDeclaration') decls.set(n.id.name, t);
+        else if (n.type === 'VariableDeclaration') { for (const d of n.declarations) if (d.id.type === 'Identifier') decls.set(d.id.name, t); }
+        else boot.push(t);
+    }
+    const all = new Set(decls.keys());
+    const refs = (t, self) => [...tokens(t)].filter(x => all.has(x) && x !== self);
+    const handlers = [...src.html.replace(/<!--[\s\S]*?-->/g, '').matchAll(/\bon[a-z]+="([^"]*)"/g)].flatMap(m => refs(m[1], null));
+    const seen = new Set(); const stack = [...handlers, ...boot.flatMap(t => refs(t, null)), ...refs(blankComments(src.shell), null)];
+    while (stack.length) { const n = stack.pop(); if (seen.has(n)) continue; seen.add(n); stack.push(...refs(decls.get(n), n)); }
+    return names.filter(n => seen.has(n));
+}
+
 /** The report, as Markdown: the split by owner first, since that is what gets worked from. */
 function report(M) {
     const lines = [];
@@ -242,12 +272,18 @@ function report(M) {
     for (const x of M.e) lines.push(`| \`${x.name}\` | ${x.owner} | ${x.heldBy.map(h => (/ /.test(h) ? h : `\`${h}\``)).join(', ')} |`);
     lines.push('', '## (c) Reached by nobody this measurement can see', '',
         'Not deleted: each is either dead, or reached by a name built at run time (`window[name]`, a string the code',
-        'assembles). Check each before removing it.', '', M.c.map(x => `\`${x.name}\``).join(', ') || '(none)', '',
+        'assembles). Checked against the original app (liveInOriginal): each was dead there too, or the React code that took',
+        'over its behaviour is named (TAKEN_OVER).', '',
+        ...(() => { const live = new Set(liveInOriginal(M.c.map(x => x.name)));
+            const dead = M.c.filter(x => !live.has(x.name)).map(x => `\`${x.name}\``);
+            return [`Dead in the original too (${dead.length}): candidates for removal.`, '', dead.join(', ') || '(none)', '',
+                `Reached in the original, taken over by React (${live.size}):`, '', ...[...live].map(n => `- \`${n}\`: ${TAKEN_OVER[n] || 'NOT NAMED'}`)]; })(),
+        '',
         '## (d) Load-time core', '', M.d.map(x => `\`${x.name}\``).join(', '), '');
     return lines.join('\n');
 }
 
-module.exports = { measure, report };
+module.exports = { measure, report, liveInOriginal, TAKEN_OVER };
 
 if (require.main === module) {
     const M = measure();

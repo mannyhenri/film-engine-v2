@@ -68,7 +68,8 @@ export default function TitlesPage() {
     const openTitleCard = (c) => { setCard({ id: c ? c.id : null, form: cardForm(c || {}) }); openModal('titleCardModal'); };
     const onCredit = (k) => (e) => { const v = e.target.value; setCredit(s => ({ ...s, form: { ...s.form, [k]: v } })); };
     const onCard = (k) => (e) => { const v = e.target.value; setCard(s => ({ ...s, form: { ...s.form, [k]: v } })); };
-    const options = (list) => list.map(v => <option key={v} value={v}>{v}</option>);
+    // As core's vocabOptions drew them: the served value kept, its underscores shown as spaces.
+    const options = (list) => list.map(v => <option key={v} value={v}>{String(v).replace(/_/g, ' ')}</option>);
     const actions = (onEdit, onDelete) => (
         <div className="card-actions">
             <button className="btn btn-secondary btn-sm" onClick={onEdit}>Edit</button>

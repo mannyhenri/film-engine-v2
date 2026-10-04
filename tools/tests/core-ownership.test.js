@@ -142,3 +142,10 @@ test('nothing measured movable assigns a core value that stays in a way the brid
     }
     assert.deepStrictEqual(bad, []);
 });
+
+test('nothing the original app used is lost: a v2-unreached declaration was dead there too, or its React taker is named', () => {
+    const { liveInOriginal, TAKEN_OVER } = require('../core-ownership');
+    const live = liveInOriginal(M.c.map(x => x.name));
+    assert.deepStrictEqual(live.filter(n => !TAKEN_OVER[n]), [], 'reached in the original and by nothing in v2: a call path the conversion lost');
+    assert.deepStrictEqual(Object.keys(TAKEN_OVER).filter(n => !live.includes(n)), [], 'TAKEN_OVER names a declaration that is not (or no longer) such a case');
+});

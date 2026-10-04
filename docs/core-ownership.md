@@ -76,9 +76,18 @@ blocking callers do (or are themselves moved or removed).
 ## (c) Reached by nobody this measurement can see
 
 Not deleted: each is either dead, or reached by a name built at run time (`window[name]`, a string the code
-assembles). Check each before removing it.
+assembles). Checked against the original app (liveInOriginal): each was dead there too, or the React code that took
+over its behaviour is named (TAKEN_OVER).
 
-`acceptPlate`, `addScreenplayComment`, `AI_GENERATE_HINTS`, `AUTO_NEXT_TYPE`, `clearCommentHighlights`, `commentsVisible`, `DAW_ACTIONS`, `deleteLocationView`, `ELEMENT_TYPES`, `ENTITY_FIELDS`, `generateLocationImage`, `generatePropImage`, `generatorPicker`, `inspectEntity`, `loadScreenplayComments`, `MW_LANE_H`, `PV_MODES`, `RECOMPOSE`, `refineLocationView`, `renderCharacterViewsInto`, `renderCommentHighlights`, `renderLocationViews`, `requireCurrentProjectForOps`, `REVISION_COLORS`, `screenplayComments`, `setModalData`, `TAB_CYCLE`, `vocabOptions`, `worldOccupancy`
+Dead in the original too (26): candidates for removal.
+
+`acceptPlate`, `addScreenplayComment`, `AI_GENERATE_HINTS`, `AUTO_NEXT_TYPE`, `clearCommentHighlights`, `commentsVisible`, `DAW_ACTIONS`, `deleteLocationView`, `ELEMENT_TYPES`, `ENTITY_FIELDS`, `generateLocationImage`, `generatePropImage`, `generatorPicker`, `inspectEntity`, `loadScreenplayComments`, `MW_LANE_H`, `PV_MODES`, `RECOMPOSE`, `refineLocationView`, `renderCharacterViewsInto`, `renderCommentHighlights`, `renderLocationViews`, `REVISION_COLORS`, `screenplayComments`, `TAB_CYCLE`, `worldOccupancy`
+
+Reached in the original, taken over by React (3):
+
+- `requireCurrentProjectForOps`: src/pages/jobsqueue/JobsQueuePage.jsx: no project, "Open a project first" (JobsQueuePage.test.jsx)
+- `setModalData`: src/lib/subjects.js: a record into a form, empty numbers and unknown options as setModalData left them (subjects-contract.test.jsx)
+- `vocabOptions`: the Titles and Rights dialogs: the served value kept, underscores shown as spaces (src/pages/vocab-labels.test.jsx)
 
 ## (d) Load-time core
 
