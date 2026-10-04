@@ -19,4 +19,7 @@ for (const key of ['CFBundleName', 'CFBundleDisplayName']) {
     try { execFileSync('/usr/libexec/PlistBuddy', ['-c', `Set :${key} ${NAME}`, plist]); }
     catch (_) { execFileSync('/usr/libexec/PlistBuddy', ['-c', `Add :${key} string ${NAME}`, plist]); }
 }
+// Keep the Finder/app bundle icon in sync as well as the runtime Dock icon.
+const icon = path.join(__dirname, '..', 'electron', 'icon.icns');
+if (fs.existsSync(icon)) fs.copyFileSync(icon, path.join(path.dirname(plist), 'Resources', 'electron.icns'));
 console.log(`dev Electron bundle named "${NAME}" (${path.relative(process.cwd(), plist)})`);

@@ -1,41 +1,34 @@
 #!/usr/bin/env python3
-"""
-electron/icon.png: the iPhone app's icon (electron/icon-ios.png, copied from
-film-engine) in the macOS app-icon shape: an 824 px rounded square with
-continuous (superellipse) corners, centred on a transparent 1024 px canvas,
-as Apple's macOS icon grid lays it out. Run after the iPhone icon changes.
+"""Export the approved desktop master with existing Pillow and macOS iconutil.
+
+Run npm run icons after changing public/branding/filmengine-app-icon.png.
+The master already carries rounded corners and transparency; do not mask it again.
 """
 from pathlib import Path
-from PIL import Image, ImageDraw, ImageFilter
+import subprocess
+import sys
+import tempfile
+from PIL import Image
 
-HERE = Path(__file__).resolve().parent.parent / 'electron'
-CANVAS, BODY, SS = 1024, 824, 4            # canvas, icon body, supersampling
-N = 5.0                                    # superellipse exponent ~ Apple's continuous corner
-
-def squircle_mask(size):
-    big = size * SS
-    m = Image.new('L', (big, big), 0)
-    px = m.load()
-    r = big / 2
-    for y in range(big):
-        dy = abs((y + 0.5 - r) / r) ** N
-        if dy >= 1: continue
-        half = r * (1 - dy) ** (1 / N)
-        for x in range(int(r - half), int(r + half)):
-            px[x, y] = 255
-    return m.resize((size, size), Image.LANCZOS)
-
-src = Image.open(HERE / 'icon-ios.png').convert('RGBA').resize((BODY, BODY), Image.LANCZOS)
-body = Image.new('RGBA', (BODY, BODY), (0, 0, 0, 0))
-body.paste(src, (0, 0), squircle_mask(BODY))
-
-out = Image.new('RGBA', (CANVAS, CANVAS), (0, 0, 0, 0))
-off = (CANVAS - BODY) // 2
-# A soft drop shadow, as macOS icons carry.
-shadow = Image.new('RGBA', (CANVAS, CANVAS), (0, 0, 0, 0))
-sm = squircle_mask(BODY)
-shadow.paste((0, 0, 0, 90), (off, off + 10), sm)
-out = Image.alpha_composite(out, shadow.filter(ImageFilter.GaussianBlur(14)))
-out.alpha_composite(body, (off, off))
-out.save(HERE / 'icon.png')
-print('wrote', HERE / 'icon.png')
+ROOT = Path(__file__).resolve().parent.parent
+HERE = ROOT / 'electron'
+source = Image.open(ROOT / 'public/branding/filmengine-app-icon.png').convert('RGBA')
+if source.size != (1024, 1024):
+    raise ValueError('The desktop master must be 1024 × 1024')
+source.save(HERE / 'icon.png')
+source.save(HERE / 'icon.ico', sizes=[(s, s) for s in (16, 32, 48, 64, 128, 256)])
+sizes = HERE / 'icons'
+sizes.mkdir(exist_ok=True)
+for size in (16, 32, 48, 64, 128, 256, 512, 1024):
+    source.resize((size, size), Image.Resampling.LANCZOS).save(sizes / f'icon-{size}.png')
+if sys.platform == 'darwin':
+    with tempfile.TemporaryDirectory(prefix='filmengine-icons-') as tmp:
+        iconset = Path(tmp) / 'FilmEngine.iconset'
+        iconset.mkdir()
+        for size in (16, 32, 128, 256, 512):
+            for scale in (1, 2):
+                pixels = size * scale
+                suffix = '@2x' if scale == 2 else ''
+                source.resize((pixels, pixels), Image.Resampling.LANCZOS).save(iconset / f'icon_{size}x{size}{suffix}.png')
+        subprocess.run(['/usr/bin/iconutil', '-c', 'icns', str(iconset), '-o', str(HERE / 'icon.icns')], check=True)
+print('Exported Film Engine desktop PNGs, ICO' + (' and ICNS' if sys.platform == 'darwin' else ' (ICNS export requires macOS)'))
