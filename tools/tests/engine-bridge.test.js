@@ -51,3 +51,36 @@ for (const file of MODULES) {
             + 'must be bridged (const X = (...a) => legacy.X(...a), and X in LEGACY_GLOBALS) so the split keeps it in core');
     });
 }
+
+/*
+ * The bridge is declared in destructuring statements (`const { api, esc } = Object.fromEntries([...])`), so no line
+ * of an engine reads like the definition of a core name: backend tests find a definition by searching the page for
+ * `const feStore` or `function api(`, and the first match must be core's. So:
+ *   - every name the bridge declares is on LEGACY_GLOBALS (legacy[n] throws otherwise, and only when called);
+ *   - the only plain top-level declarations an engine has are its moved ones (exported) and the `live` helper.
+ */
+const acorn = require('acorn');
+const LEGACY_GLOBALS = (() => {
+    const src = fs.readFileSync(path.join(ROOT, 'src/lib/legacy.js'), 'utf8');
+    const list = src.slice(src.indexOf('export const LEGACY_GLOBALS = ['), src.indexOf('];', src.indexOf('export const LEGACY_GLOBALS = [')));
+    return new Set([...list.replace(/\/\/[^\n]*/g, '').matchAll(/'([\w$]+)'/g)].map(m => m[1]));
+})();
+for (const file of MODULES) {
+    test(`${file}: its bridge is on LEGACY_GLOBALS, and nothing but its moved code reads like a definition`, () => {
+        const code = fs.readFileSync(path.join(ROOT, file), 'utf8');
+        const ast = acorn.parse(code, { ecmaVersion: 'latest', sourceType: 'module' });
+        const exported = new Set(ast.body.filter(n => n.type === 'ExportNamedDeclaration' && !n.declaration).flatMap(n => n.specifiers.map(s => s.local.name)));
+        const bridged = [], plain = [];
+        for (const n of ast.body) {
+            if (n.type === 'FunctionDeclaration' && !exported.has(n.id.name)) plain.push(n.id.name);
+            if (n.type !== 'VariableDeclaration') continue;
+            for (const d of n.declarations) {
+                if (d.id.type === 'ObjectPattern') bridged.push(...d.id.properties.map(p => p.value.name));
+                else if (d.id.type === 'Identifier' && !exported.has(d.id.name) && d.id.name !== 'live') plain.push(d.id.name);
+            }
+        }
+        assert.ok(bridged.length > 0, `${file}: no bridge found; the scan is broken`);
+        assert.deepStrictEqual(bridged.filter(n => !LEGACY_GLOBALS.has(n)), [], 'bridged, and not on LEGACY_GLOBALS');
+        assert.deepStrictEqual(plain, [], 'top-level declarations that are neither moved code nor the bridge');
+    });
+}
