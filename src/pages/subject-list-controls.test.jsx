@@ -60,8 +60,8 @@ async function open(p) {
     return view;
 }
 const shown = (p) => [...document.querySelectorAll(`#${p.grid} .entity-card h3`)].map(h => h.textContent);
-const search = () => document.querySelector(`.page.active [data-subject-search], [data-subject-search]`);
-const sorter = () => document.querySelector('[data-subject-sort]');
+const search = () => document.querySelector('[data-list-search]');
+const sorter = () => document.querySelector('[data-list-sort]');
 const type = (v) => fireEvent.change(search(), { target: { value: v } });
 
 describe.each(PAGES)('$id: search and sort', (p) => {
@@ -76,7 +76,7 @@ describe.each(PAGES)('$id: search and sort', (p) => {
         await open(p);
         expect(sorter().value).toBe('name-asc');
         expect(shown(p)).toEqual(COMMON['name-asc'](p.rows));
-        expect(document.querySelector('[data-subject-count]').textContent).toBe(`${p.rows.length} ${p.key}`);
+        expect(document.querySelector('[data-list-count]').textContent).toBe(`${p.rows.length} ${p.key}`);
     });
 
     it('a search finds a subject by its name and by each field it lists, ignoring case', async () => {
@@ -86,7 +86,7 @@ describe.each(PAGES)('$id: search and sort', (p) => {
         for (const [field, [q, want]] of Object.entries(p.fields)) {
             type(q);
             expect(shown(p), `${field}: "${q}"`).toEqual([want]);
-            expect(document.querySelector('[data-subject-count]').textContent).toBe(`1 of ${p.rows.length} ${p.key}`);
+            expect(document.querySelector('[data-list-count]').textContent).toBe(`1 of ${p.rows.length} ${p.key}`);
         }
     });
 

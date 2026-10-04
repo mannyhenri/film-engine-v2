@@ -3,7 +3,9 @@ import Modal, { openModal, closeModal } from '../../components/Modal.jsx';
 import { legacy } from '../../lib/legacy.js';
 import { usePageLoader } from '../../lib/usePageLoader.js';
 import { formBody } from '../../lib/forms.js';
-import { describeFromScreenplay, DESCRIBE_TITLE, formFrom, BANNER_STYLE, useSubjectList, SubjectListBar, SubjectNoMatch, byName } from '../../lib/subjects.jsx';
+import { describeFromScreenplay, DESCRIBE_TITLE, formFrom, BANNER_STYLE } from '../../lib/subjects.js';
+import { useListControls, ListControlsBar, ListNoMatch } from '../../lib/list-controls.jsx';
+import SURFACE from './list-surface.js';
 
 /*
  * Locations, as React. Same routes, bodies and status lines as the legacy page; one change, named:
@@ -14,8 +16,6 @@ import { describeFromScreenplay, DESCRIBE_TITLE, formFrom, BANNER_STYLE, useSubj
  */
 export const LOCATION_FIELDS = ['name', 'description', 'reference_prompt', 'lighting_default', 'time_of_day_default', 'atmosphere_notes', 'sound_notes'];
 const blank = () => formFrom(null, LOCATION_FIELDS);
-// Beyond the common sorts: the locations the film uses most, first.
-const SORTS = [{ id: 'scenes', label: 'Most scenes', order: (a, b) => (b.scene_count || 0) - (a.scene_count || 0) || byName(a, b) }];
 
 function LocationCard({ l, onEdit, onDelete }) {
     const [plateFailed, setPlateFailed] = useState(false);
@@ -124,7 +124,7 @@ export default function LocationsPage() {
     }
 
     // Search and sort what was read (no second request); the sort is remembered for this page.
-    const list = useSubjectList('locations', locations, { fields: ['description', 'lighting_default', 'time_of_day_default'], sorts: SORTS });
+    const list = useListControls(SURFACE, locations);
     const field = (k) => ({ 'data-field': k, value: form[k], onChange: (e) => { const v = e.target.value; setForm(f => ({ ...f, [k]: v })); } });
 
     return (
@@ -136,9 +136,9 @@ export default function LocationsPage() {
                     <button className="btn btn-primary" onClick={newLocation}>+ Location</button>
                 </div>
             </div>
-            <SubjectListBar list={list} noun="locations" />
+            <ListControlsBar list={list} />
             <div className="entity-grid" id="locationGrid">
-                {locations && locations.length > 0 && list.shown.length === 0 && <SubjectNoMatch list={list} noun="locations" />}
+                {locations && locations.length > 0 && list.shown.length === 0 && <ListNoMatch list={list} />}
                 {locations && locations.length === 0 && (
                     <div className="empty-state" style={{ gridColumn: '1/-1' }}><div className="icon">&#128205;</div><h3>No locations</h3><p>Add filming locations.</p></div>
                 )}

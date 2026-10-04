@@ -3,7 +3,9 @@ import Modal, { openModal, closeModal } from '../../components/Modal.jsx';
 import { legacy } from '../../lib/legacy.js';
 import { usePageLoader } from '../../lib/usePageLoader.js';
 import { formBody } from '../../lib/forms.js';
-import { describeFromScreenplay, DESCRIBE_TITLE, formFrom, useSubjectList, SubjectListBar, SubjectNoMatch } from '../../lib/subjects.jsx';
+import { describeFromScreenplay, DESCRIBE_TITLE, formFrom } from '../../lib/subjects.js';
+import { useListControls, ListControlsBar, ListNoMatch } from '../../lib/list-controls.jsx';
+import SURFACE from './list-surface.js';
 
 /*
  * Characters, as React. Same routes, bodies and status lines as the legacy page; one change, named:
@@ -137,7 +139,7 @@ export default function CharactersPage() {
     }
 
     // Search and sort what was read (no second request); the sort is remembered for this page.
-    const list = useSubjectList('characters', characters, { fields: ['description', 'age_range', 'gender'] });
+    const list = useListControls(SURFACE, characters);
     const field = (k) => ({ 'data-field': k, value: form[k], onChange: (e) => { const v = e.target.value; setForm(f => ({ ...f, [k]: v })); } });
     const pair = { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 };
 
@@ -150,9 +152,9 @@ export default function CharactersPage() {
                     <button className="btn btn-primary" onClick={newCharacter}>+ Character</button>
                 </div>
             </div>
-            <SubjectListBar list={list} noun="characters" />
+            <ListControlsBar list={list} />
             <div className="entity-grid" id="characterGrid">
-                {characters && characters.length > 0 && list.shown.length === 0 && <SubjectNoMatch list={list} noun="characters" />}
+                {characters && characters.length > 0 && list.shown.length === 0 && <ListNoMatch list={list} />}
                 {characters && characters.length === 0 && (
                     <div className="empty-state" style={{ gridColumn: '1/-1' }}><div className="icon">&#128100;</div><h3>No characters</h3><p>Add characters for your film production.</p></div>
                 )}

@@ -499,7 +499,7 @@ async function smoke(win) {
             await js(`openProject(${JSON.stringify(found.project)}, 'characters').then(() => true)`);
             await new Promise(r => setTimeout(r, 1500));
             const searched = await js(`(async () => {
-                const type = (v) => { const el = document.querySelector('#page-characters [data-subject-search]');
+                const type = (v) => { const el = document.querySelector('#page-characters [data-list-search]');
                     Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(el, v);
                     el.dispatchEvent(new Event('input', { bubbles: true })); };
                 const cards = () => [...document.querySelectorAll('#characterGrid .entity-card')];
@@ -509,7 +509,7 @@ async function smoke(win) {
                 type(term); await new Promise(r => setTimeout(r, 100));
                 // A hit matches by name or by what the card shows (its description, age, gender): every card shown says it.
                 const hits = names(), shows = cards().map(c => c.textContent.toLowerCase().includes(term.toLowerCase()));
-                const count = document.querySelector('#page-characters [data-subject-count]').textContent;
+                const count = document.querySelector('#page-characters [data-list-count]').textContent;
                 type(''); await new Promise(r => setTimeout(r, 100));
                 return { term, target, all: all.length, hits, shows, count, back: names().length };
             })()`).catch(e => ({ error: e.message }));
