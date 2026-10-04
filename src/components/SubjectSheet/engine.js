@@ -12,7 +12,7 @@ import { legacy, setLegacy } from '../../lib/legacy.js';
 // a line reading `const esc = …` would be the first definition a backend test finds when it searches the page.
 const {
     api,
-    captureUploadControl,
+    confirmPaidImage,
     esc,
     jsAttr,
     loadLocations,
@@ -22,14 +22,14 @@ const {
     regeneratePlate,
     setStatus,
     sheetEditable,
+    shootControl,
     showModal,
     slotUpload,
     ssSection,
-    sweepLocationCompass,
     uploadControl,
 } = Object.fromEntries([
     'api',
-    'captureUploadControl',
+    'confirmPaidImage',
     'esc',
     'jsAttr',
     'loadLocations',
@@ -39,10 +39,10 @@ const {
     'regeneratePlate',
     'setStatus',
     'sheetEditable',
+    'shootControl',
     'showModal',
     'slotUpload',
     'ssSection',
-    'sweepLocationCompass',
     'uploadControl',
 ].map(n => [n, (...a) => legacy[n](...a)]));
 const live = (name) => new Proxy({}, {
@@ -55,7 +55,65 @@ const live = (name) => new Proxy({}, {
 });
 // Core's objects, as live proxies, in one destructuring statement for the same reason.
 const { SS } = Object.fromEntries(['SS'].map(n => [n, live(n)]));
-// Core's values, read live as legacy.X and assigned with setLegacy: API_BASE, LIGHTING_TECHNIQUE_IDS.
+// Core's values, read live as legacy.X and assigned with setLegacy: API_BASE.
+
+    /*
+     * LIGHT: a technique (where the lights stand) and a mood (colour and
+     * quantity), staged for THIS shot. The panel says where the lighting now
+     * comes from — staged here, the shot's card, the location, or nothing —
+     * because a shot that says nothing is lit by its location's choice.
+     */
+    // The techniques lib/lighting.js declares, in its order (held equal by tests/lighting.test.js):
+    // the location sheet renders before any vocabulary request could return.
+    const LIGHTING_TECHNIQUE_IDS = Object.freeze(['three-point', 'rembrandt', 'loop', 'butterfly', 'clamshell', 'split', 'broad', 'short', 'backlight', 'silhouette', 'top-light', 'under-light', 'window-motivated', 'practical-motivated', 'high-key', 'low-key', 'chiaroscuro']);
+
+    /**
+     * All four sides of a place, from the one plate it already has.
+     *
+     * A location with one plate hands every shot the same side of the street,
+     * so a shot pointing the other way is given a picture of what is BEHIND
+     * its camera and invents the rest — which is what blocked 2AA.
+     *
+     * The cost leads the confirmation, because this is the one control on the
+     * page that spends more than one generation in a press.
+     */
+    /**
+     * Sweep the compass: the sides this location is missing.
+     *
+     * Through the shared gate, so the generator, model, quality and size are a
+     * choice. The plan is FREE and is what prices the sweep, so the number in
+     * the confirmation is the number that will be charged.
+     */
+    const SWEEP_NOTE = 'Each side is anchored on the plate you already have, so they are four '
+        + 'sides of one place rather than four places. The prompt is per side and is shown when '
+        + 'each is generated; the choices here apply to the whole sweep.';
+
+    async function sweepLocationCompass(locationId, btn) {
+        return confirmPaidImage({
+            title: 'Sweep the compass',
+            capability: 'image',
+            previewUrl: `/locations/${locationId}/plate/compass/plan`,
+            note: SWEEP_NOTE,
+            editable: false,
+            notEditableWhy: 'Each side is generated from its own prompt, shown as it runs.',
+            send: async choices => {
+                setStatus('Photographing the other sides…', true);
+                if (btn) btn.disabled = true;
+                try {
+                    const r = await api(`/locations/${locationId}/plate/compass`, {
+                        method: 'POST', body: JSON.stringify(choices || {}),
+                    });
+                    const made = (r && r.generated) || [];
+                    const missed = (r && r.not_attempted) || [];
+                    setStatus(missed.length
+                        ? `${made.length} side(s) made; not attempted: ${missed.join(', ')}`
+                        : `${made.length} side(s) generated.`);
+                    if (typeof loadLocations === 'function') loadLocations();
+                } catch (err) { setStatus('Could not sweep: ' + err.message); }
+                finally { if (btn) btn.disabled = false; }
+            },
+        });
+    }
 
     async function openSubjectSheet(kind, id) {
         SS.kind = kind; SS.id = id; SS.data = null; SS.views = [];
@@ -443,7 +501,7 @@ const { SS } = Object.fromEntries(['SS'].map(n => [n, live(n)]));
             ${ssSection('ls-lighting', 'Lighting default',
                 'How it is lit unless a shot says otherwise.',
                 ssField('lighting_default', l.lighting_default, { placeholder: 'golden-hour rake off the water, lit practicals' })
-                + ssField('lighting_technique', l.lighting_technique, { options: [''].concat(legacy.LIGHTING_TECHNIQUE_IDS) })
+                + ssField('lighting_technique', l.lighting_technique, { options: [''].concat(LIGHTING_TECHNIQUE_IDS) })
                 + ssField('lighting_key_side', l.lighting_key_side, { options: ['', 'right', 'left'] })
                 + ssField('time_of_day_default', l.time_of_day_default, { placeholder: 'late afternoon' })
                 + ssField('location_type', l.location_type, { options: ['', 'interior', 'exterior', 'practical', 'stage', 'backlot'] }),
@@ -1008,7 +1066,38 @@ const { SS } = Object.fromEntries(['SS'].map(n => [n, live(n)]));
         setTimeout(() => w.print(), 400);
     }
 
+    /*
+     * A WORLD CAPTURE is not a plate, so it does not go through uploadControl.
+     *
+     * uploadControl accepts PNG and JPEG because a plate is a picture. A
+     * capture is whichever of three media the director stood in the room and
+     * shot — a 360 panorama, a short orbit clip, or a LiDAR scan — and the
+     * server decides which from the bytes, not from the name the phone gave it.
+     * Offering all three from one control is what keeps that one act one act.
+     *
+     * The shoot affordance comes from the shared helper, so the accept type
+     * decides the capture device exactly as it does everywhere else.
+     */
+    function captureUploadControl(locationId, opts) {
+        const o = opts || {};
+        const accept = 'image/png,image/jpeg,video/mp4,video/quicktime,.png,.jpg,.jpeg,.mp4,.mov,.glb';
+        const url = `/locations/${locationId}/capture/import`;
+        const onchange = `uploadReferenceImage(event, 'world-capture', '${url}', {}, '${o.after || ''}')`;
+        return `<label class="btn btn-secondary btn-sm" style="cursor:pointer;margin:0;"
+                       title="${esc(o.title || 'A panorama, a short orbit clip, or a LiDAR scan of the real place')}"
+                       onclick="event.stopPropagation();">${esc(o.label || 'Add capture')}
+                    <input type="file" data-import-target="world-capture"
+                           accept="${accept}" style="display:none"
+                           onclick="event.stopPropagation();"
+                           onchange="${onchange}">
+                </label>${shootControl('world-capture', url, accept,
+                    'data-import-target="world-capture"', onchange, o)}`;
+    }
+
 export {
+    LIGHTING_TECHNIQUE_IDS,
+    SWEEP_NOTE,
+    sweepLocationCompass,
     openSubjectSheet,
     ssBusy,
     renderSubjectSheet,
@@ -1052,4 +1141,5 @@ export {
     generateLocationVariant,
     openSubjectGallery,
     exportSubjectSheet,
+    captureUploadControl,
 };

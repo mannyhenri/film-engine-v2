@@ -5,7 +5,8 @@
     "renderCharacterSheet",
     "toggleSheetMode",
     "sheetEditable",
-    "slotUpload"
+    "slotUpload",
+    "deleteCharacterView"
   ],
   "replaces": [
     "CS_VIEWS",
@@ -35,7 +36,11 @@
     "paletteFromImage",
     "csPalette",
     "generateOfficialViews",
-    "exportCharacterSheet"
+    "exportCharacterSheet",
+    "deleteCharacterView",
+    "generateCharacterImage",
+    "orbitRefsheet",
+    "showCharacterViews"
   ],
   "modals": [
     "characterSheetModal"

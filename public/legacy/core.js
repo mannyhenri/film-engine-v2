@@ -1263,16 +1263,6 @@
     const WORLD = { overlays: null, lens: 35, mode: 'keep', pinned: null, world: null, version: null,
         tab: 'camera', timelineOpen: false, tool: 'select' };
 
-    /*
-     * LIGHT: a technique (where the lights stand) and a mood (colour and
-     * quantity), staged for THIS shot. The panel says where the lighting now
-     * comes from — staged here, the shot's card, the location, or nothing —
-     * because a shot that says nothing is lit by its location's choice.
-     */
-    // The techniques lib/lighting.js declares, in its order (held equal by tests/lighting.test.js):
-    // the location sheet renders before any vocabulary request could return.
-    const LIGHTING_TECHNIQUE_IDS = Object.freeze(['three-point', 'rembrandt', 'loop', 'butterfly', 'clamshell', 'split', 'broad', 'short', 'backlight', 'silhouette', 'top-light', 'under-light', 'window-motivated', 'practical-motivated', 'high-key', 'low-key', 'chiaroscuro']);
-
     /* ── VIEW MODES: Look, 360°, Geometry, Depth, Plan (ADR-008) ──────────
      *
      * ONE camera, five ways to see through it. Geometry and Depth are the
@@ -5984,54 +5974,6 @@
     }
 
     /**
-     * All four sides of a place, from the one plate it already has.
-     *
-     * A location with one plate hands every shot the same side of the street,
-     * so a shot pointing the other way is given a picture of what is BEHIND
-     * its camera and invents the rest — which is what blocked 2AA.
-     *
-     * The cost leads the confirmation, because this is the one control on the
-     * page that spends more than one generation in a press.
-     */
-    /**
-     * Sweep the compass: the sides this location is missing.
-     *
-     * Through the shared gate, so the generator, model, quality and size are a
-     * choice. The plan is FREE and is what prices the sweep, so the number in
-     * the confirmation is the number that will be charged.
-     */
-    const SWEEP_NOTE = 'Each side is anchored on the plate you already have, so they are four '
-        + 'sides of one place rather than four places. The prompt is per side and is shown when '
-        + 'each is generated; the choices here apply to the whole sweep.';
-
-    async function sweepLocationCompass(locationId, btn) {
-        return confirmPaidImage({
-            title: 'Sweep the compass',
-            capability: 'image',
-            previewUrl: `/locations/${locationId}/plate/compass/plan`,
-            note: SWEEP_NOTE,
-            editable: false,
-            notEditableWhy: 'Each side is generated from its own prompt, shown as it runs.',
-            send: async choices => {
-                setStatus('Photographing the other sides…', true);
-                if (btn) btn.disabled = true;
-                try {
-                    const r = await api(`/locations/${locationId}/plate/compass`, {
-                        method: 'POST', body: JSON.stringify(choices || {}),
-                    });
-                    const made = (r && r.generated) || [];
-                    const missed = (r && r.not_attempted) || [];
-                    setStatus(missed.length
-                        ? `${made.length} side(s) made; not attempted: ${missed.join(', ')}`
-                        : `${made.length} side(s) generated.`);
-                    if (typeof loadLocations === 'function') loadLocations();
-                } catch (err) { setStatus('Could not sweep: ' + err.message); }
-                finally { if (btn) btn.disabled = false; }
-            },
-        });
-    }
-
-    /**
      * Remove one view. The set could only grow before this.
      *
      * The compass sweep SKIPS a side that already exists, so without a delete a
@@ -6232,36 +6174,6 @@
         } catch (err) {
             host.innerHTML = `<p class="text-sm text-muted">Could not read the views: ${esc(err.message)}</p>`;
         }
-    }
-
-    async function showCharacterViews(charId) {
-        try {
-            const r = await api(`/characters/${charId}/refsheet/views`);
-            const body = characterViewsHtml(r, charId);
-
-            // Reuses the entity inspector rather than inventing a second
-            // modal: two panels showing a subject's pictures is how they come
-            // to disagree about which one is in use.
-            document.getElementById('entityInspectTitle').textContent = `${r.character} — reference views`;
-            document.getElementById('entityInspectBody').innerHTML = body;
-            showModal('entityInspectModal');
-        } catch (err) { setStatus('Error: ' + err.message); }
-    }
-
-    async function deleteCharacterView(charId, view) {
-        // Names what is lost and what is not. A plate cost money; the bytes
-        // are set aside rather than destroyed, and saying so is the difference
-        // between a confirmation people read and one they click through.
-        if (!confirm(`Delete the ${view} view of this character?\n\n`
-            + `It stops being used in every frame this character appears in, and stops being listed.\n`
-            + `The picture file is moved to a "deleted" folder rather than destroyed, so it can be `
-            + `put back by hand — but nothing in the app will do that for you.`)) return;
-        try {
-            await api(`/characters/${charId}/refsheet/views/${encodeURIComponent(view)}`, { method: 'DELETE' });
-            setStatus(`${view} view deleted`);
-            closeModal('entityInspectModal');
-            loadCharacters();
-        } catch (err) { setStatus('Error: ' + err.message); }
     }
 
     /*
@@ -6753,34 +6665,6 @@
         return null;
     }
 
-    /*
-     * A WORLD CAPTURE is not a plate, so it does not go through uploadControl.
-     *
-     * uploadControl accepts PNG and JPEG because a plate is a picture. A
-     * capture is whichever of three media the director stood in the room and
-     * shot — a 360 panorama, a short orbit clip, or a LiDAR scan — and the
-     * server decides which from the bytes, not from the name the phone gave it.
-     * Offering all three from one control is what keeps that one act one act.
-     *
-     * The shoot affordance comes from the shared helper, so the accept type
-     * decides the capture device exactly as it does everywhere else.
-     */
-    function captureUploadControl(locationId, opts) {
-        const o = opts || {};
-        const accept = 'image/png,image/jpeg,video/mp4,video/quicktime,.png,.jpg,.jpeg,.mp4,.mov,.glb';
-        const url = `/locations/${locationId}/capture/import`;
-        const onchange = `uploadReferenceImage(event, 'world-capture', '${url}', {}, '${o.after || ''}')`;
-        return `<label class="btn btn-secondary btn-sm" style="cursor:pointer;margin:0;"
-                       title="${esc(o.title || 'A panorama, a short orbit clip, or a LiDAR scan of the real place')}"
-                       onclick="event.stopPropagation();">${esc(o.label || 'Add capture')}
-                    <input type="file" data-import-target="world-capture"
-                           accept="${accept}" style="display:none"
-                           onclick="event.stopPropagation();"
-                           onchange="${onchange}">
-                </label>${shootControl('world-capture', url, accept,
-                    'data-import-target="world-capture"', onchange, o)}`;
-    }
-
     function uploadControl(target, url, opts) {
         const o = opts || {};
         return `<label class="btn btn-secondary btn-sm" style="cursor:pointer;margin:0;"
@@ -7139,56 +7023,6 @@
                     // none: it says work is happening when nothing is.
                     if (btn) { btn.disabled = false; if (btn.dataset.was) btn.textContent = btn.dataset.was; }
                 }
-            },
-        });
-    }
-
-    async function orbitRefsheet(characterId) {
-        return confirmPaidImage({
-            capability: 'video',
-            title: 'Turnaround from one orbit',
-            note: 'Generates a short clip that orbits the character, then cuts it into front, '
-                + 'three-quarter, side and back. The views come from one motion, so they cannot '
-                + 'disagree with each other the way three separate plates can.',
-            previewUrl: `/characters/${characterId}/refsheet/orbit/preview`,
-            editable: false,
-            notEditableWhy: 'The orbit prompt is composed from the character description and the '
-                + 'film\'s medium. Edit the character, then preview again.',
-            send: async () => {
-                setStatus('Generating orbit turnaround…', true);
-                try {
-                    const res = await api(`/characters/${characterId}/refsheet/orbit`,
-                        { method: 'POST', body: JSON.stringify({}) });
-                    const n = (res && res.views ? res.views.length : 0);
-                    setStatus(n ? `Turnaround cut: ${res.views.map(v => v.view).join(', ')}`
-                        : (res && res.error) || 'The orbit produced no frames.');
-                    if (typeof loadCharacters === 'function') loadCharacters();
-                } catch (err) { setStatus('Could not generate the orbit: ' + err.message); }
-            },
-        });
-    }
-
-    async function generateCharacterImage(charId) {
-        /*
-         * The prompt this plate is generated from, before it is bought. A plate
-         * conditions EVERY frame its subject appears in, so it is the single
-         * worst request to send unread — and it is editable, because the
-         * commonest fix is a word in the appearance rather than a re-roll.
-         */
-        return confirmPaidImage({
-            capability: 'image',
-            title: 'Generate character plate',
-            note: 'This picture becomes the reference for every frame this character appears in.',
-            previewUrl: `/characters/${charId}/refsheet/preview?views=front`,
-            send: async choices => {
-                setStatus('Generating character reference image...', true);
-                try {
-                    await api('/characters/' + charId + '/refsheet/generate', {
-                        method: 'POST', body: JSON.stringify({ views: ['front'], ...choices }),
-                    });
-                    setStatus('Character image generated');
-                    loadCharacters();
-                } catch (err) { setStatus('Error generating image: ' + err.message); }
             },
         });
     }

@@ -126,7 +126,7 @@ function extract(spec) {
 /** Who outside the set names one of its declarations: the legacy files and markup the app still runs. */
 function callers(names) {
     const files = ['public/legacy/core.js', 'public/legacy/production-graph.js', 'public/legacy/shell.js',
-        ...fs.readdirSync(path.join(ROOT, 'public/legacy/chunks')).map(f => 'public/legacy/chunks/' + f),
+        ...(fs.existsSync(path.join(ROOT, 'public/legacy/chunks')) ? fs.readdirSync(path.join(ROOT, 'public/legacy/chunks')).map(f => 'public/legacy/chunks/' + f) : []),
         ...fs.readdirSync(path.join(ROOT, 'src/components/modals')).filter(f => f.endsWith('.html')).map(f => 'src/components/modals/' + f)];
     const out = {};
     for (const f of files) {

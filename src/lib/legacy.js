@@ -47,10 +47,10 @@ export const LEGACY_GLOBALS = [
     'openCharacterSheet', 'openSubjectSheet', // the subject sheets (core: the board, graph and viewer open them too); a card click opens one
     'loadScreenplayPage',     // reload the screenplay editor after a location rename rewrote its headings (locations)
     // The location and prop sheet's engine (src/components/SubjectSheet/engine.js) reaches these through its bridge:
-    'SS', 'ssSection', 'slotUpload', 'sheetEditable', 'toggleSheetMode', 'captureUploadControl', 'regeneratePlate', 'sweepLocationCompass',
-    'LIGHTING_TECHNIQUE_IDS', 'openGallery', 'loadProps',
+    'SS', 'ssSection', 'slotUpload', 'sheetEditable', 'toggleSheetMode', 'regeneratePlate', 'openGallery', 'loadProps',
     // ...and the character sheet's (src/components/CharacterSheet/engine.js):
-    'csImg', 'renderSubjectSheet',
+    'csImg', 'renderSubjectSheet', 'shootControl',
+    'characterViewsHtml',     // stays core: core's renderCharacterViewsInto calls it (core-ownership (e))
     'PRODUCTION_GRAPH_ON',    // whether production is one graph (a production-graph.js let): Flows reads it live
     'flowBackToGraph',        // Flows' way back to the graph (the Production graph page provides it)
     'regenerateStoryboard',   // regenerate one shot's frame: its own confirmation, the busy veil (board, viewer, shot drawer)

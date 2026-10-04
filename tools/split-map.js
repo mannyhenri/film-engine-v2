@@ -218,6 +218,7 @@ function generate({ write = true } = {}) {
             case 'ArrowFunctionExpression': case 'FunctionExpression': case 'Literal': case 'ClassExpression': return true;
             case 'TemplateLiteral': return n.expressions.length === 0;
             case 'UnaryExpression': return isPure(n.argument);
+            case 'BinaryExpression': return isPure(n.left) && isPure(n.right); // 'a ' + 'b': a note written over lines
             case 'ArrayExpression': return n.elements.every(e => !e || isPure(e));
             case 'ObjectExpression': return n.properties.every(p => p.type === 'Property' && !p.computed && isPure(p.value));
             case 'CallExpression': // Object.freeze({...}) of pure parts

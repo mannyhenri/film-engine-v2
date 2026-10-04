@@ -23,6 +23,8 @@ export default function CharacterSheet() {
     usePageLoader('toggleSheetMode', E.toggleSheetMode);
     usePageLoader('sheetEditable', E.sheetEditable);
     usePageLoader('slotUpload', E.slotUpload);
+    // Named in an onclick of core's characterViewsHtml (the turnaround panel), which stays core.
+    usePageLoader('deleteCharacterView', E.deleteCharacterView);
     useLayoutEffect(() => {
         const prior = {};
         for (const [name, fn] of ENGINE) { prior[name] = window[name]; window[name] = fn; }

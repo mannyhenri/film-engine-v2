@@ -12,10 +12,13 @@ import { legacy } from '../../lib/legacy.js';
 // a line reading `const esc = …` would be the first definition a backend test finds when it searches the page.
 const {
     api,
+    characterViewsHtml,
+    closeModal,
     confirmPaidImage,
     csImg,
     esc,
     jsAttr,
+    loadCharacters,
     plateSrc,
     renderSubjectSheet,
     setStatus,
@@ -23,10 +26,13 @@ const {
     uploadControl,
 } = Object.fromEntries([
     'api',
+    'characterViewsHtml',
+    'closeModal',
     'confirmPaidImage',
     'csImg',
     'esc',
     'jsAttr',
+    'loadCharacters',
     'plateSrc',
     'renderSubjectSheet',
     'setStatus',
@@ -43,6 +49,36 @@ const live = (name) => new Proxy({}, {
 });
 // Core's objects, as live proxies, in one destructuring statement for the same reason.
 const { state } = Object.fromEntries(['state'].map(n => [n, live(n)]));
+
+    async function showCharacterViews(charId) {
+        try {
+            const r = await api(`/characters/${charId}/refsheet/views`);
+            const body = characterViewsHtml(r, charId);
+
+            // Reuses the entity inspector rather than inventing a second
+            // modal: two panels showing a subject's pictures is how they come
+            // to disagree about which one is in use.
+            document.getElementById('entityInspectTitle').textContent = `${r.character} — reference views`;
+            document.getElementById('entityInspectBody').innerHTML = body;
+            showModal('entityInspectModal');
+        } catch (err) { setStatus('Error: ' + err.message); }
+    }
+
+    async function deleteCharacterView(charId, view) {
+        // Names what is lost and what is not. A plate cost money; the bytes
+        // are set aside rather than destroyed, and saying so is the difference
+        // between a confirmation people read and one they click through.
+        if (!confirm(`Delete the ${view} view of this character?\n\n`
+            + `It stops being used in every frame this character appears in, and stops being listed.\n`
+            + `The picture file is moved to a "deleted" folder rather than destroyed, so it can be `
+            + `put back by hand — but nothing in the app will do that for you.`)) return;
+        try {
+            await api(`/characters/${charId}/refsheet/views/${encodeURIComponent(view)}`, { method: 'DELETE' });
+            setStatus(`${view} view deleted`);
+            closeModal('entityInspectModal');
+            loadCharacters();
+        } catch (err) { setStatus('Error: ' + err.message); }
+    }
 
     /* ── the character sheet ───────────────────────────────────────────────
      *
@@ -786,7 +822,59 @@ const { state } = Object.fromEntries(['state'].map(n => [n, live(n)]));
         setStatus('Character sheet opened for printing');
     }
 
+    async function orbitRefsheet(characterId) {
+        return confirmPaidImage({
+            capability: 'video',
+            title: 'Turnaround from one orbit',
+            note: 'Generates a short clip that orbits the character, then cuts it into front, '
+                + 'three-quarter, side and back. The views come from one motion, so they cannot '
+                + 'disagree with each other the way three separate plates can.',
+            previewUrl: `/characters/${characterId}/refsheet/orbit/preview`,
+            editable: false,
+            notEditableWhy: 'The orbit prompt is composed from the character description and the '
+                + 'film\'s medium. Edit the character, then preview again.',
+            send: async () => {
+                setStatus('Generating orbit turnaround…', true);
+                try {
+                    const res = await api(`/characters/${characterId}/refsheet/orbit`,
+                        { method: 'POST', body: JSON.stringify({}) });
+                    const n = (res && res.views ? res.views.length : 0);
+                    setStatus(n ? `Turnaround cut: ${res.views.map(v => v.view).join(', ')}`
+                        : (res && res.error) || 'The orbit produced no frames.');
+                    if (typeof loadCharacters === 'function') loadCharacters();
+                } catch (err) { setStatus('Could not generate the orbit: ' + err.message); }
+            },
+        });
+    }
+
+    async function generateCharacterImage(charId) {
+        /*
+         * The prompt this plate is generated from, before it is bought. A plate
+         * conditions EVERY frame its subject appears in, so it is the single
+         * worst request to send unread — and it is editable, because the
+         * commonest fix is a word in the appearance rather than a re-roll.
+         */
+        return confirmPaidImage({
+            capability: 'image',
+            title: 'Generate character plate',
+            note: 'This picture becomes the reference for every frame this character appears in.',
+            previewUrl: `/characters/${charId}/refsheet/preview?views=front`,
+            send: async choices => {
+                setStatus('Generating character reference image...', true);
+                try {
+                    await api('/characters/' + charId + '/refsheet/generate', {
+                        method: 'POST', body: JSON.stringify({ views: ['front'], ...choices }),
+                    });
+                    setStatus('Character image generated');
+                    loadCharacters();
+                } catch (err) { setStatus('Error generating image: ' + err.message); }
+            },
+        });
+    }
+
 export {
+    showCharacterViews,
+    deleteCharacterView,
     CS_VIEWS,
     CS_CATEGORIES,
     CS_LEGACY,
@@ -815,4 +903,6 @@ export {
     csPalette,
     generateOfficialViews,
     exportCharacterSheet,
+    orbitRefsheet,
+    generateCharacterImage,
 };

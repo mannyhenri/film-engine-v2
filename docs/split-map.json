@@ -1613,7 +1613,8 @@
         "renderCharacterSheet",
         "toggleSheetMode",
         "sheetEditable",
-        "slotUpload"
+        "slotUpload",
+        "deleteCharacterView"
       ],
       "replaces": [
         "CS_VIEWS",
@@ -1643,7 +1644,11 @@
         "paletteFromImage",
         "csPalette",
         "generateOfficialViews",
-        "exportCharacterSheet"
+        "exportCharacterSheet",
+        "deleteCharacterView",
+        "generateCharacterImage",
+        "orbitRefsheet",
+        "showCharacterViews"
       ],
       "modals": [
         "characterSheetModal"
@@ -1717,7 +1722,8 @@
     "SubjectSheet": {
       "provides": [
         "openSubjectSheet",
-        "renderSubjectSheet"
+        "renderSubjectSheet",
+        "sweepLocationCompass"
       ],
       "replaces": [
         "openSubjectSheet",
@@ -1762,7 +1768,11 @@
         "generatePropPlateFor",
         "generateLocationVariant",
         "openSubjectGallery",
-        "exportSubjectSheet"
+        "exportSubjectSheet",
+        "captureUploadControl",
+        "LIGHTING_TECHNIQUE_IDS",
+        "SWEEP_NOTE",
+        "sweepLocationCompass"
       ],
       "modals": [
         "subjectSheetModal"
@@ -2073,11 +2083,11 @@
       "loadMusic",
       "loadPlayback"
     ],
-    "functions": 426,
-    "unreached": 43,
+    "functions": 420,
+    "unreached": 38,
     "sharedByChunks": 0,
     "declaredTwice": [],
     "bootVendors": [],
-    "bytes": 629201
+    "bytes": 620017
   }
 }

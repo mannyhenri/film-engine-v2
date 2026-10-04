@@ -19,6 +19,8 @@ export const ENGINE = Object.entries(E).filter(([, v]) => typeof v === 'function
 export default function SubjectSheet() {
     usePageLoader('openSubjectSheet', E.openSubjectSheet);
     usePageLoader('renderSubjectSheet', E.renderSubjectSheet);
+    // Named in an onclick of core's renderLocationViews (the inspector's views panel), which stays core.
+    usePageLoader('sweepLocationCompass', E.sweepLocationCompass);
     useLayoutEffect(() => {
         const prior = {};
         for (const [name, fn] of ENGINE) { prior[name] = window[name]; window[name] = fn; }

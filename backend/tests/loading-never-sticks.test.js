@@ -50,11 +50,12 @@ function loadingRenderers() {
         const nameMatch = /function\s+(\w+)/.exec(SPA.slice(at, at + 80));
         if (!nameMatch) continue;
 
-        // The function body: up to the next top-level function.
-        const next = SPA.indexOf('\n    function ', m.index);
-        const nextAsync = SPA.indexOf('\n    async function ', m.index);
-        const end = Math.min(next === -1 ? Infinity : next, nextAsync === -1 ? Infinity : nextAsync);
-        out.push({ name: nameMatch[1], body: SPA.slice(at, end === Infinity ? at + 6000 : end) });
+        // The function body: its own braces (v2: "up to the next top-level function" ran on into unrelated code once a
+        // neighbour moved into a React engine, so a body was judged by a catch that is not its own).
+        const open = SPA.indexOf('{', SPA.indexOf(')', at));
+        let depth = 0, end = -1;
+        for (let i = open; i < SPA.length; i++) { if (SPA[i] === '{') depth++; else if (SPA[i] === '}' && --depth === 0) { end = i + 1; break; } }
+        out.push({ name: nameMatch[1], body: SPA.slice(at, end === -1 ? at + 6000 : end) });
     }
     // One entry per function.
     return [...new Map(out.map(o => [o.name, o])).values()];

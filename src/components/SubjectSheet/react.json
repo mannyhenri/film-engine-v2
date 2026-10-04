@@ -2,7 +2,8 @@
   "about": "The location and prop sheet is React (src/components/SubjectSheet/SubjectSheet.jsx renders the modal frame; engine.js, moved verbatim by tools/extract-engine.js, draws the sheet). tools/split-map.js drops the code and modal below. Core still holds SS (the sheet state core reads) and ssSection (the music chunk uses it); the sheet mode and slotUpload are the character sheet's (src/components/CharacterSheet, which provides them). The engine reaches all of them through its bridge. PROVIDED: openSubjectSheet (the Locations and Props cards) and renderSubjectSheet (core's plate and view tools repaint the open sheet).",
   "provides": [
     "openSubjectSheet",
-    "renderSubjectSheet"
+    "renderSubjectSheet",
+    "sweepLocationCompass"
   ],
   "replaces": [
     "openSubjectSheet",
@@ -47,7 +48,11 @@
     "generatePropPlateFor",
     "generateLocationVariant",
     "openSubjectGallery",
-    "exportSubjectSheet"
+    "exportSubjectSheet",
+    "captureUploadControl",
+    "LIGHTING_TECHNIQUE_IDS",
+    "SWEEP_NOTE",
+    "sweepLocationCompass"
   ],
   "modals": [
     "subjectSheetModal"
