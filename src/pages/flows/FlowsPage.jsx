@@ -3,6 +3,7 @@ import { usePageLoader } from '../../lib/usePageLoader.js';
 import { legacy } from '../../lib/legacy.js';
 import * as E from './engine.js';
 import bindOnMount from './canvas-pointer.js';
+import Lists from './lists.jsx';
 
 /*
  * Flows, as React: the page's frame is rendered once and the engine (engine.js, the graph chunk moved verbatim by tools/extract-engine.js) draws the node palette, the canvas and the inspector into it by id. FLOW, the canvas state, stays in core: the router and the Production graph read it.
@@ -26,6 +27,7 @@ export default function FlowsPage() {
     useLayoutEffect(() => bindOnMount(), []);
     return (
         <>
+            <Lists />
         <div className="page" id="page-flows">
             {' '}
             <div className="flex-between mb-16">

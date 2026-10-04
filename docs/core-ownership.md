@@ -25,10 +25,11 @@ their shared declarations together into one engine; the rest stays core or becom
 
 | owners | declarations |
 |---|---|
-| page:edits + page:music | 2 |
 | component:SceneDrift + page:scenes + page:storyboard | 1 |
 | component:VideoPipeline + page:budget + page:playback + page:productiongraph | 1 |
 | page:dashboard + page:productiongraph + page:storyboard | 1 |
+| page:edits + page:music | 1 |
+| page:edits + page:music + page:musicws | 1 |
 | page:edits + page:settings | 1 |
 | page:exportpage + page:projects | 1 |
 | page:exportpage + page:videoshots | 1 |
@@ -54,7 +55,7 @@ their shared declarations together into one engine; the rest stays core or becom
 | `fmtBytes` | page:edits, page:settings |
 | `importBundle` | page:exportpage, page:projects |
 | `mediaUrl` | page:music, page:playback, page:previs, page:productiongraph |
-| `MW` | page:edits, page:music |
+| `MW` | page:edits, page:music, page:musicws |
 | `mwTime` | page:edits, page:music |
 | `openFrameViewer` | page:dashboard, page:productiongraph, page:storyboard |
 | `pb` | page:playback, page:previs |

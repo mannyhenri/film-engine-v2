@@ -1,0 +1,7 @@
+/*
+ * Search, sort and filter on a list an engine draws (src/lib/drawn-list.jsx): what the controls do to the items the
+ * engine drew, in place. v2's own; not part of the reference stylesheet.
+ */
+.list-hidden { display: none !important; }
+.list-dim { opacity: 0.18; }
+.list-find-match { outline: 2px solid var(--gl-accent, #818cf8); outline-offset: 2px; }

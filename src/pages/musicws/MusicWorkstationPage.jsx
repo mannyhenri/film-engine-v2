@@ -1,5 +1,6 @@
 import { usePageLoader } from '../../lib/usePageLoader.js';
 import * as E from '../music/engine.js';
+import Lists from './lists.jsx';
 
 /*
  * The Score workstation, as React: the frame the score session is drawn into. The lanes, ruler, piano roll, mixer, takes, AI actions and DAW panel are drawn by the music engine (src/pages/music/engine.js, owned by the Music & Sound page, which registers the engine on window).
@@ -12,6 +13,7 @@ export default function MusicWorkstationPage() {
 
     return (
         <>
+            <Lists />
         <div className="page" id="page-musicws">
             {' '}
             <div className="flex-between mb-16">

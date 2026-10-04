@@ -1,6 +1,7 @@
 import { usePageLoader } from '../../lib/usePageLoader.js';
 import { legacy } from '../../lib/legacy.js';
 import * as E from '../music/engine.js';
+import Lists from './lists.jsx';
 
 /*
  * Music Cues, as React: the cue list. Its loader is the music engine's (src/pages/music/engine.js, owned by the Music & Sound page, which registers the engine on window).
@@ -13,6 +14,7 @@ export default function MusicCuesPage() {
 
     return (
         <>
+            <Lists />
         <div className="page" id="page-musiccues">
             {' '}
             <div className="flex-between mb-16">

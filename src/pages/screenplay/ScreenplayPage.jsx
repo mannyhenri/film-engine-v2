@@ -2,6 +2,7 @@ import { useLayoutEffect } from 'react';
 import { usePageLoader } from '../../lib/usePageLoader.js';
 import { legacy } from '../../lib/legacy.js';
 import * as E from './engine.js';
+import Lists from './lists.jsx';
 
 /*
  * The Screenplay page, as React. It OWNS the screenplay engine (engine.js): the legacy screenplay chunk and the editor core only this page and its dialogs use, moved. It registers every engine function on window while mounted (the engine and the dialogs draw HTML with inline handlers that call them by name); what core, the dialogs (ScreenplayDialogs) and the Scenes page call by name is in react.json provides.
@@ -46,6 +47,7 @@ export default function ScreenplayPage() {
     }, []);
     return (
         <>
+            <Lists />
         <div className="page" id="page-screenplay">
             {' '}
             <div className="page-header">

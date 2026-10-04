@@ -1,5 +1,6 @@
 import { usePageLoader } from '../../lib/usePageLoader.js';
 import * as E from '../previs/engine.js';
+import Lists from './lists.jsx';
 
 /*
  * The 3D models page, as React: its frame. Its loader and everything it draws are the 3D stage engine's (src/pages/previs/engine.js, owned by the Previs page, which registers the engine on window). It declares three.js (react.json vendors), loaded before the loader.
@@ -12,6 +13,7 @@ export default function ThreeDPage() {
 
     return (
         <>
+            <Lists />
         <div className="page" id="page-threed">
             {' '}
             <div className="flex-between mb-16">

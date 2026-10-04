@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, fireEvent } from '@testing-library/react';
 import { installLegacy } from '../../test/setup.js';
-import { legacyMarkup, legacyHandlers, domWalk } from '../../test/reference.js';
+import { legacyMarkup, legacyHandlers, domWalk, frameChildren } from '../../test/reference.js';
 
 /*
  * Flows, as React: the frame is the reference markup element by element, each legacy handler calls the same
@@ -27,7 +27,7 @@ afterEach(() => vi.restoreAllMocks());
 
 const ID = 'flows';
 const pathOf = (el) => { const p = []; for (let n = el; n && n.id !== `page-${ID}`; n = n.parentElement) p.unshift([...n.parentElement.children].indexOf(n)); return p; };
-const at = (p) => p.reduce((n, i) => n.children[i], document.getElementById(`page-${ID}`));
+const at = (p) => p.reduce((n, i) => frameChildren(n)[i], document.getElementById(`page-${ID}`));
 
 describe('Flows: the frame and its handlers', () => {
     it('renders the reference markup element by element', () => {

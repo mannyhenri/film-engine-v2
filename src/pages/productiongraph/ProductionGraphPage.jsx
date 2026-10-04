@@ -1,6 +1,7 @@
 import { useLayoutEffect } from 'react';
 import { usePageLoader } from '../../lib/usePageLoader.js';
 import * as E from './engine.js';
+import Lists from './lists.jsx';
 
 /*
  * The Production graph, as React: the page's frame is rendered once, and the engine (engine.js, moved verbatim
@@ -35,6 +36,7 @@ export default function ProductionGraphPage() {
     }, []);
     return (
         <div className="page" id="page-productiongraph">
+            <Lists />
             <div className="pg-header">
                 <h2>Production</h2>
                 <span className="pg-meta" id="pgMeta"></span>

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, fireEvent } from '@testing-library/react';
 import { installLegacy } from '../../test/setup.js';
-import { legacyMarkup, legacyHandlers, domWalk } from '../../test/reference.js';
+import { legacyMarkup, legacyHandlers, domWalk, frameChildren } from '../../test/reference.js';
 
 /*
  * The three music pages share one engine (engine.js, owned by Music & Sound). Set-based over the three: each frame
@@ -28,7 +28,7 @@ beforeEach(() => {
 afterEach(() => vi.restoreAllMocks());
 
 const pathOf = (el, id) => { const p = []; for (let n = el; n && n.id !== `page-${id}`; n = n.parentElement) p.unshift([...n.parentElement.children].indexOf(n)); return p; };
-const at = (p, id) => p.reduce((n, i) => n.children[i], document.getElementById(`page-${id}`));
+const at = (p, id) => p.reduce((n, i) => frameChildren(n)[i], document.getElementById(`page-${id}`));
 
 describe.each(PAGES)('$id', ({ id, Page, json }) => {
     it('renders the reference markup element by element', () => {

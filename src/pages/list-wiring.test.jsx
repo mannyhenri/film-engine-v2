@@ -18,7 +18,8 @@ afterEach(() => { vi.restoreAllMocks(); });
 
 /*
  * Each wired surface's page declares how it is mounted, beside its list-surface.js: list-wiring.test.recipe.jsx exports
- * { rowKey, open() }, open() mounting the page on rows and returning { rows, keys(), marked() }. Rows give every
+ * { rowKey, open(id, variant), variants? }, open() mounting the page on rows and returning { rows, keys(), marked(), found() } (the last two for a find surface:
+ * which items are marked, and which row Enter went to). Rows give every
  * declared field a distinct value, so each control narrows.
  */
 const WIRING = Object.fromEntries(Object.entries(import.meta.glob('./*/list-wiring.test.recipe.jsx', { eager: true }))
@@ -40,16 +41,20 @@ describe('every wired list is held by its page', () => {
 const bar = (id) => document.querySelector(`[data-list-controls="${id}"]`);
 const set = async (el, value) => { await act(async () => { fireEvent.change(el, { target: { value } }); }); };
 
-describe.each(Object.values(SURFACES).filter(s => WIRING[s.page]).map(s => [s.id, s]))('%s', (id, declared) => {
+// A recipe may name variants: one list drawn in more than one place (Previs: the side panel, or the console's rail).
+const CASES = Object.values(SURFACES).filter(s => WIRING[s.page])
+    .flatMap(s => (WIRING[s.page].variants || [null]).map(v => [v ? `${s.id} (${v})` : s.id, s, v]));
+describe.each(CASES)('%s', (_, declared, variant) => {
+    const id = declared.id;
     const w = WIRING[declared.page];
     it('declares its surface, and its page draws the bar', async () => {
-        await w.open(id);
+        await w.open(id, variant);
         expect(bar(id), 'no bar on the page').toBeTruthy();
     });
 
     it('what it draws is what applyListControls says: every search field, every filter, every sort, no match', async () => {
         const surface = declared;
-        const { rows, keys, marked } = await w.open(id);
+        const { rows, keys, marked, found } = await w.open(id, variant);
         const b = bar(id);
         expect(b).toBeTruthy();
         const all = rows.map(w.rowKey);
@@ -58,8 +63,9 @@ describe.each(Object.values(SURFACES).filter(s => WIRING[s.page]).map(s => [s.id
         expect(keys(), 'the page draws the rows as read').toEqual(want({}));
 
         for (const f of surface.search) {
-            const q = String(rows[1][f] ?? '');
-            expect(q, `fixture row 1 has no ${f}`).not.toBe('');
+            // The first row that has this field (rows of a canvas differ by type: a shot has a code, a sound a title).
+            const q = String((rows.find(r => String(r[f] ?? '') !== '') || {})[f] ?? '');
+            expect(q, `no fixture row has a ${f}`).not.toBe('');
             await set(search, q);
             if (surface.mode === 'find') {
                 expect(keys(), `find on ${f} removed rows`).toEqual(all);
@@ -87,6 +93,16 @@ describe.each(Object.values(SURFACES).filter(s => WIRING[s.page]).map(s => [s.id
                 await set(sel, s.id);
                 expect(keys(), `sort ${s.id}`).toEqual(want({ sort: s.id }));
             }
+        }
+
+        // Find goes somewhere: Enter on a query hands its first match to the page, which goes to it (found()).
+        if (surface.mode === 'find') {
+            expect(typeof found, 'a find surface\'s recipe says where Enter went (found())').toBe('function');
+            const q = String(rows[1][surface.search[0]]);
+            await set(search, q);
+            await act(async () => { fireEvent.keyDown(search, { key: 'Enter' }); });
+            expect(found(), `Enter on "${q}"`).toBe(all[findMatches(surface, rows, q)[0]]);
+            await set(search, '');
         }
 
         await set(search, 'zzz-nothing');

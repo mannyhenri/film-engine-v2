@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
+import { domWalk } from '../../test/reference.js';
 import { render, act, fireEvent } from '@testing-library/react';
 import fs from 'fs';
 import path from 'path';
@@ -27,24 +28,8 @@ function openPage() {
     return { legacy, view };
 }
 
-/** What a person sees of an element: its tag, its attributes (inline handlers aside: React binds them), and its text. */
-function describe_(el) {
-    const attrs = [...el.attributes].filter(a => !/^on[a-z]+$/.test(a.name) && !['value', 'checked', 'selected', 'style'].includes(a.name))
-        .map(a => `${a.name}=${a.value}`).sort();
-    const style = el.getAttribute('style') ? `style=${el.style.cssText}` : '';
-    const field = /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName) ? `field=${el.type === 'checkbox' ? el.checked : el.value}` : '';
-    return [el.tagName.toLowerCase(), ...attrs, style, field].filter(Boolean).join(' ');
-}
-function walk(root) {
-    const out = [];
-    const visit = (n) => {
-        if (n.nodeType === 1) { out.push('<' + describe_(n)); n.childNodes.forEach(visit); out.push('>'); }
-        // Text collapsed as a browser renders it (HTML whitespace only: &nbsp; is content), and never dropped: a space between two inline buttons is a gap.
-        else if (n.nodeType === 3) { const t = n.textContent.replace(/[ \t\n\r\f]+/g, ' '); if (t) out.push('"' + t); }
-    };
-    visit(root);
-    return out;
-}
+// The shared walker (src/test/reference.js), with its one named exemption: a list's bar host (data-v2-added).
+const walk = domWalk;
 
 describe('Screenplay: the React page is the legacy markup', () => {
     it('the reference markup was read (this check runs over something)', () => {

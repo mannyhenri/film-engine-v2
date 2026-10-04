@@ -1,6 +1,7 @@
 import { useLayoutEffect } from 'react';
 import { usePageLoader } from '../../lib/usePageLoader.js';
 import * as E from './engine.js';
+import Lists from './lists.jsx';
 
 /*
  * Music & Sound, as React: the sound library and the cue sheet. This page OWNS the music engine (engine.js, the legacy music chunk moved), shared with Music Cues and the Score: it registers every engine function on window while mounted, because the engine draws HTML with inline handlers that call them by name, and core calls the DAW panel's and the score's functions by name (react.json provides).
@@ -39,6 +40,7 @@ export default function MusicPage() {
     }, []);
     return (
         <>
+            <Lists />
         <div className="page" id="page-music">
             {' '}
             <div className="flex-between mb-16">

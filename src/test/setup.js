@@ -109,7 +109,8 @@ export function installLegacy({ routes = {}, project = { id: 'p1' } } = {}) {
  * occupies a cell, so anything that is not a card must span the whole row or it pushes the cards across.
  * Checked after EVERY React test, on whatever it rendered, so each page is held to it with nothing to remember.
  */
-const GRID_ITEM = /(^|\s)(card|entity-card|empty-state|home-panel)(\s|$)/;
+// The backend rule's own test (backend/tests/grid-children.test.js ITEM): `card` as a word, so .snd-card is a card.
+const GRID_ITEM = /\bcard\b|entity-card|empty-state|home-panel/;
 export function gridChildProblems(root = document) {
     const bad = [];
     for (const grid of root.querySelectorAll('.entity-grid')) {

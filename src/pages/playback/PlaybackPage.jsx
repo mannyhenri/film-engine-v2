@@ -1,6 +1,7 @@
 import { useLayoutEffect } from 'react';
 import { usePageLoader } from '../../lib/usePageLoader.js';
 import * as P from './player.js';
+import Lists from './lists.jsx';
 
 /*
  * Playback, as React: the page is rendered once, and the engine (player.js, moved verbatim from the legacy
@@ -26,6 +27,7 @@ export default function PlaybackPage() {
     }, []);
     return (
         <div className="page" id="page-playback">
+            <Lists />
             <div className="page-header"><h2>Playback</h2></div>
             <div className="flex-between mb-16">
                 <div className="text-sm text-muted" id="playbackSummary">Loading timeline…</div>

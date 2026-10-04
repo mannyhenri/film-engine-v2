@@ -10,10 +10,13 @@
  *   node tools/make-react-page.js <spec.json>
  *   spec: { "id": "music", "component": "MusicPage", "markup": "(optional; else the reference's page)", "engine": "../music/engine.js",
  *           "loader": "loadMusic", "provides": [...], "ownsEngine": true, "about": "one paragraph",
- *           "mount": "(optional) ./canvas-pointer.js" }
+ *           "mount": "(optional) ./canvas-pointer.js", "lists": "(optional) ./lists.jsx" }
  *
  * mount: a module whose default export binds what the legacy code bound at load and is not a declaration (a
  * document listener), and returns the function that unbinds it. Called once on mount, its unbind on unmount.
+ *
+ * lists: a component that adds search, sort and filter to the lists the engine draws (src/lib/drawn-list.jsx), rendered
+ * beside the frame; it puts its bars into hosts of its own, so the frame stays the reference markup.
  *
  * Handlers resolve to the engine when it exports the name, else to core through legacy (LEGACY_GLOBALS). The page's
  * test must still compare the rendered DOM to the reference markup: this tool is trusted only that far.
@@ -53,6 +56,7 @@ const imports = [
     usesLegacy ? "import { legacy } from '../../lib/legacy.js';" : null,
     `import * as E from '${spec.engine}';`,
     spec.mount ? `import bindOnMount from '${spec.mount}';` : null,
+    spec.lists ? `import Lists from '${spec.lists}';` : null,
 ].filter(Boolean).join('\n');
 const register = spec.ownsEngine ? `
     useLayoutEffect(() => {
@@ -80,7 +84,7 @@ ${spec.ownsEngine ? "export const ENGINE = Object.entries(E).filter(([, v]) => t
 ${provides}${register}${mount}
     return (
         <>
-${jsx}        </>
+${spec.lists ? '            <Lists />\n' : ''}${jsx}        </>
     );
 }
 `;

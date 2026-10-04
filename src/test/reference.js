@@ -46,9 +46,17 @@ export function domWalk(root) {
         return [el.tagName.toLowerCase(), ...attrs, style, field].filter(Boolean).join(' ');
     };
     const visit = (n) => {
+        // What v2 adds on purpose beside legacy markup, named: the bar of a list an engine draws (src/lib/drawn-list.jsx).
+        if (n.nodeType === 1 && n.hasAttribute('data-v2-added')) {
+            if (n.getAttribute('data-v2-added') !== 'list-controls') throw new Error(`unknown data-v2-added="${n.getAttribute('data-v2-added')}"`);
+            return;
+        }
         if (n.nodeType === 1) { out.push('<' + describe(n)); n.childNodes.forEach(visit); out.push('>'); }
         else if (n.nodeType === 3) { const t = n.textContent.replace(/[ \t\n\r\f]+/g, ' '); if (t) out.push('"' + t); }
     };
     visit(root);
     return out;
 }
+
+/** An element's children as the reference markup has them: leaving out what v2 adds on purpose (data-v2-added). */
+export const frameChildren = (n) => [...n.children].filter(c => !c.hasAttribute('data-v2-added'));

@@ -2,6 +2,7 @@ import { useLayoutEffect } from 'react';
 import { usePageLoader } from '../../lib/usePageLoader.js';
 import * as E from './engine.js';
 import bindOnMount from './mount.js';
+import Lists from './lists.jsx';
 
 /*
  * Previs, as React: the frame the World Engine console is drawn into. This page OWNS the 3D stage engine (engine.js, the legacy stage3d chunk moved), shared with the 3D models page: it registers every engine function on window while mounted (the engine draws HTML with inline handlers that call them by name), and binds what the chunk bound at load (mount.js: the scrub and camera gestures, the walk and plan keys, the resize repaint, the iPhone scan callback). Both pages declare three.js (react.json vendors), which __fePages.ensure loads before the loader.
@@ -27,6 +28,7 @@ export default function PrevisPage() {
     useLayoutEffect(() => bindOnMount(), []);
     return (
         <>
+            <Lists />
         <div className="page" id="page-previs">
             {' '}
             {/*

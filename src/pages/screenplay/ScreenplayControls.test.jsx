@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { frameChildren } from '../../test/reference.js';
 import { render, fireEvent } from '@testing-library/react';
 import fs from 'fs';
 import path from 'path';
@@ -35,7 +36,7 @@ function pathOf(el) {
     for (let n = el; n && n.id !== 'page-screenplay'; n = n.parentElement) p.unshift([...n.parentElement.children].indexOf(n));
     return p;
 }
-const at = (p) => p.reduce((n, i) => n.children[i], document.getElementById('page-screenplay'));
+const at = (p) => p.reduce((n, i) => frameChildren(n)[i], document.getElementById('page-screenplay'));
 const label = (b) => `${b.event} ${b.handler}(${b.args}) on <${b.el.tagName.toLowerCase()}${b.el.id ? '#' + b.el.id : ''}> ${b.path.join('.')}`;
 let legacy;
 beforeEach(() => {
