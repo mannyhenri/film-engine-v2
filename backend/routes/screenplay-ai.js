@@ -8,6 +8,7 @@
 const { db } = require('../db/database');
 const { callProjectLLM, streamProjectLLM } = require('../lib/llm-client');
 const { fallbackNotice } = require('../lib/agent-presence');
+const writingStyle = require('../lib/writing-style');
 
 /**
  * What replaces this over MCP.
@@ -271,7 +272,8 @@ async function processScreenplayAI(req, res, projectId) {
         }
     }
 
-    const fullQuestion = systemPrompt + '\n\n---\n\nUser request:\n' + message;
+    const style = writingStyle.store().context(projectId);
+    const fullQuestion = systemPrompt + style.text + '\n\n---\n\nUser request:\n' + message;
 
     try {
         const aiResult = await callProjectLLM(project, {
@@ -317,6 +319,8 @@ async function processScreenplayAI(req, res, projectId) {
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({
             content: responseText,
+            writing_style: style.provenance,
+            draft_only: true,
             mode,
             project_id: projectId,
             is_valid_fountain: isValidFountain,
@@ -382,7 +386,8 @@ async function processScreenplayAIStream(req, res, projectId) {
     }
 
     // Embed system prompt in question for Gridlight
-    const fullQuestion = systemPrompt + '\n\n---\n\nUser request:\n' + message;
+    const style = writingStyle.store().context(projectId);
+    const fullQuestion = systemPrompt + style.text + '\n\n---\n\nUser request:\n' + message;
 
     // SSE headers
     res.writeHead(200, {
@@ -427,7 +432,7 @@ async function processScreenplayAIStream(req, res, projectId) {
         if (clientGone) return;
         if (!result.ok && !result.aborted) sendEvent('error', { message: result.error || 'AI service returned error' });
 
-        sendEvent('done', { message: 'Complete', content: accumulated });
+        sendEvent('done', { message: 'Complete', content: accumulated, writing_style: style.provenance, draft_only: true });
         res.end();
 
     } catch (err) {

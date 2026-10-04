@@ -78,7 +78,7 @@
     "backend/tests/SKIPPED-SUBTESTS.json": "v2 only: sub-tests skipped by exact name, each with its reason",
     "backend/routes/shots.js": "getShotlist answers every shot unless limit/page is given: the default of 50 cut a film past 50 shots out of every page that lists shots (Shot Board, scene dialogue, subtitles picker, export, previs, score session)",
     "backend/tests/shotlist-all.test.js": "v2 only: holds the shot list to answering every shot unless paged",
-    "backend/server.js": "routes shot-audit and shots-resync to handleProductionReports: the handler served them but server.js never routed them, so they answered 405 (Resync, the MCP shots_resync tool, Sync screenplay); held by backend/tests/report-routes-reachable.test.js",
+    "backend/server.js": "routes shot-audit and shots-resync to handleProductionReports: the handler served them but server.js never routed them, so they answered 405 (Resync, the MCP shots_resync tool, Sync screenplay); held by backend/tests/report-routes-reachable.test.js; Writing-style MVP: project-scoped original evidence, reviewed profiles and draft context.",
     "backend/tests/report-routes-reachable.test.js": "v2 only: every report production-reports.js serves is routed to it by server.js",
     "backend/tests/budget-backend-halves.test.js": "v2 only: the backend halves of two sub-tests whose last line reads the legacy Budget page (production-estimate's route and tool, requested-size's per-model maximum), kept verbatim",
     "backend/tests/page-handlers.test.js": "ownScript reads a React page's own code from its <template data-react-source> (tools/assemble-page.js), taking the templates out before the script scan (an engine's regex can hold `<script`): engines define the functions the page's controls and HTML call",
@@ -90,7 +90,16 @@
     "backend/tests/previs-board-view.test.js": "the sandbox that runs the console's frame functions gives them legacy.API_BASE: the 3D stage engine reads core's API_BASE through the bridge",
     "backend/tests/console-regions.test.js": "the console's source is read up to the end of its <template> (the 3D stage engine's source block), not to the end of the page, where other components' text follows",
     "backend/tests/loading-never-sticks.test.js": "a loading renderer's body is bounded by its own braces, not by the next top-level function: as core's declarations move into React engines, \"the next function\" can be far away and the slice ran into unrelated code",
-    "backend/tests/screenplay-focus.test.js": "TYPEWRITER's declaration is read by its own braces rather than up to twBurst, which moved into the Screenplay engine (src/pages/screenplay/engine.js), whose source block precedes core in the assembled page"
+    "backend/tests/screenplay-focus.test.js": "TYPEWRITER's declaration is read by its own braces rather than up to twBurst, which moved into the Screenplay engine (src/pages/screenplay/engine.js), whose source block precedes core in the assembled page",
+    "backend/routes/screenplay-ai.js": "Writing-style MVP: project-scoped original evidence, reviewed profiles and draft context.",
+    "backend/lib/mcp-tools.js": "Writing-style MVP: project-scoped original evidence, reviewed profiles and draft context. callRoute marks its requests actor: agent, so service-layer permissions (writing-style approval) hold for MCP.",
+    "backend/routes/writing-style.js": "Writing-style MVP: project-scoped original evidence, reviewed profiles and draft context.",
+    "backend/lib/writing-style.js": "Writing-style MVP: project-scoped original evidence, reviewed profiles and draft context.",
+    "backend/db/migrations/130_writing_style.sql": "Writing-style MVP: project-scoped original evidence, reviewed profiles and draft context.",
+    "backend/tests/writing-style.test.js": "Writing-style MVP: project-scoped original evidence, reviewed profiles and draft context.",
+    "backend/lib/writing-style-portable.js": "Validated manual interchange with private writing plugin schema 1.0.0; imported evidence remains quarantined unless the human confirms eligible originals.",
+    "backend/db/migrations/131_writing_contracts.sql": "GRD-4660: writing profiles take the shared lifecycle states (draft, ready_for_review, approved, stale, blocked, failed) and writes take stored idempotency keys",
+    "backend/tests/writing-style-contracts.test.js": "v2 only (GRD-4660): set-based over the writing-style registries: version_conflict, STALE_APPROVAL fingerprints, stale dependents, idempotent replay, agent permissions, hostile import, log redaction"
   },
   "pinToCore": {
     "twBurst": "stays next to const TYPEWRITER (core): screenplay-focus reads the typewriter's sound rules as the source text from TYPEWRITER to twBurst, which must be one script"

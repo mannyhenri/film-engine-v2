@@ -97,6 +97,7 @@ const { handleInbetweens } = require('./routes/inbetweens');
 const { handleMusicSessions } = require('./routes/music-sessions');
 const { handleAnnotations } = require('./routes/annotations');
 const { handleScreenplayAI } = require('./routes/screenplay-ai');
+const { handleWritingStyle } = require('./routes/writing-style');
 const { handleCharacters } = require('./routes/characters');
 const { handleSubtitles } = require('./routes/subtitles');
 const { handleAudioDeliverables } = require('./routes/audio-deliverables');
@@ -648,6 +649,8 @@ const server = http.createServer(async (req, res) => {
         if (parts[1] === 'projects' && parts[2] && (parts[3] === 'breakdown' || parts[3] === 'entities')) {
             return await handleBreakdown(req, res, parts);
         }
+
+        if (parts[1] === 'projects' && parts[2] && parts[3] === 'writing-style') return await handleWritingStyle(req, res, parts);
 
         // Route: /film/projects/:id/screenplay-ai (FILM-112)
         if (parts[1] === 'projects' && parts[2] && parts[3] === 'screenplay-ai') {

@@ -1,3 +1,4 @@
+import WritingStyleWorkbench from './components/WritingStyle/WritingStyleWorkbench.jsx';
 import Sidebar from './components/Sidebar/Sidebar.jsx';
 import Main from './components/Main/Main.jsx';
 import StatusBar from './components/StatusBar/StatusBar.jsx';
@@ -17,6 +18,7 @@ export default function App() {
             <ModalHost />
             {/* The top bar's Sync screenplay button (portaled into the shell's rail once it exists). */}
             <PageBoundary name="SyncScreenplay"><SyncScreenplay /></PageBoundary>
+            <WritingStyleWorkbench />
             {/* Components that took code over from core (src/components/<Name>/react.json): mounted once, here, so
                 what each provides is on window before any legacy script runs. */}
             {REACT_COMPONENTS.map(({ name, Component }) => <PageBoundary key={name} name={name}><Component /></PageBoundary>)}
