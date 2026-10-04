@@ -13,7 +13,8 @@
     "saveShotCard",
     "setGuideTab",
     "shotCardStyleValue",
-    "toggleOnboardingSide"
+    "toggleOnboardingSide",
+    "previousOnboardingStep"
   ],
   "modals": [
     "frameViewerModal",

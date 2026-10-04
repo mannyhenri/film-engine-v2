@@ -62,7 +62,7 @@ export function installLegacy({ routes = {}, project = { id: 'p1' } } = {}) {
         openGallery: vi.fn(), loadProps: vi.fn(),
         characterViewsHtml: vi.fn(() => ''), shootControl: vi.fn(() => ''),
         folderPickerApply: vi.fn(), frameViewerPaint: vi.fn(), renderGlossary: vi.fn(), renderProductionGuide: vi.fn(),
-        CONFIRM_GEN: {}, CONFIRM_GEN_EDITED: false, CONFIRM_GEN_FINAL_PROMPT: '', SHOT_CARD: {}, guideTab: 'overview', loadStoryboard: vi.fn(),
+        CONFIRM_GEN: {}, CONFIRM_GEN_EDITED: false, CONFIRM_GEN_FINAL_PROMPT: '', SHOT_CARD: {}, guideTab: 'overview', loadStoryboard: vi.fn(), renderProjectOnboarding: vi.fn(), onboardingIndex: 0,
         loadProjects: vi.fn(async () => {}), previewProjectFolder: vi.fn(), loadScenes: vi.fn(async () => {}),
         csImg: (url) => `http://api.test${url}`, renderSubjectSheet: vi.fn(),
         PRODUCTION_GRAPH_ON: false, flowBackToGraph: vi.fn(),

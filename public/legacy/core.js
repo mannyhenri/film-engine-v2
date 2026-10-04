@@ -858,11 +858,6 @@
         renderProjectOnboarding();
     }
 
-    function previousOnboardingStep() {
-        onboardingIndex = Math.max(0, onboardingIndex - 1);
-        renderProjectOnboarding();
-    }
-
     // ── Collapsible sidebar groups ───────────────────────────────────
     // The project nav runs to 26 entries across Production / Elements /
     // Media / Workflow / Delivery. Clicking a group heading hides its items

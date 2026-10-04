@@ -6,13 +6,13 @@ by name and errs toward more reach, which only keeps more in core.
 
 | category | declarations |
 |---|---|
-| (a) one owner, and every core caller moves with it: can move into that owner's engine | 210 |
+| (a) one owner, and every core caller moves with it: can move into that owner's engine | 165 |
 | (a2) as (a), but a caller that stays NAMES it (onclick, window[name]): moves if the owner provides it | 0 |
 | (e) one owner, but a caller that stays in core calls it in code: held in core until that caller moves | 3 |
-| (b) two or more owners: stays core, or a shared module | 82 |
+| (b) two or more owners: stays core, or a shared module | 79 |
 | (c) reached by nobody this can see: dead, or reached only by a name built at run time | 29 |
 | (d) load-time core (startup statements, shell.js, production-graph.js and what they reach) | 214 |
-| total | 538 |
+| total | 490 |
 
 Measured as one owner (`GROUPS` in the tool): component:ScreenplayDialogs as page:screenplay (the Screenplay's seven dialogs: their handlers call the screenplay engine, and the component imports from it).
 
@@ -22,17 +22,9 @@ Measured as one owner (`GROUPS` in the tool): component:ScreenplayDialogs as pag
 
 `acceptAutoDetectSuggestion`, `afterCardEdit`, `analysisBadges`, `analysisByDimension`, `analysisMapHtml`, `analysisNoteHtml`, `analysisWhen`, `analyzeScreenplayLocal`, `appAuthor`, `applyAutocompleteItemToBlock`, `AUTO_DETECT_DELAY`, `AUTO_SAVE_DELAY`, `autocompleteItems`, `autocompleteSelectedIndex`, `autocompleteType`, `autocompleteVisible`, `autoDetectElementType`, `autoDetectTimer`, `autoSaveTimer`, `blockHoldsCaret`, `blockText`, `calculatePageEstimate`, `captureEditorState`, `checkScreenplaySuggestions`, `clearAutoDetectSuggestion`, `clearTitlePage`, `clearVersionSelection`, `compareSelectedVersions`, `computeDiff`, `createBlock`, `createFromAutocomplete`, `currentFountainContent`, `currentRevision`, `currentRevisionPagesChanged`, `currentSceneIndex`, `currentScriptVersion`, `currentTitlePage`, `currentViewMode`, `deleteAnalysis`, `deleteIndexCard`, `draggedCardIndex`, `draggedNavSceneIndex`, `editorDirty`, `editorToFountain`, `extractFormattedText`, `extractLocationFromSceneHeading`, `filterCharacters`, `filterLocations`, `getCurrentBlock`, `getCursorPath`, `getMarkAsRevision`, `hideAutocomplete`, `indexCardsData`, `initUndoStack`, `isEditorFurniture`, `isKnownCharacter`, `jumpToSceneFromCard`, `lastUndoTimestamp`, `loadAnalysis`, `loadLatestFountain`, `loadRevisionInfo`, `loadScriptTiming`, `loadScriptVersion`, `loadScriptVersions`, `loadTreatment`, `MAX_UNDO_ENTRIES`, `mmss`, `nextEditorBlock`, `normalizeEditor`, `onCardDragLeave`, `onCardDragOver`, `onCardDragStart`, `onCardDrop`, `onEditorInput`, `onSceneNavDragLeave`, `onSceneNavDragOver`, `onSceneNavDragStart`, `onSceneNavDrop`, `openIndexCard`, `openTitlePageModal`, `parseFountainToHTML`, `parseSceneBlocks`, `parseSceneOutline`, `parseTitlePageFromEditor`, `parseTitlePageFromFountain`, `performAutoSave`, `positionAutocomplete`, `pushUndoState`, `redoStack`, `renderFountainToEditor`, `renderIndexCards`, `renderScriptGutter`, `reorderScenes`, `restoreVersion`, `saveIndexCard`, `saveScreenplay`, `saveStatus`, `saveTitlePage`, `SCENE_NAV_UPDATE_DELAY`, `sceneActionText`, `sceneHeadingBlocks`, `sceneNavTimer`, `sceneNumbersLocked`, `screenplaySuggestions`, `SCRIPT_TIMING`, `scriptVersionsData`, `scrollToScene`, `selectAutocompleteItem`, `selectedVersions`, `serializeEditorToFountain`, `serializeTitlePageToFountain`, `setBlockElementType`, `setBlockText`, `setCursorToBlock`, `setCursorToEnd`, `setViewMode`, `shotCodesByScene`, `showAutocomplete`, `showAutoDetectSuggestion`, `showVersionDiff`, `SP_FURNITURE`, `SP_KEEP_EMPTY`, `SP_VIEWS`, `spBlock`, `startEditSceneNumber`, `stripEmphasisMarkers`, `sweepEmptyBlocks`, `textOf`, `timingRowsForHeadings`, `titlePageInnerHtml`, `toggleLockSceneNumbers`, `toggleVersionSelect`, `triggerAutocomplete`, `triggerAutoSave`, `triggerSceneNavUpdate`, `triggerUndoCapture`, `twBurst`, `UNDO_DEBOUNCE_DELAY`, `undoStack`, `undoTimer`, `updateCurrentSceneHighlight`, `updateEditorStats`, `updateEditorTitlePage`, `updateRevisionIndicator`, `updateRevisionPageMarkers`, `updateSaveStatus`, `updateSceneGutter`, `updateSceneNavigator`, `updateSceneNumberGutters`, `updateSceneNumbers`, `updateScriptStats`, `updateScriptStatsSummary`
 
-### page:storyboard (44)
-
-`acceptAllStale`, `acceptScreenplayDrift`, `ANCHOR`, `anchorButton`, `anchorShotId`, `applyResync`, `BACKGROUND_PICKER_VIEWS`, `clearAnchor`, `confirmRecompose`, `dialogueTag`, `frameVersionLabel`, `frameVersionTitle`, `IMPACT`, `impactBanner`, `impactNotice`, `impactTag`, `importImageAsPng`, `importStoryboardImage`, `insertShotAfter`, `loadBoardBanners`, `loadBoardLock`, `loadImpact`, `noticeStrip`, `openFrameVersions`, `pickBackgroundView`, `playFromShot`, `previewResync`, `previsOpenFromBoard`, `recomposeFrame`, `renderAnchorChip`, `renderAnnotationFeedbackToggle`, `renderBackgroundChoices`, `restoreFrameVersion`, `runRecompose`, `runShotAudit`, `screenplayDriftNotice`, `screenplayDriftTag`, `sendFrameTo`, `setShotAspect`, `storyboardDrawAnnotations`, `storyboardFacetTags`, `storyboardImportButton`, `storyboardPrevisTag`, `toggleWhy`
-
 ### page:videoshots (10)
 
 `askBackgroundInstruction`, `BG_INSTRUCTION`, `bgInstructionDone`, `generateVideoFor`, `lipsyncShot`, `pickCoverageRun`, `postShot`, `replaceBackground`, `setClipCoverage`, `stitchShot`
-
-### component:CoreDialogs (1)
-
-`previousOnboardingStep`
 
 ### page:edits (1)
 
@@ -58,7 +50,6 @@ their shared declarations together into one engine; the rest stays core or becom
 | page:productiongraph + page:storyboard | 7 |
 | component:CoreDialogs + page:settings | 5 |
 | component:CharacterSheet + component:SubjectSheet + page:edits + page:exportpage + page:marketing + page:moodboard + page:music + page:previs + page:productiongraph + page:projects + page:screenplay + page:storyboard + page:stylebook + page:videoshots | 3 |
-| component:CoreDialogs + page:storyboard | 3 |
 | page:playback + page:storyboard | 3 |
 | component:CharacterSheet + component:SubjectSheet + page:characters + page:consistency + page:locations + page:moodboard + page:props + page:storyboard | 2 |
 | component:CoreDialogs + page:music | 2 |
@@ -96,8 +87,6 @@ their shared declarations together into one engine; the rest stays core or becom
 | `AI_PATH` | page:previs, page:screenplay |
 | `APP_AUTHOR` | page:screenplay, page:settings |
 | `approveStrip` | page:productiongraph, page:videoshots |
-| `BACKGROUND_PICKER` | component:CoreDialogs, page:storyboard |
-| `backgroundPickerResolve` | component:CoreDialogs, page:storyboard |
 | `BATCH_CHOICES` | page:productiongraph, page:storyboard |
 | `BOARD_LOCK` | page:productiongraph, page:storyboard |
 | `captureDestination` | component:CharacterSheet, component:SubjectSheet, page:marketing, page:music, page:productiongraph, page:videoshots |
@@ -105,7 +94,6 @@ their shared declarations together into one engine; the rest stays core or becom
 | `captureMedia` | component:CharacterSheet, component:SubjectSheet, page:marketing, page:music, page:productiongraph, page:videoshots |
 | `checkUploadSize` | component:CharacterSheet, component:SubjectSheet, page:edits, page:exportpage, page:marketing, page:moodboard, page:music, page:previs, page:productiongraph, page:projects, page:screenplay, page:storyboard, page:stylebook, page:videoshots |
 | `clearModal` | component:CoreDialogs, page:music |
-| `closeFrameVersions` | component:CoreDialogs, page:storyboard |
 | `confirmProjectDelete` | page:projects, page:settings |
 | `confirmUpscale` | page:productiongraph, page:videoshots |
 | `correctStation` | page:productiongraph, page:videoshots |

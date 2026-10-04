@@ -23,6 +23,7 @@ const {
     regenerateStoryboard,
     renderGlossary,
     renderProductionGuide,
+    renderProjectOnboarding,
     setStatus,
 } = Object.fromEntries([
     'api',
@@ -37,6 +38,7 @@ const {
     'regenerateStoryboard',
     'renderGlossary',
     'renderProductionGuide',
+    'renderProjectOnboarding',
     'setStatus',
 ].map(n => [n, (...a) => legacy[n](...a)]));
 const live = (name) => new Proxy({}, {
@@ -49,12 +51,17 @@ const live = (name) => new Proxy({}, {
 });
 // Core's objects, as live proxies, in one destructuring statement for the same reason.
 const { state } = Object.fromEntries(['state'].map(n => [n, live(n)]));
-// Core's values, read live as legacy.X and assigned with setLegacy: CONFIRM_GEN, CONFIRM_GEN_EDITED, CONFIRM_GEN_FINAL_PROMPT, SHOT_CARD, guideTab.
+// Core's values, read live as legacy.X and assigned with setLegacy: CONFIRM_GEN, CONFIRM_GEN_EDITED, CONFIRM_GEN_FINAL_PROMPT, SHOT_CARD, guideTab, onboardingIndex.
 
     function setGuideTab(tab) {
         setLegacy('guideTab', tab);
         document.querySelectorAll('.guide-tab').forEach(btn => btn.classList.toggle('active', btn.dataset.guideTab === tab));
         renderProductionGuide();
+    }
+
+    function previousOnboardingStep() {
+        setLegacy('onboardingIndex', Math.max(0, legacy.onboardingIndex - 1));
+        renderProjectOnboarding();
     }
 
     /**
@@ -346,6 +353,7 @@ const { state } = Object.fromEntries(['state'].map(n => [n, live(n)]));
 
 export {
     setGuideTab,
+    previousOnboardingStep,
     toggleOnboardingSide,
     onProjectTypeChange,
     loadNewProjectBrands,

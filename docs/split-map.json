@@ -1722,7 +1722,8 @@
         "saveShotCard",
         "setGuideTab",
         "shotCardStyleValue",
-        "toggleOnboardingSide"
+        "toggleOnboardingSide",
+        "previousOnboardingStep"
       ],
       "modals": [
         "frameViewerModal",
@@ -2150,11 +2151,11 @@
       "loadMusic",
       "loadPlayback"
     ],
-    "functions": 360,
-    "unreached": 26,
+    "functions": 359,
+    "unreached": 25,
     "sharedByChunks": 0,
     "declaredTwice": [],
     "bootVendors": [],
-    "bytes": 540066
+    "bytes": 539924
   }
 }
