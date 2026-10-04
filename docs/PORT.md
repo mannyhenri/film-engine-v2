@@ -97,10 +97,19 @@ Both repos at the commits under check: film-engine `fb8c770` (its HEAD; the work
 
 **Unresolved blockers:** none. Open scope (not blockers): shared clusters still in core, per-page CSS, packaging, idiomatic React.
 
+- [x] React conversion (2026-10-03, branch `react-components`, two agents; see docs/REACT.md for the recipe and the claim table).
+  - **Every page is React** (37/37): each page's frame is React (hand-written, or generated from the reference markup by `tools/make-react-page.js` and held to it element by element), and the big pages' behaviour is their legacy code moved verbatim into an engine module (`tools/extract-engine.js`; `engine-verbatim.test.js` holds every declaration to the reference). **0 chunks** are left.
+  - **Every dialog is React-owned**: page modals, the subject sheets, casting and gallery as components, the Screenplay's 7 and the last 16 as verbatim-markup components; `ModalHost` renders nothing (`src/components/dialogs.test.jsx`).
+  - Fixed on the way, each with a test that fails without it: switching project showed the previous project and emptied the list (a render error unmounting the app; pages now remount per open project, and each page sits in an error boundary); a tall modal's × could not be clicked on macOS (the bar's drag region); two cards downloaded full-size plates.
+  - Still legacy: `public/legacy/core.js` (637 KB, 426 top-level functions: navigateTo, api, the paid confirmation, the shared editor core and other cross-page helpers React reaches through `LEGACY_GLOBALS`), `shell.js` (15 KB) and `production-graph.js` (6 KB).
+  - Verify (on 0cac547 / 9047e15): `npm test` 103 tool + 500 React; `npm run smoke` 51/51, 0 console errors; `npm run test:backend` 438/438 files, 4,730 sub-tests, 125 skipped by name (each with the React test that holds it).
+
 ## Where to pick up next
-0. **Branch status:** all of this is on `react-electron-port` (pushed to origin). It is NOT merged into v2 `main`, which is still the initial commit `fda52df`; merging (or opening a PR) is the owner's call.
+**Now: the core.** Measure, per core declaration, which React owners reach it (through the bridge, by inline handlers in engine and markup HTML, transitively through core). Then: one owner = move it into that owner's engine; two or more = stays core or becomes a shared module; none = name it (dead, or reached only by strings), never delete silently; load-time core (INIT, listeners, the router) is planned separately. The film-engine agent writes the measurement; the two agents then split the moves by owner.
+
+0. **Branch status:** the split is on `react-electron-port`; the React conversion is on `react-components` (pushed to origin, built on it). Neither is merged into v2 `main`; merging (or opening a PR) is the owner's call. The owner's own uncommitted work (a "Cut & Flow" rebrand) is in the main checkout `../film-engine-v2`; the agents work in `../film-engine-v2-b` and `-c` and have not touched it.
    **Staying in step with film-engine:** move the pinned commit and the backend together, never one alone: bump `sourceCommit` in `tools/port-plan.json`, refresh `reference/<short>/src/index.html` from `git -C ../film-engine show <sha>:src/index.html`, re-copy `backend/` at the same sha (keeping `backendLocalChanges` and the two test lists), then `npm run split`, `npm test` (backend-sync catches any drift), `npm run smoke`, `npm run parity`, `npm run test:backend`.
-1. Shared clusters still in core: ~294 KB used by dashboard/screenplay/moodboard/subjects/shotboard/storyboard/marketing and ~172 KB by dashboard/shotboard/storyboard (`SPLIT_DEBUG=1 node tools/split-map.js`). A "shared chunk" loaded as a dependency of those chunks would take them off boot.
+1. (Superseded by the core plan above: there are no chunks left to share a cluster with.)
 2. Per-page CSS (still the two source sheets, 180 KB built).
 3. Packaging: electron-builder, `asarUnpack` for ffmpeg-static, a bundled node for the backend (or utilityProcess + electron-rebuild), and Claude Desktop's MCP config pointing at `backend/mcp-server.js` of whichever copy is live.
 4. Idiomatic React for page internals, page by page; the split map and parity run are the safety net.
