@@ -51,7 +51,7 @@ export const LEGACY_GLOBALS = [
     'csImg', 'renderSubjectSheet', 'shootControl', 'PLATE_CAMERA_AFTER',
     // The core dialogs' engine (src/components/CoreDialogs/engine.js) reaches these through its bridge:
     'folderPickerApply', 'frameViewerPaint', 'renderGlossary', 'renderProductionGuide', 'CONFIRM_GEN', 'CONFIRM_GEN_EDITED',
-    'CONFIRM_GEN_FINAL_PROMPT', 'SHOT_CARD', 'guideTab', 'loadStoryboard', 'renderProjectOnboarding', 'onboardingIndex',
+    'CONFIRM_GEN_FINAL_PROMPT', 'SHOT_CARD', 'guideTab', 'loadStoryboard', 'closeProductionGuide', 'getNavGuideEntries', 'openProductionGuide', 'renderGuideList', 'renderGuideNextLinks',
     'characterViewsHtml',     // stays core: core's renderCharacterViewsInto calls it (dead in the app, kept for its tests: split-lib KEPT_FOR_TESTS)
     'PRODUCTION_GRAPH_ON',    // whether production is one graph (a production-graph.js let): Flows reads it live
     'flowBackToGraph',        // Flows' way back to the graph (the Production graph page provides it)

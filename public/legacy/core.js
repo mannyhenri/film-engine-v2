@@ -514,24 +514,6 @@
       }
     };
 
-    // ── Tour ordering ────────────────────────────────────────────────────────────
-    // The first-open tour should NOT walk all 24 in nav order — that is a slog.
-    // Walk the spine of an actual production, then point at the rest from the Guide.
-    const TOUR_SEQUENCE = [
-      'settings',     // spec first — expensive to change later
-      'screenplay',   // write it
-      'scenes',       // parse it
-      'characters',   // cast it
-      'consistency',  // lock it  ← the AI-native step people skip and regret
-      'shotboard',    // plan it
-      'storyboard',   // see it
-      'videoshots',   // shoot it
-      'music',        // score it
-      'pipeline',     // automate it
-      'budget',       // watch the spend
-      'exportpage'    // hand off
-    ];
-
     // Completeness invariant — every nav page must be documented.
     function auditSectionGuide() {
       const navPages = [...document.querySelectorAll('#sidebarProjectNav .nav-item[data-page]')]
@@ -606,11 +588,8 @@
             summary: 'Render ledger provenance, identity locking, locked/creative reproducibility modes, compute budgeting, and NLE handoff are stronger than many classic planning tools.',
         },
     ];
-
-    const ONBOARDING_PAGES = TOUR_SEQUENCE;
     let guideTab = 'sections';
     let guideFocusPage = null;
-    let onboardingIndex = 0;
 
     function getNavGuideEntries() {
         return GUIDE_PAGE_ORDER.map(page => {
@@ -772,90 +751,6 @@
             `).join('');
         }).join('');
         body.innerHTML = `<div class="guide-layout"><div class="guide-index">${index}</div><div class="guide-content">${cards || '<div class="glossary-empty">No sections match this search.</div>'}</div></div>`;
-    }
-
-    function onboardingStorageKey(projectId) {
-        return 'film_project_guide_seen_' + projectId;
-    }
-
-    function getOnboardingSteps() {
-        const entries = getNavGuideEntries();
-        return ONBOARDING_PAGES.map(page => entries.find(entry => entry.page === page)).filter(Boolean);
-    }
-
-    function getOnboardingState() {
-        if (!state.currentProject) return { dismissed: true, index: 0 };
-        try {
-            const stored = JSON.parse(feStore.get(onboardingStorageKey(state.currentProject.id)) || '{}');
-            return {
-                dismissed: stored.dismissed === true,
-                index: Number.isInteger(stored.index) ? Math.max(0, stored.index) : 0,
-            };
-        } catch (_) {
-            return { dismissed: feStore.get(onboardingStorageKey(state.currentProject.id)) === '1', index: 0 };
-        }
-    }
-
-    function setOnboardingState(update) {
-        if (!state.currentProject) return;
-        const current = getOnboardingState();
-        feStore.set(onboardingStorageKey(state.currentProject.id), JSON.stringify({ ...current, ...update }));
-    }
-
-    function startProjectOnboarding(options = {}) {
-        if (!state.currentProject) return;
-        const steps = getOnboardingSteps();
-        if (!steps.length) return;
-        const stored = getOnboardingState();
-        onboardingIndex = options.restart || stored.dismissed ? 0 : Math.min(stored.index || 0, steps.length - 1);
-        setOnboardingState({ dismissed: false, index: onboardingIndex });
-        closeProductionGuide();
-        applyOnboardingSide();
-        showModal('projectOnboardingModal');
-        renderProjectOnboarding();
-    }
-
-    function maybeShowProjectOnboarding() {
-        const stored = getOnboardingState();
-        if (stored.dismissed) return;
-        startProjectOnboarding();
-    }
-
-    function renderProjectOnboarding() {
-        const steps = getOnboardingSteps();
-        onboardingIndex = Math.min(onboardingIndex, Math.max(0, steps.length - 1));
-        const step = steps[onboardingIndex] || steps[0];
-        const dots = document.getElementById('onboardingStepper');
-        const content = document.getElementById('onboardingContent');
-        const next = document.getElementById('onboardingNextBtn');
-        if (!dots || !content || !next || !step) return;
-        if (step.page && state.currentPage !== step.page) navigateTo(step.page);
-        setOnboardingState({ dismissed: false, index: onboardingIndex });
-        dots.innerHTML = steps.map((_, i) => `<span class="onboarding-dot ${i === onboardingIndex ? 'active' : ''}"></span>`).join('');
-        content.innerHTML = `
-            <div class="guide-section-card" style="margin-bottom:0;">
-                <div class="section-label">Step ${onboardingIndex + 1} of ${steps.length}</div>
-                <h4>${esc(step.title)}</h4>
-                <p class="text-sm text-muted mb-8">${esc(step.purpose)}</p>
-                <div class="guide-meta-grid">
-                    <div class="guide-meta"><div class="guide-meta-label">What It Does</div><div class="text-sm">${renderGuideList(step.does)}</div></div>
-                    <div class="guide-meta"><div class="guide-meta-label">Next</div><div class="text-sm">${renderGuideNextLinks(step.next)}</div></div>
-                </div>
-                ${step.note ? `<div class="guide-note">${esc(step.note)}</div>` : ''}
-            </div>
-        `;
-        next.textContent = onboardingIndex >= steps.length - 1 ? 'Finish' : 'Next';
-    }
-
-    function nextOnboardingStep() {
-        const steps = getOnboardingSteps();
-        if (onboardingIndex >= steps.length - 1) {
-            dismissProjectOnboarding();
-            openProductionGuide();
-            return;
-        }
-        onboardingIndex += 1;
-        renderProjectOnboarding();
     }
 
     // ── Collapsible sidebar groups ───────────────────────────────────
@@ -1020,19 +915,6 @@
             // Keep the label honest when cards are toggled individually.
             cards.forEach(h => h.addEventListener('click', () => setTimeout(sync, 0)));
         });
-    }
-
-    function applyOnboardingSide() {
-        const dock = document.getElementById('projectOnboardingModal');
-        if (!dock) return;
-        let side = 'right';
-        try { side = localStorage.getItem('film_guide_dock_side') || 'right'; } catch (e) { /* private mode */ }
-        dock.classList.toggle('dock-left', side === 'left');
-    }
-
-    function dismissProjectOnboarding() {
-        if (state.currentProject) setOnboardingState({ dismissed: true, index: onboardingIndex });
-        closeModal('projectOnboardingModal');
     }
 
     // ══════════════════════════════════════════════════════════════

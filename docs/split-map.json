@@ -1887,7 +1887,12 @@
       ]
     },
     "CoreDialogs": {
-      "provides": [],
+      "provides": [
+        "dismissProjectOnboarding",
+        "getOnboardingState",
+        "maybeShowProjectOnboarding",
+        "startProjectOnboarding"
+      ],
       "replaces": [
         "confirmGenResolve",
         "createProject",
@@ -1901,7 +1906,20 @@
         "setGuideTab",
         "shotCardStyleValue",
         "toggleOnboardingSide",
-        "previousOnboardingStep"
+        "previousOnboardingStep",
+        "onboardingIndex",
+        "onboardingStorageKey",
+        "getOnboardingSteps",
+        "getOnboardingState",
+        "setOnboardingState",
+        "startProjectOnboarding",
+        "maybeShowProjectOnboarding",
+        "renderProjectOnboarding",
+        "nextOnboardingStep",
+        "applyOnboardingSide",
+        "dismissProjectOnboarding",
+        "ONBOARDING_PAGES",
+        "TOUR_SEQUENCE"
       ],
       "modals": [
         "frameViewerModal",
@@ -2485,11 +2503,11 @@
       "loadMusic",
       "loadPlayback"
     ],
-    "functions": 176,
-    "unreached": 17,
+    "functions": 166,
+    "unreached": 16,
     "sharedByChunks": 0,
     "declaredTwice": [],
     "bootVendors": [],
-    "bytes": 295308
+    "bytes": 290098
   }
 }

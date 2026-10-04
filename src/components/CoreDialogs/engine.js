@@ -14,32 +14,44 @@ const {
     api,
     clearModal,
     closeModal,
+    closeProductionGuide,
     esc,
     folderPickerApply,
     frameViewerPaint,
     getModalData,
+    getNavGuideEntries,
     loadStoryboard,
+    navigateTo,
+    openProductionGuide,
     openProject,
     regenerateStoryboard,
     renderGlossary,
+    renderGuideList,
+    renderGuideNextLinks,
     renderProductionGuide,
-    renderProjectOnboarding,
     setStatus,
+    showModal,
 } = Object.fromEntries([
     'api',
     'clearModal',
     'closeModal',
+    'closeProductionGuide',
     'esc',
     'folderPickerApply',
     'frameViewerPaint',
     'getModalData',
+    'getNavGuideEntries',
     'loadStoryboard',
+    'navigateTo',
+    'openProductionGuide',
     'openProject',
     'regenerateStoryboard',
     'renderGlossary',
+    'renderGuideList',
+    'renderGuideNextLinks',
     'renderProductionGuide',
-    'renderProjectOnboarding',
     'setStatus',
+    'showModal',
 ].map(n => [n, (...a) => legacy[n](...a)]));
 const live = (name) => new Proxy({}, {
     get: (_, k) => legacy[name][k],
@@ -51,7 +63,29 @@ const live = (name) => new Proxy({}, {
 });
 // Core's objects, as live proxies, in one destructuring statement for the same reason.
 const { state } = Object.fromEntries(['state'].map(n => [n, live(n)]));
-// Core's values, read live as legacy.X and assigned with setLegacy: CONFIRM_GEN, CONFIRM_GEN_EDITED, CONFIRM_GEN_FINAL_PROMPT, SHOT_CARD, guideTab, onboardingIndex.
+// Core's values, read live as legacy.X and assigned with setLegacy: CONFIRM_GEN, CONFIRM_GEN_EDITED, CONFIRM_GEN_FINAL_PROMPT, SHOT_CARD, feStore, guideTab.
+
+    // ── Tour ordering ────────────────────────────────────────────────────────────
+    // The first-open tour should NOT walk all 24 in nav order — that is a slog.
+    // Walk the spine of an actual production, then point at the rest from the Guide.
+    const TOUR_SEQUENCE = [
+      'settings',     // spec first — expensive to change later
+      'screenplay',   // write it
+      'scenes',       // parse it
+      'characters',   // cast it
+      'consistency',  // lock it  ← the AI-native step people skip and regret
+      'shotboard',    // plan it
+      'storyboard',   // see it
+      'videoshots',   // shoot it
+      'music',        // score it
+      'pipeline',     // automate it
+      'budget',       // watch the spend
+      'exportpage'    // hand off
+    ];
+
+    const ONBOARDING_PAGES = TOUR_SEQUENCE;
+
+    let onboardingIndex = 0;
 
     function setGuideTab(tab) {
         setLegacy('guideTab', tab);
@@ -59,8 +93,92 @@ const { state } = Object.fromEntries(['state'].map(n => [n, live(n)]));
         renderProductionGuide();
     }
 
+    function onboardingStorageKey(projectId) {
+        return 'film_project_guide_seen_' + projectId;
+    }
+
+    function getOnboardingSteps() {
+        const entries = getNavGuideEntries();
+        return ONBOARDING_PAGES.map(page => entries.find(entry => entry.page === page)).filter(Boolean);
+    }
+
+    function getOnboardingState() {
+        if (!state.currentProject) return { dismissed: true, index: 0 };
+        try {
+            const stored = JSON.parse(legacy.feStore.get(onboardingStorageKey(state.currentProject.id)) || '{}');
+            return {
+                dismissed: stored.dismissed === true,
+                index: Number.isInteger(stored.index) ? Math.max(0, stored.index) : 0,
+            };
+        } catch (_) {
+            return { dismissed: legacy.feStore.get(onboardingStorageKey(state.currentProject.id)) === '1', index: 0 };
+        }
+    }
+
+    function setOnboardingState(update) {
+        if (!state.currentProject) return;
+        const current = getOnboardingState();
+        legacy.feStore.set(onboardingStorageKey(state.currentProject.id), JSON.stringify({ ...current, ...update }));
+    }
+
+    function startProjectOnboarding(options = {}) {
+        if (!state.currentProject) return;
+        const steps = getOnboardingSteps();
+        if (!steps.length) return;
+        const stored = getOnboardingState();
+        onboardingIndex = options.restart || stored.dismissed ? 0 : Math.min(stored.index || 0, steps.length - 1);
+        setOnboardingState({ dismissed: false, index: onboardingIndex });
+        closeProductionGuide();
+        applyOnboardingSide();
+        showModal('projectOnboardingModal');
+        renderProjectOnboarding();
+    }
+
+    function maybeShowProjectOnboarding() {
+        const stored = getOnboardingState();
+        if (stored.dismissed) return;
+        startProjectOnboarding();
+    }
+
+    function renderProjectOnboarding() {
+        const steps = getOnboardingSteps();
+        onboardingIndex = Math.min(onboardingIndex, Math.max(0, steps.length - 1));
+        const step = steps[onboardingIndex] || steps[0];
+        const dots = document.getElementById('onboardingStepper');
+        const content = document.getElementById('onboardingContent');
+        const next = document.getElementById('onboardingNextBtn');
+        if (!dots || !content || !next || !step) return;
+        if (step.page && state.currentPage !== step.page) navigateTo(step.page);
+        setOnboardingState({ dismissed: false, index: onboardingIndex });
+        dots.innerHTML = steps.map((_, i) => `<span class="onboarding-dot ${i === onboardingIndex ? 'active' : ''}"></span>`).join('');
+        content.innerHTML = `
+            <div class="guide-section-card" style="margin-bottom:0;">
+                <div class="section-label">Step ${onboardingIndex + 1} of ${steps.length}</div>
+                <h4>${esc(step.title)}</h4>
+                <p class="text-sm text-muted mb-8">${esc(step.purpose)}</p>
+                <div class="guide-meta-grid">
+                    <div class="guide-meta"><div class="guide-meta-label">What It Does</div><div class="text-sm">${renderGuideList(step.does)}</div></div>
+                    <div class="guide-meta"><div class="guide-meta-label">Next</div><div class="text-sm">${renderGuideNextLinks(step.next)}</div></div>
+                </div>
+                ${step.note ? `<div class="guide-note">${esc(step.note)}</div>` : ''}
+            </div>
+        `;
+        next.textContent = onboardingIndex >= steps.length - 1 ? 'Finish' : 'Next';
+    }
+
+    function nextOnboardingStep() {
+        const steps = getOnboardingSteps();
+        if (onboardingIndex >= steps.length - 1) {
+            dismissProjectOnboarding();
+            openProductionGuide();
+            return;
+        }
+        onboardingIndex += 1;
+        renderProjectOnboarding();
+    }
+
     function previousOnboardingStep() {
-        setLegacy('onboardingIndex', Math.max(0, legacy.onboardingIndex - 1));
+        onboardingIndex = Math.max(0, onboardingIndex - 1);
         renderProjectOnboarding();
     }
 
@@ -77,6 +195,19 @@ const { state } = Object.fromEntries(['state'].map(n => [n, live(n)]));
         if (!dock) return;
         const nowLeft = dock.classList.toggle('dock-left');
         try { localStorage.setItem('film_guide_dock_side', nowLeft ? 'left' : 'right'); } catch (e) { /* private mode */ }
+    }
+
+    function applyOnboardingSide() {
+        const dock = document.getElementById('projectOnboardingModal');
+        if (!dock) return;
+        let side = 'right';
+        try { side = localStorage.getItem('film_guide_dock_side') || 'right'; } catch (e) { /* private mode */ }
+        dock.classList.toggle('dock-left', side === 'left');
+    }
+
+    function dismissProjectOnboarding() {
+        if (state.currentProject) setOnboardingState({ dismissed: true, index: onboardingIndex });
+        closeModal('projectOnboardingModal');
     }
 
     /**
@@ -352,9 +483,22 @@ const { state } = Object.fromEntries(['state'].map(n => [n, live(n)]));
     }
 
 export {
+    TOUR_SEQUENCE,
+    ONBOARDING_PAGES,
+    onboardingIndex,
     setGuideTab,
+    onboardingStorageKey,
+    getOnboardingSteps,
+    getOnboardingState,
+    setOnboardingState,
+    startProjectOnboarding,
+    maybeShowProjectOnboarding,
+    renderProjectOnboarding,
+    nextOnboardingStep,
     previousOnboardingStep,
     toggleOnboardingSide,
+    applyOnboardingSide,
+    dismissProjectOnboarding,
     onProjectTypeChange,
     loadNewProjectBrands,
     folderPickerChoose,

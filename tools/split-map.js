@@ -232,7 +232,9 @@ function generate({ write = true } = {}) {
             case 'ObjectExpression': return n.properties.every(p => p.type === 'Property' && p.kind === 'init' && !p.computed && isPure(p.value));
             case 'CallExpression': // Object.freeze({...}) of pure parts
                 return n.callee.type === 'MemberExpression' && n.callee.object.name === 'Object' && n.callee.property.name === 'freeze' && n.arguments.every(isPure);
-            case 'Identifier': return n.name === 'undefined' || n.name === 'Infinity' || n.name === 'NaN';
+            case 'Identifier': return n.name === 'undefined' || n.name === 'Infinity' || n.name === 'NaN'
+                // Another top-level const whose own value is pure (ONBOARDING_PAGES = TOUR_SEQUENCE): an alias runs nothing.
+                || (constInit.has(n.name) && constInit.get(n.name) !== n && isPure(constInit.get(n.name)));
             // A built-in constant of Math (Math.PI / 180): reading it runs nothing. Only these eight names, never a call.
             case 'MemberExpression':
                 if (n.computed || n.object.type !== 'Identifier') return false;

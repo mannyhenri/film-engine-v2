@@ -1,5 +1,6 @@
 import { useLayoutEffect } from 'react';
 import VerbatimDialogs from '../VerbatimDialogs.jsx';
+import { usePageLoader } from '../../lib/usePageLoader.js';
 import * as E from './engine.js';
 import frameViewerModal from './frameViewerModal.markup.js';
 import frameVersionsModal from './frameVersionsModal.markup.js';
@@ -38,6 +39,13 @@ const DIALOGS = [
 export const ENGINE = Object.entries(E).filter(([, v]) => typeof v === 'function');
 
 export default function CoreDialogs() {
+    // Onboarding, which core starts by name: the project list's "Show me around", openProject on a first open, and its
+    // Escape handler.
+    usePageLoader('startProjectOnboarding', E.startProjectOnboarding);
+    usePageLoader('maybeShowProjectOnboarding', E.maybeShowProjectOnboarding);
+    usePageLoader('dismissProjectOnboarding', E.dismissProjectOnboarding);
+    // Core's production guide shows which onboarding steps are done.
+    usePageLoader('getOnboardingState', E.getOnboardingState);
     // What only these dialogs call (engine.js): on window while mounted, as the dialogs' inline handlers call it by name.
     useLayoutEffect(() => {
         const prior = {};
