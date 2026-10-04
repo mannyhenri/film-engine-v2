@@ -150,6 +150,8 @@ test('a cue with no audio yet renders a card rather than taking the page down', 
 
     const preamble = `
         const API_BASE = '';
+        // v2: the music engine reads core's API_BASE (a let Settings can change) through the bridge, as legacy.API_BASE.
+        const legacy = { get API_BASE() { return API_BASE; } };
         const SOUND_CATEGORIES = ${JSON.stringify(CATEGORIES.map(t => ({ type: t, label: t })))};
         function esc(v) { return String(v == null ? '' : v); }
         // Stubbed, not extracted: the upload control is asserted by its own

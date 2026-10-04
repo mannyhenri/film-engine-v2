@@ -38,8 +38,11 @@ const PAGE = fs.readFileSync(path.join(__dirname, '..', '..', 'src', 'index.html
  * Sliced between the markers the vendor block is wrapped in rather than by line
  * number, so the region survives the file growing around it.
  */
+// v2: a React page's own code is in <template data-react-source> (tools/assemble-page.js): read as the page's code,
+// and taken out before the script scan, since its text can hold `<script` (the screenplay engine's own regex).
+const REACT_SOURCE = /<template data-react-source="[^"]+">([\s\S]*?)<\/template>/g;
 function ownScript() {
-    const blocks = [...PAGE.matchAll(/<script[^>]*>([\s\S]*?)<\/script>/g)].map(m => m[1]);
+    const blocks = [...PAGE.replace(REACT_SOURCE, '').matchAll(/<script[^>]*>([\s\S]*?)<\/script>/g)].map(m => m[1]);
     assert.ok(blocks.length >= 2, 'the page has no script blocks to read');
     const isVendor = src => /Three\.js Authors/.test(src) || /THREE\.GLTFLoader\s*=/.test(src);
     const mine = blocks.filter(b => !isVendor(b));
@@ -57,7 +60,7 @@ function ownScript() {
      * the comment as the bug it was describing — and attribute it to whichever
      * function happened to be declared above it.
      */
-    return stripComments(mine.join('\n'));
+    return stripComments([...mine, ...[...PAGE.matchAll(REACT_SOURCE)].map(m => m[1])].join('\n'));
 }
 
 /**
@@ -167,16 +170,6 @@ test('every onclick names a function that exists', () => {
      */
     const src = ownScript();
     const decl = declared(src);
-    /*
-     * v2: a React page's own source is a <template data-react-source> (tools/assemble-page.js), and some of
-     * it renders HTML with inline handlers (Playback's engine, src/pages/playback/player.js, draws its
-     * playlist rows with onclick="pbGoTo(…)"). Those functions are defined THERE, and the page puts them on
-     * window while mounted, which src/pages/playback/PlaybackPage.test.jsx holds for every handler the engine
-     * renders. So a definition in a React source counts here.
-     */
-    for (const m of PAGE.matchAll(/<template data-react-source="[^"]+">([\s\S]*?)<\/template>/g)) {
-        for (const n of declared(stripComments(m[1]))) decl.add(n);
-    }
     // Names the page hands to the browser rather than calling itself.
     for (const g of ['alert', 'confirm', 'print', 'history', 'window', 'location', 'event']) decl.add(g);
 

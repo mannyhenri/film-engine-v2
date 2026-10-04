@@ -81,11 +81,12 @@
     "backend/server.js": "routes shot-audit and shots-resync to handleProductionReports: the handler served them but server.js never routed them, so they answered 405 (Resync, the MCP shots_resync tool, Sync screenplay); held by backend/tests/report-routes-reachable.test.js",
     "backend/tests/report-routes-reachable.test.js": "v2 only: every report production-reports.js serves is routed to it by server.js",
     "backend/tests/budget-backend-halves.test.js": "v2 only: the backend halves of two sub-tests whose last line reads the legacy Budget page (production-estimate's route and tool, requested-size's per-model maximum), kept verbatim",
-    "backend/tests/page-handlers.test.js": "every onclick names a function that exists: a definition in a React page's source template counts (Playback's engine renders inline handlers; PlaybackPage.test.jsx holds that they are on window while mounted)",
+    "backend/tests/page-handlers.test.js": "ownScript reads a React page's own code from its <template data-react-source> (tools/assemble-page.js), taking the templates out before the script scan (an engine's regex can hold `<script`): engines define the functions the page's controls and HTML call",
     "backend/tests/flow-canvas-reach.test.js": "the graph renderers that name a flow are read from the Production graph page's engine template (assemble-page), not after `let PRODUCTION_GRAPH_ON`, which stayed in core",
     "backend/tests/screenplay-backend-halves.test.js": "v2 only: the parts of three screenplay sub-tests that still read correctly from the page source (the originals are skipped; the button reads are held in src/pages/screenplay)",
     "backend/tests/page-parses.test.js": "every inline script compiles: React page source templates (<template data-react-source>) are inert text, not scripts, and are left out",
-    "backend/tests/previs-routes.test.js": "the SPA script parses: React page source templates are inert text, not scripts, and are left out"
+    "backend/tests/previs-routes.test.js": "the SPA script parses: React page source templates are inert text, not scripts, and are left out",
+    "backend/tests/audio-cards.test.js": "the sandbox that runs soundCueCard gives it legacy.API_BASE: the music engine reads core's API_BASE through the bridge"
   },
   "pinToCore": {
     "twBurst": "stays next to const TYPEWRITER (core): screenplay-focus reads the typewriter's sound rules as the source text from TYPEWRITER to twBurst, which must be one script"
