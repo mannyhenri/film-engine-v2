@@ -283,6 +283,11 @@ function createWritingStyleStore(db, { actor = 'human' } = {}) {
   // Kept: id, hash, project, type, dates. Gone: the words, where they came from in prose, and who may use them.
   db.prepare(`UPDATE film_writing_samples SET text='', source='[deleted sample]', source_meta='{}', tags='[]', retention='deleted', deleted_at=CURRENT_TIMESTAMP WHERE id=?`).run(s.id);
   db.prepare('DELETE FROM film_writing_sample_access WHERE sample_id=?').run(s.id);
+  // Draft requests keep the context they were built from; the deleted words leave those copies too.
+  for (const r of db.prepare('SELECT id,payload,style_text FROM film_style_draft_requests WHERE payload LIKE ? OR style_text LIKE ?').all(`%${s.text.trim().slice(0, 200)}%`, `%${s.text.trim().slice(0, 200)}%`)) {
+   const prose = s.text.trim(), cut = v => v.split(prose).join('[deleted sample]'), cutJson = v => v.split(JSON.stringify(prose).slice(1, -1)).join('[deleted sample]');
+   db.prepare('UPDATE film_style_draft_requests SET payload=?, style_text=? WHERE id=?').run(cutJson(cut(r.payload)), cut(r.style_text), r.id);
+  }
   for (const imp of db.prepare('SELECT id,profile_json FROM film_writing_imports WHERE project_id=?').all(s.project_id)) {
    const next = JSON.stringify(scrub(parse(imp.profile_json, {}), s.text.trim()));
    if (next !== imp.profile_json) db.prepare('UPDATE film_writing_imports SET profile_json=? WHERE id=?').run(next, imp.id);

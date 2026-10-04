@@ -5625,6 +5625,8 @@ function routeToolDefinition(t) {
             type: 'object',
             properties: t.schema,
             ...(t.required.length ? { required: t.required } : {}),
+            // A strict tool refuses fields it does not declare (the server refuses them too).
+            ...(t.strict ? { additionalProperties: false } : {}),
         },
         _kind: 'route',
     };
@@ -6225,6 +6227,31 @@ PRODUCTION_TOOLS.push(
       schema: { project_id: { type: 'string' }, before: { type: 'string' }, after: { type: 'string' }, reason: { type: 'string' }, scope: { type: 'string', enum: ['scene', 'project', 'global'] }, before_span: { type: 'object' }, after_span: { type: 'object' } },
       required: ['project_id', 'before', 'after'] }
 );
+const { handleStyleDrafting } = require('../routes/style-drafting');
+// The drafting contracts (GRD-4663), one tool each, on the same services as the workbench. Strict:
+// unknown fields are refused. Apply and feedback are refused for an agent: the author decides.
+{
+    const S = { type: 'string' }, I = { type: 'integer' }, B = { type: 'boolean' }, L = { type: 'array', items: { type: 'string' } };
+    const FIELD_SCHEMA = { brief: S, owner: S, language: S, sample_types: L, token_budget: I, target: { type: 'string', enum: ['global', 'project'] }, trait: { type: 'object' },
+        expected_version: I, profile_version: I, text: S, draft_id: S, proposal_id: S, approval_fingerprint: S, human_confirmed: B, scene_id: S, constraints: L,
+        provider: { type: 'string', enum: ['claude', 'chatgpt', 'host'] }, model: S, expected_script_version: I, request_id: S, host: S };
+    const DESCRIBE = {
+        'style.get_profile': 'Read the author\'s writing profile, samples (with eligibility), and style traits in force for this project. Read only.',
+        'style.search_examples': 'Find the author\'s permitted, approved example excerpts for a brief: filtered by owner, language and sample type, never held-out, deleted, excluded or unshared samples, within a token budget. Read only.',
+        'style.propose_update': 'Propose one style trait (pending until the author accepts it). expected_version is the global or project layer version you read.',
+        'style.record_feedback': 'Feedback on a profile or draft. Only the author can record it, in the workbench; an assistant call is refused.',
+        'style.apply_update': 'Activate an accepted style proposal. Requires the author\'s approval in the workbench; an assistant call is refused.',
+        'script.create_draft': 'Start a scene draft: brief, constraints, provider (host = you write the draft) and expected_script_version. Returns the exact context preview. With request_id and text, return the draft you wrote. Never changes the screenplay.',
+        'script.compare_drafts': 'Compare a request\'s draft alternatives with the current scene as line hunks the author can accept selectively. Read only.',
+    };
+    for (const [name, c] of Object.entries(require('./style-drafting').CONTRACTS)) {
+        PRODUCTION_TOOLS.push({ name: c.tool, handler: handleStyleDrafting, method: 'POST', strict: true,
+            path: a => `/film/projects/${a.project_id}/style-drafting/${name}`,
+            body: a => { const { project_id, ...rest } = a; return rest; },
+            description: `${DESCRIBE[name]} (contract ${name})`,
+            schema: { project_id: S, ...Object.fromEntries(c.fields.map(f => [f, FIELD_SCHEMA[f]])) }, required: ['project_id'] });
+    }
+}
 const ALL_ROUTE_TOOLS = [...ROUTE_TOOLS, ...PRODUCTION_TOOLS];
 
 const _tools = [

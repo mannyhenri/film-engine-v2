@@ -97,3 +97,10 @@ screenplay facts, then project style, then author style. A conflicting lower tra
 NOT APPLIED HERE with its reason, and dialogue traits never override a character's declared voice.
 MCP can read and propose (style_profile_read, style_trait_propose, style_correction_record);
 deciding stays with the author in the workbench.
+
+Drafting (GRD-4663). The workbench's Draft a scene panel runs brief and constraints → a preview of
+exactly what would be sent → the author's approval → alternatives → line hunks against the current
+scene → selected hunks accepted as a new script revision. The approved screenplay stays unchanged
+until then. The seven tool contracts (style.get_profile, style.search_examples, style.propose_update,
+style.record_feedback, style.apply_update, script.create_draft, script.compare_drafts), the
+transports and hosts, and what leaves the machine are described in docs/style-drafting-hosts.md.
