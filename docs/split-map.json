@@ -2075,6 +2075,45 @@
       "modals": [
         "subjectSheetModal"
       ]
+    },
+    "VideoPipeline": {
+      "provides": [
+        "approveStrip",
+        "confirmUpscale",
+        "correctStation",
+        "deleteSequence",
+        "generateNativeMultiShot",
+        "generateNextSequenceLeg",
+        "generateSequence",
+        "generateVoiceForShot",
+        "loadSequences",
+        "openStrip",
+        "previewSequence",
+        "stitchSequence",
+        "stripSequence",
+        "UPSCALE_DEFAULT_MODEL",
+        "upscaleCostLine",
+        "upscalePlanHtml"
+      ],
+      "replaces": [
+        "approveStrip",
+        "confirmUpscale",
+        "correctStation",
+        "deleteSequence",
+        "generateNativeMultiShot",
+        "generateNextSequenceLeg",
+        "generateSequence",
+        "generateVoiceForShot",
+        "loadSequences",
+        "openStrip",
+        "previewSequence",
+        "stitchSequence",
+        "stripSequence",
+        "UPSCALE_DEFAULT_MODEL",
+        "upscaleCostLine",
+        "upscalePlanHtml"
+      ],
+      "modals": []
     }
   },
   "chunks": {},
@@ -2381,11 +2420,11 @@
       "loadMusic",
       "loadPlayback"
     ],
-    "functions": 212,
+    "functions": 197,
     "unreached": 18,
     "sharedByChunks": 0,
     "declaredTwice": [],
     "bootVendors": [],
-    "bytes": 356287
+    "bytes": 330623
   }
 }

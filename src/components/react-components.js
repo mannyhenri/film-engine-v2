@@ -10,6 +10,7 @@ import MediaInput from './MediaInput/MediaInput.jsx';
 import MusicDialogs from './MusicDialogs/MusicDialogs.jsx';
 import ScreenplayDialogs from './ScreenplayDialogs/ScreenplayDialogs.jsx';
 import SubjectSheet from './SubjectSheet/SubjectSheet.jsx';
+import VideoPipeline from './VideoPipeline/VideoPipeline.jsx';
 
 export const REACT_COMPONENTS = [
     { name: 'Casting', Component: Casting },
@@ -22,4 +23,5 @@ export const REACT_COMPONENTS = [
     { name: 'MusicDialogs', Component: MusicDialogs },
     { name: 'ScreenplayDialogs', Component: ScreenplayDialogs },
     { name: 'SubjectSheet', Component: SubjectSheet },
+    { name: 'VideoPipeline', Component: VideoPipeline },
 ];

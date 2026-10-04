@@ -1,0 +1,40 @@
+{
+  "about": "A SHARED module of core as a boot-mounted component with no dialogs: the video pipeline the Production graph and Video Shots share (sequences, in-between strips, a shot's dialogue, the upscale plan), engine.js moved verbatim by tools/extract-engine.js. It provides exactly what it replaces, so every engine that bridges these names, the inline handlers in the HTML they draw, and core callers that stay reach them on window.",
+  "provides": [
+    "approveStrip",
+    "confirmUpscale",
+    "correctStation",
+    "deleteSequence",
+    "generateNativeMultiShot",
+    "generateNextSequenceLeg",
+    "generateSequence",
+    "generateVoiceForShot",
+    "loadSequences",
+    "openStrip",
+    "previewSequence",
+    "stitchSequence",
+    "stripSequence",
+    "UPSCALE_DEFAULT_MODEL",
+    "upscaleCostLine",
+    "upscalePlanHtml"
+  ],
+  "replaces": [
+    "approveStrip",
+    "confirmUpscale",
+    "correctStation",
+    "deleteSequence",
+    "generateNativeMultiShot",
+    "generateNextSequenceLeg",
+    "generateSequence",
+    "generateVoiceForShot",
+    "loadSequences",
+    "openStrip",
+    "previewSequence",
+    "stitchSequence",
+    "stripSequence",
+    "UPSCALE_DEFAULT_MODEL",
+    "upscaleCostLine",
+    "upscalePlanHtml"
+  ],
+  "modals": []
+}

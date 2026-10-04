@@ -9,10 +9,10 @@ by name and errs toward more reach, which only keeps more in core.
 | (a) one owner, and every core caller moves with it: can move into that owner's engine | 0 |
 | (a2) as (a), but a caller that stays NAMES it (onclick, window[name]): moves if the owner provides it | 0 |
 | (e) one owner, but a caller that stays in core calls it in code: held in core until that caller moves | 3 |
-| (b) two or more owners: stays core, or a shared module | 54 |
+| (b) two or more owners: stays core, or a shared module | 38 |
 | (c) reached by nobody this can see: dead, or reached only by a name built at run time | 29 |
 | (d) load-time core (startup statements, shell.js, production-graph.js and what they reach) | 214 |
-| total | 300 |
+| total | 284 |
 
 Measured as one owner (`GROUPS` in the tool): component:ScreenplayDialogs as page:screenplay (the Screenplay's seven dialogs: their handlers call the screenplay engine, and the component imports from it).
 
@@ -25,18 +25,17 @@ their shared declarations together into one engine; the rest stays core or becom
 
 | owners | declarations |
 |---|---|
-| page:productiongraph + page:videoshots | 16 |
 | page:productiongraph + page:storyboard | 7 |
 | page:playback + page:storyboard | 3 |
 | component:CoreDialogs + page:music | 2 |
+| component:VideoPipeline + page:music + page:productiongraph + page:videoshots | 2 |
 | page:deliverables + page:playback | 2 |
 | page:edits + page:music | 2 |
-| page:music + page:productiongraph + page:videoshots | 2 |
 | page:scenes + page:screenplay | 2 |
 | page:scenes + page:storyboard | 2 |
 | component:CharacterSheet + component:FolderPicker + component:MediaInput + component:SubjectSheet + page:music + page:previs + page:productiongraph | 1 |
 | component:SubjectSheet + page:music | 1 |
-| page:budget + page:playback + page:productiongraph + page:videoshots | 1 |
+| component:VideoPipeline + page:budget + page:playback + page:productiongraph | 1 |
 | page:dashboard + page:productiongraph + page:storyboard | 1 |
 | page:deliverables + page:playback + page:storyboard | 1 |
 | page:edits + page:settings | 1 |
@@ -58,36 +57,25 @@ their shared declarations together into one engine; the rest stays core or becom
 | `_shotAction` | page:music, page:previs, page:videoshots |
 | `AI_PATH` | page:previs, page:screenplay |
 | `APP_AUTHOR` | page:screenplay, page:settings |
-| `approveStrip` | page:productiongraph, page:videoshots |
 | `BATCH_CHOICES` | page:productiongraph, page:storyboard |
 | `BOARD_LOCK` | page:productiongraph, page:storyboard |
 | `clearModal` | component:CoreDialogs, page:music |
 | `confirmProjectDelete` | page:projects, page:settings |
-| `confirmUpscale` | page:productiongraph, page:videoshots |
-| `correctStation` | page:productiongraph, page:videoshots |
-| `deleteSequence` | page:productiongraph, page:videoshots |
 | `downloadExport` | page:exportpage, page:videoshots |
 | `DRIFT` | page:scenes, page:storyboard |
 | `fmtBytes` | page:edits, page:settings |
 | `generateAllStoryboards` | page:productiongraph, page:storyboard |
-| `generateNativeMultiShot` | page:productiongraph, page:videoshots |
-| `generateNextSequenceLeg` | page:productiongraph, page:videoshots |
-| `generateSequence` | page:productiongraph, page:videoshots |
-| `generateVoiceForShot` | page:productiongraph, page:videoshots |
 | `getModalData` | component:CoreDialogs, page:music |
 | `getSceneStatusLabel` | page:scenes, page:screenplay |
 | `importBundle` | page:exportpage, page:projects |
 | `jsAttr` | component:CharacterSheet, component:FolderPicker, component:MediaInput, component:SubjectSheet, page:music, page:previs, page:productiongraph |
 | `loadScreenplayDrift` | page:scenes, page:storyboard |
-| `loadSequences` | page:productiongraph, page:videoshots |
-| `mediaUploadControl` | page:music, page:productiongraph, page:videoshots |
+| `mediaUploadControl` | component:VideoPipeline, page:music, page:productiongraph, page:videoshots |
 | `mediaUrl` | page:music, page:playback, page:previs, page:productiongraph |
 | `MW` | page:edits, page:music |
 | `mwTime` | page:edits, page:music |
 | `openFrameViewer` | page:dashboard, page:productiongraph, page:storyboard |
-| `openStrip` | page:productiongraph, page:videoshots |
 | `pb` | page:playback, page:previs |
-| `previewSequence` | page:productiongraph, page:videoshots |
 | `protectBoxFor` | page:playback, page:storyboard |
 | `protectOptionsHTML` | page:deliverables, page:playback |
 | `protectOverlayHTML` | page:playback, page:storyboard |
@@ -97,17 +85,12 @@ their shared declarations together into one engine; the rest stays core or becom
 | `renderBoardLock` | page:productiongraph, page:storyboard |
 | `setAnchor` | page:productiongraph, page:storyboard |
 | `ssSection` | component:SubjectSheet, page:music |
-| `stitchSequence` | page:productiongraph, page:videoshots |
 | `streamSSE` | page:productiongraph, page:storyboard |
 | `streamSSEPost` | page:music, page:pipeline, page:previs, page:videoshots |
-| `stripSequence` | page:productiongraph, page:videoshots |
 | `toggleBoardLock` | page:productiongraph, page:storyboard |
 | `updateSceneStatusIcons` | page:scenes, page:screenplay |
-| `uploadCapabilityMedia` | page:music, page:productiongraph, page:videoshots |
-| `UPSCALE_DEFAULT_MODEL` | page:productiongraph, page:videoshots |
-| `upscaleCostLine` | page:productiongraph, page:videoshots |
-| `upscalePlanHtml` | page:productiongraph, page:videoshots |
-| `usd` | page:budget, page:playback, page:productiongraph, page:videoshots |
+| `uploadCapabilityMedia` | component:VideoPipeline, page:music, page:productiongraph, page:videoshots |
+| `usd` | component:VideoPipeline, page:budget, page:playback, page:productiongraph |
 | `WORLD` | page:previs, page:storyboard |
 
 ## (e) One owner, held in core
