@@ -61,6 +61,8 @@ function loadBlocking(shotId) {
         subjects: parse(row.subjects_json, []),
         path: parse(row.path_json, []),
         cameraKeys: parse(row.camera_keys_json, []),
+        range: parse(row.range_json, null),
+        workflow: row.previz_workflow || 'free',
         updated_at: row.updated_at,
     };
 }
@@ -297,6 +299,15 @@ function validateBlocking(body) {
             errors.push(`camera.${field} must be three finite numbers`);
         }
     }
+    // Framing (GRD-4665): what the render frames, saved with the camera so a new render reproduces it.
+    if (camera.sensorFit !== undefined && !['AUTO', 'HORIZONTAL', 'VERTICAL'].includes(camera.sensorFit)) errors.push('camera.sensorFit must be AUTO, HORIZONTAL or VERTICAL');
+    if (camera.aspectRatio !== undefined && !(typeof camera.aspectRatio === 'string' && /^\d+(\.\d+)?:\d+(\.\d+)?$/.test(camera.aspectRatio)
+        && parseFloat(camera.aspectRatio.split(':')[1]) > 0)) errors.push('camera.aspectRatio must be W:H, such as 2.39:1 or 16:9');
+    if (camera.safeAreas !== undefined && !(camera.safeAreas && typeof camera.safeAreas === 'object' && !Array.isArray(camera.safeAreas)
+        && Object.entries(camera.safeAreas).every(([k, v]) => ['action', 'title'].includes(k) && typeof v === 'number' && v > 0 && v <= 1))) {
+        errors.push('camera.safeAreas must be { action, title } fractions of the frame between 0 and 1');
+    }
+    if (camera.target !== undefined && !(Array.isArray(camera.target) && camera.target.length === 3 && camera.target.every(Number.isFinite))) errors.push('camera.target must be three finite numbers');
     if (body.cameraKeys !== undefined) {
         if (!Array.isArray(body.cameraKeys)) errors.push('cameraKeys must be an array');
         else body.cameraKeys.forEach((key, i) => {
@@ -445,6 +456,8 @@ function getBlocking(req, res, shotId) {
         approval: approvalState(shotId),
         application: applicationState(shotId),
         decisions: decisionStates(shotId),
+        // Whether Generate board is available, and why not (GRD-4665 locked workflow).
+        board_gate: require('../lib/world-previz').boardGate(db, shotId),
     });
 }
 
@@ -577,6 +590,16 @@ function putBlocking(req, res, shotId, internal) {
     const shotLen = db.prepare('SELECT duration_ms FROM film_shots WHERE id = ?').get(shotId);
     const effectiveMs = (typeof body.durationMs === 'number' && body.durationMs > 0) ? Math.round(body.durationMs)
         : (shotLen && shotLen.duration_ms > 0 ? shotLen.duration_ms : DEFAULT_MOVE_MS);
+    // The shot range and markers (GRD-4665): inside the move, in order.
+    if (body.range !== undefined && body.range !== null) {
+        const r = body.range;
+        if (!r || !Number.isInteger(r.inMs) || !Number.isInteger(r.outMs) || r.inMs < 0 || r.outMs <= r.inMs || r.outMs > effectiveMs) {
+            errors.push(`range must be { inMs, outMs } in whole milliseconds with 0 ≤ inMs < outMs ≤ ${effectiveMs}`);
+        } else if (r.markers !== undefined && (!Array.isArray(r.markers) || r.markers.some(m => !m || !Number.isInteger(m.tMs) || m.tMs < r.inMs || m.tMs > r.outMs
+            || (m.label !== undefined && (typeof m.label !== 'string' || m.label.length > 80))))) {
+            errors.push('range.markers must each be { tMs, label } inside the range');
+        }
+    }
     (Array.isArray(body.subjects) ? body.subjects : []).forEach((o, i) => {
         if (o && Array.isArray(o.path)) {
             o.path.forEach((k, j) => {
@@ -679,6 +702,11 @@ function putBlocking(req, res, shotId, internal) {
     // projected fingerprint after persistence so later edits are derived as
     // staged; no writer has to remember to clear a flag.
     if (internal && internal.seededFromCard) markApplied(shotId);
+    if (body.range !== undefined) {
+        const r = body.range;
+        db.prepare('UPDATE film_previs_blocking SET range_json = ? WHERE shot_id = ?')
+            .run(r ? JSON.stringify({ inMs:r.inMs, outMs:r.outMs, markers:(r.markers || []).map(m => ({ tMs:m.tMs, label:m.label || '' })) }) : null, shotId);
+    }
 
     return json(res, 200, {
         shot_id: shotId,
@@ -1188,6 +1216,11 @@ function shotKeyframe(shotId) {
  * Deliberately NOT the sampled path — a path is derived from the movement, so
  * including it would make a re-sample read as a creative change.
  */
+function aspectFor(shotId, camera) {
+    if (camera && camera.aspectRatio) return camera.aspectRatio;
+    const p = db.prepare('SELECT p.aspect_ratio FROM film_shots s JOIN film_scenes sc ON sc.id = s.scene_id JOIN film_projects p ON p.id = sc.project_id WHERE s.id = ?').get(shotId);
+    return (p && p.aspect_ratio) || '16:9';
+}
 function blockingFingerprint(shotId) {
     const row = db.prepare('SELECT * FROM film_previs_blocking WHERE shot_id = ?').get(shotId);
     if (!row) return null;
@@ -1202,6 +1235,9 @@ function blockingFingerprint(shotId) {
         movement: row.movement,
         moves: parse(row.moves_json, []),
         camera_card: card.camera || {},
+        // In a set (GRD-4665), the frame also depends on which world version and what aspect ratio:
+        // an approval made against one is not an approval of another. Off-set shots hash as before.
+        ...(row.world_version_id ? { world_version_id: row.world_version_id, aspect_ratio: aspectFor(shotId, parse(row.camera_json, {})) } : {}),
     });
     return crypto.createHash('sha256').update(material).digest('hex').slice(0, 32);
 }
@@ -1568,6 +1604,11 @@ function handlePrevis(req, res, urlParts) {
             if (req.method !== 'POST') return json(res, 405, { error: 'Method not allowed' });
             return fromCard(req, res, shotId);
         }
+        // The locked workflow (GRD-4665): board only after the exact world and camera are approved.
+        if (urlParts[4] === 'workflow' && req.method === 'POST') {
+            try { return json(res, 200, require('../lib/world-previz').setWorkflow(db, shotId, (req.body || {}).workflow)); }
+            catch (e) { return json(res, e.status || 500, { error: e.message, code: e.code }); }
+        }
         if (urlParts[4] === 'approve') {
             if (req.method === 'POST') return approveBlocking(req, res, shotId);
             if (req.method === 'DELETE') return unapproveBlocking(req, res, shotId);
@@ -1600,4 +1641,5 @@ function handlePrevis(req, res, urlParts) {
     return json(res, 404, { error: 'Not found' });
 }
 
-module.exports = { handlePrevis, loadBlocking, validateBlocking, approvalState, decisionStates };
+const CAMERA_FRAMING_FIELDS = Object.freeze(['sensorFit', 'aspectRatio', 'safeAreas', 'target']);
+module.exports = { handlePrevis, loadBlocking, validateBlocking, approvalState, decisionStates, blockingFingerprint, CAMERA_FRAMING_FIELDS };

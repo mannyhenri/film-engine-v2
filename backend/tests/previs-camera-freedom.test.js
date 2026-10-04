@@ -152,7 +152,9 @@ const BASE = () => ({
 // survives cannot be a default that happened to match.
 const PROBE = { 'position[0]': -2.75, 'position[1]': 0.42, 'position[2]': 4.25,
     'rotation[0]': 0.31, 'rotation[1]': -0.77, 'rotation[2]': 0.12,
-    focalMm: 137, fStop: 5.6, focusDistanceM: 6.25, sensorId: 'fullframe' };
+    focalMm: 137, fStop: 5.6, focusDistanceM: 6.25, sensorId: 'fullframe',
+    // GRD-4665 framing fields.
+    sensorFit: 'VERTICAL', aspectRatio: '2.39:1', safeAreas: { action: 0.9, title: 0.75 }, target: [1.25, 0.5, -2] };
 
 // ── 1. Six degrees of freedom, and every optic ─────────────────────────────
 
@@ -179,7 +181,7 @@ test('every pose and optic component can be set and comes back', async () => {
         const cam = (got.blocking && got.blocking.camera) || {};
         const back = c.vector ? (cam[c.vector] || [])[c.axis] : cam[c.scalar];
         const same = typeof value === 'number'
-            ? Math.abs(Number(back) - value) < 1e-6 : back === value;
+            ? Math.abs(Number(back) - value) < 1e-6 : JSON.stringify(back) === JSON.stringify(value);
         if (!same) lost.push(`${c.id}: ${JSON.stringify(value)} -> ${JSON.stringify(back)}`);
     }
     assert.deepStrictEqual(lost, [], 'pose or optic components that do not round-trip');

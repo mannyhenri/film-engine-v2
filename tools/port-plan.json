@@ -120,7 +120,23 @@
     "backend/lib/style-pilot.js": "GRD-4664: blinded style pilot: held-out briefs, near-duplicate separation, criterion first, conditioned vs unconditioned from one model, author-only rubric review, AI judge never counts, reuse check, release gate and activation apart",
     "backend/routes/style-pilot.js": "GRD-4664: /film/projects/:id/style-pilot/<operation>; every reviewer-facing answer is blind",
     "backend/db/migrations/136_style_pilot.sql": "GRD-4664: pilots, briefs, blinded pairs, AI judgements (apart), release-gate and activation decisions",
-    "backend/tests/style-pilot.test.js": "v2 only (GRD-4664): held-out and near-duplicates never in context, blind placement, author-only decisions, exact report, gate and activation separate"
+    "backend/tests/style-pilot.test.js": "v2 only (GRD-4664): held-out and near-duplicates never in context, blind placement, author-only decisions, exact report, gate and activation separate",
+    "backend/blender-previz.py": "GRD-4665: the previz worker honours the camera's saved sensor fit and a flat (default) or textured shading",
+    "backend/blender-set.py": "GRD-4665: the saved set.blend also reports every object transform, so reopening it can be checked",
+    "backend/blender-inspect.py": "GRD-4665: the inspect worker: opens a .blend (no autoexec), reports units, axes, versions, transforms, linked files and materials, exports the stage GLB",
+    "backend/lib/artefact-fingerprint.js": "GRD-4665: keyframe and video fingerprints of a world-pinned shot include the world version and the blocking fingerprint; off-set shots hash as before",
+    "backend/lib/decision-contract.js": "GRD-4665: range_json and previz_workflow declared as single-surface (render controls and a generation gate, not board decisions)",
+    "backend/lib/flow-apply.js": "GRD-4665: a flow apply plan refuses image/video for a locked shot whose world or camera is not approved",
+    "backend/lib/node-handlers/generate.js": "GRD-4665: image/video generation refuses a locked shot until its exact world and camera are approved (PREVIZ_NOT_APPROVED)",
+    "backend/lib/previs-video.js": "GRD-4665: plan: shot range, still or motion, flat/textured, the camera's own aspect and sensor fit, exact versions, reported substitutions; renderJob; still asset",
+    "backend/lib/set-build.js": "GRD-4665: Blender runs only allowlisted worker scripts with --disable-autoexec; the set build records set.blend as the version's editable source",
+    "backend/routes/previs.js": "GRD-4665: camera framing fields (sensorFit, aspectRatio, safeAreas, target), shot range and markers, board gate on GET, locked workflow; the approval fingerprint includes world and aspect for pinned shots",
+    "backend/routes/storyboard.js": "GRD-4665: board generation refuses a locked shot until its exact world and camera are approved",
+    "backend/routes/worlds.js": "GRD-4665: .blend import through the inspect worker; editable source and report; reopen check; world approval (a person's)",
+    "backend/tests/previs-camera-freedom.test.js": "probes for the GRD-4665 camera framing fields (sensorFit, aspectRatio, safeAreas, target), compared by value",
+    "backend/db/migrations/137_world_previz.sql": "GRD-4665: editable source, import report and approval on world versions; shot range and locked workflow on blocking",
+    "backend/lib/world-previz.js": "GRD-4665: editable Blender worlds (source, report, reopen check, approval), allowlisted Blender workers, the locked board gate",
+    "backend/tests/world-previz.test.js": "v2 only (GRD-4665): workers, editable import and reopen (incl. real Blender when present), framing fields, range, still/motion, reproducible jobs, board gate, staleness"
   },
   "pinToCore": {
     "twBurst": "stays next to const TYPEWRITER (core): screenplay-focus reads the typewriter's sound rules as the source text from TYPEWRITER to twBurst, which must be one script"

@@ -80,16 +80,29 @@ function plan(shotId, opts = {}) {
         throw refuse('This shot is not in a set: build or pin a world to it in Previs, then export the move.', 409, 'NO_WORLD');
     }
     const v = db().prepare('SELECT scale_factor FROM film_world_versions WHERE id = ?').get(row.world_version_id);
+    // GRD-4665: flat colour by default, textured only when asked; a still or the motion; the shot range.
+    const mode = opts.mode === undefined ? 'flat' : opts.mode;
+    if (!['flat', 'textured'].includes(mode)) throw refuse('mode must be flat or textured', 400, 'BAD_MODE');
+    const kind = opts.kind === 'still' ? 'still' : 'motion';
+    const substitutions = [];
     const glb = db().prepare(`SELECT a.file_path FROM film_world_assets w JOIN film_assets a ON a.id = w.asset_id
         WHERE w.world_version_id = ? AND w.kind = 'collider'`).get(row.world_version_id);
     if (!glb || !glb.file_path || !fs.existsSync(glb.file_path)) {
         throw refuse('The world this shot is pinned to has no 3D model stored on this machine, so there is nothing to render through.', 409, 'NO_COLLIDER');
     }
     const f = Number(v && v.scale_factor) > 0 ? Number(v.scale_factor) : 1;
+    if (!(Number(v && v.scale_factor) > 0)) substitutions.push('The world is not calibrated, so 1 unit is drawn as 1 metre');
 
     const fps = Math.max(1, Math.min(60, Number(opts.fps) || Number(shot.target_fps) || 24));
     const durationMs = Math.max(1, Number(blocking.durationMs) || 4000);
-    let frames = Math.max(1, Math.round(durationMs / 1000 * fps));
+    const range = blocking.range || { inMs: 0, outMs: durationMs, markers: [] };
+    const spanMs = Math.max(1, range.outMs - range.inMs);
+    let atMs = range.inMs;
+    if (kind === 'still' && opts.atMs !== undefined) {
+        atMs = Number(opts.atMs);
+        if (!Number.isFinite(atMs) || atMs < range.inMs || atMs > range.outMs) throw refuse(`atMs must be inside the shot range ${range.inMs}–${range.outMs} ms`, 400, 'OUTSIDE_RANGE');
+    }
+    let frames = kind === 'still' ? 1 : Math.max(1, Math.round(spanMs / 1000 * fps));
     const warnings = [];
     if (frames > MAX_FRAMES) {
         warnings.push(`${frames} frames is more than ${MAX_FRAMES}; rendered at ${Math.floor(MAX_FRAMES / (durationMs / 1000))} fps instead`);
@@ -97,31 +110,38 @@ function plan(shotId, opts = {}) {
     }
     const even = n => Math.max(2, Math.round(n / 2) * 2);
     const width = even(Math.max(160, Math.min(1920, Number(opts.width) || DEFAULT_WIDTH)));
-    const height = even(width / aspectOf(shot.aspect_ratio));
-
     const camera = blocking.camera || {};
+    // The camera's own aspect ratio when it has one, else the project's: the same one the approval hashed.
+    const aspect = camera.aspectRatio || shot.aspect_ratio;
+    const height = even(width / aspectOf(aspect));
     let sensorWidth = 36;
-    try { sensorWidth = require('./previs-camera').sensorFor(camera.sensorId || 'super35').widthMm; } catch (_) { sensorWidth = 24.89; }
+    try { sensorWidth = require('./previs-camera').sensorFor(camera.sensorId || 'super35').widthMm; }
+    catch (_) { sensorWidth = 24.89; substitutions.push(`Sensor ${camera.sensorId || 'super35'} is unknown, so a Super 35 width (24.89 mm) is used`); }
+    const sensorFit = camera.sensorFit || 'HORIZONTAL';
 
     const staged = (blocking.subjects || []).filter(s => s && Array.isArray(s.position));
     const subjects = staged.map(su => {
         const [w, h, d] = Array.isArray(su.sizeM) ? su.sizeM : (DEFAULT_SIZE[su.kind] || [1, 1, 1]);
-        return { name: su.name || null, glb: subjectGlb(su, shot.project_id), size: [w / f, d / f, h / f], fit: !!su.fitToModel };
+        const glb = subjectGlb(su, shot.project_id);
+        // Said, never silent: a subject with no model on this machine is drawn as a box.
+        if (!glb) substitutions.push(`${su.name || 'A subject'} has no 3D model here, so it is drawn as a box`);
+        return { name: su.name || null, glb, size: [w / f, d / f, h / f], fit: !!su.fitToModel };
     });
 
     const out = [];
     for (let i = 0; i < frames; i++) {
-        const t = frames > 1 ? i / (frames - 1) : 0;
+        const tMs = kind === 'still' ? atMs : Math.round(range.inMs + (frames > 1 ? i / (frames - 1) : 0) * spanMs);
+        const t = tMs / durationMs;
         const pose = cameraPoseAt(blocking.path, t)
             || { position: camera.position || [0, 1.6, 0], rotation: camera.rotation || [0, 0, 0], focalMm: camera.focalMm || 35 };
         out.push({
-            t,
+            t, t_ms: tMs,
             cam: {
                 eye: toBlender(pose.position), target: toBlender(aimPoint(pose)),
                 roll: (pose.rotation && pose.rotation[2]) || 0, lens_mm: Number(pose.focalMm) || Number(camera.focalMm) || 35,
             },
             subjects: staged.map(su => {
-                const p = subjectPoseAt(su, t * durationMs);
+                const p = subjectPoseAt(su, tMs);
                 return [...toBlender(p.position), p.yawDeg];
             }),
         });
@@ -130,9 +150,21 @@ function plan(shotId, opts = {}) {
         shot_id: shotId, shot_code: shot.shot_code, project_id: shot.project_id,
         world_version_id: row.world_version_id, world_glb: glb.file_path,
         fps, duration_ms: durationMs, frame_count: frames, width, height,
-        sensor_width_mm: sensorWidth, subjects, frames: out, warnings,
+        sensor_width_mm: sensorWidth, sensor_fit: sensorFit, aspect_ratio: aspect, kind, mode,
+        range: { inMs: range.inMs, outMs: range.outMs }, markers: range.markers || [],
+        // The exact saved versions this preview is of: still and motion share them.
+        versions: { world_version_id: row.world_version_id, blocking_fingerprint: require('../routes/previs').blockingFingerprint(shotId),
+            world_fingerprint: require('./world-previz').worldFingerprint(db(), row.world_version_id) },
+        subjects, frames: out, warnings, substitutions,
         cost: 'Free: Blender and ffmpeg on this machine.',
     };
+}
+
+/** The job the previz worker receives for a plan: same plan, same job. */
+function renderJob(p, outDir) {
+    return { mode: 'previz', out_dir: outDir || null, world_glb: p.world_glb, width: p.width, height: p.height,
+        sensor_width_mm: p.sensor_width_mm, sensor_fit: p.sensor_fit, shading: p.mode, still: p.kind === 'still',
+        subjects: p.subjects, frames: p.frames.map(f => ({ cam: f.cam, subjects: f.subjects })) };
 }
 
 function encode(framesDir, fps, outPath) {
@@ -192,13 +224,11 @@ function render(shotId, opts = {}) {
 async function renderNow(shotId, p, job, runBlender) {
     const work = fs.mkdtempSync(path.join(os.tmpdir(), 'film-engine-previz-'));
     try {
-        const rendered = await runBlender({
-            mode: 'previz', out_dir: work, world_glb: p.world_glb, width: p.width, height: p.height,
-            sensor_width_mm: p.sensor_width_mm, subjects: p.subjects, frames: p.frames,
-        }, Math.max(600000, p.frame_count * 6000), {
+        const rendered = await runBlender(renderJob(p, work), Math.max(600000, p.frame_count * 6000), {
             script: SCRIPT,
             onLog: chunk => { const m = /PREVIZ-FRAME (\d+)\/(\d+)/g; let x; while ((x = m.exec(chunk))) job.frame = Number(x[1]); },
         });
+        if (p.kind === 'still') return saveStill(shotId, p, work, job, rendered);
         job.status = 'encoding';
         const mp4 = path.join(work, 'previz.mp4');
         await encode(path.join(work, 'frames'), p.fps, mp4);
@@ -211,7 +241,8 @@ async function renderNow(shotId, p, job, runBlender) {
         const fileName = `${code}_previz_v${version}.mp4`;
         const filePath = saveFile(p.project_id, 'previs', fileName, fs.readFileSync(mp4));
         const metadata = { kind: KIND, fps: p.fps, frames: p.frame_count, width: p.width, height: p.height,
-            world_version_id: p.world_version_id, renderer: rendered.renderer || 'blender-workbench', subjects: p.subjects.length };
+            world_version_id: p.world_version_id, renderer: rendered.renderer || 'blender-workbench', subjects: p.subjects.length,
+            mode: p.mode, range: p.range, versions: p.versions, substitutions: p.substitutions };
         const id = generateId();
         db().prepare(`INSERT INTO film_assets (id, project_id, shot_id, asset_type, file_path, file_name, format, mime_type,
                       size_bytes, duration_ms, width, height, version, metadata)
@@ -229,4 +260,23 @@ async function renderNow(shotId, p, job, runBlender) {
     }
 }
 
-module.exports = { plan, render, list, JOBS, KIND, MAX_FRAMES, toBlender };
+/** A still previz: one frame of the same saved world and camera, registered as its own asset. */
+function saveStill(shotId, p, work, job, rendered) {
+    const png = path.join(work, 'frames', 'frame_00001.png');
+    if (!fs.existsSync(png)) throw refuse('Blender rendered no still', 500, 'RENDER_FAILED');
+    const { saveFile } = require('./file-storage');
+    const { generateId } = require('../db/database');
+    const version = (db().prepare(`SELECT MAX(version) v FROM film_assets WHERE shot_id = ? AND asset_type = 'other'
+        AND json_valid(metadata) AND json_extract(metadata, '$.kind') = 'previs_still'`).get(shotId).v || 0) + 1;
+    const fileName = `${String(p.shot_code || shotId).replace(/[^\w.-]/g, '_')}_previz_still_v${version}.png`;
+    const filePath = saveFile(p.project_id, 'previs', fileName, fs.readFileSync(png));
+    const id = generateId();
+    db().prepare(`INSERT INTO film_assets (id, project_id, shot_id, asset_type, file_path, file_name, format, mime_type, size_bytes, width, height, version, metadata)
+                  VALUES (?, ?, ?, 'other', ?, ?, 'png', 'image/png', ?, ?, ?, ?, ?)`)
+        .run(id, p.project_id, shotId, filePath, fileName, fs.statSync(filePath).size, p.width, p.height, version,
+            JSON.stringify({ kind: 'previs_still', at_ms: p.frames[0].t_ms, mode: p.mode, versions: p.versions, substitutions: p.substitutions, renderer: rendered.renderer || 'blender-workbench' }));
+    Object.assign(job, { status: 'done', frame: 1, asset_id: id, url: urlFor(p.project_id, fileName), finished_at: new Date().toISOString() });
+    return { still: { asset_id: id, file_name: fileName, url: urlFor(p.project_id, fileName), at_ms: p.frames[0].t_ms, versions: p.versions }, warnings: p.warnings, substitutions: p.substitutions };
+}
+
+module.exports = { plan, render, renderJob, list, JOBS, KIND, MAX_FRAMES, toBlender };

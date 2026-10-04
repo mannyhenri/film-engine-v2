@@ -435,7 +435,9 @@ function runBlender(job, timeoutMs, opts = {}) {
     const launch = (runJob, cpuFallback = false) => new Promise((resolve, reject) => {
         fs.writeFileSync(jobPath, JSON.stringify(runJob));
         try { fs.unlinkSync(resultPath); } catch (err) { if (err.code !== 'ENOENT') return reject(err); }
-        const child = spawn(blender.bin, ['-b', '--factory-startup', '--python', opts.script || SCRIPT, '--', jobPath],
+        // Only an allowlisted worker script, headless, factory settings, and never a .blend's own Python.
+        const wp = require('./world-previz');
+        const child = spawn(blender.bin, wp.workerArgs(wp.workerForScript(opts.script || SCRIPT), jobPath),
             { stdio: ['ignore', 'pipe', 'pipe'] });
         let log = '', timedOut = false;
         child.stdout.on('data', b => {
@@ -674,6 +676,7 @@ async function finishAttempt(buildId, opts = {}) {
     if (resolved.errors.length) { const e = new Error(resolved.errors[0]); e.status = 409; throw e; }
     const result = await runBlender({ mode: 'export', style, layout, out_dir: row.out_dir, plates: used, assets: resolved.assets });
     const glb = fs.readFileSync(result.glb);
+    const blendPath = result.blend && fs.existsSync(result.blend) ? result.blend : null;
 
     const world = worldForLocation(found.location);
     const worlds = require('./worlds');
@@ -684,6 +687,14 @@ async function finishAttempt(buildId, opts = {}) {
             : `Set build attempt ${row.attempt} (${style}): built in Blender from a measured scan${row.note ? ` (${row.note})` : ''}`,
         caption: row.note || null,
     });
+    // The set.blend Blender saved is the editable world: keep it with the version (GRD-4665).
+    if (blendPath) {
+        require('./world-previz').recordEditableSource(d, version.id, blendPath, {
+            units: { system: 'METRIC', scale_length: 1, length_unit: 'METERS' }, axes: { up: 'Z', forward: 'Y', handedness: 'right' },
+            renderer: { name: 'blender', version: (resolveBlender().version || null) }, addons: [], objects: result.objects || [],
+            substitutions: (result.substitutions || []),
+        }, row.project_id);
+    }
     const asset = require('./media-imports').importMedia('three-d-model', {
         projectId: row.project_id,
         name: `${found.location.name} set (attempt ${row.attempt}).glb`,

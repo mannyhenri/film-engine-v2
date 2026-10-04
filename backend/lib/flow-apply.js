@@ -162,6 +162,8 @@ function planApply(db, args) {
         const revision = require('./generation-revision').generationRevision(db, id, inputAssets);
         revisions.set(id, revision);
         const ctx = require('./capability-payloads').loadShotContext(id);
+        const locked = require('./world-previz').boardRefusal(require('../db/database').db, id);
+        if (locked && flow.nodes.some(n => ['gen.image', 'gen.video'].includes(n.type))) reasons.push(locked.error);
         if (ctx && ctx.previsApplication && !ctx.previsApplication.applied
             && flow.nodes.some(n => ['gen.image', 'gen.video'].includes(n.type))) {
             reasons.push('Apply or re-seed staged Previs before generating this shot.');

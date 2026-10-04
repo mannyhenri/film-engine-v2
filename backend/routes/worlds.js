@@ -361,6 +361,15 @@ async function handleWorlds(req, res, urlParts, query) {
             return json(res, 405, { error: 'Method not allowed' });
         }
 
+        // A .blend, through the inspect worker: the editable world and its report (GRD-4665).
+        if (tail === 'versions' && urlParts[4] === 'import-blend') {
+            if (req.method !== 'POST') return json(res, 405, { error: 'Method not allowed' });
+            try {
+                const wp = require('../lib/world-previz');
+                const v = await wp.importBlend(db, worldId, body);
+                return json(res, 201, { version: versionPayload(v), editable: wp.editableSource(db, v.id), report: wp.importReport(db, v.id) });
+            } catch (e) { return json(res, e.status || 400, { error: e.message, code: e.code }); }
+        }
         if (tail === 'versions' && urlParts[4] === 'import') {
             const w = worlds.getWorld(db, worldId);
             if (!w) return json(res, 404, { error: 'World not found' });
@@ -409,6 +418,24 @@ async function handleWorlds(req, res, urlParts, query) {
         if (!v) return json(res, 404, { error: 'World version not found' });
 
         if (!tail && req.method === 'GET') return json(res, 200, { version: versionPayload(v) });
+
+        // GRD-4665: the editable source, the import report, approval and the reopen check.
+        if (['editable', 'reopen', 'approve'].includes(tail)) {
+            const wp = require('../lib/world-previz');
+            try {
+                if (tail === 'editable' && req.method === 'GET') {
+                    return json(res, 200, { editable: wp.editableSource(db, versionId), report: wp.importReport(db, versionId),
+                        editability: wp.editability(db, versionId), approval_fingerprint: wp.worldFingerprint(db, versionId) });
+                }
+                if (tail === 'reopen' && req.method === 'POST') return json(res, 200, await wp.reopenCheck(db, versionId));
+                if (tail === 'approve' && req.method === 'POST') {
+                    // Approval is a person's: an agent (MCP) cannot approve a world.
+                    if (req.actor === 'agent') return json(res, 403, { error: 'A person approves the world, in Previz', code: 'forbidden' });
+                    return json(res, 200, { version: versionPayload(wp.approveWorld(db, versionId, body)) });
+                }
+                return json(res, 405, { error: 'Method not allowed' });
+            } catch (e) { return json(res, e.status || 400, { error: e.message, code: e.code, current_fingerprint: e.current_fingerprint }); }
+        }
 
         if (tail === 'calibrate' && req.method === 'POST') {
             try {

@@ -567,6 +567,10 @@ elif MODE == 'export':
     blend = os.path.join(OUT, 'set.blend')
     bpy.ops.wm.save_as_mainfile(filepath=blend)
     result['blend'] = blend
+    # Every transform in the saved scene, so reopening it can be checked (GRD-4665).
+    result['objects'] = [{'name': o.name, 'location': [round(v, 6) for v in o.location],
+                          'rotation': [round(math.degrees(v), 4) for v in o.rotation_euler],
+                          'scale': [round(v, 6) for v in o.scale]} for o in sc.objects]
 
 with open(os.path.join(OUT, f'result_{MODE}.json'), 'w') as f:
     json.dump(result, f)

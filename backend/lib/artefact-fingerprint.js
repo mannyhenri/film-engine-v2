@@ -172,7 +172,15 @@ function fingerprintFor(kind, ids) {
 
     // Orchestrated capabilities.
     const payload = payloadFor(spec.capability, ids.shotId);
-    if (payload !== null) return hash({ kind, payload });
+    if (payload !== null) {
+        // A shot in a set is also about which world version it was framed in (GRD-4665). Off-set
+        // shots hash exactly as before, so no existing fingerprint moves.
+        const pin = (kind === 'keyframe' || kind === 'video') && ids.shotId
+            ? db.prepare('SELECT world_version_id FROM film_previs_blocking WHERE shot_id = ? AND world_version_id IS NOT NULL').get(ids.shotId) : null;
+        // In a set the exact framing is the point: the blocking fingerprint (camera, aspect, world) is included.
+        return pin ? hash({ kind, payload, world_version_id: pin.world_version_id, blocking: require('../routes/previs').blockingFingerprint(ids.shotId) })
+            : hash({ kind, payload });
+    }
 
     // Payload unavailable (lipsync/post before their inputs exist). Fall back to
     // what this kind is derived FROM, which is the propagation rule anyway.

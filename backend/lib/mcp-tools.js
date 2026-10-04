@@ -447,6 +447,40 @@ const PRODUCTION_TOOLS = [
         }, required: ['world_version_id', 'source', 'known_meters', 'measured_units'],
     },
     {
+        name: 'world_import_blend',
+        handler: handleWorlds, method: 'POST',
+        path: a => `/film/worlds/${a.world_id}/versions/import-blend`,
+        body: a => ({ file_path: a.file_path, reason: a.reason }),
+        description: 'Import a .blend from the project folder as the next, EDITABLE version of a world. The inspect worker '
+            + '(headless Blender, factory settings, no scripts from the file) reports units, axes, Blender and add-on versions, '
+            + 'every transform, linked files and materials, and exports the stage mesh. Returns the editable source and the import '
+            + 'report (missing assets, unsupported materials, scale changes, substitutions). FREE. A person approves the world in Previz.',
+        schema: { world_id: { type: 'string' }, file_path: { type: 'string', description: 'A .blend inside the project folder' }, reason: { type: 'string' } },
+        required: ['world_id', 'file_path'],
+    },
+    {
+        name: 'world_version_editable',
+        handler: handleWorlds, method: 'GET',
+        path: a => `/film/world-versions/${a.version_id}/editable`,
+        description: 'Read a world version\'s editable source (.blend copy and hash, linked assets, units, axes, versions), its import report, whether it is editable (a preview image never is) and the fingerprint a person approves.',
+        schema: { version_id: { type: 'string' } }, required: ['version_id'],
+    },
+    {
+        name: 'world_reopen_check',
+        handler: handleWorlds, method: 'POST',
+        path: a => `/film/world-versions/${a.version_id}/reopen`,
+        description: 'Reopen a world version\'s saved .blend in Blender and compare units, axes, transforms and source versions with what was recorded. FREE.',
+        schema: { version_id: { type: 'string' } }, required: ['version_id'],
+    },
+    {
+        name: 'previs_workflow',
+        handler: handlePrevis, method: 'POST',
+        path: a => `/film/shots/${a.shot_id}/previs/workflow`,
+        body: a => ({ workflow: a.workflow }),
+        description: 'Put a shot in the LOCKED previz workflow (needs a pinned world) or back to free. A locked shot cannot generate a board until its exact world version and camera are approved; returns the board gate.',
+        schema: { shot_id: { type: 'string' }, workflow: { type: 'string', enum: ['free', 'locked'] } }, required: ['shot_id', 'workflow'],
+    },
+    {
         name: 'world_import_glb',
         handler: handleWorlds, method: 'POST',
         path: a => `/film/worlds/${a.world_id}/versions/import`,

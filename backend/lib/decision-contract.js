@@ -89,6 +89,15 @@ const EXCEPTIONS = [
         why: 'The world pin binds a shot to one reconstruction. It is single-surface by design: there is no board-side half, and projecting it onto the scene card would let a rewrite repoint a shot at geometry nobody chose.',
     },
     {
+        // GRD-4665. Both single-surface, like the world pin: previz render controls, not choices the board states.
+        id: 'previz.range', covers: ['range_json'],
+        why: 'The shot range and markers choose which part of the move a previz still or motion render covers. They shape no prompt and have no board half; the card keeps the shot\'s duration.',
+    },
+    {
+        id: 'previz.workflow', covers: ['previz_workflow'],
+        why: 'Whether a shot is in the locked workflow is a gate on generation (approved world and camera first), not a creative decision; projecting it onto the card would let a rewrite unlock a shot.',
+    },
+    {
         id: 'previs.director-storage', covers: ['director_json'],
         why: 'director_json is the Previs storage envelope for the direction, lighting and location-view decisions above; the semantic fields, not the envelope name, reach prompts.',
     },

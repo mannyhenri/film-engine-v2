@@ -88,7 +88,8 @@ holders = [subject_rig(i, s) for i, s in enumerate(job.get('subjects', []))]
 
 # ── the camera ──────────────────────────────────────────────────────────────
 cam_data = bpy.data.cameras.new('previz')
-cam_data.sensor_fit = 'HORIZONTAL'
+# The camera's saved sensor fit (GRD-4665); HORIZONTAL when a job predates it.
+cam_data.sensor_fit = job.get('sensor_fit', 'HORIZONTAL') if job.get('sensor_fit') in ('AUTO', 'HORIZONTAL', 'VERTICAL') else 'HORIZONTAL'
 cam_data.sensor_width = float(job.get('sensor_width_mm', 36))
 cam_data.clip_start = 0.05
 cam_data.clip_end = 1000
@@ -105,7 +106,8 @@ else:
     sc.render.engine = 'BLENDER_WORKBENCH'
     sh = sc.display.shading
     sh.light = 'STUDIO'
-    sh.color_type = 'MATERIAL'
+    # Flat colour is the cheap default; 'textured' shows the world's own textures (GRD-4665).
+    sh.color_type = 'TEXTURE' if job.get('shading') == 'textured' else 'MATERIAL'
     try:
         sh.show_shadows = True
         sh.show_cavity = True

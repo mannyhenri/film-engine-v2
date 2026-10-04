@@ -3380,6 +3380,9 @@ async function regenerateShot(req, res, shotId, opts) {
         // and leaves the director's Previs experiment untouched.
         generationCtx = loadShotContext(shotId, { keepPlates: keepPlatesFor(body, sceneCard) });
         const application = generationCtx.previsApplication;
+        // The locked previz workflow (GRD-4665): no board until the exact world and camera are approved.
+        const lockedRefusal = !cap.preview && require('../lib/world-previz').boardRefusal(db, shotId);
+        if (lockedRefusal) return json(res, 409, { error: lockedRefusal.error, code: lockedRefusal.code, reasons: lockedRefusal.reasons });
         if (application && !application.applied) {
             // A preview shows what the board would generate from the committed
             // card, which is what ignore_staged generates; it reports the
