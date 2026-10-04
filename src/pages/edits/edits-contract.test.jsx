@@ -6,9 +6,11 @@
  * still legacy (public/legacy/chunks/music.js). The Edit page's own half (the loader, chunked import with
  * X-Upload-Offset, the cut, re-match, delete, Score this edit) is behaviour in EditsPage.test.jsx.
  */
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import fs from 'fs';
 import path from 'path';
+// The upload piece size moved from core into the page's engine; tiny here, so a test file travels in several pieces.
+vi.mock('./engine.js', () => ({ EDIT_CHUNK: 4 }));
 
 const ROOT = path.resolve(__dirname, '../../..');
 const read = (f) => fs.readFileSync(path.join(ROOT, f), 'utf8');

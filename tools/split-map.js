@@ -224,6 +224,9 @@ function generate({ write = true } = {}) {
             case 'CallExpression': // Object.freeze({...}) of pure parts
                 return n.callee.type === 'MemberExpression' && n.callee.object.name === 'Object' && n.callee.property.name === 'freeze' && n.arguments.every(isPure);
             case 'Identifier': return n.name === 'undefined' || n.name === 'Infinity' || n.name === 'NaN';
+            // A built-in constant of Math (Math.PI / 180): reading it runs nothing. Only these eight names, never a call.
+            case 'MemberExpression': return !n.computed && n.object.type === 'Identifier' && n.object.name === 'Math'
+                && ['PI', 'E', 'LN2', 'LN10', 'LOG2E', 'LOG10E', 'SQRT1_2', 'SQRT2'].includes(n.property.name);
             case 'NewExpression': return n.callee.type === 'Identifier' && ['Map', 'Set', 'WeakMap', 'WeakSet'].includes(n.callee.name) && n.arguments.length === 0;
             default: return false;
         }

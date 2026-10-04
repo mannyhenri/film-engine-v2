@@ -8,12 +8,18 @@
  * still core, so its body is read from the reassembled page exactly as the backend reads it; the card's
  * control and its gate are behaviour of the React page.
  */
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import fs from 'fs';
 import path from 'path';
 import { render, fireEvent, act, within } from '@testing-library/react';
 import { installLegacy } from '../../test/setup.js';
 import VideoShotsPage from './VideoShotsPage.jsx';
+// The card's own actions moved from core into this page's engine (tools/core-ownership.js): spied on there.
+vi.mock('./engine.js', async (importOriginal) => {
+    const real = await importOriginal();
+    return Object.fromEntries(Object.entries(real).map(([k, v]) => [k, typeof v === 'function' ? vi.fn() : v]));
+});
+import * as E from './engine.js';
 
 const ROOT = path.resolve(__dirname, '../../..');
 function coreBody(name) {
@@ -45,6 +51,6 @@ describe('background replace on the Video Shots card (the backend page sub-tests
         expect(within(a).queryByText('Background…')).toBeNull();          // no clip: not offered
         const button = within(b).getByText('Background…');
         fireEvent.click(button);
-        expect(fake.replaceBackground).toHaveBeenCalledWith('b', button);
+        expect(E.replaceBackground).toHaveBeenCalledWith('b', button);
     });
 });

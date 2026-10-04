@@ -44,7 +44,8 @@ test('every source file under src/ is read as some owner (a file nobody scans is
 });
 
 test('an (a) declaration is reached by its owner and by no other owner and no load-time code', () => {
-    assert.ok(M.a.length > 0, 'nothing with one owner: the measurement found no edges');
+    // (a) empties as owners take their code, which is the point; what proves the measurement works is its graph.
+    assert.ok([...M.edges.values()].some(e => e.size > 0), 'core has no call edges: the measurement is broken');
     for (const x of [...M.a, ...M.a2]) {
         assert.deepStrictEqual(M.ownersOf(x.name), [x.owner], `${x.name}`);
         assert.ok(!M.boot.has(x.name), `${x.name} is reached at load`);

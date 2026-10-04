@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { legacy } from '../../lib/legacy.js';
 import { usePageLoader } from '../../lib/usePageLoader.js';
+import * as E from './engine.js'; // what a video shot card does that only this page uses, moved from core
 
 /*
  * Video Shots, as React. Replaces the legacy functions listed in react.json: the
@@ -48,11 +49,11 @@ function ShotCard({ s, job, media, pid }) {
             <div className="shot-meta text-sm text-muted">{s.location || ''}{s.duration_ms ? ' · ' + (s.duration_ms / 1000).toFixed(1) + 's' : ''}</div>
             {supplied.length > 0 && <div className="text-sm text-muted" style={{ marginTop: 5 }}>Available: {supplied.join(', ')}</div>}
             <div style={{ marginTop: 8, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                <button className="btn btn-primary btn-sm" onClick={busy(legacy.generateVideoFor)}>{done ? 'Regenerate' : 'Generate Video'}</button>
+                <button className="btn btn-primary btn-sm" onClick={busy(E.generateVideoFor)}>{done ? 'Regenerate' : 'Generate Video'}</button>
                 <button className="btn btn-secondary btn-sm" onClick={() => legacy.generateVoiceForShot(s.id, s.shot_code)} title="The dialogue take that ships — registered against this shot, unlike an audition">Dialogue</button>
                 <Legacy html={legacy.mediaUploadControl('video', 'video', 'shot', s.id, { after: 'loadVideoShots', label: 'Upload clip' })} />
                 {(media.video_raw || media.video_final || media.video_synced) && (
-                    <button className="btn btn-secondary btn-sm" onClick={busy(legacy.setClipCoverage)}
+                    <button className="btn btn-secondary btn-sm" onClick={busy(E.setClipCoverage)}
                         title="If this one clip contains several shots, say which — those shots stop playing their own frames">Covers&hellip;</button>
                 )}
                 <Legacy html={legacy.mediaUploadControl('voice', 'audio', 'shot', s.id, { after: 'loadVideoShots', label: 'Upload dialogue' })} />
@@ -61,10 +62,10 @@ function ShotCard({ s, job, media, pid }) {
                 <Legacy html={legacy.mediaUploadControl('post', 'video', 'shot', s.id, { after: 'loadVideoShots', label: 'Upload final' })} />
                 {done && <>
                     <a className="btn btn-secondary btn-sm" href={videoUrl} target="_blank" rel="noopener">Download</a>
-                    <button className="btn btn-secondary btn-sm" onClick={busy(legacy.lipsyncShot)} title="Sync to dialogue audio (needs generated voice)">Lip-sync</button>
-                    <button className="btn btn-secondary btn-sm" onClick={busy(legacy.postShot)} title="Upscale / enhance">Upscale</button>
-                    <button className="btn btn-secondary btn-sm" onClick={busy(legacy.replaceBackground)} title="Keep the performance, put it somewhere else">Background&hellip;</button>
-                    {longShot && <button className="btn btn-secondary btn-sm" onClick={busy(legacy.stitchShot)} title="Split >5s shot into sub-clips and stitch">Stitch</button>}
+                    <button className="btn btn-secondary btn-sm" onClick={busy(E.lipsyncShot)} title="Sync to dialogue audio (needs generated voice)">Lip-sync</button>
+                    <button className="btn btn-secondary btn-sm" onClick={busy(E.postShot)} title="Upscale / enhance">Upscale</button>
+                    <button className="btn btn-secondary btn-sm" onClick={busy(E.replaceBackground)} title="Keep the performance, put it somewhere else">Background&hellip;</button>
+                    {longShot && <button className="btn btn-secondary btn-sm" onClick={busy(E.stitchShot)} title="Split >5s shot into sub-clips and stitch">Stitch</button>}
                 </>}
             </div>
         </div>

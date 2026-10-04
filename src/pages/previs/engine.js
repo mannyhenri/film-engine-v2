@@ -49,7 +49,7 @@ const live = (name) => new Proxy({}, {
 });
 // Core's objects, as live proxies, in one destructuring statement for the same reason.
 const { AI_PATH, WALK, WORLD, state } = Object.fromEntries(['AI_PATH', 'WALK', 'WORLD', 'state'].map(n => [n, live(n)]));
-// Core's values, read live as legacy.X and assigned with setLegacy: API_BASE, P_DEG.
+// Core's values, read live as legacy.X and assigned with setLegacy: API_BASE.
 
     // ══════════════════════════════════════════════════════════════
     // NAVIGATION
@@ -62,6 +62,8 @@ const { AI_PATH, WALK, WORLD, state } = Object.fromEntries(['AI_PATH', 'WALK', '
     // serves, which its timeline names moves from — and the projection maths
     // below it (previsProject, previsAim, previsFrameView, previsFullView).
     const PREVIS = { taxonomy: null };
+
+    const P_DEG = Math.PI / 180;
 
     async function loadPrevisPage() {
         /*
@@ -133,7 +135,7 @@ const { AI_PATH, WALK, WORLD, state } = Object.fromEntries(['AI_PATH', 'WALK', '
         // shape is a layout accident; the SHOT's shape is the project's aspect
         // ratio, and squeezing the image to the pane would make a 2.39:1
         // composition unreadable in a portrait column.
-        const f = 1 / Math.tan(vFovDeg * legacy.P_DEG / 2);
+        const f = 1 / Math.tan(vFovDeg * P_DEG / 2);
         const aspect = view.w / view.h;
         return {
             x: view.x + (x / z) * (f / aspect) * view.w / 2 + view.w / 2,
@@ -171,8 +173,8 @@ const { AI_PATH, WALK, WORLD, state } = Object.fromEntries(['AI_PATH', 'WALK', '
      * looks perfectly plausible until you compare it with the shot you get.
      */
     function previsAim(pose) {
-        const yaw = (pose.rotation[0] || 0) * legacy.P_DEG;
-        const pitch = (pose.rotation[1] || 0) * legacy.P_DEG;
+        const yaw = (pose.rotation[0] || 0) * P_DEG;
+        const pitch = (pose.rotation[1] || 0) * P_DEG;
         const dir = [-Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch), -Math.cos(yaw) * Math.cos(pitch)];
         return [pose.position[0] + dir[0] * 5, pose.position[1] + dir[1] * 5, pose.position[2] + dir[2] * 5];
     }
@@ -5371,6 +5373,7 @@ const { AI_PATH, WALK, WORLD, state } = Object.fromEntries(['AI_PATH', 'WALK', '
 
 export {
     PREVIS,
+    P_DEG,
     loadPrevisPage,
     pSub,
     pCross,

@@ -88,7 +88,6 @@
     "backend/tests/previs-routes.test.js": "the SPA script parses: React page source templates are inert text, not scripts, and are left out",
     "backend/tests/audio-cards.test.js": "the sandbox that runs soundCueCard gives it legacy.API_BASE: the music engine reads core's API_BASE through the bridge",
     "backend/tests/previs-board-view.test.js": "the sandbox that runs the console's frame functions gives them legacy.API_BASE: the 3D stage engine reads core's API_BASE through the bridge",
-    "backend/tests/shot-motion.test.js": "the sandbox that runs previsAim gives it legacy.P_DEG: the 3D stage engine reads core's P_DEG through the bridge",
     "backend/tests/console-regions.test.js": "the console's source is read up to the end of its <template> (the 3D stage engine's source block), not to the end of the page, where other components' text follows",
     "backend/tests/loading-never-sticks.test.js": "a loading renderer's body is bounded by its own braces, not by the next top-level function: as core's declarations move into React engines, \"the next function\" can be far away and the slice ran into unrelated code",
     "backend/tests/screenplay-focus.test.js": "TYPEWRITER's declaration is read by its own braces rather than up to twBurst, which moved into the Screenplay engine (src/pages/screenplay/engine.js), whose source block precedes core in the assembled page"

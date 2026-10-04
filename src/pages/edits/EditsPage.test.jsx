@@ -2,6 +2,8 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, fireEvent, act, waitFor } from '@testing-library/react';
 import { installLegacy } from '../../test/setup.js';
 import EditsPage from './EditsPage.jsx';
+// The upload piece size moved from core into the page's engine; tiny here, so a test file travels in several pieces.
+vi.mock('./engine.js', () => ({ EDIT_CHUNK: 4 }));
 
 // The Edit page, end to end against the fake core: the routes, bodies and lines the legacy page produced.
 const CUT = {

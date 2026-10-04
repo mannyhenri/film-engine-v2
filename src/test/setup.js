@@ -31,7 +31,6 @@ export function installLegacy({ routes = {}, project = { id: 'p1' } } = {}) {
         DRIFT: { shots: {}, scenes: [] },
         loadScreenplayDrift: vi.fn(async () => {}),
         updateSceneStatusIcons: vi.fn(),
-        EDIT_CHUNK: 4,              // tiny, so a test file travels in several pieces
         MW: {},
         mwTime: (ms) => `${Math.floor((ms || 0) / 60000)}:${String(Math.floor(((ms || 0) % 60000) / 1000)).padStart(2, '0')}`,
         fmtBytes: (n) => `${n} B`,
@@ -43,8 +42,8 @@ export function installLegacy({ routes = {}, project = { id: 'p1' } } = {}) {
         // As core builds it: a label + hidden file input addressed by capability (the test reads the call).
         mediaUploadControl: vi.fn((capability, media, scope, id, o = {}) => `<label class="btn btn-secondary btn-sm">${o.label || 'Upload'}<input type="file" data-import-target="${capability}-media"></label>`),
         loadSequences: vi.fn(),
-        generateVideoFor: vi.fn(), generateVoiceForShot: vi.fn(), setClipCoverage: vi.fn(), lipsyncShot: vi.fn(),
-        postShot: vi.fn(), replaceBackground: vi.fn(), stitchShot: vi.fn(),
+        generateVoiceForShot: vi.fn(), 
+        
         downloadExport: vi.fn(),
         importBundle: vi.fn(),
         streamSSEPost: vi.fn(),   // a test drives it: (path, body, onEvent, onDone, onError)
@@ -94,8 +93,9 @@ export function installLegacy({ routes = {}, project = { id: 'p1' } } = {}) {
         escapeHtml: vi.fn(), focusWordCount: vi.fn(), loadCharacters: vi.fn(), loadLocations: vi.fn(), toggleWriterFocus: vi.fn(), typewriterButtons: vi.fn(), updateConversionEstimate: vi.fn(), 
         AI_PATH: { connected: false, checked: 0 }, API: () => 'http://api.test/film', AUTO_FORMAT_RULES: {}, MAX_CHUNK_SIZE: 7000, TYPEWRITER: {}, 
         _shotAction: vi.fn(), clearModal: vi.fn(), getModalData: vi.fn(() => ({})),
-        previsAspect: vi.fn(() => 16 / 9), WALK: { on: false, from: null, moved: false }, WORLD: { overlays: null, lens: 35, mode: 'keep', pinned: null, world: null }, P_DEG: Math.PI / 180,
+        previsAspect: vi.fn(() => 16 / 9), WALK: { on: false, from: null, moved: false }, WORLD: { overlays: null, lens: 35, mode: 'keep', pinned: null, world: null },
         renderTitlePageCard: vi.fn(),
+        loadVideoShots: vi.fn(), CONFIRM_GEN_VIDEO_TIER: null,
     };
     const missing = LEGACY_GLOBALS.filter(n => !(n in fake));
     if (missing.length) throw new Error('the test fake lacks ' + missing.join(', ') + ' (src/test/setup.js)');

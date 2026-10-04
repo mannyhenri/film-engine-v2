@@ -1,6 +1,25 @@
 {
   "about": "This page is React (src/pages/videoshots/VideoShotsPage.jsx). tools/split-map.js stops generating it, drops the legacy code below, and fails if anything left still calls it. The card actions and the sequence LIST (loadSequences and its strip functions) are shared and stay in core; core still calls loadVideoShots by name after an upload, which the React loader answers.",
   "loader": "loadVideoShots",
-  "replaces": ["loadVideoShots", "renderSequencePicker", "toggleSequenceShot", "SEQ", "generateAllVoices", "createSequence", "generateAllVideos", "generateAllVideosRun"],
+  "replaces": [
+    "loadVideoShots",
+    "renderSequencePicker",
+    "toggleSequenceShot",
+    "SEQ",
+    "generateAllVoices",
+    "createSequence",
+    "generateAllVideos",
+    "generateAllVideosRun",
+    "askBackgroundInstruction",
+    "BG_INSTRUCTION",
+    "bgInstructionDone",
+    "generateVideoFor",
+    "lipsyncShot",
+    "pickCoverageRun",
+    "postShot",
+    "replaceBackground",
+    "setClipCoverage",
+    "stitchShot"
+  ],
   "modals": []
 }

@@ -2,6 +2,7 @@ import { useRef, useState } from 'react';
 import Modal, { openModal, closeModal } from '../../components/Modal.jsx';
 import { legacy } from '../../lib/legacy.js';
 import { usePageLoader } from '../../lib/usePageLoader.js';
+import * as E from './engine.js'; // the upload piece size, moved from core (only this page uses it)
 
 /*
  * Edits made in an editor, brought back, as React. Replaces the legacy functions
@@ -96,7 +97,7 @@ export default function EditsPage() {
             const opened = await legacy.api('/uploads', { method: 'POST', body: JSON.stringify({ total_bytes: file.size, mime: file.type || 'application/octet-stream', name: file.name }) });
             let at = 0, failures = 0;
             while (at < file.size) {
-                const piece = file.slice(at, Math.min(file.size, at + legacy.EDIT_CHUNK));
+                const piece = file.slice(at, Math.min(file.size, at + E.EDIT_CHUNK));
                 // The whole edit has no ceiling (it travels in pieces), but each piece does,
                 // and one over it is refused here rather than as a 413.
                 legacy.checkUploadSize(piece, `/uploads/${opened.id}`);

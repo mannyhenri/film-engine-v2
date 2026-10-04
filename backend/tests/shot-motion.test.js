@@ -409,8 +409,7 @@ test('the previs camera pane turns the way the library says it does', () => {
     assert.ok(aim, 'previsAim is gone — this test no longer covers what it was written for');
 
     // eslint-disable-next-line no-new-func
-    // v2: the 3D stage engine reads core's P_DEG through the bridge, as legacy.P_DEG.
-    const page = new Function(`const P_DEG = Math.PI / 180; const legacy = { P_DEG };\n${aim[0]}\nreturn previsAim;`)();
+    const page = new Function(`const P_DEG = Math.PI / 180;\n${aim[0]}\nreturn previsAim;`)();
     for (const yaw of [-90, -30, -5, 0, 5, 30, 63, 90]) {
         for (const pitch of [-20, 0, 20]) {
             const to = page({ position: [0, 0, 0], rotation: [yaw, pitch, 0] });

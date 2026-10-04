@@ -23,7 +23,6 @@ export const LEGACY_GLOBALS = [
     'loadScreenplayDrift',    // fill DRIFT from the screenplay-drift report (the storyboard reads it too)
     'DRIFT',                  // which scenes' shots were written from an earlier draft (a top-level `let`)
     'updateSceneStatusIcons', // the status icon beside each scene heading in the screenplay editor
-    'EDIT_CHUNK',   // the upload piece size the server accepts per PUT (edits); a top-level const
     'MW',           // the music workstation's state: "Score this edit" sets MW.session before navigating (edits)
     'mwTime',       // ms -> m:ss.t, as every timing in the app is shown (edits)
     'fmtBytes',     // bytes -> "12.3 MB" (edits)
@@ -33,7 +32,7 @@ export const LEGACY_GLOBALS = [
     'importBundle',   // import a project bundle into #importStatus; shared with the project list (exportpage)
     'mediaUploadControl',    // core's upload control for footage/sound made elsewhere, by capability (videoshots)
     'loadSequences',         // the sequence list, still legacy, filled into #sequenceList (videoshots)
-    'generateVideoFor', 'generateVoiceForShot', 'setClipCoverage', 'lipsyncShot', 'postShot', 'replaceBackground', 'stitchShot', // a video shot card's actions, shared with the board (videoshots)
+    'generateVoiceForShot', // a video shot card's actions, shared with the board (videoshots)
     'PROJECT_LIST',          // the project list's filter (stage, archived) and drag state; core restores it from storage at boot (projects)
     'openProject',            // open a project (shared with the shell and the sidebar)
     'loadProjects', 'previewProjectFolder', 'loadScenes', // the project list engine's bridge (src/pages/projects/engine.js)
@@ -94,10 +93,11 @@ export const LEGACY_GLOBALS = [
     
     
     '_shotAction', 'clearModal', 'getModalData', // the music engine's bridge (src/pages/music/engine.js)
-    'previsAspect', 'WALK', 'WORLD', 'P_DEG', // the 3D stage engine's bridge (src/pages/previs/engine.js)
+    'previsAspect', 'WALK', 'WORLD', // the 3D stage engine's bridge (src/pages/previs/engine.js)
     // The storyboard engine's bridge (src/pages/storyboard/engine.js):
     'annotationFeedbackOn', 'confirmChoices', 'confirmExtras', 'confirmGenArm', 'cueExtensionOf', 'frameBusy', 'markupDisarm', 'markupDraw', 'markupLoad', 'markupPaintFeedBadge', 'paintGenOptions', 'renderBoardLock', 'BOARD_LOCK',
     'renderTitlePageCard', // the screenplay editor's title-page card (core keeps it: Sync screenplay redraws it)
+    'loadVideoShots', 'CONFIRM_GEN_VIDEO_TIER', // the Video Shots engine's bridge (src/pages/videoshots/engine.js)
 ];
 
 

@@ -2,6 +2,12 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, fireEvent, act, waitFor, within } from '@testing-library/react';
 import { installLegacy } from '../../test/setup.js';
 import VideoShotsPage from './VideoShotsPage.jsx';
+// The card's own actions moved from core into this page's engine (tools/core-ownership.js): spied on there.
+vi.mock('./engine.js', async (importOriginal) => {
+    const real = await importOriginal();
+    return Object.fromEntries(Object.entries(real).map(([k, v]) => [k, typeof v === 'function' ? vi.fn() : v]));
+});
+import * as E from './engine.js';
 
 // Video Shots, end to end against the fake core: the routes, bodies, questions and lines the legacy page produced.
 const SHOTS = [
@@ -79,7 +85,7 @@ describe('Video Shots', () => {
         for (const [label, fn] of [['Regenerate', 'generateVideoFor'], ['Covers…', 'setClipCoverage'], ['Lip-sync', 'lipsyncShot'], ['Upscale', 'postShot'], ['Background…', 'replaceBackground'], ['Stitch', 'stitchShot']]) {
             const button = within(b).getByText(label);
             fireEvent.click(button);
-            expect(fake[fn]).toHaveBeenCalledWith('b', button);
+            expect(E[fn]).toHaveBeenCalledWith('b', button);
         }
         fireEvent.click(within(b).getByText('Dialogue'));
         expect(fake.generateVoiceForShot).toHaveBeenCalledWith('b', '1B');
