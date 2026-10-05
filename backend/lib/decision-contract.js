@@ -94,6 +94,11 @@ const EXCEPTIONS = [
         why: 'The shot range and markers choose which part of the move a previz still or motion render covers. They shape no prompt and have no board half; the card keeps the shot\'s duration.',
     },
     {
+        // GRD-4666. A binding like the world pin: which approved, immutable package a board is framed from.
+        id: 'previz.reference-package', covers: ['pinned_package_id'],
+        why: 'The pinned reference package binds a shot to one approved, immutable package. It is single-surface by design: the package carries its own camera, and projecting the pin onto the card would let a rewrite repoint a board at a package nobody approved.',
+    },
+    {
         id: 'previz.workflow', covers: ['previz_workflow'],
         why: 'Whether a shot is in the locked workflow is a gate on generation (approved world and camera first), not a creative decision; projecting it onto the card would let a rewrite unlock a shot.',
     },

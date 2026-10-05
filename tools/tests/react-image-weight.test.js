@@ -47,6 +47,7 @@ const EXEMPT = [
     { file: /MarketingPage\.jsx$/, expr: /marketingImgSrc\(/, why: 'posters are judged at full size' },
     { file: /Gallery\.jsx$/, expr: /^src = gallerySrc\(/, why: 'the gallery tile hands its own src to the full-size plate viewer' },
     { file: /ShotBoardPage\.jsx$/, expr: /^src$/, why: 'HideOnError / HideOnErrorOr render a src prop; their callers are checked' },
+    { file: /ReferenceCompare\.jsx$/, expr: /^src\(/, why: 'the drift comparison aligns the board and the reference pixel for pixel; a resized picture would misplace every landmark' },
 ];
 
 test('the scan sees the React pictures (not blind)', () => {

@@ -143,6 +143,8 @@ const CREATION_PATHS = [
     { id: 'shot tagger', file: 'routes/scripts.js' },
     // The one insert: the insert-after route and the graph's coverage patterns (PGN-020).
     { id: 'insert after / coverage pattern', file: 'lib/shot-insert-code.js' },
+    // GRD-4666: copying a shot (a distinct editable identity with provenance).
+    { id: 'shot copy', file: 'lib/reference-package.js' },
 ];
 
 test('every path that creates a shot records the draft it was written from', () => {

@@ -47,7 +47,7 @@ function project() {
     const scene = generateId();
     db.prepare('INSERT INTO film_scenes (id, project_id, scene_number, location) VALUES (?, ?, 1, ?)').run(scene, id, 'DINER');
     const shot = generateId();
-    db.prepare('INSERT INTO film_shots (id, scene_id, shot_code, scene_card_yaml) VALUES (?, ?, ?, ?)').run(shot, scene, '1A', '{}');
+    db.prepare('INSERT INTO film_shots (id, scene_id, shot_code, scene_card_yaml) VALUES (?, ?, ?, ?)').run(shot, scene, '1A', JSON.stringify({ shot_code: '1A' }));
     fs.writeFileSync(path.join(dir, 'diner.blend'), Buffer.from('BLENDER-v402 fixture bytes for the diner set'));
     return { id, dir, scene, shot };
 }
@@ -220,9 +220,10 @@ test('changing the camera, the world or the aspect ratio makes downstream approv
         const s = await staged();
         wp.setWorkflow(db, s.shot, 'locked');
         wp.approveWorld(db, s.version.id, { approval_fingerprint: wp.worldFingerprint(db, s.version.id), human_confirmed: true, approved_by: 'Manny' });
+        // A board is made from APPLIED previs (the Apply boundary): apply, then approve what was applied.
+        const applied = await call('POST', `/film/shots/${s.shot}/previs/apply`, {});
+        assert.equal(applied.status, 200, JSON.stringify(applied.data));
         await call('POST', `/film/shots/${s.shot}/previs/approve`, {});
-        // A board is made from APPLIED previs (the Apply boundary), so compare applied states.
-        await call('POST', `/film/shots/${s.shot}/previs/apply`, {});
         const keyframeBefore = require('../lib/artefact-fingerprint').fingerprintFor('keyframe', { shotId: s.shot });
         assert.equal(wp.boardGate(db, s.shot).available, true, `${name}: ready before`);
         await change(s);
@@ -230,7 +231,7 @@ test('changing the camera, the world or the aspect ratio makes downstream approv
         assert.equal(gate.available, false, `${name}: no longer available`);
         assert.ok(gate.reasons.includes(name === 'world' ? 'world_not_approved' : 'camera_approval_stale'), `${name}: ${gate.reasons}`);
         if (name === 'world') assert.ok(gate.reasons.includes('camera_approval_stale'), 'the camera was approved against the old world');
-        await call('POST', `/film/shots/${s.shot}/previs/apply`, {});
+        assert.equal((await call('POST', `/film/shots/${s.shot}/previs/apply`, {})).status, 200, `${name}: applied`);
         const keyframeAfter = require('../lib/artefact-fingerprint').fingerprintFor('keyframe', { shotId: s.shot });
         assert.notEqual(keyframeAfter, keyframeBefore, `${name}: a board made before is now stale`);
     }

@@ -1395,6 +1395,9 @@ function loadShotContext(shotId, opts) {
                 path: JSON.parse(row.path_json || '[]'),
             };
             previsApplication = previs.application;
+            // A pinned, approved reference package (GRD-4666) is what a board is framed from, not the stage's latest camera.
+            const pinned = require('./reference-package').pinnedCamera(db, shotId);
+            if (pinned) { previs.camera = pinned.camera; previs.reference_package = pinned.package; }
             // Durable generation consumes only decisions the director applied.
             // Previs's free what-if previews opt into staged blocking explicitly.
             const mode = (opts && opts.previsMode) || 'applied';

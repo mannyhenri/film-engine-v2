@@ -81,6 +81,7 @@ def subject_rig(i, spec):
     o.data.transform(Matrix.Diagonal((*scale, 1)) @ Matrix.Translation(-base))
     o.matrix_world = Matrix.Identity(4)
     o.parent = holder
+    o.pass_index = i + 1          # the object mask: the set is 0, subjects 1, 2, 3 in staging order
     return holder
 
 
@@ -122,6 +123,33 @@ if sc.world is None:
     sc.world = bpy.data.worlds.new('previz')
 sc.world.color = (0.08, 0.08, 0.09)
 
+# Aligned passes for a reference package (GRD-4666): one still, the same camera and frame, as 32-bit EXR.
+PASSES = [p for p in job.get('passes', []) if p in ('depth', 'normal', 'object_mask')]
+pass_files = {}
+if PASSES:
+    vl = bpy.context.view_layer
+    vl.use_pass_z = 'depth' in PASSES
+    vl.use_pass_normal = 'normal' in PASSES
+    vl.use_pass_object_index = 'object_mask' in PASSES
+    sc.use_nodes = True
+    tree = sc.node_tree
+    for nd in list(tree.nodes):
+        tree.nodes.remove(nd)
+    rl = tree.nodes.new('CompositorNodeRLayers')
+    comp = tree.nodes.new('CompositorNodeComposite')
+    tree.links.new(rl.outputs['Image'], comp.inputs['Image'])
+    PASS_DIR = os.path.join(OUT, 'passes')
+    socket = {'depth': 'Depth', 'normal': 'Normal', 'object_mask': 'IndexOB'}
+    for p in PASSES:
+        fo = tree.nodes.new('CompositorNodeOutputFile')
+        fo.base_path = PASS_DIR
+        fo.format.file_format = 'OPEN_EXR'
+        fo.format.color_depth = '32'
+        fo.format.exr_codec = 'ZIP'
+        fo.file_slots[0].path = p + '_'
+        tree.links.new(rl.outputs[socket[p]], fo.inputs[0])
+        pass_files[p] = os.path.join(PASS_DIR, p + '_%04d.exr' % sc.frame_current)
+
 frames = job['frames']
 n = len(frames)
 for i, fr in enumerate(frames):
@@ -143,6 +171,7 @@ for i, fr in enumerate(frames):
     print('PREVIZ-FRAME %d/%d' % (i + 1, n), flush=True)
 
 with open(os.path.join(OUT, 'result_previz.json'), 'w') as f:
-    json.dump({'mode': 'previz', 'frames': n, 'frames_dir': FRAMES_DIR,
+    json.dump({'mode': 'previz', 'frames': n, 'frames_dir': FRAMES_DIR, 'passes': pass_files,
+               'subject_index': {str(i + 1): s.get('name') for i, s in enumerate(job.get('subjects', []))},
                'renderer': 'cycles-cpu' if job.get('render_engine') == 'CYCLES_CPU' else 'blender-workbench'}, f)
 print('SET-BUILD-DONE')

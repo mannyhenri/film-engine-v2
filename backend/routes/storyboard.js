@@ -658,6 +658,14 @@ function registerStoryboardAsset(projectId, shotId, filePath, fileName, options)
     if (opts.sent_from !== undefined) metadata.sent_from = opts.sent_from;
     if (opts.sent_from_shot_id !== undefined) metadata.sent_from_shot_id = opts.sent_from_shot_id;
     if (opts.sent_from_version !== undefined) metadata.sent_from_version = opts.sent_from_version;
+    /*
+     * A board RENDERED from a pinned reference package (GRD-4666): exact geometry, no generation. It
+     * names the package and its fingerprint, so it reads as stale the moment the package does.
+     */
+    if (opts.source !== undefined) metadata.source = opts.source;
+    if (opts.reference_package_id !== undefined) metadata.reference_package_id = opts.reference_package_id;
+    if (opts.package_fingerprint !== undefined) metadata.package_fingerprint = opts.package_fingerprint;
+    if (opts.renderer !== undefined) metadata.renderer = opts.renderer;
     if (opts.direction_mode) metadata.direction_mode = opts.direction_mode;
     if (opts.anchor_shot_code) metadata.anchor_shot_code = opts.anchor_shot_code;
     // Which angle of which exploration this version was picked from.
@@ -3383,6 +3391,9 @@ async function regenerateShot(req, res, shotId, opts) {
         // The locked previz workflow (GRD-4665): no board until the exact world and camera are approved.
         const lockedRefusal = !cap.preview && require('../lib/world-previz').boardRefusal(db, shotId);
         if (lockedRefusal) return json(res, 409, { error: lockedRefusal.error, code: lockedRefusal.code, reasons: lockedRefusal.reasons });
+        // A pinned reference package (GRD-4666): stale, or weakened by this provider without approval, refuses.
+        const packageRefusal = !cap.preview && require('../lib/reference-package').generationRefusal(db, shotId, lead);
+        if (packageRefusal) return json(res, 409, { error: packageRefusal.error, code: packageRefusal.code, reasons: packageRefusal.reasons, negotiation: packageRefusal.negotiation });
         if (application && !application.applied) {
             // A preview shows what the board would generate from the committed
             // card, which is what ignore_staged generates; it reports the

@@ -110,6 +110,11 @@ async function executeGenerator(node, inputs, ctx) {
     if (['image', 'video'].includes(capability) && ctx.shot && ctx.shot.id) {
         const refusal = require('../world-previz').boardRefusal(require('../../db/database').db, ctx.shot.id);
         if (refusal) return refusal;
+        // A pinned reference package (GRD-4666): refused when stale, or when this provider weakens it unapproved.
+        if (capability === 'image') {
+            const weak = require('../reference-package').generationRefusal(require('../../db/database').db, ctx.shot.id, provider);
+            if (weak) return weak;
+        }
     }
     if (merged.previsApplication && !merged.previsApplication.applied && ['image', 'video'].includes(capability)) {
         return { ok: false, error: 'Apply or re-seed the staged Previs before running this generation.', code: 'STAGED_PREVIS' };

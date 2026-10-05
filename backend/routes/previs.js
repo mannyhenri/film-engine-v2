@@ -1604,6 +1604,8 @@ function handlePrevis(req, res, urlParts) {
             if (req.method !== 'POST') return json(res, 405, { error: 'Method not allowed' });
             return fromCard(req, res, shotId);
         }
+        // Reference packages, board/video drift review and shot copies (GRD-4666).
+        if (['packages', 'board-reviews', 'video-pins', 'copy'].includes(urlParts[4])) return require('./reference-packages').handleReferencePackages(req, res, urlParts);
         // The locked workflow (GRD-4665): board only after the exact world and camera are approved.
         if (urlParts[4] === 'workflow' && req.method === 'POST') {
             try { return json(res, 200, require('../lib/world-previz').setWorkflow(db, shotId, (req.body || {}).workflow)); }

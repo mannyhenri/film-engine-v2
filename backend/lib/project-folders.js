@@ -59,6 +59,7 @@ const PROJECT_LAYOUT = Object.freeze({
     storyboards: Object.freeze({ folder: '02 Storyboard', what: 'storyboard frames; earlier attempts in versions/' }),
     previs:      Object.freeze({ folder: '03 Previs/Stages', what: 'previs stills and imported stage images' }),
     worlds:      Object.freeze({ folder: '03 Previs/Worlds', what: 'navigable worlds built from location plates' }),
+    references:  Object.freeze({ folder: '03 Previs/References', what: 'approved reference packages: aligned beauty, depth, normal and mask passes' }),
     '3d':        Object.freeze({ folder: '03 Previs/3D Models', what: 'meshes for characters, props and stages' }),
     video:       Object.freeze({ folder: '04 Video/Clips', what: 'generated, uploaded, lip-synced and finished clips, and the film master' }),
     repairs:     Object.freeze({ folder: '04 Video/Repairs', what: 'frames extracted and made while repairing a clip' }),

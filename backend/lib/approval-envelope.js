@@ -92,6 +92,11 @@ const WARNINGS = Object.freeze([
             + 'refused one — so the frame is conditioned on less than the shot names',
     },
     {
+        // GRD-4666: the provider cannot take every control the reference package offers.
+        id: 'reference_controls_omitted', severity: 'warn',
+        why: 'this provider cannot receive every control in the approved reference package, so camera and geometry may drift from it',
+    },
+    {
         // A warning, never a block (GRD-4671): camera, board and render approvals keep their own rules.
         id: 'scene_writing_not_ready', severity: 'info',
         why: 'the scene\'s writing is not marked Production ready, so its text may still change',
@@ -173,6 +178,9 @@ function preSpendEnvelope(input) {
     }
     const dropped = (o.droppedReferences || []).filter(Boolean);
     if (dropped.length) warnings.push(warning('reference_dropped', dropped.join('; ')));
+    if (o.referenceNegotiation && o.referenceNegotiation.weakened) {
+        warnings.push(warning('reference_controls_omitted', `omitted: ${o.referenceNegotiation.omitted.map(x => x.control).join(', ')}`));
+    }
     if (o.sceneWriting && o.sceneWriting.status && o.sceneWriting.status !== 'production_ready') {
         warnings.push(warning('scene_writing_not_ready', `writing status: ${o.sceneWriting.status}`));
     }
