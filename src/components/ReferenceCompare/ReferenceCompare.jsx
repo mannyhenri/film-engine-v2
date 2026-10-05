@@ -18,11 +18,12 @@ export default function ReferenceCompare() {
  const [marks, setMarks] = useState({}), [marking, setMarking] = useState(null), [result, setResult] = useState(null);
  const [disposition, setDisposition] = useState('accept'), [notes, setNotes] = useState({}), [by, setBy] = useState('');
  const [decided, setDecided] = useState(false), [pinned, setPinned] = useState(null), [error, setError] = useState(''), [busy, setBusy] = useState(false);
- const project = legacy.state.currentProject;
  const base = id => `/shots/${id}/previs`;
  async function step(fn) { setBusy(true); setError(''); try { await fn(); } catch (e) { setError(e.message); } finally { setBusy(false); } }
 
  const show = () => step(async () => {
+  // Read when opened, never while rendering: App renders before the legacy core has defined state.
+  const project = legacy.state.currentProject;
   if (!project) throw new Error('Open a project first.');
   setOpen(true);
   const sc = await legacy.api(`/projects/${project.id}/scenes`);
