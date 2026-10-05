@@ -102,6 +102,7 @@ const { handleStyleProfile } = require('./routes/style-profile');
 const { handleStyleDrafting } = require('./routes/style-drafting');
 const { handleStylePilot } = require('./routes/style-pilot');
 const { handleStereo } = require('./routes/stereo');
+const { handleReleaseGates } = require('./routes/release-gates');
 const { handleCharacters } = require('./routes/characters');
 const { handleSubtitles } = require('./routes/subtitles');
 const { handleAudioDeliverables } = require('./routes/audio-deliverables');
@@ -659,6 +660,7 @@ const server = http.createServer(async (req, res) => {
         if (parts[1] === 'projects' && parts[2] && parts[3] === 'style-drafting') return await handleStyleDrafting(req, res, parts);
         if (parts[1] === 'projects' && parts[2] && parts[3] === 'style-pilot') return await handleStylePilot(req, res, parts);
         if (parts[1] === 'stereo') return await handleStereo(req, res, parts);
+        if (parts[1] === 'release-gates') return await handleReleaseGates(req, res, parts);
 
         // Route: /film/projects/:id/screenplay-ai (FILM-112)
         if (parts[1] === 'projects' && parts[2] && parts[3] === 'screenplay-ai') {
