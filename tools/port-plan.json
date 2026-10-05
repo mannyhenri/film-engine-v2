@@ -78,7 +78,7 @@
     "backend/tests/SKIPPED-SUBTESTS.json": "v2 only: sub-tests skipped by exact name, each with its reason",
     "backend/routes/shots.js": "getShotlist answers every shot unless limit/page is given: the default of 50 cut a film past 50 shots out of every page that lists shots (Shot Board, scene dialogue, subtitles picker, export, previs, score session)",
     "backend/tests/shotlist-all.test.js": "v2 only: holds the shot list to answering every shot unless paged",
-    "backend/server.js": "routes shot-audit and shots-resync to handleProductionReports: the handler served them but server.js never routed them, so they answered 405 (Resync, the MCP shots_resync tool, Sync screenplay); held by backend/tests/report-routes-reachable.test.js; Writing-style MVP: project-scoped original evidence, reviewed profiles and draft context. GRD-4662: routes style-profile. GRD-4663: routes style-drafting. GRD-4664: routes style-pilot. GRD-4667: routes stereo",
+    "backend/server.js": "routes shot-audit and shots-resync to handleProductionReports: the handler served them but server.js never routed them, so they answered 405 (Resync, the MCP shots_resync tool, Sync screenplay); held by backend/tests/report-routes-reachable.test.js; Writing-style MVP: project-scoped original evidence, reviewed profiles and draft context. GRD-4662: routes style-profile. GRD-4663: routes style-drafting. GRD-4664: routes style-pilot. GRD-4667: routes stereo. GRD-4670: routes release-gates",
     "backend/tests/report-routes-reachable.test.js": "v2 only: every report production-reports.js serves is routed to it by server.js",
     "backend/tests/budget-backend-halves.test.js": "v2 only: the backend halves of two sub-tests whose last line reads the legacy Budget page (production-estimate's route and tool, requested-size's per-model maximum), kept verbatim",
     "backend/tests/page-handlers.test.js": "ownScript reads a React page's own code from its <template data-react-source> (tools/assemble-page.js), taking the templates out before the script scan (an engine's regex can hold `<script`): engines define the functions the page's controls and HTML call",
@@ -146,6 +146,8 @@
     "backend/tests/screenplay-drift.test.js": "GRD-4666: shot copy (lib/reference-package.js) is a creation path that stamps its draft",
     "backend/lib/stereo-qualification.js": "GRD-4667: stereo feasibility gate: candidates disabled until evidence, hard-case benchmark, device viewing and a person's decision; flat_sbs fallback; first SBS profile",
     "backend/routes/stereo.js": "GRD-4667: /film/stereo/...: evidence, reels, worker measurements, profiles; decisions are a person's",
+    "backend/lib/release-evidence.js": "GRD-4670: AT01–AT12 registry; writing, blender and stereo release gates over one exact version set; stale, requalified, screenshot-only and automation-only human tests never pass; retained artifacts and known limitations in the report",
+    "backend/routes/release-gates.js": "GRD-4670: /film/release-gates/...: evidence, artifacts, requalification, gate report; a release is a person's",
     "backend/db/migrations/139_stereo_qualification.sql": "GRD-4667: stereo candidates (seeded: flat_sbs enabled, stereocrafter disabled), reels, benchmarks, profiles",
     "backend/tests/stereo-qualification.test.js": "v2 only (GRD-4667): evidence completeness, hard-case coverage, measured-or-not-measured diagnostics, profile sizes, real flat-SBS encode and no silent crop, decisions"
   },
