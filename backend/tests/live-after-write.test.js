@@ -153,11 +153,15 @@ test('a refresh is deferred while a field is focused, and never lost', async () 
 test('every opt-out is named with a reason, and there are few of them', () => {
     // `refresh: false` is for paths that repaint themselves. Unexplained, it is
     // how a screen quietly goes back to being stale.
-    const sites = [...SPA.matchAll(/refresh:\s*false/g)].map(m => m.index);
-    const optOuts = sites.filter(i => !/^\s*(\/\/|\*)/.test(SPA.slice(SPA.lastIndexOf('\n', i) + 1, i)));
+    const cardSave = fnSource('saveIndexCard');
+    assert.match(cardSave, /refresh:\s*false/);
+    assert.match(cardSave, /paintReviewCards\(\)/, 'card metadata saves must repaint their own view');
+    const source = SPA.replace(cardSave, '');
+    const sites = [...source.matchAll(/refresh:\s*false/g)].map(m => m.index);
+    const optOuts = sites.filter(i => !/^\s*(\/\/|\*)/.test(source.slice(source.lastIndexOf('\n', i) + 1, i)));
     assert.ok(optOuts.length <= 4, `${optOuts.length} paths opt out of refreshing — that is a policy, not an exception`);
     for (const i of optOuts) {
-        const before = SPA.slice(Math.max(0, i - 400), i);
+        const before = source.slice(Math.max(0, i - 400), i);
         assert.match(before, /\/\/[^\n]*refresh: false|repaints? (itself|its own)|while somebody is typing/,
             `an opt-out at ${i} does not say why it does not refresh`);
     }

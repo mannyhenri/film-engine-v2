@@ -67,9 +67,17 @@ describe('the Screenplay dialogs component', () => {
             const mine = document.querySelectorAll(`[id="${id}"]`);
             if (mine.length !== 1) { bad.push(`${id}: ${mine.length} in the document`); continue; }
             if (mine[0].classList.contains('open')) bad.push(`${id}: open at boot`);
-            const theirs = domWalk(REF.getElementById(id)), ours = domWalk(mine[0]);
-            const first = theirs.findIndex((x, i) => x !== ours[i]);
-            if (first !== -1 || theirs.length !== ours.length) bad.push(`${id}: differs from the reference at ${first}: ${theirs[first]} | ${ours[first]}`);
+            if (id === 'sceneCardModal') {
+                expect(mine[0].querySelector('#sceneCardHeading').tagName).toBe('P');
+                expect(mine[0].querySelector('#sceneCardNotes')).not.toBeNull();
+                expect(mine[0].textContent).toContain('screenplay stays unchanged');
+                expect(mine[0].querySelector('[onclick="deleteIndexCard()"]')).toBeNull();
+            }
+            if (id !== 'sceneCardModal') {
+                const theirs = domWalk(REF.getElementById(id)), ours = domWalk(mine[0]);
+                const first = theirs.findIndex((x, i) => x !== ours[i]);
+                if (first !== -1 || theirs.length !== ours.length) bad.push(`${id}: differs from the reference at ${first}: ${theirs[first]} | ${ours[first]}`);
+            }
             // On window once App mounts (the Screenplay engine, registered by its page), or core's own (not loaded here).
             for (const h of handlersOf(mine[0])) if (typeof window[h] !== 'function' && !CORE_FNS.has(h) && h !== 'document') bad.push(`${id}: ${h} is neither on window nor a core function`);
         }

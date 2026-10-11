@@ -71,6 +71,8 @@ const { ensureSchema } = require('./db/schema');
 const { handleProjects, handleProjectSettingsPreset } = require('./routes/projects');
 const { handleScripts, handleComments } = require('./routes/scripts');
 const { handleStoryStructure } = require('./routes/story-structure');
+const { handleAIWorkspace, handleApplicationAIWorkspace } = require('./routes/ai-workspace');
+const { handleAIConnections } = require('./routes/ai-connections');
 const { handleStoryDevelopment } = require('./routes/story-development');
 const { handleSubjectGallery } = require('./routes/subject-gallery');
 const { handleVoiceCasting } = require('./routes/voice-casting');
@@ -366,7 +368,7 @@ const server = http.createServer(async (req, res) => {
     // Health check
     if (pathname === '/api/health' || pathname === '/') {
         res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ status: 'ok', service: 'film-engine', version: require('./package.json').version }));
+        res.end(JSON.stringify({ status: 'ok', service: 'film-engine', version: require('./package.json').version, backend_id: require('./lib/backend-identity').backendId, capabilities: {ai_connections:1,application_ai_workspace:1} }));
         return;
     }
 
@@ -699,6 +701,10 @@ const server = http.createServer(async (req, res) => {
             && (parts[3] === 'script' || parts[3] === 'scripts' || parts[3] === 'outline')) {
             return await handleScripts(req, res, parts, query);
         }
+
+        if (parts[1] === 'ai-connections') return await handleAIConnections(req, res, parts);
+        if (parts[1] === 'ai-workspace') return await handleApplicationAIWorkspace(req, res, parts);
+        if (parts[1] === 'projects' && parts[2] && parts[3] === 'ai-workspace') return await handleAIWorkspace(req, res, parts, query);
 
         // Route: /film/projects/:id/scenes
         // Route: /film/agent — is an agent host attached, and what would it

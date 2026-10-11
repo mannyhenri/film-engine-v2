@@ -58,8 +58,9 @@ test('everything the removed pill reached is still reachable', () => {
      * which is the opposite of what happened.
      */
     const rail = railSource(html);
-    assert.match(rail, /id:'glossary'/, 'the glossary has no entrance left');
-    assert.match(html, /r\.id === 'glossary'/, 'the glossary button is wired to nothing');
+    assert.match(rail, /id:'guide'/, 'the Guide glossary has no entrance left');
+    assert.match(html, /terms.textContent = 'Terminology glossary'/, 'Guide does not expose the terminology glossary');
+    assert.match(html, /terms.onclick = function \(\) \{ if \(window.showModal\) window.showModal\('glossaryModal'\)/, 'the Guide glossary button is wired to nothing');
 });
 
 test('every rail button reaches something', () => {

@@ -25,6 +25,19 @@ const ROOT = path.join(__dirname, '..', '..');
  * differs from the reference fails, so the list cannot outlive the change it records.
  */
 const CHANGED = {
+    'src/pages/screenplay/engine.js': {
+        jumpToSceneFromCard: 'Authorized independent scene summaries and notes; screenplay changes stay in the Editor',
+        onCardDrop: 'Authorized independent scene summaries and notes; screenplay changes stay in the Editor',
+        createIndexCard: 'Authorized independent scene summaries and notes; screenplay changes stay in the Editor',
+        addIndexCard: 'Authorized independent scene summaries and notes; screenplay changes stay in the Editor',
+        deleteIndexCard: 'Authorized independent scene summaries and notes; screenplay changes stay in the Editor',
+        saveIndexCard: 'Authorized independent scene summaries and notes; screenplay changes stay in the Editor',
+        openIndexCard: 'Authorized independent scene summaries and notes; screenplay changes stay in the Editor',
+        renderIndexCards: 'Authorized independent scene summaries and notes; screenplay changes stay in the Editor',
+        loadLatestFountain: 'Authorized independent scene summaries and notes; screenplay changes stay in the Editor',
+        loadScriptVersion: 'Authorized independent scene summaries and notes; screenplay changes stay in the Editor',
+        toggleAIChat: 'the existing AI Chat button and keyboard shortcut enter the App-mounted durable project workspace when available; the legacy panel remains the fallback',
+    },
     'src/pages/previs/engine.js': {
         worldSplatModule: "the splat viewer's import('./vendor/splat-viewer.js') resolved against the document in a classic script; in a module it would resolve against the module (and Vite rewrites it at build), so it is built from document.baseURI and marked @vite-ignore: the same URL, at run time",
     },
@@ -32,6 +45,9 @@ const CHANGED = {
         loadProductionGraph: 'project-switch fix (3ee8beb): the in-flight load is keyed by project, so a switch never waits on the previous film',
         pgLoad: 'project-switch fix (3ee8beb): a switch resets every per-project field of PG, the queue, picks and palette included',
     },
+};
+const ADDED = {
+    'src/pages/screenplay/engine.js': { printIndexCards: 'Authorized independent scene-card print/PDF layout, four readable slots per page' },
 };
 // Pages and React components (src/components/<Name>/react.json) alike: an engine is an engine wherever it lives.
 const ownModules = (dir) => fs.readdirSync(path.join(ROOT, dir))
@@ -102,13 +118,18 @@ for (const file of ENGINES) {
             if (!mine.length) continue;
             for (const x of mine) seen.add(x);
             const ref = REFERENCE.get(mine[0]);
-            if (ref === undefined) { bad.push(`${mine[0]}: not a top-level declaration of the reference`); continue; }
+            if (ref === undefined) {
+                if (!(ADDED[file] || {})[mine[0]]) bad.push(`${mine[0]}: not a top-level declaration of the reference`);
+                continue;
+            }
+            if ((ADDED[file] || {})[mine[0]]) bad.push(`${mine[0]}: declared new but exists in the reference`);
             const same = undoRewrites(code.slice(n.start, n.end)) === ref;
             const declared = (CHANGED[file] || {})[mine[0]];
             if (!same && !declared) bad.push(`${mine[0]}: differs from the reference`);
             if (same && declared) bad.push(`${mine[0]}: declared changed but is the reference's (stale entry)`);
         }
         for (const name of Object.keys(CHANGED[file] || {})) if (!seen.has(name)) bad.push(`${name}: declared changed and not exported`);
+        for (const name of Object.keys(ADDED[file] || {})) if (!seen.has(name)) bad.push(`${name}: declared new and not exported`);
         const unseen = [...exported].filter(x => !seen.has(x));
         assert.deepStrictEqual(unseen, [], 'exported names with no top-level declaration in the module');
         assert.deepStrictEqual(bad, [], `${file}: hand-edited declarations`);

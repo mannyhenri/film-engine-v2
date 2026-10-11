@@ -1,0 +1,10 @@
+.ai-workspace-launch{position:fixed;right:320px;bottom:38px;z-index:100}
+.ai-workspace-outside-error{position:fixed;bottom:80px;right:20px;z-index:1200}
+.ai-workspace-shade{position:fixed;inset:0;background:#0009;z-index:1300;padding:3vh 3vw}
+.ai-workspace{height:94vh;overflow:auto;background:var(--gl-bg,#171923);color:var(--gl-text,#eee);border:1px solid #777;border-radius:12px;padding:20px;box-shadow:0 12px 60px #0009}
+.ai-workspace header{display:flex;align-items:start;justify-content:space-between;gap:16px}
+.ai-workspace h2{margin:0}.ai-workspace-grid{display:grid;grid-template-columns:minmax(230px,300px) minmax(0,1fr);gap:24px}.ai-workspace aside,.ai-workspace main{min-width:0}
+.ai-workspace label{display:block;margin:10px 0}.ai-workspace select,.ai-workspace textarea{display:block;width:100%;margin-top:5px;background:var(--gl-panel,#252936);color:inherit;border:1px solid #777;border-radius:5px;padding:8px;box-sizing:border-box;font:inherit}
+.ai-workspace fieldset{border:1px solid #666;border-radius:6px;padding:12px;margin:12px 0}.ai-workspace details{margin:12px 0}.ai-workspace summary{cursor:pointer}.ai-workspace .btn{margin:4px 8px 4px 0}
+.ai-workspace-note{font-size:12px;line-height:1.6;color:var(--gl-muted,#b7bccb)}.ai-workspace-history article{padding:14px;border:1px solid #666;border-radius:8px;margin-bottom:12px}.ai-workspace pre,.ai-workspace-text{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.6;max-width:100%}.ai-workspace pre{font-size:13px;max-height:420px;overflow:auto;background:#0002;padding:12px;border-radius:6px}.ai-workspace-error{border:1px solid #dd867a;padding:12px}.ai-workspace-preview{border:1px solid #b3a080;border-radius:8px;padding:14px;margin-top:14px}
+@media(max-width:800px){.ai-workspace-grid{grid-template-columns:1fr}.ai-workspace-shade{padding:0}.ai-workspace{height:100vh;border-radius:0;padding:14px}.ai-workspace-launch{right:300px;font-size:11px}.ai-workspace header{position:sticky;top:-14px;background:var(--gl-bg,#171923);padding-top:10px;z-index:1}}

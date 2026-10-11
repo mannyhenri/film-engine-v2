@@ -23,8 +23,11 @@ if (SMOKE) app.setPath('userData', require('fs').mkdtempSync(require('path').joi
 // The desktop icon (tools/make-mac-icon.py from public/branding/filmengine-app-icon.png); Windows takes its multi-size .ico.
 const ICON = path.join(__dirname, process.platform === 'win32' ? 'icon.ico' : 'icon.png');
 const BACKEND_VERSION = require('../backend/package.json').version;
+const {backendId,matchesWritingBackend}=require('../backend/lib/backend-identity');
 let API = process.env.FE_API_BASE || 'http://localhost:3100';
 let backend = null;
+const aiLease = require('./ai-connections.cjs').createDesktopAILease({getApiBase:()=>API,disabled:SMOKE});
+let quitting = false;
 // The smoke run records what would leave the app instead of opening a browser.
 const leftApp = [];
 const openExternal = (url) => (SMOKE ? leftApp.push(url) : shell.openExternal(url));
@@ -53,7 +56,11 @@ function stopBackend() {
 }
 
 /** Kill what we started, then leave. app.exit() skips before-quit, so never call it bare. */
-function quit(code) { stopBackend(); app.exit(code); }
+function quit(code) {
+    if (quitting) return;
+    quitting = true;
+    aiLease.stop().catch(err=>console.warn('[Film AI shutdown]',err.message)).finally(()=>{stopBackend();app.exit(code);});
+}
 
 /*
  * A backend already answering is reused only if it is THIS backend's version of
@@ -63,8 +70,8 @@ function quit(code) { stopBackend(); app.exit(code); }
 async function ensureBackend() {
     if (!SMOKE || process.env.FE_SMOKE_REUSE) {
         const h = await health(API);
-        if (h && h.service === 'film-engine' && h.version === BACKEND_VERSION) return 'reused';
-        if (h) console.warn(`[film-engine] ${API} answers as ${h.service} ${h.version}, not film-engine ${BACKEND_VERSION}: starting this app's own backend`);
+        if (matchesWritingBackend(h,BACKEND_VERSION)) return 'reused';
+        if (h) console.warn(`[film-engine] ${API} lacks ${backendId} ${BACKEND_VERSION} writing capabilities: starting this app's own backend`);
     }
     if (SMOKE || await health(API)) API = `http://localhost:${await freePort()}`;
     // System node, not Electron's: better-sqlite3 stays built for it, no electron-rebuild.
@@ -79,7 +86,7 @@ async function ensureBackend() {
     backend.on('exit', (code) => { if (code) console.error(`[backend] exited ${code}`); backend = null; });
     for (let i = 0; i < 80; i++) {
         const h = await health(API);
-        if (h && h.version === BACKEND_VERSION) return 'started';
+        if (matchesWritingBackend(h,BACKEND_VERSION)) return 'started';
         if (!backend) break;
         await new Promise(r => setTimeout(r, 250));
     }
@@ -606,6 +613,7 @@ app.whenReady().then(async () => {
     try {
         const how = await ensureBackend();
         console.log(`[film-engine] backend ${how} at ${API}`);
+        if (!SMOKE) {try {await aiLease.start();} catch (err) {console.warn('[Film AI]',err.message);}}
         const win = await createWindow();
         if (SMOKE) { const ok = await smoke(win); quit(ok ? 0 : 1); }
     } catch (err) {
@@ -615,6 +623,7 @@ app.whenReady().then(async () => {
 });
 
 app.on('window-all-closed', () => app.quit());
+app.on('before-quit', event => {if (!quitting) {event.preventDefault();quit(0);}});
 app.on('will-quit', stopBackend);
 process.on('exit', stopBackend);
 for (const sig of ['SIGINT', 'SIGTERM', 'SIGHUP']) process.on(sig, () => quit(130));
