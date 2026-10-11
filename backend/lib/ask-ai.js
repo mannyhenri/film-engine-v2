@@ -11,7 +11,7 @@ const words=text=>String(text).trim().split(/\s+/).filter(Boolean).length;
 function createApplicationWorkspace(db,{runner,saveScript,codingTarget,codingRoot}={}) {
  const running=new Map(),coding=createCodingHandoff({target:codingTarget,root:codingRoot});
  db.prepare("UPDATE film_application_ai_tasks SET status='interrupted',error='Film restarted; this task was not resumed.',completed_at=datetime('now') WHERE status IN ('running','cancelling')").run();
- const projects=()=>db.prepare('SELECT id,title,logline,genre,status FROM film_projects ORDER BY created_at,id').all();
+ const projects=()=>db.prepare('SELECT id,title,logline,genre,status FROM film_projects WHERE archived_at IS NULL ORDER BY created_at,id').all();
  function conversation(id){return db.prepare("SELECT * FROM film_application_ai_conversations WHERE id=? AND scope='application' AND application_id=?").get(id,APP)||fail(404,'Application conversation not found');}
  const uploads=createAIUploads(db,conversation);
  function task(id){const row=db.prepare('SELECT t.* FROM film_application_ai_tasks t JOIN film_application_ai_conversations c ON c.id=t.conversation_id WHERE t.id=? AND c.application_id=? AND c.scope=?').get(id,APP,'application');if(!row)fail(404,'Application task not found');return {...row,request:parse(row.request),source:parse(row.source),source_fingerprint:digest(parse(row.source)),events:parse(row.events),application:parse(row.application)};}

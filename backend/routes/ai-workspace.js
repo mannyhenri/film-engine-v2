@@ -14,6 +14,7 @@ async function handleAIWorkspace(req,res,parts,query){
   else if(resource==='conversations'&&id&&!action&&req.method==='GET')result={conversation:w.conversation(pid,id),tasks:w.tasks(pid,id)};
   else if(resource==='conversations'&&id&&action==='preview'&&req.method==='POST'){result=w.preview(pid,id,b);status=201;}
   else if(resource==='tasks'&&id&&!action&&req.method==='GET')result=w.task(pid,id);
+  else if(resource==='tasks'&&id&&action==='change-review'&&req.method==='GET')result=w.reviewChange(pid,id);
   else if(resource==='tasks'&&id&&req.method==='POST'&&['execute','apply','undo','cancel'].includes(action))result=w[action](pid,id,b);
   else throw Object.assign(Error('AI workspace route not found'),{status:404});
   res.writeHead(status,{'Content-Type':'application/json'});res.end(JSON.stringify(result));

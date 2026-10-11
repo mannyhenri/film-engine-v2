@@ -30,6 +30,11 @@ test('Home application history persists and dispatch carries UUID global ownersh
 test('opening the application catalog is read-only for every project, including missing summary snapshots',()=>{
  const f=fixture();project('No summaries yet');const counts=()=>['film_screenplay_cards','film_screenplay_card_snapshots','film_scripts','film_projects'].map(table=>db.prepare('SELECT COUNT(*) n FROM '+table).get().n);const before=counts();f.w.catalog();assert.deepEqual(counts(),before);
 });
+test('application project picker includes active projects and excludes archived projects in the real catalog',()=>{
+ const f=fixture(),active=project('Working film'),archived=project('Archived film');
+ db.prepare("UPDATE film_projects SET archived_at=datetime('now') WHERE id=?").run(archived);
+ const ids=f.w.catalog().projects.map(p=>p.id);assert.ok(ids.includes(active));assert.equal(ids.includes(archived),false);
+});
 test('cross-project context is explicit, bounded, grounded, and blocks stale reviewed dispatch',()=>{
  const f=fixture(),p=project('Included'), other=project('Excluded'), catalog=f.w.catalog(), c=f.w.createConversation({title:'Context'});
  const chosen=catalog.projects.find(x=>x.id===p);const scope={kind:'selected',project_ids:[p],choices:[{project_id:p,expected_source:chosen.source,metadata:true,scenes:[],summaries:[],runtime:true}]};
