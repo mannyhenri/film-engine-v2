@@ -127,14 +127,10 @@ for (const file of ENGINES) {
             if (!mine.length) continue;
             for (const x of mine) seen.add(x);
             const ref = REFERENCE.get(mine[0]);
-<<<<<<< HEAD
             if (ref === undefined) {
                 if (!(ADDED[file] || {})[mine[0]]) bad.push(`${mine[0]}: not a top-level declaration of the reference`);
                 continue;
             }
-=======
-            if (ref === undefined) { if (!(ADDED[file] || {})[mine[0]]) bad.push(`${mine[0]}: not a top-level declaration of the reference`); continue; }
->>>>>>> 8a376e7 (Add reviewed GPU depth, subject mattes and layered composites)
             if ((ADDED[file] || {})[mine[0]]) bad.push(`${mine[0]}: declared new but exists in the reference`);
             const same = undoRewrites(code.slice(n.start, n.end)) === ref;
             const declared = (CHANGED[file] || {})[mine[0]];
