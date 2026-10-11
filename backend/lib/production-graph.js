@@ -283,10 +283,21 @@ function autoLayout(graph, collapsed) {
     let ox = 20;
     const put = (key, x, y) => { pos[key] = { x, y }; };
     const nodeOf = new Map(graph.nodes.map(n => [n.key, n]));
-    const h = key => (NODE_SIZE[(nodeOf.get(key) || {}).type] || { h: 120 }).h;
+    const h = key => nodeOf.get(key)?.h || (NODE_SIZE[(nodeOf.get(key) || {}).type] || { h: 120 }).h;
 
     for (const g of graph.groups) {
         const x0 = ox, y0 = 44;
+        if (g.rows?.length) {
+            let x=x0+20, bottom=y0;
+            for (const key of g.rows) { const n=nodeOf.get(key); put(key,x,y0); bottom=Math.max(bottom,y0+h(key)); x+=(n?.w||260)+40; }
+            let vy=y0, widest=260;
+            for (const key of g.versions||[]) { const n=nodeOf.get(key);put(key,x,vy);vy+=h(key)+GAP;widest=Math.max(widest,n?.w||260); }
+            bottom=Math.max(bottom,vy);const width=x+widest+20-x0;
+            const collapsedGroup=shut.has(g.id);
+            groups.push({id:g.id,label:g.label,x:x0,y:8,w:collapsedGroup?COLLAPSED_GROUP.w:width,h:collapsedGroup?COLLAPSED_GROUP.h:bottom+12});
+            ox=x0+(collapsedGroup?COLLAPSED_GROUP.w:width)+20;continue;
+        }
+
         let colY = y0;
         const shotX = x0 + 20;
         for (const key of g.links_start || []) { put(key, shotX, colY); colY += h(key) + GAP; }
@@ -344,7 +355,7 @@ function readCollapsed(db, projectId) {
 
 /** Every node key a group draws: its shots, links, sequence, versions, sounds and their versions. */
 function groupMembers(g) {
-    return [...(g.links_start || []), ...(g.shots || []), ...(g.sequence ? [g.sequence] : []), ...(g.links_end || []),
+    return [...(g.rows || []), ...(g.links_start || []), ...(g.shots || []), ...(g.sequence ? [g.sequence] : []), ...(g.links_end || []),
         ...(g.versions || []), ...(g.sounds || []).flatMap(x => [x.key, ...(x.versions || [])])];
 }
 
@@ -649,6 +660,14 @@ function buildGraph(db, projectId) {
             sounds: loose.map(n => ({ key: n.key, versions: n.versions.map(v => `ver:${v.asset_id}`) })) });
     }
 
+    for (const projection of [require('./production-depth').graphProjection(db, projectId), require('./composite-graph').graphProjection(db, projectId)]) {
+        nodes.push(...projection.nodes); edges.push(...projection.edges); groups.push(...projection.groups);
+    }
+    const producers = new Map(nodes.filter(n => n.asset_id && /^(depth-output|alpha-output|composite-output|foreground-layer)$/.test(n.type) && !n.key.startsWith('composite-input:')).map(n => [n.asset_id,n]));
+    for (const n of nodes.filter(n => n.key.startsWith('composite-input:'))) {
+        const producer = producers.get(n.asset_id);
+        if (producer) edges.push({from:producer.key,from_port:producer.type==='depth-output'?'display':'out',to:n.key,to_port:'in',type:n.output_type==='DepthSequence'?'depth':'alpha',relationship:'typed_input_provenance',style:'dotted'});
+    }
     const graph = { nodes, edges: edges.filter(e => e.to), groups };
     const collapsed = readCollapsed(db, projectId);
     const auto = autoLayout(graph, collapsed);
@@ -658,7 +677,7 @@ function buildGraph(db, projectId) {
         const a = auto.positions[n.key] || { x: 40, y: 40 };
         n.x = s ? s.x : a.x; n.y = s ? s.y : a.y;
         n.pinned = !!(s && s.pinned);
-        n.w = (NODE_SIZE[n.type] || {}).w; n.h = (NODE_SIZE[n.type] || {}).h;
+        n.w = n.w || (NODE_SIZE[n.type] || {}).w; n.h = n.h || (NODE_SIZE[n.type] || {}).h;
     }
 
     attachImpact(nodes, projectId);

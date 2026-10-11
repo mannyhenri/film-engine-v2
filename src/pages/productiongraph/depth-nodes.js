@@ -1,0 +1,8 @@
+export function depthNodeHtml(n,{esc,port,src,selected,pos}){
+ const head=n.type==='depth-source'?'Source video':n.type==='depth-map'?'Depth Map':n.type==='depth-output'?'Float depth sequence':'Depth display video';
+ const media=n.url&&['depth-source','depth-preview'].includes(n.type)?`<video controls preload="metadata" src="${esc(src(n.url))}" style="width:100%;height:100px;object-fit:contain" onclick="event.stopPropagation()"></video>`:'';
+ const state=n.type==='depth-map'?`${n.status} · ${Math.round(n.progress*100)}%`:n.role || 'source video';
+ const output=n.type==='depth-source'?port('out','video','video'):port('out','depth',n.type==='depth-map'?'depth':n.type==='depth-output'?'display':'preview');
+ return `<div class="pg-node pg-depth${selected}" data-key="${esc(n.key)}" style="${pos}width:${n.w}px;min-height:${n.h}px"><div class="pg-nh"><strong>${head}</strong><div class="pg-sub">${esc(n.name || state)}${n.fixture?' · SYNTHETIC TEST':''}</div></div>${media}<p>${esc(n.phase || state)}</p><div class="pg-row">${n.type==='depth-map'?port('in','video','source'):['depth-output','depth-preview'].includes(n.type)?port('in','depth','in'):''}<span>${n.type==='depth-output'?'DepthSequence':n.type==='depth-preview'?'DepthPreview':'VideoAsset'}</span>${output}</div><button class="pg-sbtn" onclick="event.stopPropagation();pgOpenDepth('${esc(n.id)}')">${n.type==='depth-map'?'Configure / run':'Inspect depth workflow'}</button></div>`;
+}
+export function depthWireAllowed(from,to,port,type){return type==='video'&&port==='source'&&['video','depth-source'].includes(from?.type)&&!!from.asset_id&&to?.type==='depth-map';}

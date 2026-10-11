@@ -29,10 +29,21 @@ const CHANGED = {
         worldSplatModule: "the splat viewer's import('./vendor/splat-viewer.js') resolved against the document in a classic script; in a module it would resolve against the module (and Vite rewrites it at build), so it is built from document.baseURI and marked @vite-ignore: the same URL, at run time",
     },
     'src/pages/productiongraph/engine.js': {
+        PG_PORT_COLOR: 'adds distinct depth and alpha colors for typed processing lineage',
+        pgNodeHtml: 'renders typed depth/matte/composite input and immutable version cards with their named ports',
+        pgCanWire: 'accepts exact typed processing inputs while refusing depth as a subject alpha input',
+        pgWire: 'opens processing controls with a pending typed input; revisions still require explicit review and save',
+        pgRenderDrawer: 'opens typed processing controls for node and version inspection',
         loadProductionGraph: 'project-switch fix (3ee8beb): the in-flight load is keyed by project, so a switch never waits on the previous film',
         pgLoad: 'project-switch fix (3ee8beb): a switch resets every per-project field of PG, the queue, picks and palette included',
     },
 };
+// New post-port bridge entry points, named with their reason. They must exist,
+// be exported, and remain absent from the legacy reference. No other new export is excused.
+const ADDED = {'src/pages/productiongraph/engine.js': {
+    pgOpenDepth: 'dispatches the typed depth workbench request to its React owner',
+    pgOpenComposite: 'dispatches the typed matte/composite workbench request to its React owner',
+}};
 // Pages and React components (src/components/<Name>/react.json) alike: an engine is an engine wherever it lives.
 const ownModules = (dir) => fs.readdirSync(path.join(ROOT, dir))
     .filter(id => fs.existsSync(path.join(ROOT, dir, id, 'react.json')))
@@ -102,13 +113,15 @@ for (const file of ENGINES) {
             if (!mine.length) continue;
             for (const x of mine) seen.add(x);
             const ref = REFERENCE.get(mine[0]);
-            if (ref === undefined) { bad.push(`${mine[0]}: not a top-level declaration of the reference`); continue; }
+            if (ref === undefined) { if (!(ADDED[file] || {})[mine[0]]) bad.push(`${mine[0]}: not a top-level declaration of the reference`); continue; }
+            if ((ADDED[file] || {})[mine[0]]) bad.push(`${mine[0]}: declared new but exists in the reference`);
             const same = undoRewrites(code.slice(n.start, n.end)) === ref;
             const declared = (CHANGED[file] || {})[mine[0]];
             if (!same && !declared) bad.push(`${mine[0]}: differs from the reference`);
             if (same && declared) bad.push(`${mine[0]}: declared changed but is the reference's (stale entry)`);
         }
         for (const name of Object.keys(CHANGED[file] || {})) if (!seen.has(name)) bad.push(`${name}: declared changed and not exported`);
+        for (const name of Object.keys(ADDED[file] || {})) if (!seen.has(name)) bad.push(`${name}: declared new and not exported`);
         const unseen = [...exported].filter(x => !seen.has(x));
         assert.deepStrictEqual(unseen, [], 'exported names with no top-level declaration in the module');
         assert.deepStrictEqual(bad, [], `${file}: hand-edited declarations`);

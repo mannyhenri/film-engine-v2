@@ -1,0 +1,11 @@
+#!/usr/bin/env node
+// SYNTHETIC TRANSPORT ONLY. No neural inference or subject identification.
+const fs=require('node:fs'),path=require('node:path');
+const descriptor={contract:'film-matte-worker-v1',operation:'subject_alpha',provider:'synthetic-local-fixture',model:'fixture-mask',revision:'test-v1',license:'test-only',model_sha256:'0'.repeat(64),source_timestamps:true,network_uploads:false,paid:false,raw_format:'f32le',alpha_mode:'straight',output_coordinates:'encoded',temporal_behavior:'framewise',fixture:true,max_width:1920,max_height:1920,max_frames:1800,max_raw_bytes:536870912,max_output_pixels:2073600,max_source_pixels:16777216,max_model_pixels:1048576,max_duration_seconds:60,model_input_size_min:128,model_input_size_max:1024};
+if(process.argv.includes('--describe')){console.log(JSON.stringify(descriptor));process.exit(0);}
+let text='';process.stdin.on('data',s=>text+=s);process.stdin.on('end',async()=>{
+ try{const r=JSON.parse(text);if(r.settings.device!=='mps'||process.env.PYTORCH_ENABLE_MPS_FALLBACK!=='0')throw Error('Explicit device boundary missing');if(process.argv[1].includes('slow'))await new Promise(resolve=>setTimeout(resolve,10000));const raw=Buffer.alloc(r.width*r.height*4*r.timing.frame_count);
+  for(let f=0;f<r.timing.frame_count;f++){for(let y=0;y<r.height;y++)for(let x=0;x<r.width;x++){const centre=.25+.08*f/r.timing.frame_count,dx=x/r.width-centre,dy=y/r.height-.55,value=dx*dx/.06+dy*dy/.15<1?1:0;raw.writeFloatLE(process.argv[1].includes('invalid')?NaN:value,((f*r.height+y)*r.width+x)*4);}console.log(JSON.stringify({type:'progress',progress:(f+1)/r.timing.frame_count,phase:'SYNTHETIC alpha fixture — not subject inference'}));}
+  fs.writeFileSync(path.join(r.output_dir,'alpha.f32'),raw);const rotation=r.timing.display_rotation_degrees??0,swapped=Math.abs(rotation)===90;console.log(JSON.stringify({type:'result',request_fingerprint:r.request_fingerprint,source_fingerprint:r.source_fingerprint,raw_file:'alpha.f32',timing:{...r.timing,width:r.width,height:r.height},orientation:{coded_width:r.timing.width,coded_height:r.timing.height,display_width:swapped?r.timing.height:r.timing.width,display_height:swapped?r.timing.width:r.timing.height,display_rotation_degrees:rotation,output_coordinates:'encoded'}}));
+ }catch(e){console.log(JSON.stringify({type:'error',message:e.message}));process.exitCode=1;}
+});
