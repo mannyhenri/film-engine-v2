@@ -1,11 +1,15 @@
+import {legacy} from '../../lib/legacy.js';
 import {render,screen,fireEvent,waitFor,act} from '@testing-library/react';
-import {describe,it,expect} from 'vitest';
+import {describe,it,expect,vi,afterEach} from 'vitest';
 import {installLegacy} from '../../test/setup.js';
 import {noteOpenProject,resetProjectEpoch} from '../../lib/project-epoch.js';
 import AskAI from './AskAI.jsx';
 const base='/ai-workspace', c={id:'global-1',title:'Saved conversation'}, source={id:'script1',version:1,hash:'saved-hash',evidence_hash:'evidence-hash'};
 const catalog={application_id:'film-engine-v2',projects:[{id:'p1',title:'Film one',source,scenes:[{index:0,heading:'INT. ROOM',range:{start_line:3,end_line:6}}],summaries:[{index:0,available:true,stale:false}]}],providers:[{id:'codex',available:true,inference_verified:false,note:'Local worker ready'}],uploads:{formats:['txt','docx'],max_bytes:5242880},coding:{target:'/canonical/film-engine-v2',available:false}};
 function fake(extra={}){const f=installLegacy({routes:{['GET '+base]:catalog,['GET '+base+'/conversations']:{conversations:[c]},['GET '+base+'/conversations/'+c.id]:{conversation:c,tasks:[{id:'saved',status:'completed',provider:'codex',request:{prompt:'Earlier question',operation:{kind:'chat'}},result:'Durable reply',events:[],application:{}}],uploads:[]},...extra}});f.fake.state.currentProject=null;return f;}
+const deferred=()=>{let resolve;const promise=new Promise(r=>{resolve=r;});return {promise,resolve};};
+const task=(result,status='completed')=>({id:'task-a',status,provider:'codex',request:{prompt:'Earlier request',operation:{kind:'chat'}},result,events:[],application:{}});
+afterEach(()=>{vi.useRealTimers();resetProjectEpoch();});
 describe('global Ask AI',()=>{
  it('opens on Home without prompts or pseudo-projects, survives project navigation, reopens and restores keyboard focus',async()=>{
   resetProjectEpoch();const f=fake();const opener=document.createElement('button');opener.textContent='Ask AI';document.body.append(opener);opener.focus();render(<AskAI/>);await act(async()=>{await window.__filmOpenAskAI({currentTarget:opener});});await screen.findByText('Durable reply');expect(f.calls.some(x=>x.method==='POST')).toBe(false);expect(screen.getByText(/not verified in this session/i)).toBeTruthy();
@@ -28,4 +32,32 @@ describe('global Ask AI',()=>{
   const f=fake({['GET '+base+'/conversations/'+c.id]:()=>({conversation:c,tasks:[adaptation,coding],uploads:[]}),['POST '+base+'/tasks/adapt/apply']:b=>{expect(b).toEqual({human_confirmed:true,fingerprint:'request-fp',result_fingerprint:'result-fp',source_fingerprint:'source-fp'});adaptation.application={kind:'adaptation',project_id:'newproject',script_id:'scriptv1'};adaptation.apply_state='applied';return adaptation;},['POST '+base+'/tasks/coding/dispatch-coding']:()=>{coding.application={kind:'coding',checkout:'/tasks/coding',execution:'requires_authorized_host',tests:'not_run',commit:'review_required'};return coding;},['GET '+base+'/tasks/coding/coding-review']:{diff:'',status:'',message:'Review host test evidence before commit.'}});
   render(<AskAI/>);await act(async()=>{await window.__filmOpenAskAI();});expect(screen.getByRole('button',{name:'Apply reviewed new project'}).disabled).toBe(true);expect(screen.getByRole('button',{name:'Approve isolated V2 worktree handoff'}).disabled).toBe(true);const checks=screen.getAllByLabelText('I reviewed this result and its source fingerprints');fireEvent.click(checks[0]);fireEvent.click(screen.getByRole('button',{name:'Apply reviewed new project'}));await screen.findByRole('button',{name:'Undo unchanged adaptation'});fireEvent.click(screen.getByLabelText('I reviewed this result and its source fingerprints'));fireEvent.click(screen.getByRole('button',{name:'Approve isolated V2 worktree handoff'}));await screen.findByText(/Execution: requires authorized host/);fireEvent.click(screen.getByRole('button',{name:'Inspect diff and handoff'}));await screen.findByText('No tracked code changes yet.');expect(screen.getByText(/Tests: not_run/)).toBeTruthy();expect(f.calls.some(x=>x.path.endsWith('/commit'))).toBe(false);
  });
+ it.each(['B','New'])('ignores a deferred conversation A poll after selecting %s',async destination=>{
+  vi.useFakeTimers();const pending=deferred();let reads=0;const b={id:'global-2',title:'Conversation B'};
+  fake({['GET '+base+'/conversations']:{conversations:[c,b]},['GET '+base+'/conversations/'+c.id]:()=>++reads===1?{tasks:[task('Conversation A','running')],uploads:[]}:pending.promise,['GET '+base+'/conversations/'+b.id]:{tasks:[task('Conversation B result')],uploads:[{id:'file-b',filename:'B.txt',status:'cancelled',progress:0,bytes:0}]}});
+  render(<AskAI/>);await act(async()=>{await window.__filmOpenAskAI();});await act(async()=>{vi.advanceTimersByTime(750);});
+  if(destination==='B')await act(async()=>{fireEvent.change(screen.getByLabelText('Conversation'),{target:{value:b.id}});});else fireEvent.click(screen.getByRole('button',{name:'New conversation'}));
+  await act(async()=>{pending.resolve({tasks:[task('Late A reply')],uploads:[{id:'file-a',filename:'A.txt',status:'cancelled',progress:0,bytes:0}]});});
+  expect(screen.getByLabelText('Conversation').value).toBe(destination==='B'?b.id:'');expect(screen.queryByText('Late A reply')).toBeNull();expect(screen.queryByText('A.txt · cancelled')).toBeNull();
+  if(destination==='B'){expect(screen.getByText('Conversation B result')).toBeTruthy();expect(screen.getByText('B.txt · cancelled')).toBeTruthy();}else expect(screen.getByLabelText('Application conversation history').textContent).toBe('');
+ });
+ it('discards a pending project A preview after navigation to B while retaining history and B context',async()=>{
+  resetProjectEpoch();const pending=deferred(),p2={...catalog.projects[0],id:'p2',title:'Film two'};
+  const review={included_projects:[{title:'Film one',source}],source_ranges:[],limits:{characters:32000,words:6000},used:{characters:30,words:6},omissions:[],history:{omitted:0}};
+  const f=fake({['GET '+base]:{...catalog,projects:[...catalog.projects,p2]},['POST '+base+'/conversations/'+c.id+'/preview']:()=>pending.promise});f.fake.state.currentProject={id:'p1',title:'Film one'};noteOpenProject();
+  render(<AskAI/>);await act(async()=>{await window.__filmOpenAskAI();});fireEvent.change(screen.getByLabelText('Message'),{target:{value:'Question about project A'}});fireEvent.click(screen.getByRole('button',{name:'Preview request'}));
+  act(()=>{f.fake.state.currentProject={id:'p2',title:'Film two'};noteOpenProject();});
+  await act(async()=>{pending.resolve({id:'stale-preview',fingerprint:'approved',payload:JSON.stringify({review}),request:{operation:{kind:'chat'}}});});
+  expect(screen.queryByRole('button',{name:'Send reviewed request'})).toBeNull();expect(screen.getByRole('heading',{name:'Film two'})).toBeTruthy();expect(screen.getByText('Durable reply')).toBeTruthy();expect(screen.getByRole('button',{name:'Preview request'}).disabled).toBe(false);
+ });
+ it('accepts durable conversation polling across project navigation without restoring a stale preview',async()=>{
+  vi.useFakeTimers();resetProjectEpoch();const pending=deferred();let reads=0;
+  const f=fake({['GET '+base+'/conversations/'+c.id]:()=>++reads===1?{tasks:[task('Waiting','running')],uploads:[]}:pending.promise});noteOpenProject();
+  render(<AskAI/>);await act(async()=>{await window.__filmOpenAskAI();});await act(async()=>{vi.advanceTimersByTime(750);});
+  act(()=>{f.fake.state.currentProject={id:'p1',title:'Film one'};noteOpenProject();});await act(async()=>{pending.resolve({tasks:[task('Finished after navigation')],uploads:[]});});
+  expect(screen.getByText('Finished after navigation')).toBeTruthy();expect(screen.getByRole('dialog',{name:'Ask AI'})).toBeTruthy();expect(screen.queryByRole('button',{name:'Send reviewed request'})).toBeNull();
+ });
 });
+
+// Component tests isolate transport; ai-api.test.jsx exercises authenticated requests.
+vi.mock('../../lib/ai-api.js',()=>({aiAPI:(...args)=>legacy.api(...args)}));

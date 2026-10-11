@@ -1,163 +1,109 @@
-# Ask AI implementation handoff
+# Film writing release verification
 
-Authoring checkout: `film-writing-release`, branch `feat/film-global-ai`, starting
-HEAD `88137259bea8b459820605301a9d6b281b15aba7`. No staging, commit, push, provider
-prompt, software install, canonical source edit, shared database/service restart or
-production-review edit occurred. Dependency symlink folders were not modified.
+The isolated release branch is `feat/film-global-ai`, based on canonical V2 commit
+`88137259bea8b459820605301a9d6b281b15aba7`. Its owned implementation was committed
+as `bc9908405852e5bdfe270158c75b68ff022762f4`; the follow-up commit contains the
+review fixes and this verification record. Unrelated canonical work is excluded.
+No live editor restart or shared database migration was performed during testing.
 
-## Behavior changed
+## Result
 
-- App-mounted global Ask AI replaces only the top-right terminology Terms entry.
-  Guide retains a terminology glossary button; legal/license files remain intact.
-  Home needs no pseudo-project. Application conversations survive navigation,
-  close/reopen and restart. Escape/focus restoration and legacy project AI Chat /
-  Ctrl+Shift+A entrypoints are covered.
-- Separate constrained application conversation/task/upload tables in migration
-  153 preserve existing project foreign keys and writer contracts. Dispatch shares
-  the existing app-owned connection lifecycle with UUIDs and explicit Film global
-  ownership. Local readiness and inference verification are distinct. Claude
-  omits `--bare` to retain existing subscription authentication; auth failures
-  remain unavailable/unverified until explicit reconnect/sign-in.
-- Explicit current/all/selected scope with selected metadata, saved scene text,
-  canonical summaries, runtime/sequence evidence and labeled assumptions. Preview
-  exposes source/evidence hashes, versions/ranges, character/word budgets and
-  omissions. Changed context/history/source/approval blocks dispatch. Catalog
-  summary inspection is read-only for every project.
-- Bounded local TXT/MD/Fountain/DOCX/FDX jobs use existing parsers in worker threads,
-  store original SHA/provenance, show progress/text, require approval then selected
-  range inclusion, and revoke it on cancel. Missing PDF/DOC/RTF/Pages capability is
-  explicit. No caller paths, remote fetching, document execution or automatic send.
-- Novel adaptation remains a Fountain new-project proposal until matching reviewed
-  request/result/source fingerprints are applied. It saves version 1 through the
-  existing script API. No My Voice training or other project writes. Undo detects
-  later project work and archives an unchanged proposal project, retaining history.
-- Coding proposals target canonical V2 and record a base commit. Explicit result
-  review can create a task-owned detached checkout; tracked diff/status are visible.
-  Repo hooks are disabled for Git control operations. Actual implementation/tests/
-  commits require a separately authorized host; Film honestly retains pending
-  execution/test/commit states and never executes model text or edits the live tree.
-- Desktop reuse requires V2 identity and both writing capabilities; selective
-  lease startup/shutdown and backend/UI hooks exclude unrelated final-review,
-  production, media and image-handoff hooks.
+Global Ask AI opens from Home or any project, retains application conversations,
+and previews explicit current/all/selected project evidence before sending. Project
+AI Chat uses durable project/feature conversations. Local files require extraction
+review, approved source hashes and a selected range. Adaptation requires reviewed
+request/result/source fingerprints before creating a version-1 project; undo
+archives only an unchanged proposal. Coding remains an honest controlled worktree
+handoff: implementation, tests and commits require an authorized host.
 
-## Exact paths authored or changed by this unit
+AI control and workspace routes require a transient app capability, loopback peer
+and trusted Host/Origin. Electron delivers the capability only to its trusted main
+frame; provider subprocess environments exclude it. A reused backend must
+authenticate this app capability; otherwise Electron starts a separate owned
+loopback backend. Desktop attach failures retain a bounded heartbeat. Production
+provider probes are asynchronous. Callback persistence failures settle cleanup,
+release task ownership and never replay inference. Deleted project/conversation
+callbacks cannot recreate tasks or write a screenplay. Sequence context preserves
+saved shot order and excludes foreign shots. DOCX jobs enforce aggregate inflated
+XML and intermediate-text limits before retaining at most 100,000 characters.
 
-New:
+Scene-summary cards save only independent summary/notes metadata. They preserve
+screenplay text, dialogue, scene order and user notes. Late saves cannot close or
+repaint a replacement card or a newly selected project/version. Writer polling
+cannot replace a newly selected conversation; applied scene writes refresh only
+a clean editor and leave an explicit pending refresh when it is dirty or saving.
+Nested connection dialogs retain Escape and keyboard focus correctly.
 
-- `backend/db/migrations/153_application_ai.sql`
-- `backend/lib/ask-ai.js`
-- `backend/lib/ai-uploads.js`
-- `backend/lib/ai-upload-worker.cjs`
-- `backend/lib/ai-coding-handoff.js`
-- `backend/tests/ask-ai.test.js`
-- `backend/tests/writing-backend-identity.test.js`
-- `src/components/AIWorkspace/AskAI.jsx`
-- `src/components/AIWorkspace/AskAI.css`
-- `src/components/AIWorkspace/AskAI.test.jsx`
-- `src/components/AIWorkspace/AskAIRail.test.jsx`
-- `src/components/AIWorkspace/ProjectAIEntry.test.jsx`
-- `docs/ask-ai.md`
-- `docs/ask-ai-verification.md`
+## Completed checks
 
-Changed from the supplied snapshot/clean shared hooks:
+All commands used the installed Node 23.11.0 and existing read-only dependency
+symlinks. No software was installed.
 
-- `backend/lib/ai-connections.js`
-- `backend/lib/ai-cli-runner.js`
-- `backend/lib/backend-identity.js`
-- `backend/routes/ai-workspace.js`
-- `backend/server.js`
-- `backend/tests/ai-connections.test.js`
-- `electron/main.cjs`
-- `public/legacy/shell.js`
-- `src/App.jsx`
-- `src/components/AIWorkspace/AIWorkspace.jsx`
-- `src/components/AIWorkspace/AIConnections.jsx`
-- `src/pages/screenplay/engine.js` (only one conditional delegation in `toggleAIChat`)
-- `tools/tests/engine-verbatim.test.js` (named intentional bridge change)
-- `docs/ai-connections.md`
+- Final affected backend tests: **100 passed, zero failed**.
+- Final focused AI UI/authentication tests: **39 passed, zero failed**.
+- Full UI suite: **875 passed in 74 files**.
+- Full tools suite: **233 passed, zero failed, one unavailable legacy-checkout skip**.
+- Production build: passed; output `dist/assets/index-CMQBz3WQ.js`.
+- Actual isolated Electron `--smoke`: **3/3 checks, zero console errors**. It
+  opened the authenticated global and project writers, drew 3,009 screenplay
+  blocks and 106 summary cards, and exported the actual card print window to PDF.
+  It submitted zero provider inference requests and changed no card metadata.
+- From the Mist current v5: **106/106 summarized, zero stale**; source hash
+  `bdf80f7240ac83a10a14311e0e66ad6b0f69625bec69869e04fcd083271913b4`.
+  Actual PDF has **27 landscape Letter pages**, four slots per full page,
+  **12-point headings/summary text** and 10-point scene labels. Every summary and
+  note is present in extracted PDF text; no card overflow. First, middle and last
+  rendered PDF pages were visually checked. No physical printer was used.
+- A separate Chrome measurement of the actual print HTML preserved every character
+  of a five-card long-text fixture, including multiline notes and a long unbroken
+  token: 19 continuation slots on five sheets, no clipping or smaller font.
+- Both supported subscription CLI transports previously completed the harmless
+  `FILM_ENGINE_CONNECTION_OK` response through the owned supervisor, then disposed
+  their workers. This does not claim inference was run in the deployed desktop.
 
-The other approved copied writing dependencies, including `ai-workspace.js`,
-`screenplay-cards.js`, migrations 129/148/150, existing writer/CLI/card tests,
-desktop lease and `electron/backend-runner.cjs`, match their snapshot hashes.
-Their pre-existing untracked/modified Git status is not new work by this unit.
-`src/index.html` was generated locally by the required test-only assembler and
-remains ignored; it is never served or committed.
+The broader isolated backend run passed 453/455 files and 4,916 subtests, with
+four failures in unchanged Ableton/audio-format integration tests. All four were
+reproduced at the original baseline: unavailable local Ableton sidecar and an
+uninitialized credential-table fixture. They are not writing-release regressions.
 
-## Proof and characterization
+## Review and evidence
 
-Inspected existing `ai-workspace.test.js`, `ai-connections.test.js`,
-`ai-cli-runner.test.js`, `screenplay-cards.test.js`, DOCX parser tests and existing
-AIWorkspace/AIConnections UI tests. Baseline: 21 provider/writer backend tests and
-7 UI tests passed before edits. The focused screenplay engine contract passed.
+Actual `ce-code-review` receipt: **status complete**, run
+`20261011-163843-889bdf02`, artifact directory
+`/tmp/compound-engineering-501/ce-code-review/20261011-163843-889bdf02`.
+All eleven selected reviewers returned. The independent validator rejected the
+unused-path preference; the remaining fourteen in-scope fixes were applied and
+verified. The missing external review runner was not installed; the skill's local
+adversarial fallback completed. No external code disclosure occurred.
 
-Proof-first red observations:
+Logs and receipts are retained in the task's `workflow-work/` directory:
+`writing-final-backend-focused.log`, `writing-final-ui-full.log`,
+`writing-final-tools-full.log`, `writing-final-build.log`,
+`writing-final-electron-smoke.log`, `writing-pdf-verification.json`,
+`writing-fix-*-receipt.json`, `writing-fix-decisions.json` and
+`writing-backend-baseline-failures.log`. The PDF and screenshots are in `output/pdf/`.
 
-- New application ownership/history/context tests failed with missing `ask-ai`
-  module before implementation (`/tmp/film-ask-ai-red.log`).
-- Global Home/navigation/review UI tests failed with missing AskAI component
-  (`/tmp/film-ask-ai-ui-red.log`).
-- Read-only catalog regression failed: opening catalog created one card and one
-  snapshot. Pure saved-card inspection fixed it (`/tmp/film-ask-ai-catalog-red.log`).
-- Actual legacy AI Chat entry test failed to open the persisted writer, establishing
-  the missing delegation. The one-line engine bridge fixed it
-  (`/tmp/film-project-ai-entry-red.log`).
-- A 5 MB boundary test exposed recursive base64-regex stack overflow. Flat byte
-  validation/canonical re-encoding fixed the issue.
+## Unapplied review finding
 
-Final commands used Node 23.11.0 with its bin first in PATH:
+- [ ] P2 — `backend/routes/scripts.js:60` — **Expose independent review cards through MCP**.
+  Suggested fix: register `screenplay_cards_read` and `screenplay_card_update`
+  through the shared GET/PUT handlers. Preserve source hash/revision conflicts and
+  source text; require id, version, script_hash and revision for updates. Expose
+  cards, archived metadata and coverage, and document their distinction from
+  production cards.
 
-```sh
-node --test backend/tests/ask-ai.test.js backend/tests/ai-workspace.test.js backend/tests/ai-connections.test.js backend/tests/ai-cli-runner.test.js backend/tests/docx-text.test.js backend/tests/writing-backend-identity.test.js
-# 55 passed, 0 failed. /tmp/film-writing-backend-owned-final.log
+Raised by the `agent-native` reviewer in the completed run above. This is outside
+this scoped UI/API release and overlaps unrelated canonical `mcp-tools.js` work.
+The supported local card GET/PUT APIs and explicit Ask AI summary attachments
+already provide the requested review workflow. No tracker ticket or PR was created;
+the concern is recorded here and returned to the caller.
 
-node node_modules/vitest/vitest.mjs run src/components/AIWorkspace/AIWorkspace.test.jsx src/components/AIWorkspace/AIConnections.test.jsx src/components/AIWorkspace/AskAI.test.jsx src/components/AIWorkspace/AskAIRail.test.jsx src/components/AIWorkspace/ProjectAIEntry.test.jsx --no-cache
-# 5 files, 13 passed. /tmp/film-writing-ui-final.log
+## Deployment boundary
 
-node --test --test-name-pattern='src/pages/screenplay/engine.js:' tools/tests/engine-verbatim.test.js
-# 1 passed. /tmp/film-writing-engine-final.log
-
-node tools/assemble-page.js
-# Required ignored test-only HTML fixture generated; no app build or restart.
-
-node --test backend/tests/screenplay-cards.test.js
-# 6 backend domain tests passed; 2 copied canonical UI dependencies failed below.
-# /tmp/film-writing-cards-final.log
-
-node --test --test-name-pattern='all screenplay spans|stale script and concurrent|reordering repeated|ambiguous changed|renumbering|other project' backend/tests/screenplay-cards.test.js
-# The 6 card-domain tests pass. /tmp/film-writing-cards-domain.log
-
-node --check electron/main.cjs
-node --check backend/server.js
-git diff --check
-# All pass.
-```
-
-New tests exercise actual isolated SQLite restart/reopen state, explicit domains,
-UUID relay transport, foreign/stale ownership, omissions/ranges, read-only catalog,
-real local UTF-8/DOCX/FDX extraction workers, bounded source approval/cancel,
-matching adaptation review/apply/undo and later-edit conflicts, no generated voice
-training, real temporary Git worktree dispatch/diff with the target unchanged,
-honest authentication state, desktop identity and actual shell/legacy UI entrypoints.
-
-## Remaining integration gap and deliberate test boundaries
-
-The supplied canonical `screenplay-cards.test.js` has two UI tests whose card UI
-hooks were not in the approved clean release dependency set. Assertions are
-unchanged; the full file still reports these exact failures:
-
-1. `UI cancel/reopen and repeated saves use metadata only, retain multiline notes, and reload persisted values`
-   — `indexCardsData` is undefined in the clean release card UI.
-2. `print HTML escapes script-closing text and uses four slots with readable continuation`
-   — `reviewCardsPrintHTML` is absent from that UI.
-
-The screenplay engine is otherwise byte-identical to its starting HEAD except
-the single AI Chat delegation. The parent owns selective integration of these
-pre-existing canonical card UI hooks while preserving unrelated engine work.
-The global assistant's own summary behavior and source/omission tests pass.
-
-No new tests for reversible documentation or CSS-only formatting. No full suite,
-desktop build, visual desktop QA, server restart, real provider prompt or actual
-canonical worktree dispatch was performed here. Parent owns those release stages.
-No in-app coding execution/commit implementation, new software/parser installation,
-account grants, paid generation, Resolve integration or voice auto-training was
-added. Unsupported parser and controlled host-handoff states remain visible.
+The running desktop still uses the older bundle. Deployment requires selective
+integration into the canonical checkout while preserving its unrelated work,
+then its already-approved restart after confirming the actual editor shows Saved.
+API/SQLite evidence cannot prove unsaved renderer text. The native desktop surface
+is unavailable to the enabled browser tools, so that label needs a human checkpoint.
+The requested episode clone and Opening Credits project remain queued until the
+safe writing release is active. Neither has been created.

@@ -8,6 +8,9 @@ if (arg) contextBridge.exposeInMainWorld('__filmEngineApiBase', arg.slice('--fe-
 
 // Which desktop shell this is, so the page can make room for the window controls.
 contextBridge.exposeInMainWorld('__feDesktop', { platform: process.platform });
+// This IPC resolves only for main's trusted app window; the token stays out of
+// renderer argv, URLs and persisted settings.
+contextBridge.exposeInMainWorld('__filmAI', {getCapability: () => ipcRenderer.invoke('fe-ai-capability')});
 
 // window.prompt() for the page: Electron does not implement it (it throws), and the
 // legacy code asks with it in ~40 places. Synchronous, as prompt() is: main shows a

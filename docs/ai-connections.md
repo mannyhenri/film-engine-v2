@@ -86,3 +86,22 @@ Official interfaces: [Codex CLI](https://developers.openai.com/codex/cli/referen
 The installed `--help` output is the capability check for these versions.
 
 Legacy server-side API features (such as full-script analysis and production provider generation) retain their existing endpoints and authorization. The default screenplay chat entry uses the managed subscription workspace. This change does not convert every metered production adapter into a Claude/Codex subscription feature.
+
+## Local AI capability boundary
+
+The new account/control, global-workspace and project-workspace routes require
+`X-Film-AI-Capability`, a loopback peer and a matching local Host. An explicit
+trusted development Origin is required for browser capability bootstrap; desktop
+capabilities are available only through the trusted main-frame IPC bridge. Tokens
+remain in process memory, outside renderer arguments, URLs, storage and provider
+environments. `capabilities.ai_route_auth: 1` is required for desktop backend reuse,
+and reuse also verifies the app's capability. An incompatible/shared backend is
+left running while the desktop starts its own loopback backend. Browser unload
+releases its lease with an authenticated keepalive request. A failed initial
+desktop attach keeps its heartbeat so a later attempt can recover.
+
+Production account probes run asynchronously with bounded output/time limits.
+Callback storage failures close only owned workers, release task bookkeeping and
+surface an error without re-sending inference. Both supported CLI transports have
+completed a harmless owned inference check; each deployed session still reports
+its own inference verification state separately.

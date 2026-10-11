@@ -8,7 +8,7 @@ const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
 function fixture(options = {}) {
     const calls = [], children = [], dir = fs.mkdtempSync(path.join(os.tmpdir(), 'film-owned-lifecycle-test-'));
     const rows = ['claude', 'codex'].map(id => ({id, installed: true, connected: true, available: true}));
-    const manager = createAIConnections({readyDelay: 1, readyTimeout: 200, killDelay: 15, reconnectDelays: [], temporaryRoot: dir,
+    const manager = createAIConnections({readyDelay: 1, readyTimeout: options.readyTimeout || 200, killDelay: 15, reconnectDelays: options.reconnectDelays || [], temporaryRoot: dir,
         probe: async () => options.rows || rows, resolveBinary: id => '/fixture/' + id,
         spawnProcess: (bin, args, config) => {
             const spec = JSON.parse(args[1]), provider = path.basename(spec.bin), child = new EventEmitter();
@@ -17,6 +17,7 @@ function fixture(options = {}) {
             child.kill = signal => {child.signals.push(signal); if (!options.manualClose) setImmediate(() => child.emit('close', 143));};
             child.provider = provider; child.spec = spec; children.push(child); calls.push({bin, args, config, child});
             setImmediate(() => {
+                if (options.beforeReady?.(child, children)) return;
                 child.stdout.write(JSON.stringify({type: 'film.worker.ready'}) + '\n');
                 if (provider === 'claude' && !spec.args.includes('login')) child.stdout.write(JSON.stringify({type: 'system', subtype: 'init', session_id: spec.args[spec.args.indexOf('--session-id') + 1], tools: [], mcp_servers: []}) + '\n');
             });
@@ -24,10 +25,10 @@ function fixture(options = {}) {
         }});
     const keepAlive = setInterval(()=>{},1000);
     const cleanup = async () => {await manager.dispose(); clearInterval(keepAlive); fs.rmSync(dir, {recursive: true, force: true});};
-    return {manager, children, calls, cleanup};
+    return {manager, children, calls, dir, cleanup};
 }
 function task(provider = 'codex') {return {provider, project_id: crypto.randomUUID(), conversation_id: crypto.randomUUID(), task_id: crypto.randomUUID(), payload: '{"reviewed":"Only Film context"}'};}
-function hooks() {const values = {events: [], completed: null, error: null, cancelled: false, interrupted: null}; return {values, event: e => values.events.push(e), complete: (text, meta) => values.completed = {text, meta}, error: e => values.error = e, cancelled: () => values.cancelled = true, interrupted: e => values.interrupted = e};}
+function hooks() {const values = {events: [], completed: null, error: null, cancelled: false, interrupted: null, closed: 0}; return {values, event: e => values.events.push(e), complete: (text, meta) => values.completed = {text, meta}, error: e => values.error = e, cancelled: () => values.cancelled = true, interrupted: e => values.interrupted = e, closed: () => values.closed++};}
 test('opening Film owns both idle transports and sends no request; desktop instances have independent leases', async t => {
     const f = fixture(); t.after(f.cleanup);
     const owner = crypto.randomUUID(); await f.manager.attach(owner); await f.manager.attach(owner);
@@ -40,7 +41,7 @@ test('opening Film owns both idle transports and sends no request; desktop insta
     const other = crypto.randomUUID(); await f.manager.attach(other); await f.manager.detach(owner); assert.ok(f.manager.status().opened);
     await f.manager.detach(other); assert.ok(f.children.every(c => c.signals.includes('SIGTERM'))); assert.equal(f.manager.status().opened, false);
 });
-test('only Film-owned IDs dispatch; Unicode response and native session audit survive; reconnect never resubmits', async t => {
+test('only Film-owned IDs dispatch; Unicode response and native session audit survive; successful replacement never resubmits', async t => {
     const f = fixture(); t.after(f.cleanup); await f.manager.attach(crypto.randomUUID());
     const h = hooks(), request = task(), child = f.children.find(c => c.provider === 'codex');
     assert.throws(() => f.manager.start({...request, session_id: 'foreign-marketing'}, h), /Film-owned/);
@@ -92,7 +93,7 @@ test('malformed provider events interrupt instead of applying partial output; ot
     assert.equal(f.manager.providers().find(p => p.id === 'claude').state, 'ready');
 });
 test('CLI environment cannot inherit Marketing, session resume or metered API credentials', () => {
-    const names = ['NEONCORE_SESSION', 'CODEX_THREAD_ID', 'CLAUDECODE', 'OPENAI_API_KEY', 'ANTHROPIC_API_KEY', 'CLAUDE_CODE_RESUME_INTERRUPTED_TURN', 'CLAUDE_CODE_USE_BEDROCK', 'CLAUDE_CODE_OAUTH_TOKEN'];
+    const names = ['FILM_AI_CAPABILITY', 'NEONCORE_SESSION', 'CODEX_THREAD_ID', 'CLAUDECODE', 'OPENAI_API_KEY', 'ANTHROPIC_API_KEY', 'CLAUDE_CODE_RESUME_INTERRUPTED_TURN', 'CLAUDE_CODE_USE_BEDROCK', 'CLAUDE_CODE_OAUTH_TOKEN'];
     const saved = names.map(k => process.env[k]); names.forEach(k => process.env[k] = 'fixture-not-a-secret');
     try {const env = ownedEnv('/fixture/cli'); names.forEach(k => assert.equal(env[k], undefined));}
     finally {names.forEach((k, i) => saved[i] === undefined ? delete process.env[k] : process.env[k] = saved[i]);}
@@ -119,4 +120,44 @@ test('Claude rejects a foreign session or tools introduced after the reviewed re
     const h = hooks(), c = f.children.find(c => c.provider === 'claude'); f.manager.start(task('claude'), h);
     c.stdout.write(JSON.stringify({type:'system',subtype:'init',session_id:'foreign-marketing-session',tools:['shell'],mcp_servers:[{name:'foreign'}]})+'\n');
     await pause(5); assert.match(h.values.interrupted,/isolated Film session/); assert.equal(h.values.completed,null);
+});
+
+test('failed busy worker reconnects once without replaying input or repeating its error hook',async t=>{
+ const f=fixture({reconnectDelays:[5,10]});t.after(f.cleanup);await f.manager.attach(crypto.randomUUID());const h=hooks(),child=f.children.find(c=>c.provider==='codex');let errors=0;h.error=e=>{errors++;h.values.error=e;};f.manager.start(task(),h);child.stderr.write('fixture transport failed');child.emit('close',1);assert.equal(f.manager.providers().find(p=>p.id==='codex').state,'reconnecting');await pause(30);const replacements=f.children.filter(c=>c.provider==='codex');assert.equal(replacements.length,2);assert.equal(replacements[1].input,'');assert.equal(errors,1);assert.equal(h.values.completed,null);assert.equal(f.manager.providers().find(p=>p.id==='codex').state,'ready');
+});
+
+test('pre-readiness failures exhaust bounded retry delays and keep replacement inputs empty',async t=>{
+ const f=fixture({reconnectDelays:[3,6],beforeReady:child=>{if(child.provider==='codex'){child.emit('close',1);return true;}}});t.after(f.cleanup);await f.manager.attach(crypto.randomUUID());await pause(40);const children=f.children.filter(c=>c.provider==='codex');assert.equal(children.length,3);assert.ok(children.every(c=>c.input===''));assert.equal(f.manager.providers().find(p=>p.id==='codex').state,'error');assert.equal(fs.readdirSync(f.dir).filter(n=>n.startsWith('film-owned-ai-')).length,1);
+});
+
+test('readiness timeout retries remain bounded; detach and cancellation remove pending retries',async t=>{
+ const f=fixture({reconnectDelays:[3],readyTimeout:5,beforeReady:child=>child.provider==='codex'});t.after(f.cleanup);const owner=crypto.randomUUID();await f.manager.attach(owner);await pause(30);assert.equal(f.children.filter(c=>c.provider==='codex').length,2);assert.equal(f.manager.providers().find(p=>p.id==='codex').state,'error');await f.manager.detach(owner);
+ const g=fixture({reconnectDelays:[40]});t.after(g.cleanup);const other=crypto.randomUUID();await g.manager.attach(other);const h=hooks(),child=g.children.find(c=>c.provider==='codex'),handle=g.manager.start(task(),h);handle.cancel();await pause(5);await g.manager.detach(other);const count=g.children.length;await pause(60);assert.equal(g.children.length,count);assert.equal(h.values.cancelled,true);assert.equal(h.values.completed,null);
+});
+
+test('throwing or rejecting persistence hooks do not escape, retry writes, claim completion or strand worker cleanup',async t=>{
+ for(const kind of ['event','complete','error','cancelled','interrupted','closed'])for(const rejecting of [false,true]){
+  const f=fixture({reconnectDelays:[3]});t.after(f.cleanup);const owner=crypto.randomUUID();await f.manager.attach(owner);const child=f.children.find(c=>c.provider==='codex'),h=hooks();let calls=0;const initial=h.event;h[kind]=()=>{calls++;if(rejecting)return Promise.reject(Error('fixture SQLite write failed'));throw Error('fixture SQLite write failed');};
+  if(kind==='event'){let initialEvent=true;const throwing=h.event;h.event=e=>{if(initialEvent){initialEvent=false;return initial(e);}return throwing(e);};}
+  const handle=f.manager.start(task(),h),workerDir=f.calls.find(c=>c.child===child).config.cwd;
+  if(kind==='cancelled')handle.cancel();else if(kind==='interrupted'){const stopped=f.manager.detach(owner);await stopped;}
+  else assert.doesNotThrow(()=>{if(kind==='event')child.stdout.write('{"type":"thread.started","thread_id":"fixture"}\n');child.stdout.write('{"type":"item.completed","item":{"type":"agent_message","text":"Done"}}\n');child.emit('close',kind==='error'?1:0);});
+  await handle.closed;assert.equal(calls,1,kind);if(kind!=='closed')assert.equal(h.values.closed,1);assert.equal(fs.existsSync(workerDir),false);assert.equal(f.manager.providers().find(p=>p.id==='codex').inference_verified,false);assert.equal(f.children.filter(c=>c.provider==='codex').length,1);if(kind!=='interrupted')assert.match(f.manager.providers().find(p=>p.id==='codex').note,/could not be saved/);await f.manager.detach(owner);assert.ok(f.manager.providers().every(p=>p.state==='stopped'));
+ }
+});
+
+test('production account-probe wiring remains asynchronous and single-flight on attach and successful replacement',async t=>{
+ const dir=fs.mkdtempSync(path.join(os.tmpdir(),'film-default-probe-test-')),workers=[],probes=[];
+ const keepAlive=setInterval(()=>{},1000);
+ const manager=createAIConnections({resolveBinary:id=>'/fixture/'+id,temporaryRoot:dir,readyDelay:1,reconnectDelays:[],spawnProcess:(bin,args,config)=>{
+  const child=new EventEmitter();child.stdin=new PassThrough();child.stdout=new PassThrough();child.stderr=new PassThrough();child.input='';child.stdin.on('data',b=>child.input+=b);child.kill=()=>setImmediate(()=>child.emit('close',143));
+  if(config.stdio[0]==='ignore'){
+   probes.push({bin,args,config});setTimeout(()=>{const help=bin.endsWith('claude')?'--safe-mode --input-format --tools --no-session-persistence':'--ignore-user-config --ephemeral --json';const output=args.includes('--help')?help:bin.endsWith('claude')?JSON.stringify({loggedIn:true,authMethod:'claude.ai'}):'Logged in using ChatGPT';fs.writeSync(config.stdio[1],output);child.emit('close',0);},10);
+  }else{child.provider=path.basename(JSON.parse(args[1]).bin);workers.push(child);setImmediate(()=>child.stdout.write('{"type":"film.worker.ready"}\n'));}
+  return child;
+ }});
+ t.after(async()=>{await manager.dispose();clearInterval(keepAlive);fs.rmSync(dir,{recursive:true,force:true});});
+ const owner=crypto.randomUUID(),attached=manager.attach(owner);await pause(2);assert.equal(workers.length,0);assert.ok(manager.providers().every(p=>p.state==='starting'));await attached;assert.equal(probes.length,4);assert.equal(workers.length,2);
+ const child=workers.find(c=>c.provider==='codex'),h=hooks();manager.start(task(),h);child.stdout.write('{"type":"item.completed","item":{"type":"agent_message","text":"Done"}}\n');child.emit('close',0);await pause(2);assert.equal(workers.length,2);assert.equal(manager.providers().find(p=>p.id==='codex').state,'starting');
+ for(let n=0;n<30&&workers.length<3;n++)await pause(5);assert.equal(probes.length,8);assert.equal(workers.length,3);assert.equal(workers.at(-1).input,'');
 });

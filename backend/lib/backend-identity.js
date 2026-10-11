@@ -6,6 +6,6 @@ function matchesBackend(health, version) {
 }
 function matchesWritingBackend(health,version) {
     return matchesBackend(health,version) && health.capabilities?.ai_connections===1
-        && health.capabilities?.application_ai_workspace===1;
+        && health.capabilities?.application_ai_workspace===1 && health.capabilities?.ai_route_auth===1;
 }
 module.exports = { backendId, matchesBackend, matchesWritingBackend };

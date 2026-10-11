@@ -3300,6 +3300,7 @@ const { AI_PATH, TYPEWRITER, state } = Object.fromEntries(['AI_PATH', 'TYPEWRITE
         document.getElementById('sceneCardHeading').textContent = card.heading;
         document.getElementById('sceneCardSynopsis').value = card.summary;
         document.getElementById('sceneCardNotes').value = card.notes;
+        document.getElementById('sceneCardSave').disabled = false;
         document.getElementById('sceneCardError').textContent = card.stale ? 'Scene text changed. Review the summary before saving.' : '';
         showModal('sceneCardModal');
     }
@@ -3407,6 +3408,9 @@ const { AI_PATH, TYPEWRITER, state } = Object.fromEntries(['AI_PATH', 'TYPEWRITE
     async function saveIndexCard() {
         const card = editingReviewCard;
         if (!card || card.projectId !== state.currentProject?.id) return;
+        const request = screenplayCardsRequest, version = currentScriptVersion;
+        const current = () => editingReviewCard === card && request === screenplayCardsRequest
+            && card.projectId === state.currentProject?.id && version === currentScriptVersion;
         const button = document.getElementById('sceneCardSave');
         button.disabled = true;
         try {
@@ -3416,14 +3420,16 @@ const { AI_PATH, TYPEWRITER, state } = Object.fromEntries(['AI_PATH', 'TYPEWRITE
             // A notes-only edit must not declare a stale summary current.
             if (summary !== card.summary || !card.stale) body.summary = summary;
             const data = await api(`/projects/${card.projectId}/script/cards`, { method: 'PUT', body: JSON.stringify(body), refresh: false });
+            if (!current()) return;
             screenplayCardsResponse = data;
             editingReviewCard = null;
             closeModal('sceneCardModal');
             paintReviewCards();
             setStatus('Scene summary and notes saved');
         } catch (err) {
+            if (!current()) return;
             document.getElementById('sceneCardError').textContent = err.message + ' Close and reopen cards to load the current version.';
-        } finally { button.disabled = false; }
+        } finally { if (editingReviewCard === card || !editingReviewCard) button.disabled = false; }
     }
 
     function deleteIndexCard() { setStatus('Change screenplay scenes in the Editor; review cards only save summaries and notes.'); }

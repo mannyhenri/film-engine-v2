@@ -9,6 +9,14 @@ const sourceText = 'Title: Fixture\n\nINT. ROOM - DAY\n\nAn untouched cup.\n';
 function fixture() {const sent=[]; let hooks; const runner={providers:()=>[{id:'codex',available:true,inference_verified:false}],start(input,h){sent.push(input);hooks=h;return {cancel(){h.cancelled();}};}}; const w=createApplicationWorkspace(db,{runner,saveScript:save});return {w,sent,finish(text='Evidence answer'){hooks.complete(text,{session_id:'provider-native-session'});}};}
 function project(title='Fixture'){const id=crypto.randomUUID();db.prepare('INSERT INTO film_projects(id,title) VALUES(?,?)').run(id,title);save(id,sourceText);return id;}
 function message(extra={}) {return {provider:'codex',prompt:'Tell me about the selected evidence.',scope:{kind:'selected',project_ids:[],choices:[]},operation:{kind:'chat'},...extra};}
+test('settled runner releases application ownership after progress persistence fails',()=>{
+ let hooks;const w=createApplicationWorkspace(db,{runner:{providers:()=>[{id:'codex',available:true}],start(input,h){hooks=h;return {cancel(){throw Error('Closed worker cannot be cancelled');}};}},saveScript:save});
+ const c=w.createConversation({title:'Storage cleanup'}),t=w.preview(c.id,message());w.execute(t.id,{fingerprint:t.fingerprint});
+ const original=db.prepare;db.prepare=function(sql){if(sql.startsWith('UPDATE film_application_ai_tasks SET events='))throw Error('Fixture storage failure');return original.call(this,sql);};
+ try{assert.throws(()=>hooks.event({kind:'progress',message:'Fail once'}),/storage failure/);}finally{db.prepare=original;}
+ hooks.closed();assert.throws(()=>w.cancel(t.id),/not supervised/);assert.equal(w.task(t.id).status,'running');
+ const reopened=fixture();assert.equal(reopened.w.task(t.id).status,'interrupted');assert.equal(reopened.sent.length,0);
+});
 test('Home application history persists and dispatch carries UUID global ownership without a project',()=>{
  const f=fixture(), count=db.prepare('SELECT COUNT(*) AS n FROM film_projects').get().n;
  const c=f.w.createConversation({title:'Home conversation'}), t=f.w.preview(c.id,message());

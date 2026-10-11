@@ -156,6 +156,12 @@ const { handlePrevis } = require('./routes/previs');
 // ==== CODEX:END ====
 
 const PORT = process.env.PORT || 3100;
+const {createAIRouteAuth} = require('./lib/ai-route-auth');
+const aiRouteAuth = createAIRouteAuth({port: PORT, capability: process.env.FILM_AI_CAPABILITY,
+    developmentBootstrap: !process.env.FILM_AI_CAPABILITY && process.env.NODE_ENV !== 'production',
+    ...(process.env.FILM_AI_DEV_ORIGINS ? {devOrigins: process.env.FILM_AI_DEV_ORIGINS.split(',')} : {})});
+// Keep the app capability in memory, outside subsequent provider subprocess environments.
+delete process.env.FILM_AI_CAPABILITY;
 
 // ── Rate Limiter ────────────────────────────────────────────────────
 // Sliding-window rate limiter keyed by client IP.
@@ -334,25 +340,29 @@ const server = http.createServer(async (req, res) => {
     res.setHeader('X-XSS-Protection', '1; mode=block');
     res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
 
-    // CORS — restrict to configured origins (default: allow all for local dev)
-    const allowedOrigins = process.env.CORS_ALLOWED_ORIGINS || '*';
-    const origin = req.headers.origin || '';
-    if (allowedOrigins === '*') {
-        res.setHeader('Access-Control-Allow-Origin', '*');
+    if (aiRouteAuth.handles(pathname)) {
+        if (!aiRouteAuth.handle(req, res, pathname)) return;
     } else {
-        const origins = allowedOrigins.split(',').map(o => o.trim());
-        if (origins.includes(origin)) {
-            res.setHeader('Access-Control-Allow-Origin', origin);
-            res.setHeader('Vary', 'Origin');
+        // CORS — restrict to configured origins (default: allow all for local dev)
+        const allowedOrigins = process.env.CORS_ALLOWED_ORIGINS || '*';
+        const origin = req.headers.origin || '';
+        if (allowedOrigins === '*') {
+            res.setHeader('Access-Control-Allow-Origin', '*');
+        } else {
+            const origins = allowedOrigins.split(',').map(o => o.trim());
+            if (origins.includes(origin)) {
+                res.setHeader('Access-Control-Allow-Origin', origin);
+                res.setHeader('Vary', 'Origin');
+            }
         }
-    }
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+        res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+        res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 
-    if (req.method === 'OPTIONS') {
-        res.writeHead(204);
-        res.end();
-        return;
+        if (req.method === 'OPTIONS') {
+            res.writeHead(204);
+            res.end();
+            return;
+        }
     }
 
     // Rate limiting
@@ -368,7 +378,7 @@ const server = http.createServer(async (req, res) => {
     // Health check
     if (pathname === '/api/health' || pathname === '/') {
         res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ status: 'ok', service: 'film-engine', version: require('./package.json').version, backend_id: require('./lib/backend-identity').backendId, capabilities: {ai_connections:1,application_ai_workspace:1} }));
+        res.end(JSON.stringify({ status: 'ok', service: 'film-engine', version: require('./package.json').version, backend_id: require('./lib/backend-identity').backendId, capabilities: {ai_connections:1,application_ai_workspace:1,ai_route_auth:1} }));
         return;
     }
 
@@ -1554,7 +1564,7 @@ function start() {
         .startsWith(require('fs').realpathSync(require('os').tmpdir())) || (process.env.FILM_DATA_DIR || '').startsWith(require('os').tmpdir());
     if (!tmpData) require('./lib/backup-folder').startBackupSchedule(require('./db/database').db);
 
-    server.listen(PORT, () => {
+    server.listen(PORT, process.env.FILM_BACKEND_HOST || undefined, () => {
         console.log(`  Film Engine API ready on http://localhost:${PORT}`);
         console.log('  Routes: /film/projects, /film/shots, /film/scenes, /film/characters,');
         console.log('          /film/locations, /film/props, /film/notes, /film/assets,');

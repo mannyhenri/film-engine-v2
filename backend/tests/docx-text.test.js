@@ -1,6 +1,8 @@
 const { test, describe } = require('node:test');
 const assert = require('node:assert');
 const zlib = require('zlib');
+const path = require('node:path');
+const { Worker } = require('node:worker_threads');
 const { extractDocxText, xmlToText, decodeEntities, findEntryOffset } = require('../lib/docx-text');
 
 /**
@@ -70,6 +72,21 @@ const doc = body =>
 
 const para = text => `<w:p><w:r><w:t>${text}</w:t></w:r></w:p>`;
 
+function extractInUploadWorker(bytes) {
+    return new Promise((resolve, reject) => {
+        const messages = [];
+        const worker = new Worker(path.join(__dirname, '../lib/ai-upload-worker.cjs'), {
+            workerData: { bytes, format: 'docx' },
+        });
+        worker.on('message', message => messages.push(message));
+        worker.on('error', reject);
+        worker.on('exit', code => {
+            if (code !== 0) return reject(new Error(`Extraction worker exited with status ${code}`));
+            resolve(messages);
+        });
+    });
+}
+
 describe('docx-text', () => {
     describe('extractDocxText', () => {
         test('extracts prose from a real deflate-compressed docx', () => {
@@ -111,6 +128,68 @@ describe('docx-text', () => {
             assert.match(result.text, /Footer text/);
             assert.ok(result.files_read.includes('word/document.xml'));
             assert.ok(result.files_read.includes('word/footnotes.xml'));
+        });
+
+        test('bounds aggregate inflation while reading compressed members, regardless of declared sizes', t => {
+            const xml = doc(para('x'.repeat(512)));
+            const xmlBytes = Buffer.byteLength(xml);
+            const buf = buildDocx(xml, {
+                extraFiles: [
+                    { name: 'word/header1.xml', data: Buffer.from(xml) },
+                    { name: 'word/header2.xml', data: Buffer.from(xml) },
+                ],
+            });
+            // ZIP size claims are untrusted; the actual inflater must enforce
+            // the remaining aggregate budget on the second member.
+            for (const name of ['word/document.xml', 'word/header1.xml', 'word/header2.xml']) {
+                buf.writeUInt32LE(1, findEntryOffset(buf, name) + 22);
+            }
+            const calls = [];
+            const inflate = zlib.inflateRawSync;
+            t.mock.method(zlib, 'inflateRawSync', (data, options) => {
+                calls.push(options.maxOutputLength);
+                return inflate(data, options);
+            });
+            const limit = xmlBytes * 2 - 1;
+            const result = extractDocxText(buf, { maxInflatedBytes: limit, maxTextCharacters: 10000 });
+            assert.equal(result.ok, false);
+            assert.match(result.error, /DOCX.*inflated.*limit/i);
+            assert.equal(result.text, undefined);
+            assert.deepEqual(calls, [limit, xmlBytes - 1]);
+        });
+
+        test('reports stored supplemental members exceeding the aggregate inflation budget', () => {
+            const xml = doc(para('Stored body and header.'));
+            const buf = buildDocx(xml, {
+                compress: false,
+                extraFiles: [{ name: 'word/header1.xml', data: Buffer.from(xml) }],
+            });
+            const result = extractDocxText(buf, { maxInflatedBytes: Buffer.byteLength(xml) * 2 - 1 });
+            assert.equal(result.ok, false);
+            assert.match(result.error, /DOCX.*inflated.*limit/i);
+            assert.equal(result.text, undefined);
+        });
+
+        test('bounds aggregate text before joining body and supplemental runs', () => {
+            const buf = buildDocx(doc(para('A'.repeat(12))), {
+                extraFiles: [{ name: 'word/header1.xml', data: Buffer.from(doc(para('B'.repeat(12)))) }],
+            });
+            const result = extractDocxText(buf, { maxInflatedBytes: 10000, maxTextCharacters: 20 });
+            assert.equal(result.ok, false);
+            assert.match(result.error, /DOCX.*text.*limit/i);
+            assert.equal(result.text, undefined);
+            // Existing screenplay conversion uses the uncapped signature.
+            assert.equal(extractDocxText(buf).text, 'A'.repeat(12) + '\n\n' + 'B'.repeat(12));
+        });
+
+        test('preserves normal body and header text when extraction fits the limits', () => {
+            const buf = buildDocx(doc(para('Body &amp; prose.')), {
+                extraFiles: [{ name: 'word/header1.xml', data: Buffer.from(doc(para('Header text.'))) }],
+            });
+            const bounded = extractDocxText(buf, { maxInflatedBytes: 10000, maxTextCharacters: 100 });
+            assert.deepEqual(bounded, extractDocxText(buf));
+            assert.equal(bounded.text, 'Body & prose.\n\nHeader text.');
+            assert.deepEqual(bounded.files_read, ['word/document.xml', 'word/header1.xml']);
         });
 
         test('reports counts alongside the text', () => {
@@ -233,6 +312,37 @@ describe('docx-text', () => {
         test('returns -1 for a name that is not present', () => {
             const buf = buildDocx(doc(para('x')));
             assert.equal(findEntryOffset(buf, 'word/footnotes.xml'), -1);
+        });
+    });
+
+    describe('AI upload worker DOCX bounds', () => {
+        test('rejects a small compressed multi-member archive before retaining oversized text', async () => {
+            const xml = doc(para('x'.repeat(256000)));
+            const buf = buildDocx(xml, {
+                extraFiles: [1, 2, 3].map(index => ({ name: `word/header${index}.xml`, data: Buffer.from(xml) })),
+            });
+            assert.ok(buf.length < 10000, 'fixture remains a small compressed upload');
+            const messages = await extractInUploadWorker(buf);
+            const result = messages.find(message => message.error || message.text !== undefined);
+            assert.match(result?.error || '', /DOCX.*text.*limit/i);
+            assert.equal(result.text, undefined);
+            assert.equal(messages.some(message => message.progress === 85), false);
+        });
+
+        test('keeps body and header extraction and truthful 100k retained-text counts', async () => {
+            const body = 'x'.repeat(100003);
+            const buf = buildDocx(doc(para(body)), {
+                extraFiles: [{ name: 'word/header1.xml', data: Buffer.from(doc(para('Header text.'))) }],
+            });
+            const messages = await extractInUploadWorker(buf);
+            const result = messages.find(message => message.error || message.text !== undefined);
+            const total = body.length + 2 + 'Header text.'.length;
+            assert.equal(result.error, undefined);
+            assert.equal(result.text, body.slice(0, 100000));
+            assert.equal(result.details.extracted_characters, total);
+            assert.equal(result.details.retained_characters, 100000);
+            assert.equal(result.details.omitted_characters, total - 100000);
+            assert.deepEqual(result.details.files_read, ['word/document.xml', 'word/header1.xml']);
         });
     });
 });

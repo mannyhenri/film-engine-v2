@@ -32,14 +32,40 @@ test('other project and historical version cannot accidentally select current ca
 });
 // Exercise actual UI save/open functions with a DOM whose screenplay throws if
 // touched. This catches a regression back to the old destructive card editor.
-const spa=fs.readFileSync(require('path').join(__dirname,'../../src/index.html'),'utf8');
+const spa=fs.readFileSync(require('path').join(__dirname,'../../src/pages/screenplay/engine.js'),'utf8');
 function section(start,end){return spa.slice(spa.indexOf(start),spa.indexOf(end,spa.indexOf(start)));}
 test('UI cancel/reopen and repeated saves use metadata only, retain multiline notes, and reload persisted values',async()=>{
  const db=fixture();const fields={};const doc={getElementById:id=>{if(id==='screenplayEditor')throw new Error('Screenplay must not be touched');return fields[id]||(fields[id]={value:'',textContent:'',disabled:false});}};
  const ctx=vm.createContext({document:doc,state:{currentProject:{id:'p'}},showModal(){},closeModal(){},setStatus(){},paintReviewCards(){},api:async(path,opts)=>{assert.equal(opts.refresh,false);return writeCard(db,'p',JSON.parse(opts.body));}});
- vm.runInContext('let screenplayCardsResponse,editingReviewCard;'+section('    function openIndexCard(', '    /**\n     * The text of a block')+section('    async function saveIndexCard(', '    function reviewCardsPrintHTML('),ctx);
+ vm.runInContext('let screenplayCardsResponse,editingReviewCard,screenplayCardsRequest=1,currentScriptVersion=1;'+section('    function openIndexCard(', '    /**\n     * The text of a block')+section('    async function saveIndexCard(', '    function reviewCardsPrintHTML('),ctx);
  ctx.loaded=readCards(db,'p');vm.runInContext('screenplayCardsResponse=loaded; openIndexCard(0)',ctx);fields.sceneCardSynopsis.value='Cancelled text';vm.runInContext('openIndexCard(0)',ctx);assert.equal(fields.sceneCardSynopsis.value,'');
  fields.sceneCardSynopsis.value='Saved summary';fields.sceneCardNotes.value='Note one\nNote two';await vm.runInContext('saveIndexCard()',ctx);vm.runInContext('openIndexCard(0)',ctx);assert.equal(fields.sceneCardSynopsis.value,'Saved summary');fields.sceneCardSynopsis.value='Repeated edit';await vm.runInContext('saveIndexCard()',ctx);assert.equal(readCards(db,'p').cards[0].notes,'Note one\nNote two');assert.equal(db.prepare('SELECT fountain_content FROM film_scripts').get().fountain_content,fountain);db.close();
+});
+function deferredCardSave(){
+ const fields={},closed=[],painted=[];let resolve,reject;
+ const pending=new Promise((yes,no)=>{resolve=yes;reject=no;});
+ const ctx=vm.createContext({document:{getElementById:id=>fields[id]||(fields[id]={value:'',textContent:'',disabled:false})},state:{currentProject:{id:'p'}},showModal(){},closeModal:id=>closed.push(id),setStatus(){},paintReviewCards:()=>painted.push(true),api:()=>pending});
+ vm.runInContext('let screenplayCardsResponse,editingReviewCard,screenplayCardsRequest=1,currentScriptVersion=1;'+section('    function openIndexCard(', '    /**\n     * The text of a block')+section('    async function saveIndexCard(', '    function reviewCardsPrintHTML('),ctx);
+ ctx.loaded={version:1,script_hash:'hash',cards:[{id:'a',number:1,heading:'A',summary:'First',notes:'',revision:0},{id:'b',number:2,heading:'B',summary:'Second',notes:'',revision:0}]};
+ vm.runInContext('screenplayCardsResponse=loaded;openIndexCard(0)',ctx);
+ return {ctx,fields,closed,painted,resolve,reject};
+}
+test('late card save preserves a newly opened card and its unsaved notes',async()=>{
+ const f=deferredCardSave();const save=vm.runInContext('saveIndexCard()',f.ctx);
+ vm.runInContext('openIndexCard(1)',f.ctx);f.fields.sceneCardNotes.value='New unsaved notes';
+ f.resolve({...f.ctx.loaded,cards:[]});await save;
+ assert.equal(f.fields.sceneCardNotes.value,'New unsaved notes');assert.equal(vm.runInContext('editingReviewCard.id',f.ctx),'b');assert.deepEqual(f.closed,[]);assert.deepEqual(f.painted,[]);assert.equal(f.fields.sceneCardSave.disabled,false);
+});
+test('late card save cannot repaint cards after project, version or load generation changes',async()=>{
+ for(const change of ["state.currentProject={id:'other'}","currentScriptVersion=2","screenplayCardsRequest++"]){
+  const f=deferredCardSave();const save=vm.runInContext('saveIndexCard()',f.ctx);vm.runInContext(change,f.ctx);f.resolve({...f.ctx.loaded,cards:[]});await save;
+  assert.deepEqual(f.closed,[]);assert.deepEqual(f.painted,[]);assert.equal(vm.runInContext('screenplayCardsResponse.cards.length',f.ctx),2);
+ }
+});
+test('late card failure cannot replace a newly opened card error or enable its pending save',async()=>{
+ const f=deferredCardSave();const save=vm.runInContext('saveIndexCard()',f.ctx);vm.runInContext('openIndexCard(1)',f.ctx);
+ f.fields.sceneCardError.textContent='New card message';f.fields.sceneCardSave.disabled=true;
+ f.reject(Error('Old failure'));await save;assert.equal(f.fields.sceneCardError.textContent,'New card message');assert.equal(f.fields.sceneCardSave.disabled,true);
 });
 test('print HTML escapes script-closing text and uses four slots with readable continuation',()=>{
  const ctx=vm.createContext({esc:s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))});vm.runInContext(section('    function reviewCardsPrintHTML(', '    function printIndexCards('),ctx);ctx.data={version:1,cards:[{number:'1',heading:'Test',summary:'</script><script>bad()</script>',notes:''}]};const html=vm.runInContext("reviewCardsPrintHTML(data,'Test')",ctx);assert.ok(!html.includes('</script><script>bad()'));assert.ok(html.includes('repeat(2,minmax(0,1fr))'));assert.ok(html.includes('12pt/1.35'));assert.ok(html.includes('remaining.slice(cut)')); const embedded=html.match(/<script>([\s\S]*?)<\/script>/)[1]; assert.doesNotThrow(()=>new vm.Script(embedded));

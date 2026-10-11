@@ -69,3 +69,11 @@ temporary Git repositories. UI tests operate the actual shell entrypoint, legacy
 AI Chat/keyboard handlers, durable reopen/navigation/focus, exact context preview,
 local file approval/cancel and proposal review gates. Actual desktop build/relaunch
 and subscription inference are separate authorized release verification steps.
+
+Authenticated transport uses Film's transient local capability for every AI
+request, including upload approval/cancellation and before-unload lease release.
+DOCX extraction rejects aggregate inflated XML over 5 MiB or intermediate text
+over 1,000,000 characters; retained text remains bounded at 100,000 characters.
+An oversized archive fails explicitly rather than exhausting the parser or hiding
+omitted content. Final release checks and the actual card PDF proof are recorded
+in [writing release verification](ask-ai-verification.md).

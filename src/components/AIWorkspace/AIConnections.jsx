@@ -1,7 +1,8 @@
 import {useEffect,useRef,useState} from 'react';
 import {legacy} from '../../lib/legacy.js';
+import {aiAPI} from '../../lib/ai-api.js';
 import './AIConnections.css';
-const post=(path,body)=>legacy.api('/ai-connections/'+path,{method:'POST',body:JSON.stringify(body),refresh:false});
+const post=(path,body)=>aiAPI('/ai-connections/'+path,{method:'POST',body:JSON.stringify(body),refresh:false});
 export default function AIConnections(){
  const [open,setOpen]=useState(false),[data,setData]=useState(null),[error,setError]=useState(''),[busy,setBusy]=useState(false),[confirm,setConfirm]=useState('');
  const dialog=useRef(null),opener=useRef(null),alive=useRef(true);
@@ -9,20 +10,19 @@ export default function AIConnections(){
  useEffect(()=>{
   alive.current=true;let fetching=false;
   const desktop=!!window.__feDesktop,owner=crypto.randomUUID();
-  const refresh=async()=>{if(fetching)return;fetching=true;try{accept(desktop?await legacy.api('/ai-connections'):await post('attach',{owner}));}catch(e){if(alive.current)setError(e.message);}finally{fetching=false;}};
+  const refresh=async()=>{if(fetching)return;fetching=true;try{accept(desktop?await aiAPI('/ai-connections'):await post('attach',{owner}));}catch(e){if(alive.current)setError(e.message);}finally{fetching=false;}};
   const show=()=>{opener.current=document.activeElement;setOpen(true);};
   const detach=()=>{
    if(desktop)return;
-   const api=window.__filmEngineApiBase||`http://${location.hostname||'localhost'}:3100`;
-   navigator.sendBeacon?.(api+'/film/ai-connections/detach',new Blob([JSON.stringify({owner})],{type:'application/json'}));
+   aiAPI('/ai-connections/detach',{method:'POST',body:JSON.stringify({owner}),refresh:false,keepalive:true}).catch(()=>{});
   };
   if(document.readyState==='complete')refresh();else window.addEventListener('DOMContentLoaded',refresh,{once:true});
   const timer=setInterval(refresh,15000);
   window.addEventListener('film:ai-connections:open',show);window.addEventListener('beforeunload',detach);
   return()=>{alive.current=false;clearInterval(timer);window.removeEventListener('DOMContentLoaded',refresh);window.removeEventListener('film:ai-connections:open',show);window.removeEventListener('beforeunload',detach);if(!desktop)Promise.resolve().then(()=>post('detach',{owner})).catch(()=>{});};
  },[]);
- useEffect(()=>{if(!open)return;dialog.current?.focus();const key=e=>{if(e.key==='Escape'){setOpen(false);opener.current?.focus();}if(e.key==='Tab'){const items=[...dialog.current.querySelectorAll('button:not(:disabled),a[href]')],first=items[0],last=items.at(-1);if(e.shiftKey&&document.activeElement===first){e.preventDefault();last?.focus();}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first?.focus();}}};document.addEventListener('keydown',key);return()=>document.removeEventListener('keydown',key);},[open]);
- useEffect(()=>{if(!open||!data?.providers.some(p=>p.login||['starting','reconnecting','busy','cancelling','cancelling_sign_in'].includes(p.state)))return;let fetching=false;const timer=setInterval(async()=>{if(fetching)return;fetching=true;try{accept(await legacy.api('/ai-connections'));}catch(e){if(alive.current)setError(e.message);}finally{fetching=false;}},1000);return()=>clearInterval(timer);},[open,data]);
+ useEffect(()=>{if(!open)return;dialog.current?.focus();const key=e=>{if(e.defaultPrevented)return;if(e.key==='Escape'){e.preventDefault();setOpen(false);opener.current?.focus();}if(e.key==='Tab'){const items=[...dialog.current.querySelectorAll('button:not(:disabled),a[href]')],first=items[0],last=items.at(-1);if(e.shiftKey&&(document.activeElement===first||document.activeElement===dialog.current)){e.preventDefault();last?.focus();}else if(!e.shiftKey&&(document.activeElement===last||document.activeElement===dialog.current)){e.preventDefault();first?.focus();}}};document.addEventListener('keydown',key);return()=>document.removeEventListener('keydown',key);},[open]);
+ useEffect(()=>{if(!open||!data?.providers.some(p=>p.login||['starting','reconnecting','busy','cancelling','cancelling_sign_in'].includes(p.state)))return;let fetching=false;const timer=setInterval(async()=>{if(fetching)return;fetching=true;try{accept(await aiAPI('/ai-connections'));}catch(e){if(alive.current)setError(e.message);}finally{fetching=false;}},1000);return()=>clearInterval(timer);},[open,data]);
  async function action(name,provider){setBusy(true);setError('');try{accept(await post(name,{provider,...(name==='sign-in'?{human_confirmed:true}:{})}));setConfirm('');}catch(e){if(alive.current)setError(e.message);}finally{if(alive.current)setBusy(false);}}
  const count=data?.providers.filter(p=>p.available).length||0;
  return <>

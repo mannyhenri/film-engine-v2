@@ -178,7 +178,13 @@
     "backend/tests/live-after-write.test.js": "Authorized writing release: durable reviewed AI workspace, local connection lifecycle, explicit application context, and independent screenplay summary cards.",
     "backend/tests/nav-chrome.test.js": "Authorized writing release: durable reviewed AI workspace, local connection lifecycle, explicit application context, and independent screenplay summary cards.",
     "backend/tests/provider-image-encoding.test.js": "Authorized writing release: durable reviewed AI workspace, local connection lifecycle, explicit application context, and independent screenplay summary cards.",
-    "backend/tests/screenplay-mutators.test.js": "Authorized writing release: durable reviewed AI workspace, local connection lifecycle, explicit application context, and independent screenplay summary cards."
+    "backend/tests/screenplay-mutators.test.js": "Authorized writing release: durable reviewed AI workspace, local connection lifecycle, explicit application context, and independent screenplay summary cards.",
+    "backend/lib/ai-route-auth.js": "Authorized writing release: durable reviewed AI workspace, local connection lifecycle, explicit application context, and independent screenplay summary cards.",
+    "backend/tests/ai-route-auth.test.js": "Authorized writing release: durable reviewed AI workspace, local connection lifecycle, explicit application context, and independent screenplay summary cards.",
+    "backend/tests/ai-uploads.test.js": "Authorized writing release: durable reviewed AI workspace, local connection lifecycle, explicit application context, and independent screenplay summary cards.",
+    "backend/tests/desktop-ai-lease.test.js": "Authorized writing release: durable reviewed AI workspace, local connection lifecycle, explicit application context, and independent screenplay summary cards.",
+    "backend/lib/docx-text.js": "Authorized writing release: durable reviewed AI workspace, local connection lifecycle, explicit application context, and independent screenplay summary cards.",
+    "backend/tests/docx-text.test.js": "Authorized writing release: durable reviewed AI workspace, local connection lifecycle, explicit application context, and independent screenplay summary cards."
   },
   "pinToCore": {
     "twBurst": "stays next to const TYPEWRITER (core): screenplay-focus reads the typewriter's sound rules as the source text from TYPEWRITER to twBurst, which must be one script"

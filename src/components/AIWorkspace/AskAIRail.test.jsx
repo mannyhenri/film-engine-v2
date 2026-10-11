@@ -1,3 +1,4 @@
+import {legacy} from '../../lib/legacy.js';
 import {readFileSync} from 'node:fs';
 import {render,screen,fireEvent,waitFor} from '@testing-library/react';
 import {it,expect,vi} from 'vitest';
@@ -11,3 +12,6 @@ it('actual shell replaces Terms on Home and project pages; Guide retains the ter
  f.fake.state.currentProject={id:'p1'};fireEvent.click(ask);await screen.findByRole('dialog',{name:'Ask AI'});fireEvent.keyDown(document,{key:'Escape'});fireEvent.click(rail.querySelector('[data-rail="guide"]'));fireEvent.click(screen.getByRole('button',{name:'Terminology glossary'}));expect(f.fake.showModal).toHaveBeenCalledWith('glossaryModal');
  document.querySelectorAll('.fe-top,.fe-panel').forEach(el=>el.remove());shell.remove();document.body.classList.remove('fe');
 });
+
+// Component tests isolate transport; ai-api.test.jsx exercises authenticated requests.
+vi.mock('../../lib/ai-api.js',()=>({aiAPI:(...args)=>legacy.api(...args)}));

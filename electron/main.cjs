@@ -15,6 +15,10 @@ const { spawn } = require('child_process');
 const path = require('path');
 const http = require('http');
 const net = require('net');
+const {isLoopbackAPI, trustedDevelopmentOrigins} = require('../backend/lib/ai-route-auth');
+const AI_CAPABILITY = process.env.FILM_AI_CAPABILITY || require('crypto').randomBytes(32).toString('hex');
+delete process.env.FILM_AI_CAPABILITY;
+const AI_DEV_ORIGINS = trustedDevelopmentOrigins(process.env.FILM_AI_DEV_ORIGINS?.split(','));
 
 const SMOKE = process.argv.includes('--smoke');
 // A smoke run gets its own throwaway Chromium profile: two checkouts can run it at once without sharing
@@ -26,7 +30,8 @@ const BACKEND_VERSION = require('../backend/package.json').version;
 const {backendId,matchesWritingBackend}=require('../backend/lib/backend-identity');
 let API = process.env.FE_API_BASE || 'http://localhost:3100';
 let backend = null;
-const aiLease = require('./ai-connections.cjs').createDesktopAILease({getApiBase:()=>API,disabled:SMOKE});
+let appWindow = null;
+const aiLease = require('./ai-connections.cjs').createDesktopAILease({getApiBase:()=>API,getCapability:()=>AI_CAPABILITY,disabled:SMOKE});
 let quitting = false;
 // The smoke run records what would leave the app instead of opening a browser.
 const leftApp = [];
@@ -43,6 +48,31 @@ function health(base) {
         req.setTimeout(1500, () => { req.destroy(); resolve(null); });
     });
 }
+
+function acceptsAICapability(base) {
+    return new Promise(resolve => {
+        const req = http.get(base + '/film/ai-connections', {headers: {'X-Film-AI-Capability': AI_CAPABILITY}}, res => {
+            let body = '';
+            res.on('data', chunk => {body += chunk; if (body.length > 50000) req.destroy();});
+            res.on('end', () => {try {resolve(res.statusCode === 200 && JSON.parse(body).application === 'film-engine-v2');} catch {resolve(false);}});
+        });
+        req.on('error', () => resolve(false));
+        req.setTimeout(1500, () => {req.destroy(); resolve(false);});
+    });
+}
+
+// Only the app's main frame may retrieve the transient capability. Popups and
+// other pages sharing this preload never receive it.
+ipcMain.handle('fe-ai-capability', event => {
+    if (!appWindow || event.sender !== appWindow.webContents || event.senderFrame !== appWindow.webContents.mainFrame) throw Error('Film AI capability is restricted to the app window.');
+    const url = new URL(event.senderFrame.url);
+    url.hash = '';
+    const fileURL = require('url').pathToFileURL(path.join(__dirname, '..', 'dist', 'index.html')).href;
+    const devURL = process.env.FE_DEV_URL ? new URL(process.env.FE_DEV_URL) : null;
+    if (devURL) devURL.hash = '';
+    if (url.href !== fileURL && !(devURL && AI_DEV_ORIGINS.includes(devURL.origin) && url.href === devURL.href)) throw Error('Film AI capability is restricted to the trusted app page.');
+    return {apiBase: API, capability: AI_CAPABILITY};
+});
 
 function freePort() {
     return new Promise((resolve, reject) => {
@@ -68,16 +98,18 @@ function quit(code) {
  * backend/ here and not whatever happens to be on :3100.
  */
 async function ensureBackend() {
+    let existing = null;
     if (!SMOKE || process.env.FE_SMOKE_REUSE) {
-        const h = await health(API);
-        if (matchesWritingBackend(h,BACKEND_VERSION)) return 'reused';
-        if (h) console.warn(`[film-engine] ${API} lacks ${backendId} ${BACKEND_VERSION} writing capabilities: starting this app's own backend`);
+        existing = isLoopbackAPI(API) ? await health(API) : null;
+        if (matchesWritingBackend(existing,BACKEND_VERSION) && await acceptsAICapability(API)) return 'reused';
+        if (existing) console.warn(`[film-engine] ${API} lacks compatible ${backendId} ${BACKEND_VERSION} writing authentication: starting this app's own backend`);
     }
-    if (SMOKE || await health(API)) API = `http://localhost:${await freePort()}`;
+    if (SMOKE || existing || !isLoopbackAPI(API)) API = `http://127.0.0.1:${await freePort()}`;
+    else API = `http://127.0.0.1:${new URL(API).port || 3100}`;
     // System node, not Electron's: better-sqlite3 stays built for it, no electron-rebuild.
     backend = spawn(process.env.FE_NODE || 'node', [path.join(__dirname, 'backend-runner.cjs')], {
         cwd: path.join(__dirname, '..', 'backend'),
-        env: { ...process.env, PORT: String(new URL(API).port || 3100),
+        env: { ...process.env, PORT: String(new URL(API).port || 3100), FILM_BACKEND_HOST: '127.0.0.1', FILM_AI_CAPABILITY: AI_CAPABILITY,
             // The smoke run is one client opening every page and several flows within a minute, against its own throwaway
             // backend: the general limit (200/min, for a person) would refuse its later checks. Generation keeps its limit.
             ...(SMOKE ? { RATE_LIMIT_MAX_GENERAL: process.env.RATE_LIMIT_MAX_GENERAL || '100000' } : {}) },
@@ -86,7 +118,7 @@ async function ensureBackend() {
     backend.on('exit', (code) => { if (code) console.error(`[backend] exited ${code}`); backend = null; });
     for (let i = 0; i < 80; i++) {
         const h = await health(API);
-        if (matchesWritingBackend(h,BACKEND_VERSION)) return 'started';
+        if (matchesWritingBackend(h,BACKEND_VERSION) && await acceptsAICapability(API)) return 'started';
         if (!backend) break;
         await new Promise(r => setTimeout(r, 250));
     }
@@ -158,6 +190,8 @@ async function createWindow() {
             additionalArguments: [`--fe-api-base=${API}`],
         },
     });
+    appWindow = win;
+    win.on('closed', () => {if (appWindow === win) appWindow = null;});
     if (process.env.FE_SMOKE_URL) await win.loadURL(process.env.FE_SMOKE_URL); // e.g. the original one-file app, for a parity run
     else if (process.env.FE_DEV_URL) await win.loadURL(process.env.FE_DEV_URL);
     else await win.loadFile(path.join(__dirname, '..', 'dist', 'index.html'));
@@ -294,6 +328,11 @@ async function smoke(win) {
         })()`).catch(e => ({ error: String(e) }));
         const ok = !st.error && st.blocks > 0 && st.headings > 0 && st.cards === st.headings && st.stats && st.after === st.blocks && st.writes === 0 && errors.length === before;
         report.push({ id: 'screenplay editor', ok, want: 'screenplay editor', active: ok ? `screenplay editor (${st.blocks} blocks, ${st.cards} cards)` : JSON.stringify(st) });
+        if (!process.env.FE_SMOKE_URL) {
+            current = 'writing review';
+            const writing = await require('./writing-smoke.cjs')(win, js, project).catch(error => ({error: error.message}));
+            report.push({id: 'writing review', ok: !writing.error, want: 'writing review', active: JSON.stringify(writing)});
+        }
     }
     /*
      * The music engine (src/pages/music/engine.js) draws all three music pages React renders: the sound library's count

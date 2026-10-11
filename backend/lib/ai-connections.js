@@ -17,7 +17,7 @@ const cleanError = value => String(value || 'Provider connection failed')
 function ownedEnv(bin) {
     const env = cliEnv(bin);
     // Never silently select metered API credentials inherited from a launcher.
-    for (const key of Object.keys(env)) if (/^(ANTHROPIC_|OPENAI_API_KEY$|CODEX_API_KEY$|CODEX_ACCESS_TOKEN$|CLAUDE_CODE_RESUME_INTERRUPTED_TURN$)/.test(key)) delete env[key];
+    for (const key of Object.keys(env)) if (/^(FILM_AI_CAPABILITY$|ANTHROPIC_|OPENAI_API_KEY$|CODEX_API_KEY$|CODEX_ACCESS_TOKEN$|CLAUDE_CODE_RESUME_INTERRUPTED_TURN$)/.test(key)) delete env[key];
     return env;
 }
 function workerArguments(id, session) {
@@ -36,8 +36,8 @@ function createAIConnections({spawnProcess = spawn, resolveBinary = binary,
     probe = null, readyDelay = 250, killDelay = 2000, readyTimeout = 12000,
     taskTimeout = 600000, leaseMs = 90000, reconnectDelays = [1000, 5000],
     temporaryRoot = os.tmpdir()} = {}) {
-    const accountProbe = createCLIRunner({resolveBinary});
-    const inspect = probe || (() => accountProbe.providers(true));
+    const accountProbe = createCLIRunner({spawnProcess, resolveBinary, temporaryRoot});
+    const inspect = probe || (() => accountProbe.providersAsync(true));
     const providers = new Map(['claude', 'codex'].map(id => [id, {
         id, label: id === 'claude' ? 'Claude Code' : 'OpenAI Codex',
         state: 'stopped', installed: false, connected: false, available: false,
@@ -94,36 +94,84 @@ function createAIConnections({spawnProcess = spawn, resolveBinary = binary,
             }
             return w.closedPromise;
         };
+        function hookFailed(error) {
+            const t = w.task;
+            t.hookFailure ||= 'Task state could not be saved: ' + cleanError(error?.message || error);
+            p.inference_verified = false;
+            set(p, 'error', t.hookFailure + ' No request was resubmitted.');
+            if (!w.closed) w.stop(t.hookFailure);
+            return false;
+        }
+        w.hook = (name, ...args) => {
+            const t = w.task;
+            function invoke() {
+                if (t.hookFailure) return false;
+                try {
+                    const result = t.hooks[name](...args);
+                    return result && typeof result.then === 'function' ? Promise.resolve(result).then(() => true, hookFailed) : true;
+                } catch (error) {return hookFailed(error);}
+            }
+            const result = t.hookTail ? t.hookTail.then(invoke) : invoke();
+            if (result && typeof result.then === 'function') {
+                t.hookTail = result;
+                t.pendingHooks.push(result);
+            }
+            return result;
+        };
         function close(code) {
             if (w.closed) return;
             w.closed = true;
             clearTimeout(w.readyTimer); clearTimeout(w.killTimer); clearTimeout(w.taskTimer); clearTimeout(w.livenessTimer); clearTimeout(w.resultTimer);
             rejectReady(Error(cleanError(w.failure || w.diagnostic || `Provider exited before readiness (${code})`)));
-            fs.rmSync(dir, {recursive: true, force: true});
+            try {fs.rmSync(dir, {recursive: true, force: true});} catch (error) {w.failure ||= cleanError(error.message);}
             if (p.worker === w) {p.worker = null; p.available = false;}
             const t = w.task;
             const authenticationFailed = /not logged in|please run \/login|authentication (?:failed|required)|unauthorized|invalid (?:oauth|access) token/i.test([t?.failure,w.failure,w.diagnostic].filter(Boolean).join(' '));
             if (authenticationFailed) {p.auth_failed = true; p.connected = false; p.inference_verified = false;}
-            if (t && !t.finished) {
-                t.finished = true;
-                if (t.cancelling) t.hooks.cancelled();
-                else if (w.stopped) (t.hooks.interrupted || t.hooks.error)(cleanError(w.failure || 'Film connection closed. Preview again to continue.'));
-                else if (code !== 0 || t.failure) t.hooks.error(cleanError(t.failure || w.diagnostic || `Provider exited (${code})`));
-                else if (!(t.final || t.text).trim()) t.hooks.error('The provider returned no text result.');
-                else {p.inference_verified = true; t.hooks.complete(t.final || t.text, {session_id: t.session || session});}
+            function settled(completed = false) {
+                function done() {
+                    try {
+                        if (completed && !t.hookFailure) p.inference_verified = true;
+                        if (!desired()) set(p, 'stopped', 'Film connection stopped. Saved conversations remain available.');
+                        else if (t?.hookFailure) set(p, 'error', t.hookFailure + ' No request was resubmitted.');
+                        else if (authenticationFailed) set(p, 'sign_in_required', 'The provider rejected its local authentication. Reconnect after checking the CLI account, or explicitly choose secure sign-in. No request was resubmitted.');
+                        else if (!p.login) {
+                            set(p, 'disconnected', t && !w.stopped && !t.failure && code === 0 ? 'Preparing the next isolated Film session…' : cleanError(w.failure || w.diagnostic || 'Provider connection ended.'));
+                            // A successful task gets a fresh idle worker. Failures get bounded backoff.
+                            if (completed && !w.failure && code === 0) {p.attempts = 0; queueMicrotask(() => prepare(p).catch(() => {}));}
+                            else schedule(p);
+                        }
+                    } finally {resolveClosed();}
+                }
+                // Store bookkeeping must be released even when a persistence hook failed.
+                // This independent callback performs no provider retry or inference replay.
+                let result;
+                try {result = t?.hooks.closed?.();} catch (error) {hookFailed(error);}
+                if (result && typeof result.then === 'function') Promise.resolve(result).then(done, error => {hookFailed(error); done();});
+                else done();
             }
-            resolveClosed();
-            if (!desired()) set(p, 'stopped', 'Film connection stopped. Saved conversations remain available.');
-            else if (authenticationFailed) set(p, 'sign_in_required', 'The provider rejected its local authentication. Reconnect after checking the CLI account, or explicitly choose secure sign-in. No request was resubmitted.');
-            else if (!p.login) {
-                set(p, 'disconnected', t && !w.stopped && !t.failure && code === 0 ? 'Preparing the next isolated Film session…' : cleanError(w.failure || w.diagnostic || 'Provider connection ended.'));
-                // A successful task gets a fresh idle worker. Failures get bounded backoff.
-                if (t && !t.failure && !w.failure && code === 0) {p.attempts = 0; queueMicrotask(() => prepare(p).catch(() => {}));}
-                else schedule(p);
+            function finish() {
+                let result, completed = false;
+                try {
+                    if (t && !t.finished) {
+                        t.finished = true;
+                        if (!t.hookFailure) {
+                            if (t.cancelling) result = w.hook('cancelled');
+                            else if (w.stopped) result = w.hook(t.hooks.interrupted ? 'interrupted' : 'error', cleanError(w.failure || 'Film connection closed. Preview again to continue.'));
+                            else if (code !== 0 || t.failure) result = w.hook('error', cleanError(t.failure || w.diagnostic || `Provider exited (${code})`));
+                            else if (!(t.final || t.text).trim()) result = w.hook('error', 'The provider returned no text result.');
+                            else {completed = true; result = w.hook('complete', t.final || t.text, {session_id: t.session || session});}
+                        }
+                    }
+                } finally {
+                    if (result && typeof result.then === 'function') result.then(() => settled(completed), () => settled(false));
+                    else settled(completed);
+                }
             }
+            if (t?.pendingHooks.length) Promise.all(t.pendingHooks).then(finish, finish); else finish();
         }
         function line(value) {
-            if (!value.trim()) return;
+            if (w.closed || w.stopped || w.task?.finished || !value.trim()) return;
             let e;
             try {e = JSON.parse(value);} catch {w.stop('Unsupported provider event format.'); return;}
             if (p.id === 'claude' && e.type === 'system' && e.subtype === 'init' &&
@@ -146,9 +194,9 @@ function createAIConnections({spawnProcess = spawn, resolveBinary = binary,
             if (out.session) {
                 if (p.id === 'claude' && out.session !== session) {t.failure = 'Provider session identity changed.'; w.stop(t.failure); return;}
                 t.session = out.session;
-                t.hooks.event({kind: 'session', session_id: out.session});
+                if (w.hook('event', {kind: 'session', session_id: out.session}) === false) return;
             }
-            if (out.progress) t.hooks.event({kind: 'progress', message: out.progress});
+            if (out.progress && w.hook('event', {kind: 'progress', message: out.progress}) === false) return;
             if (out.text) t.text = out.text;
             if (out.final !== undefined) t.final = out.final;
             if (out.error) t.failure = out.error;
@@ -241,15 +289,20 @@ function createAIConnections({spawnProcess = spawn, resolveBinary = binary,
         if (typeof input.payload !== 'string' || !input.payload.trim() || input.payload.length > 100000) throw Error('Invalid reviewed Film request.');
         const w = p.worker;
         if (w.task || w.stopped || w.closed) throw Error('This Film provider is busy or reconnecting.');
-        w.task = {input, hooks, text: '', final: '', session: p.id === 'claude' ? w.session : '', failure: '', cancelling: false, finished: false};
+        w.task = {input, hooks, text: '', final: '', session: p.id === 'claude' ? w.session : '', failure: '', hookFailure: '', pendingHooks: [], cancelling: false, finished: false};
         set(p, 'busy', 'A reviewed Film request is running.');
-        hooks.event({kind: 'progress', message: 'Using Film’s owned worker. Saved conversation/context came from the approved preview.'});
+        const notified = w.hook('event', {kind: 'progress', message: 'Using Film’s owned worker. Saved conversation/context came from the approved preview.'});
         const value = p.id === 'claude' ? JSON.stringify({type: 'user', session_id: w.session,
             message: {role: 'user', content: input.payload}, parent_tool_use_id: null}) + '\n' : input.payload;
-        w.child.stdin.write(JSON.stringify({type: 'input', value, close: p.id === 'codex'}) + '\n');
-        w.taskTimer = setTimeout(() => w.stop('Film request exceeded the 10 minute limit.'), taskTimeout);
-        w.taskTimer.unref?.();
-        return {cancel() {if (w.closed || w.task.finished) return false; set(p, 'cancelling', 'Stop requested; waiting for Film’s worker to exit.'); w.stop('Stop requested by the user.', true); return true;}};
+        function send() {
+            if (w.stopped || w.closed || w.task.hookFailure) return;
+            w.child.stdin.write(JSON.stringify({type: 'input', value, close: p.id === 'codex'}) + '\n');
+            w.taskTimer = setTimeout(() => w.stop('Film request exceeded the 10 minute limit.'), taskTimeout);
+            w.taskTimer.unref?.();
+        }
+        if (notified && typeof notified.then === 'function') notified.then(ok => {if (ok) send();});
+        else if (notified) send();
+        return {closed: w.closedPromise, cancel() {if (w.closed || w.task.finished) return false; set(p, 'cancelling', 'Stop requested; waiting for Film’s worker to exit.'); w.stop('Stop requested by the user.', true); return true;}};
     }
     async function signIn(id, confirmed) {
         if (confirmed !== true) throw Object.assign(Error('Confirm secure provider sign-in first. Film never accepts passwords or API keys.'), {status: 400});

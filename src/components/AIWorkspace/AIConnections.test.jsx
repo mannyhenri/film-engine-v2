@@ -1,5 +1,6 @@
+import {legacy} from '../../lib/legacy.js';
 import {render,screen,fireEvent,waitFor} from '@testing-library/react';
-import {describe,it,expect,afterEach} from 'vitest';
+import {describe,it,expect,afterEach,vi} from 'vitest';
 import {installLegacy} from '../../test/setup.js';
 import AIConnections from './AIConnections.jsx';
 const ready={application:'film-engine-v2',opened:true,providers:[{id:'codex',label:'OpenAI Codex',state:'ready',installed:true,connected:true,available:true,note:'Film-owned local worker ready',inference_verified:false},{id:'claude',label:'Claude Code',state:'sign_in_required',installed:true,connected:false,available:false,note:'Sign in securely from AI connections',inference_verified:false}]};
@@ -26,3 +27,6 @@ describe('Film AI connections',()=>{
   fireEvent.click(screen.getByRole('button',{name:'AI connections · backend pending'}));await screen.findByRole('alert');expect(screen.getByRole('alert').textContent).toMatch(/backend is not active/);expect(screen.getByText(/Activate the updated Film/)).toBeTruthy();
  });
 });
+
+// Component tests isolate transport; ai-api.test.jsx exercises authenticated requests.
+vi.mock('../../lib/ai-api.js',()=>({aiAPI:(...args)=>legacy.api(...args)}));
