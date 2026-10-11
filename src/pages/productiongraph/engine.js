@@ -17,6 +17,8 @@
  * they were; tools/tests/engine-bridge.test.js holds that none is reached any other way.
  */
 import { legacy } from '../../lib/legacy.js';
+import {depthNodeHtml,depthWireAllowed} from './depth-nodes.js';
+import {compositeNodeHtml,compositeWireAllowed} from './composite-nodes.js';
 
 // Core's functions, each called through the bridge by its own name. One destructuring statement on purpose:
 // a line reading `const esc = …` would be the first definition a backend test finds when it searches the page.
@@ -82,7 +84,7 @@ const { FLOW, IB, PG, state } = Object.fromEntries(['FLOW', 'IB', 'PG', 'state']
 
 // (PG_OLD_PAGES: kept in core, public/legacy/production-graph.js)
 
-const PG_PORT_COLOR = { image: '#c07ce0', video: '#e2c15a', audio: '#57c98a', scene: '#8a8aff', plates: '#56c8d8' };
+const PG_PORT_COLOR = { image: '#c07ce0', video: '#e2c15a', audio: '#57c98a', scene: '#8a8aff', plates: '#56c8d8', depth: '#56b6e8', alpha: '#f3a968' };
 const PG_JOINS = [
     ['cut', 'Cut'], ['continuous', 'Continuous move'], ['dissolve', 'Dissolve'],
     ['match_cut', 'Match cut'], ['whip_pan', 'Whip pan'], ['morph', 'Morph'],
@@ -290,6 +292,8 @@ function pgNodeHtml(n, raw) {
     // second or so without re-rendering the canvas (PGN-003).
     const live = PG.running.get(n.key);
     const run = (busy || live) ? `<div class="pg-run" data-run="${esc(n.key)}">${pgProgressHtml(live, busy)}</div>` : '';
+    if (n.workflow === 'composite' || ['subject-matte','composite','composite-source','alpha-output','alpha-preview','composite-output','composite-plate','foreground-layer'].includes(n.type)) return compositeNodeHtml(n,{esc,port:pgPort,src:pgSrc,selected:sel,pos});
+    if (['depth-source','depth-map','depth-output','depth-preview'].includes(n.type)) return depthNodeHtml(n,{esc,port:pgPort,src:pgSrc,selected:sel,pos});
     if (n.type === 'inbetween') return pgInbetweenNodeHtml(n, sel, pos, run);
     if (n.type === 'shot') {
         const f = n.selected_frame;
@@ -717,6 +721,7 @@ function pgInitCanvas() {
 function pgCanWire(g, toKey, toPort, toType) {
     const from = pgNode(g.from), to = pgNode(toKey);
     if (!from || !to || from.key === to.key) return false;
+    if ((to.type==='depth-map' && depthWireAllowed(from,to,toPort,g.type)) || (['subject-matte','composite'].includes(to.type) && compositeWireAllowed(from,to,toPort))) return true;
     if (g.type === 'image' && from.type === 'shot' && to.type === 'sequence' && /^slot:/.test(toPort)) return true;
     // Shot picture onto another shot: in-betweens between the two.
     if (g.type === 'image' && from.type === 'shot' && to.type === 'shot' && toPort === 'plates') return true;
@@ -745,6 +750,8 @@ async function pgWire(g, toKey, toPort, toType) {
         return;
     }
     const from = pgNode(g.from), to = pgNode(toKey);
+    if (to.type==='depth-map') { pgOpenDepth(to.id,from.asset_id);setStatus('Source selected. Inspect and save the depth input revision.');return; }
+    if (['subject-matte','composite'].includes(to.type)) { const field={source:'source_asset_id',alpha:'alpha_asset_id',background:'background_asset_id',foreground:'foreground_asset_id',depth:'depth_asset_id'}[toPort];pgOpenComposite(to.id,{[field]:from.asset_id});setStatus('Typed input selected. Review and save its input revision.');return; }
     if (from.type === 'shot' && to.type === 'shot') return ibOpenSetup(from, to);
     try {
         if (from.type === 'shot' && to.type === 'sequence') {
@@ -773,6 +780,9 @@ async function pgWire(g, toKey, toPort, toType) {
 }
 
 // ── Selection, header, menu ────────────────────────────────────────────────
+
+function pgOpenDepth(node_id,source_asset_id) { window.dispatchEvent(new CustomEvent('film-open-depth',{detail:{node_id,source_asset_id}})); }
+function pgOpenComposite(node_id,input) { window.dispatchEvent(new CustomEvent('film-open-composite',{detail:{node_id,input}})); }
 
 function pgSelect(key) {
     PG.sel = key || null;
@@ -1902,7 +1912,9 @@ function pgRenderDrawer() {
     pgDrawerOpen(true);
     const body = document.getElementById('pgDrawerBody'), foot = document.getElementById('pgDrawerFoot');
     const close = `<button class="pg-dclose" onclick="pgSelect(null)" title="Close (Esc)">×</button>`;
-    if (n.type === 'shot') pgDrawerShot(n, body, foot, close);
+    if (n.workflow==='composite' || ['subject-matte','composite','composite-source','alpha-output','alpha-preview','composite-output','composite-plate','foreground-layer'].includes(n.type)) {body.innerHTML=`<div class="pg-dhead">${close}<h3>${esc(n.name||n.type)}</h3></div><p>${esc(n.output_type||n.status||'Typed production node')}</p><button class="pg-hbtn" onclick="pgOpenComposite('${esc(n.id)}')">Open composite controls</button>`;foot.innerHTML='';}
+    else if (['depth-source','depth-map','depth-output','depth-preview'].includes(n.type)) {body.innerHTML=`<div class="pg-dhead">${close}<h3>Depth workflow</h3></div><button class="pg-hbtn" onclick="pgOpenDepth('${esc(n.id)}')">Open depth controls</button>`;foot.innerHTML='';}
+    else if (n.type === 'shot') pgDrawerShot(n, body, foot, close);
     else if (n.type === 'sequence') pgDrawerSequence(n, body, foot, close);
     else if (n.type === 'sound') pgDrawerSound(n, body, foot, close);
     else if (n.type === 'video' || n.type === 'audio') pgDrawerVersion(n, body, foot, close);
@@ -3432,6 +3444,8 @@ export {
     pgVisible,
     pgPort,
     pgNodeHtml,
+    pgOpenDepth,
+    pgOpenComposite,
     pgBorrowedBy,
     pgRender,
     pgPortCenter,

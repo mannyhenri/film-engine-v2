@@ -2,6 +2,8 @@ import { useLayoutEffect } from 'react';
 import { usePageLoader } from '../../lib/usePageLoader.js';
 import * as E from './engine.js';
 import Lists from './lists.jsx';
+import DepthWorkbench from '../../components/DepthWorkbench/DepthWorkbench.jsx';
+import CompositeWorkbench from '../../components/CompositeWorkbench/CompositeWorkbench.jsx';
 
 /*
  * The Production graph, as React: the page's frame is rendered once, and the engine (engine.js, moved verbatim
@@ -39,6 +41,8 @@ export default function ProductionGraphPage() {
             <Lists />
             <div className="pg-header">
                 <h2>Production</h2>
+                <DepthWorkbench />
+                <CompositeWorkbench />
                 <span className="pg-meta" id="pgMeta"></span>
                 <span className="pg-legend" id="pgLegend"></span>
                 <div className="pg-chips" id="pgScenes"></div>

@@ -42,12 +42,21 @@ const CHANGED = {
         worldSplatModule: "the splat viewer's import('./vendor/splat-viewer.js') resolved against the document in a classic script; in a module it would resolve against the module (and Vite rewrites it at build), so it is built from document.baseURI and marked @vite-ignore: the same URL, at run time",
     },
     'src/pages/productiongraph/engine.js': {
+        PG_PORT_COLOR: 'adds distinct depth and alpha colors for typed processing lineage',
+        pgNodeHtml: 'renders typed depth/matte/composite input and immutable version cards with their named ports',
+        pgCanWire: 'accepts exact typed processing inputs while refusing depth as a subject alpha input',
+        pgWire: 'opens processing controls with a pending typed input; revisions still require explicit review and save',
+        pgRenderDrawer: 'opens typed processing controls for node and version inspection',
         loadProductionGraph: 'project-switch fix (3ee8beb): the in-flight load is keyed by project, so a switch never waits on the previous film',
         pgLoad: 'project-switch fix (3ee8beb): a switch resets every per-project field of PG, the queue, picks and palette included',
     },
 };
 const ADDED = {
     'src/pages/screenplay/engine.js': { printIndexCards: 'Authorized independent scene-card print/PDF layout, four readable slots per page' },
+    'src/pages/productiongraph/engine.js': {
+        pgOpenDepth: 'dispatches the typed depth workbench request to its React owner',
+        pgOpenComposite: 'dispatches the typed matte/composite workbench request to its React owner',
+    },
 };
 // Pages and React components (src/components/<Name>/react.json) alike: an engine is an engine wherever it lives.
 const ownModules = (dir) => fs.readdirSync(path.join(ROOT, dir))
@@ -118,10 +127,14 @@ for (const file of ENGINES) {
             if (!mine.length) continue;
             for (const x of mine) seen.add(x);
             const ref = REFERENCE.get(mine[0]);
+<<<<<<< HEAD
             if (ref === undefined) {
                 if (!(ADDED[file] || {})[mine[0]]) bad.push(`${mine[0]}: not a top-level declaration of the reference`);
                 continue;
             }
+=======
+            if (ref === undefined) { if (!(ADDED[file] || {})[mine[0]]) bad.push(`${mine[0]}: not a top-level declaration of the reference`); continue; }
+>>>>>>> 8a376e7 (Add reviewed GPU depth, subject mattes and layered composites)
             if ((ADDED[file] || {})[mine[0]]) bad.push(`${mine[0]}: declared new but exists in the reference`);
             const same = undoRewrites(code.slice(n.start, n.end)) === ref;
             const declared = (CHANGED[file] || {})[mine[0]];

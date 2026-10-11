@@ -43,7 +43,12 @@ const HELPER_FILE = 'ffmpeg.js';
  * happens to share a flag — and an exclusion that matched on text would quietly
  * excuse the next site that really is an extraction.
  */
-const NOT_AN_EXTRACTION = { 'board-raster.js': 'rasterises a single image from a pipe; no clip, no timestamp' };
+const NOT_AN_EXTRACTION = {
+    'board-raster.js': 'rasterises a single image from a pipe; no clip, no timestamp',
+    'depth-media.js': 'encodes every raw depth frame with exact source packet timing; does not seek a clip snapshot',
+    'composite-render.js': 'decodes the exact selected video sequence, encodes all its frames, and rasterises still image plates; no time-seek snapshot or fallback',
+    'resolve-layer-export.js': 'rasterises the registered still background image for a full duration layer; no clip snapshot',
+};
 
 function sourceFiles() {
     const out = [];

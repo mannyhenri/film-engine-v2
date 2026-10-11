@@ -169,7 +169,7 @@ function renderStatic(importLine, name) {
             resolveDir: ROOT, loader: 'jsx',
         },
         bundle: true, platform: 'node', format: 'cjs', write: false, jsx: 'automatic', logLevel: 'error',
-        loader: { '.html': 'text' }, define: { 'process.env.NODE_ENV': '"production"' },
+        loader: { '.html': 'text', '.css': 'empty' }, define: { 'process.env.NODE_ENV': '"production"' },
     });
     const mod = { exports: {} };
     const quiet = console.error;

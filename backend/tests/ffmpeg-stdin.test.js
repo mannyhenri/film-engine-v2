@@ -29,6 +29,11 @@ const SKIP_DIRS = new Set(['node_modules', 'vendor', '.git', 'data', '.venv']);
 
 // file|first-argument → why it is not the encoder.
 const NOT_FFMPEG = {
+    'lib/depth-media.js|bin': 'generic binary-output runner also describes workers and probes metadata; defaults to ignored stdin and adds -nostdin first for the encoder (depth-media.test.js exercises both)',
+    'tests/production-composite-http.test.js|process.execPath': 'starts the isolated Node HTTP backend, not an encoder',
+    'tests/production-depth-http.test.js|process.execPath': 'starts the isolated Node HTTP backend, not an encoder',
+    'tests/production-composite.test.js|process.execPath': 'starts an owned idle Node process to test recovery of live job owners',
+    'tests/production-depth.test.js|process.execPath': 'starts an owned idle Node process to test recovery of live job owners',
     'lib/instrument-render.js|bin': 'probes FluidSynth (`--version`), not ffmpeg',
     'lib/instrument-render.js|fl.bin': 'runs FluidSynth to render MIDI',
     'lib/set-build.js|bin': 'probes Blender (`--version`), not ffmpeg',
