@@ -32,6 +32,7 @@ const LINE_TAIL_MS = 500;
 
 const DEFAULT_FPS = 24;
 const DEFAULT_SHOT_MS = 4000;
+const STILL_HOLD_MS = 5000;
 
 /**
  * Pick the highest-priority asset for a shot from a preference list.
@@ -92,6 +93,7 @@ function dialogueLines(assets = []) {
         .map(a => {
             const m = /_(\d+)\.[a-z0-9]+$/i.exec(a.file_name);
             return {
+                asset_id: a.id || null,
                 path: a.file_path,
                 file_name: a.file_name,
                 index: m ? Number(m[1]) : 0,
@@ -113,15 +115,23 @@ function resolveShotMedia(assets = [], shot = {}) {
      * first one over the second changed nothing on screen. The pointer wins
      * when it names a clip this shot still has; otherwise the old rule.
      */
-    const selectedId = (assets.find(a => a && a.selected_video_asset_id) || {}).selected_video_asset_id;
+    const selectedId = shot.selected_video_asset_id || (assets.find(a => a && a.selected_video_asset_id) || {}).selected_video_asset_id;
+    const available = assets.filter(a => a && a.offline !== true);
+    const implicit = available.filter(a => !require('./nle-media').metadata(a).historical);
     const chosen = selectedId
-        ? assets.find(a => a.id === selectedId && MEDIA_PREFERENCE.includes(a.asset_type) && a.file_path)
+        ? available.find(a => a.id === selectedId && MEDIA_PREFERENCE.includes(a.asset_type) && a.file_path)
         : null;
-    const video = chosen || pickAsset(assets, MEDIA_PREFERENCE);
+    const video = selectedId ? chosen : pickAsset(implicit, MEDIA_PREFERENCE);
     const range = video && (Number(video.duration_ms) > 0 || Number(shot.duration_ms) > 0 || require('./nle-media').metadata(video).edit)
         ? require('./nle-media').sourceRange({ ...shot, duration_ms: Number(video.duration_ms) || shot.duration_ms }, video)
         : {duration_ms:0,source_in_ms:0,source_ms:0};
-    const still = pickAsset(assets, STILL_PREFERENCE);
+    const framePointer = shot.current_frame_version ?? assets.find(a => a?.current_frame_version != null)?.current_frame_version;
+    const frames = (framePointer != null ? available : implicit).filter(a =>
+        STILL_PREFERENCE.includes(a.asset_type) && a.file_path && require('./nle-media').metadata(a).station_index == null
+        && (framePointer == null || Number(a.version) === Number(framePointer)));
+    frames.sort((a,b) => (Number(b.version)||0)-(Number(a.version)||0)
+        || String(b.created_at||'').localeCompare(String(a.created_at||'')) || String(b.id||'').localeCompare(String(a.id||'')));
+    const still = frames[0] || null;
     const audio = pickAsset(assets, AUDIO_PREFERENCE);
 
     let kind = 'empty';
@@ -133,11 +143,15 @@ function resolveShotMedia(assets = [], shot = {}) {
         // duration_ms travels with the clip so the timeline can hold it for its
         // own length rather than the length its card asked for.
         video: video ? {
+            asset_id: video.id || null, version: video.version ?? null,
+            duration_basis: Number(video.duration_ms) > 0 ? 'recorded_source_duration' : 'unverified_source_duration',
             type: video.asset_type, path: video.file_path,
             duration_ms: range.duration_ms, source_in_ms: range.source_in_ms, source_out_ms: range.source_in_ms + range.duration_ms, source_duration_ms: range.source_ms,
         } : null,
-        still: still ? { type: still.asset_type, path: still.file_path } : null,
-        audio: audio ? { type: audio.asset_type, path: audio.file_path } : null,
+        still: still ? { asset_id: still.id || null, version: still.version ?? null, type: still.asset_type, path: still.file_path } : null,
+        ...(selectedId && !chosen ? { unavailable_video: { asset_id: selectedId, reason: 'The selected clip is missing or offline; no other take was substituted.' } } : {}),
+        ...(framePointer != null && !still ? { unavailable_still: { version:framePointer,reason:'The selected original image is missing or offline; no other version was substituted.' } } : {}),
+        audio: audio ? { asset_id: audio.id || null, type: audio.asset_type, path: audio.file_path } : null,
         /*
          * EVERY line of the shot, in order.
          *
@@ -183,6 +197,7 @@ const { orderShots } = require('./running-order');
  * and making the timeline unusable.
  */
 function shotDuration(shot, media) {
+    if (media && media.kind === 'still') return STILL_HOLD_MS;
     /*
      * THE FILM'S OWN LENGTH BEATS THE CARD'S GUESS.
      *
@@ -192,8 +207,8 @@ function shotDuration(shot, media) {
      * before anything existed; once there is a clip, its measured length is the
      * fact, and a player that disagrees with the file is simply wrong.
      *
-     * A still-only shot keeps the card's duration: there is no measured length
-     * to prefer, and a still has no opinion about how long it is held.
+     * Production's image fallback is exactly five seconds. Dialogue does not
+     * silently extend that picture; independent sound ranges remain explicit.
      */
     const measured = Number(media && media.video && media.video.duration_ms);
     if (Number.isFinite(measured) && measured > 0) return Math.round(measured);
@@ -384,6 +399,7 @@ const DEFAULT_BED_GAIN_DB = { music: -8, ambient: -12 };
 
 function buildTimeline(shots = [], assetsByShot = {}, opts = {}) {
     const fps = Number(opts.fps) > 0 ? Number(opts.fps) : DEFAULT_FPS;
+    const explicitlyAttached = new Set((opts.audioTracks || []).map(track => track.asset_id || track.source && track.source.asset_id).filter(Boolean));
     /*
      * Covered shots do not get a slot: the clip on the shot before them already
      * contains those moments, and holding their storyboard frames afterwards
@@ -396,6 +412,12 @@ function buildTimeline(shots = [], assetsByShot = {}, opts = {}) {
     let cursor = 0;
     const entries = ordered.map((shot, index) => {
         const media = resolveShotMedia(assetsByShot[shot.id] || [], shot);
+        const suppressed = (media.audio_lines || []).filter(line => line.asset_id && explicitlyAttached.has(line.asset_id)).map(line => line.asset_id);
+        media.audio_lines = (media.audio_lines || []).filter(line => !line.asset_id || !explicitlyAttached.has(line.asset_id));
+        if (media.audio && media.audio.asset_id && explicitlyAttached.has(media.audio.asset_id)) {
+            suppressed.push(media.audio.asset_id); media.audio = null;
+        }
+        if (suppressed.length) media.suppressed_legacy_audio_asset_ids = [...new Set(suppressed)];
         /*
          * How long to hold after each line.
          *
@@ -418,6 +440,7 @@ function buildTimeline(shots = [], assetsByShot = {}, opts = {}) {
             start_ms: cursor,
             end_ms: cursor + duration,
             duration_ms: duration,
+            duration_basis: media.kind === 'still' ? 'fixed_five_second_image' : media.video ? media.video.duration_basis : 'empty_slot_estimate',
             source_in_ms: media.video ? media.video.source_in_ms : 0,
             source_out_ms: media.video ? media.video.source_out_ms : duration,
             start_timecode: msToTimecode(cursor, fps),
@@ -436,6 +459,7 @@ function buildTimeline(shots = [], assetsByShot = {}, opts = {}) {
         // under. Empty for every project that has generated none, which is what
         // keeps a player with no beds behaving exactly as it did.
         beds: sceneBeds(entries, opts.sceneAssets, opts.cues),
+        audio_tracks: projectAudioTracks(entries, opts.audioTracks, opts.sequenceShots, cursor, opts.coverage),
         fps,
         shot_count: entries.length,
         total_duration_ms: cursor,
@@ -445,6 +469,33 @@ function buildTimeline(shots = [], assetsByShot = {}, opts = {}) {
         missing_count: entries.filter(e => e.missing).length,
         playable_count: entries.filter(e => !e.missing).length,
     };
+}
+
+/** Independent edit sounds. Original edits survive any whole-cut clipping. */
+function projectAudioTracks(entries, tracks = [], sequenceShots = {}, totalMs, coverage) {
+    const byShot = new Map(entries.map(e => [e.shot_id, e]));
+    // Coverage stores membership, not the time each contained shot begins.
+    // Keep that owner's placement unknown instead of inventing an in-clip time.
+    const ownerEntry = id => byShot.get(id);
+    return tracks.map(track => {
+        const members = track.shot_id ? [track.shot_id] : sequenceShots[track.sequence_id] || [];
+        const owner = members.map(ownerEntry).filter(Boolean).sort((a, b) => a.start_ms - b.start_ms)[0];
+        if (!owner) return { ...track, owner_start_ms: null, absolute_start_ms: null, timeline_start_ms: null,
+            timeline_used_duration_ms: 0, effective_source_in_ms: track.source_in_ms, timeline_adjustments: [], status: 'unplaced',
+            placement_reason: track.shot_id && coverage && coverage.get(track.shot_id) ? 'The shot is covered by a clip but its individual start time is not recorded.' : 'No narrative owner position is available.' };
+        const start = owner.start_ms + track.offset_ms;
+        const end = start + track.duration_ms;
+        const before = Math.min(track.duration_ms, Math.max(0, -start));
+        const after = Math.min(track.duration_ms - before, Math.max(0, end - totalMs));
+        const used = track.duration_ms - before - after;
+        const adjustments = [];
+        if (before) adjustments.push({ code: 'PRELAP_BEFORE_CUT', omitted_ms: before });
+        if (after) adjustments.push({ code: 'POSTLAP_AFTER_CUT', omitted_ms: after });
+        return { ...track, owner_start_ms: owner.start_ms, absolute_start_ms: start,
+            timeline_start_ms: Math.max(0, start), timeline_used_duration_ms: used,
+            effective_source_in_ms: track.source_in_ms + before, timeline_adjustments: adjustments,
+            status: track.source && track.source.offline ? 'offline' : track.source_bytes_status === 'changed' ? 'source_changed' : used > 0 ? 'ready' : 'outside_cut' };
+    });
 }
 
 /**
@@ -512,4 +563,6 @@ module.exports = {    sceneBeds,
     msToTimecode,
     timecodeToMs,
     DEFAULT_FPS,
-    DEFAULT_SHOT_MS,};
+    DEFAULT_SHOT_MS,
+    STILL_HOLD_MS,
+    projectAudioTracks,};

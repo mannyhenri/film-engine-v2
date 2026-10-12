@@ -17,8 +17,11 @@
  * they were; tools/tests/engine-bridge.test.js holds that none is reached any other way.
  */
 import { legacy } from '../../lib/legacy.js';
-import {depthNodeHtml,depthWireAllowed} from './depth-nodes.js';
 import {compositeNodeHtml,compositeWireAllowed} from './composite-nodes.js';
+import { bindVideoResolution } from '../../lib/media-resolution.js';
+import { projectEpoch } from '../../lib/project-epoch.js';
+import { DEPTH_NODE_TYPES, depthNodeHtml, depthWireAllowed } from './depth-nodes.js';
+import { copy, buildLineageGraph, layoutLineageGraph, lineageFacts, recipeFromLineage, editReference, replaceDraftRecipe, timelineTiles, createAudioScheduler, nodeFootprint, WORKSPACE_SPACING } from './lineage-model.js';
 
 // Core's functions, each called through the bridge by its own name. One destructuring statement on purpose:
 // a line reading `const esc = …` would be the first definition a backend test finds when it searches the page.
@@ -84,7 +87,7 @@ const { FLOW, IB, PG, state } = Object.fromEntries(['FLOW', 'IB', 'PG', 'state']
 
 // (PG_OLD_PAGES: kept in core, public/legacy/production-graph.js)
 
-const PG_PORT_COLOR = { image: '#c07ce0', video: '#e2c15a', audio: '#57c98a', scene: '#8a8aff', plates: '#56c8d8', depth: '#56b6e8', alpha: '#f3a968' };
+const PG_PORT_COLOR = { depth:'#68c9df', image: '#c07ce0', video: '#e2c15a', audio: '#57c98a', scene: '#8a8aff', plates: '#56c8d8', alpha: '#f3a968' };
 const PG_JOINS = [
     ['cut', 'Cut'], ['continuous', 'Continuous move'], ['dissolve', 'Dissolve'],
     ['match_cut', 'Match cut'], ['whip_pan', 'Whip pan'], ['morph', 'Morph'],
@@ -142,6 +145,7 @@ function pgProgressHtml(live, busy, now) {
  * instead, and stops itself when nothing is running.
  */
 async function pgPollRunning() {
+    const pollContext=pgContext();
     clearTimeout(PG.pollTimer);
     PG.pollTimer = null;
     if (!state.currentProject || state.currentPage !== 'productiongraph') return;
@@ -152,6 +156,7 @@ async function pgPollRunning() {
         list = (r && r.running) || [];
     } catch (_) { list = null; }
     if (!state.currentProject || state.currentProject.id !== pid) return;
+    if(!pgContextLive(pollContext))return;
     if (list) pgSetRunning(list);
     pgLoadQueue();
     if (PG.running.size || PG.busy.size) PG.pollTimer = setTimeout(pgPollRunning, 1500);
@@ -170,32 +175,40 @@ function pgSetRunning(list) {
     });
 }
 
-async function loadProductionGraph() {
+async function loadProductionGraph(fresh=false) {
     if (!state.currentProject) return;
     // One load at a time: the side panel and the page both ask, and two renders
     // racing is how a click lands on a node that was just replaced.
     // Keyed by project: a load still in flight for the film you just LEFT is not this one's. Handing it back meant
     // the new film's graph was never asked for (pgLoad drops the old answer), so the old graph stayed on screen.
     const pid = state.currentProject.id;
-    if (PG.inflight && PG.inflightPid === pid) return PG.inflight;
-    const run = pgLoad().finally(() => {
+    if(fresh===true){PG.graphGeneration=(PG.graphGeneration || 0)+1;PG.inflight=null;}
+    const generation=PG.graphGeneration || 0;
+    if (PG.inflight && PG.inflightPid === pid && PG.inflightEpoch===projectEpoch() && PG.inflightGeneration===generation) return PG.inflight;
+    const run = pgLoad(generation).finally(() => {
         if (PG.inflight === run) { PG.inflight = null; PG.inflightPid = null; }
         // The film changed while this one loaded: the side panel skipped asking for the new one (one side load at a
         // time), so ask again now, after its own flag is cleared.
         if (state.currentProject && state.currentProject.id !== pid) setTimeout(() => { if (typeof window.pgRenderSide === 'function') pgRenderSide(); }, 0);
     });
-    PG.inflight = run; PG.inflightPid = pid;
+    PG.inflight = run; PG.inflightPid = pid;PG.inflightEpoch=projectEpoch();PG.inflightGeneration=generation;
     return run;
 }
 
-async function pgLoad() {
+async function pgLoad(generation=PG.graphGeneration || 0) {
     pgInitCanvas();
-    const pid = state.currentProject.id;
+    const pid = state.currentProject.id, ctx = pgContext();
     try {
-        const g = await api('/projects/' + pid + '/production-graph');
+        const source = await api('/projects/' + pid + '/production-graph');
+        if(!pgContextLive(ctx) || generation!==(PG.graphGeneration || 0))return;
+        const recipes = await pgReadOrigins(source, ctx);
+        if (!recipes || !pgContextLive(ctx) || generation!==(PG.graphGeneration || 0)) return;
+        PG.lineageRecipes=recipes;
+        const g = buildLineageGraph(source, recipes);
         if (!state.currentProject || state.currentProject.id !== pid) return;
         // Another film: nothing about the view carries over.
         if (PG.graph && PG.graph.project_id !== pid) {
+            PG.layoutUndo=null;PG.layoutAction=null;
             PG.sel = null; PG.fitted = false; PG.scene = 'all'; PG.timeline = null; PG.play.index = 0; PG.drawerCache = {};
             // ...nor the queue strip, the picked nodes, an add in progress or another film's busy markers.
             PG.queue = null; PG.queueOpen = false; PG.picked = new Set(); PG.add = null; PG.busy = new Map();
@@ -205,13 +218,14 @@ async function pgLoad() {
         PG.running = new Map((g.running || []).filter(r => r && r.key).map(r => [r.key, r]));
         if (PG.sel && !PG.byKey.has(PG.sel)) PG.sel = null;
         pgRender();
-        if (!PG.fitted) { pgFit(); PG.fitted = true; }
+        if (!PG.fitted) { pgFocusWorkspace(); PG.fitted = true; }
         pgRenderDrawer();
         pgRenderPlayback();
         pgRenderSide();
         if (PG.running.size || PG.busy.size) pgPollRunning();
         pgLoadQueue();
     } catch (err) {
+        if(!pgContextLive(ctx) || generation!==(PG.graphGeneration || 0))return;
         const c = document.getElementById('pgCanvas');
         if (c) c.querySelector('.pg-empty').textContent = 'Could not load the graph: ' + err.message;
     }
@@ -237,9 +251,11 @@ function pgGroupHtml(gr) {
     const fold = `<button class="pg-group-fold" title="${gr.collapsed ? 'Expand — every node returns exactly where it was' : 'Collapse into one card'}"
         onclick="event.stopPropagation();pgToggleCollapse('${esc(key)}')">${gr.collapsed ? '▸' : '▾'}</button>`;
     const box = `left:${gr.x}px;top:${gr.y}px;width:${gr.w}px;height:${gr.h}px;`;
-    if (!gr.collapsed) return `<div class="pg-group" data-group="${esc(key)}" style="${box}"><div class="pg-group-label">${esc(gr.label || '')}</div>${fold}</div>`;
+    const depthGroup=key.startsWith('depth-group:');
+    const label=`${esc(gr.label || '')}<small>${depthGroup?'drag depth work area':'drag scene · canvas position keeps narrative order'}</small>`;
+    if (!gr.collapsed) return `<div class="pg-group" data-group="${esc(key)}" style="${box}"><div class="pg-group-label">${label}</div>${fold}<span class="pg-group-resize" title="${depthGroup?'Resize depth work area':'Resize scene; contents keep their order'}" role="button" aria-label="${depthGroup?'Resize depth work area':'Resize scene'}"></span></div>`;
     const s = gr.summary || {};
-    return `<div class="pg-group collapsed" data-group="${esc(key)}" style="${box}"><div class="pg-group-label">${esc(gr.label || '')}</div>${fold}
+    return `<div class="pg-group collapsed" data-group="${esc(key)}" style="${box}"><div class="pg-group-label">${label}</div>${fold}
         <div class="pg-group-card">
           <div><b>${pgSecs(s.length_ms)}</b>length</div>
           <div><b>${s.shots_done || 0} / ${s.shots_total || 0}</b>shots done</div>
@@ -255,13 +271,14 @@ function pgInCollapsed(n) {
 
 /** Collapse or expand a group through its route; the layout of its members is never touched. */
 async function pgToggleCollapse(key) {
+    const ctx=pgContext();
     const gr = PG.graph && (PG.graph.groups || []).find(g => g.key === key);
     if (!gr) return;
     try {
         await api(`/projects/${PG.graph.project_id}/production-graph/groups/${encodeURIComponent(key)}`,
             { method: 'PUT', body: JSON.stringify({ collapsed: !gr.collapsed }) });
-        await loadProductionGraph();
-    } catch (err) { setStatus('Could not change the group: ' + err.message); }
+        if(pgContextLive(ctx))await loadProductionGraph(true);
+    } catch (err) { if(pgContextLive(ctx))setStatus('Could not change the group: ' + err.message); }
 }
 
 function pgVisible(n) {
@@ -278,7 +295,9 @@ function pgVisible(n) {
 
 function pgPort(dir, type, port, extra) {
     const cls = ['pg-port', dir, 't-' + (type || 'none')].concat(extra || []).join(' ');
-    return `<span class="${cls}" data-port="${port}" data-dir="${dir}" data-type="${type || 'none'}"></span>`;
+    const title=port==='scene'?'Sound: connect to a sound node, then choose conditioning input or independent timeline track':port==='video'?'Click to edit and review a new video version':port==='sound'?'Attach an independent timeline sound':port;
+    const dot=`<span class="${cls}" title="${title}" aria-label="${title}" data-port="${port}" data-dir="${dir}" data-type="${type || 'none'}"></span>`;
+    return port==='scene'?`<span class="pg-sound-label">${dot}Sound</span>`:dot;
 }
 
 function pgNodeHtml(n, raw) {
@@ -292,8 +311,9 @@ function pgNodeHtml(n, raw) {
     // second or so without re-rendering the canvas (PGN-003).
     const live = PG.running.get(n.key);
     const run = (busy || live) ? `<div class="pg-run" data-run="${esc(n.key)}">${pgProgressHtml(live, busy)}</div>` : '';
+    if (['origin-reference','origin-request','board-version','draft-request','draft-reference'].includes(n.type)) return pgOriginNodeHtml(n,sel,pos);
     if (n.workflow === 'composite' || ['subject-matte','composite','composite-source','alpha-output','alpha-preview','composite-output','composite-plate','foreground-layer'].includes(n.type)) return compositeNodeHtml(n,{esc,port:pgPort,src:pgSrc,selected:sel,pos});
-    if (['depth-source','depth-map','depth-output','depth-preview'].includes(n.type)) return depthNodeHtml(n,{esc,port:pgPort,src:pgSrc,selected:sel,pos});
+    if (DEPTH_NODE_TYPES.includes(n.type)) return depthNodeHtml(n,{esc,port:pgPort,src:pgSrc,selected:sel,pos});
     if (n.type === 'inbetween') return pgInbetweenNodeHtml(n, sel, pos, run);
     if (n.type === 'shot') {
         const f = n.selected_frame;
@@ -307,7 +327,7 @@ function pgNodeHtml(n, raw) {
                  <button class="pg-sbtn primary" onclick="event.stopPropagation();pgRunNode('${n.key}')">Generate</button>
                  <button class="pg-sbtn" onclick="event.stopPropagation();pgSelect('${n.key}')">Upload</button></div>${run}</div>`;
         const hasVideo = n.videos.length || (inSeq && inSeq.videos.length);
-        return `<div class="pg-node pg-shot${sel}${f ? '' : ' failed'}" data-key="${n.key}" style="${pos}width:200px;height:180px;">
+        return `<div class="pg-node pg-shot${sel}${f ? '' : ' failed'}" data-key="${n.key}" style="${pos}width:280px;min-height:250px;">
             <div class="pg-nh"><div class="pg-nt"><span class="pg-title">${esc(n.shot_code)}</span>
               ${f ? `<span class="pg-vtag">v${f.version}/${n.frames.length}</span>` : '<span class="pg-pill fail">no frame</span>'}${pgFlowBadge(n)}</div>
               <div class="pg-sub">shot${n.framing ? ' · ' + esc(n.framing) : ''} · ${pgSecs(n.duration_ms)}${pgPrevisTag(n)}</div>
@@ -315,7 +335,7 @@ function pgNodeHtml(n, raw) {
             ${frame}
             <div class="pg-row" style="margin-top:4px;">${pgPort('in', 'plates', 'plates')}<span>plates</span><span>image</span>
               ${pgPort('out', f ? 'image' : null, 'image')}</div>
-            <div class="pg-row end"><span>video</span>${pgPort('out', 'video', 'video', hasVideo ? [] : ['hollow'])}</div>
+            <div class="pg-row end">${pgPort('in','audio','sound')}<span>video</span>${pgPort('out', 'video', 'video', hasVideo ? [] : ['hollow'])}</div>
         </div>`;
     }
     if (n.type === 'sequence') {
@@ -334,7 +354,7 @@ function pgNodeHtml(n, raw) {
         const joins = (n.joins || []).map((j, i) => j && n.shot_codes[i + 1] ? `<div class="pg-join">
             <div class="pg-join-k${j.type !== 'cut' ? ' moves' : ''}">${i + 1}→${i + 2} · ${esc((PG_JOINS.find(x => x[0] === j.type) || [0, j.type])[1])}</div>
             ${j.prompt ? `<div class="pg-join-t">${esc(j.prompt)}</div>` : ''}</div>` : '').join('');
-        return `<div class="pg-node pg-seq${sel}" data-key="${n.key}" style="${pos}width:240px;min-height:280px;padding-bottom:10px;">
+        return `<div class="pg-node pg-seq${sel}" data-key="${n.key}" style="${pos}width:300px;min-height:320px;padding-bottom:10px;">
             <div class="pg-nh"><div class="pg-nt"><span class="pg-title">${esc(n.name)}</span>
               ${n.links.stale ? '<span class="pg-pill stale">stale</span>' : ''}</div>
               <div class="pg-sub">sequence · ${n.shot_codes.length} shot${n.shot_codes.length === 1 ? '' : 's'} · ${pgSecs(n.duration_ms)}</div></div>
@@ -344,7 +364,7 @@ function pgNodeHtml(n, raw) {
     if (n.type === 'video') {
         const parent = pgNode(n.parent);
         const all = (parent && parent.videos) || [];
-        return `<div class="pg-node ver${sel}" data-key="${n.key}" style="${pos}width:200px;height:178px;">
+        return `<div class="pg-node ver${sel}" data-key="${n.key}" style="${pos}width:260px;min-height:220px;">
             <div class="pg-nh"><div class="pg-nt"><span class="pg-title">${pgVersionTitle(n, all)}</span>
               ${n.selected ? '<span class="pg-pill play">▶ playing</span>' : ''}</div>
               <div class="pg-sub">video · ${esc(n.provider || 'upload')} · ${pgSecs(n.duration_ms)}</div></div>
@@ -357,11 +377,11 @@ function pgNodeHtml(n, raw) {
         const parent = pgNode(n.parent);
         // A flow's sound hangs off a SHOT, which has no cue versions (FOG-004).
         const all = (parent && parent.versions) || [];
-        return `<div class="pg-node ver${sel}" data-key="${n.key}" style="${pos}width:180px;height:110px;">
+        return `<div class="pg-node ver${sel}" data-key="${n.key}" style="${pos}width:180px;min-height:110px;">
             <div class="pg-nh"><div class="pg-nt"><span class="pg-title">${pgVersionTitle(n, all)}</span>
               ${n.selected ? '<span class="pg-pill play">▶ playing</span>' : ''}</div>
               <div class="pg-sub">audio · ${pgSecs(n.duration_ms)}</div></div>
-            <div class="pg-row" style="margin-top:3px;">${pgPort('in', 'audio', 'in')}</div>
+            <div class="pg-row" style="margin-top:3px;">${pgPort('in', 'audio', 'in')}${pgPort('out','audio','audio')}</div>
             <div class="pg-wave" data-wave="${n.asset_id}"></div></div>`;
     }
     if (n.type === 'sound') {
@@ -369,12 +389,12 @@ function pgNodeHtml(n, raw) {
         const parent = n.parent ? pgNode(n.parent) : null;
         const matches = parent && n.duration_ms && Math.abs(parent.duration_ms - n.duration_ms) < 500;
         const empty = !n.versions.length ? `<div class="pg-node empty" data-key="${n.key}:empty" data-empty-for="${n.key}"
-              style="left:${n.x + 240}px;top:${n.y}px;width:180px;height:110px;">
+              style="left:${n.x + 240}px;top:${n.y}px;width:180px;min-height:110px;">
             <div class="pg-nh" style="border-bottom-style:dashed;"><div class="pg-title" style="color:#b7b7be;">No version yet</div><div class="pg-sub">audio</div></div>
             <div class="pg-row" style="margin-top:3px;">${pgPort('in', 'audio', 'in')}</div>
             <div class="pg-nbtns"><button class="pg-sbtn primary" onclick="event.stopPropagation();pgRunNode('${n.key}')">Generate</button>
               <button class="pg-sbtn" onclick="event.stopPropagation();pgSelect('${n.key}')">Upload</button></div></div>` : '';
-        return `<div class="pg-node${sel}" data-key="${n.key}" style="${pos}width:200px;height:130px;">
+        return `<div class="pg-node${sel}" data-key="${n.key}" style="${pos}width:200px;min-height:130px;">
             <div class="pg-nh"><div class="pg-title">${esc(n.title || k.label)}</div>
               <div class="pg-sub">${k.gen} · ${pgSecs(n.duration_ms || (parent && parent.duration_ms))}${matches || (!n.duration_ms && parent) ? ' · matches' : ''}</div></div>
             <div class="pg-row" style="margin-top:3px;">${pgPort('in', 'scene', 'scene')}<span>scene</span><span>audio</span>
@@ -409,17 +429,68 @@ function pgRender() {
     const world = document.getElementById('pgWorld');
     const canvas = document.getElementById('pgCanvas');
     if (!world || !PG.graph) return;
+    PG.layoutCleanup?.();
     const g = PG.graph;
     canvas.querySelector('.pg-empty').textContent = g.nodes.length ? '' : 'No shots yet. Break the screenplay into shots, then come back.';
     const groups = (g.groups || []).map(gr => pgGroupHtml(gr)).join('');
     // Never `.map(pgNodeHtml)`: map passes the index as `raw`, which drew every
     // node but the first without its out-of-date state and its hold badge.
     const nodes = g.nodes.filter(pgVisible).map(n => pgNodeHtml(n)).join('');
-    world.innerHTML = groups + '<svg class="pg-edges" id="pgEdges" width="1" height="1"></svg>' + nodes;
+    world.innerHTML = groups + '<div class="pg-workspaces" id="pgWorkspaces">'+pgWorkspacesHtml()+'</div>' + '<svg class="pg-edges" id="pgEdges" width="1" height="1"></svg>' + nodes;
+    const ctx=pgContext(), rendered=PG.graph;
+    pgMeasureLayout();
+    const measure=()=>{if(pgContextLive(ctx) && PG.graph===rendered && world.isConnected)pgMeasureLayout();};
+    const observer=typeof ResizeObserver==='function'?new ResizeObserver(measure):null;
+    world.querySelectorAll('.pg-node[data-key]').forEach(el=>observer?.observe(el));
+    world.addEventListener('load',measure,true);world.addEventListener('loadedmetadata',measure,true);
+    PG.layoutCleanup=()=>{observer?.disconnect();world.removeEventListener('load',measure,true);world.removeEventListener('loadedmetadata',measure,true);};
     for (const k of PG.picked) { const el = world.querySelector(`.pg-node[data-key="${k}"]`); if (el) el.classList.add('picked'); }
     pgApplyView();
     pgHeader();
-    requestAnimationFrame(() => { pgDrawEdges(); pgPaintWaves(); pgMinimap(); });
+    requestAnimationFrame(() => { if(!pgContextLive(ctx) || PG.graph!==rendered)return;pgDrawEdges(); pgPaintWaves(); pgMinimap(); });
+}
+
+function pgMeasureLayout() {
+    const world=document.getElementById('pgWorld'),graph=PG.graph;if(PG.layoutGesture || !world || !graph?.groups.some(g=>g.lineage_rows))return;
+    const sizes={};let changed=false;
+    for(const el of world.querySelectorAll('.pg-node[data-key]')){
+        const n=PG.byKey.get(el.dataset.key) || PG.byKey.get(el.dataset.emptyFor);if(!n || !el.offsetWidth || !el.offsetHeight)continue;
+        sizes[el.dataset.key]={width:el.offsetWidth,height:el.offsetHeight};
+        const prior=el.dataset.emptyFor?n.empty_size:{w:n.w,h:n.h};
+        if(prior?.w!==el.offsetWidth || prior?.h!==el.offsetHeight)changed=true;
+    }
+    if(!changed)return;
+    // Keep measurements for collapsed/filtered nodes until their next visible render.
+    graph.layout_measurements={...(graph.layout_measurements || {}),...sizes};layoutLineageGraph(graph,graph.layout_measurements);
+    pgSyncGeometry();
+    pgDrawEdges();pgMinimap();
+}
+
+/** Guides group one narrative owner without creating causal or playback edges. */
+function pgWorkspacesHtml(){
+ const g=PG.graph;if(!g)return '';
+ return g.groups.filter(group=>!group.collapsed && group.shot_rows?.some(row=>pgVisible(pgNode(row.owner)))).map(group=>
+  (g.columns || []).map((column,index)=>`<div class="pg-workspace-column" style="left:${group.layout_x+column.x}px;top:${group.y+82}px;width:${column.width}px">${esc(group.key?.startsWith('depth-group:')?['SOURCE VIDEO','','','DEPTH MAP','','DEPTH OUTPUTS'][index]:column.label)}</div>`).join('')+
+  (group.shot_rows || []).filter(row=>pgVisible(pgNode(row.owner))).map(row=>`<div class="pg-shot-workspace" data-workspace="${esc(row.owner)}" style="left:${row.x}px;top:${row.y}px;width:${row.w}px;height:${row.h}px"><span>${esc(row.label)} <small>· ${pgNode(row.owner)?.type?.startsWith('depth-')?'depth':pgNode(row.owner)?.type==='sequence'?'sequence':'shot'} work area${row.outliers?.length?' · '+row.outliers.length+' freely moved':''}</small></span></div>`).join('')).join('');
+}
+/** Apply geometry to every visual occurrence, including a sound's empty slot. */
+function pgSyncGeometry(){
+ const world=document.getElementById('pgWorld'),graph=PG.graph;if(!world || !graph)return;
+ for(const el of world.querySelectorAll('.pg-node[data-key]')){const n=PG.byKey.get(el.dataset.key) || PG.byKey.get(el.dataset.emptyFor);if(n){el.style.left=(n.x+(el.dataset.emptyFor?240:0))+'px';el.style.top=n.y+'px';}}
+ for(const el of world.querySelectorAll('.pg-group')){const g=graph.groups.find(g=>g.key===el.dataset.group);if(g){el.style.left=g.x+'px';el.style.top=g.y+'px';el.style.width=g.w+'px';el.style.height=g.h+'px';}}
+ const guides=document.getElementById('pgWorkspaces');if(guides)guides.innerHTML=pgWorkspacesHtml();
+}
+/** Entry and explicit Focus keep a work area readable; Fit remains the whole film. */
+function pgFocusWorkspace(){
+ const n=pgNode(PG.sel),owner=n?.parent || n?.key;
+ const rows=PG.graph?.groups.filter(g=>!g.collapsed).flatMap(g=>g.shot_rows || []).filter(row=>pgVisible(pgNode(row.owner))) || [];
+ const row=rows.find(r=>r.owner===owner || r.members.includes(owner)) || rows[0];
+ const c=document.getElementById('pgCanvas');if(!row || !c){pgFit();return;}
+ const drawer=document.getElementById('pgDrawer'),visibleW=c.clientWidth-(drawer?.classList.contains('open')?drawer.offsetWidth || 420:0);
+ const footage=PG.graph.columns?.[4],workingWidth=footage?footage.x+footage.width+36:row.w;
+ PG.zoom=Math.max(0.55,Math.min(0.9,(visibleW-48)/workingWidth || 0.8));
+ PG.pan={x:24-row.x*PG.zoom,y:40-row.y*PG.zoom};
+ pgApplyView();pgDrawEdges();
 }
 
 function pgPortCenter(key, port, dir) {
@@ -508,7 +579,7 @@ function pgBounds() {
     const ns = PG.graph ? PG.graph.nodes.filter(pgVisible).concat((PG.graph.groups || []).filter(x => x.collapsed)) : [];
     if (!ns.length) return { x: 0, y: 0, w: 1000, h: 600 };
     const xs = ns.map(n => n.x), ys = ns.map(n => n.y);
-    const x2 = ns.map(n => n.x + (n.w || 200)), y2 = ns.map(n => n.y + (n.h || 180));
+    const x2 = ns.map(n => n.x + nodeFootprint(n).w), y2 = ns.map(n => n.y + nodeFootprint(n).h);
     const x = Math.min(...xs) - 20, y = Math.min(...ys) - 20;
     return { x, y, w: Math.max(...x2) - x + 40, h: Math.max(...y2) - y + 40 };
 }
@@ -544,7 +615,7 @@ function pgMinimap() {
     const s = Math.min(148 / b.w, 76 / b.h);
     // Collapsed cards are drawn too: a card that is on the canvas and missing from the map reads as lost.
     const boxes = pgBoxes().map(n =>
-        `<div style="left:${10 + (n.x - b.x) * s}px;top:${10 + (n.y - b.y) * s}px;width:${Math.max(2, (n.w || 200) * s)}px;height:${Math.max(2, (n.h || 180) * s)}px;"></div>`);
+        `<div style="left:${10 + (n.x - b.x) * s}px;top:${10 + (n.y - b.y) * s}px;width:${Math.max(2, nodeFootprint(n).w * s)}px;height:${Math.max(2, nodeFootprint(n).h * s)}px;"></div>`);
     const vx = (-PG.pan.x / PG.zoom - b.x) * s + 10, vy = (-PG.pan.y / PG.zoom - b.y) * s + 10;
     boxes.push(`<div class="vp" style="left:${vx}px;top:${vy}px;width:${c.clientWidth / PG.zoom * s}px;height:${c.clientHeight / PG.zoom * s}px;"></div>`);
     m.innerHTML = boxes.join('');
@@ -571,18 +642,29 @@ function pgWorldPoint(ev) {
 function pgInitCanvas() {
     const c = document.getElementById('pgCanvas');
     if (!c || c.dataset.wired) return;
+    PG.canvasCleanup?.();
+    const controller=new AbortController();
+    const bind=(target,event,handler,options={})=>target?.addEventListener(event,handler,{...options,signal:controller.signal});
+    PG.canvasCleanup=()=>{gesture=null;PG.layoutGesture=false;controller.abort();delete c.dataset.wired;};
     c.dataset.wired = '1';
     let gesture = null;
 
-    c.addEventListener('mousedown', ev => {
+    bind(c, 'mousedown', ev => {
         if (ev.button !== 0) return;
+        if(PG.layoutAction && pgContextLive(PG.layoutAction.ctx))return;
         pgCloseMenu();
         const port = ev.target.closest('.pg-port[data-dir="out"]');
         const nodeEl = ev.target.closest('.pg-node[data-key]');
         if (ev.target.closest('button, input, textarea, select, label, video')) return;
+        const groupEl=ev.target.closest('.pg-group');
+        if(groupEl && (ev.target.closest('.pg-group-label') || ev.target.closest('.pg-group-resize'))){
+            const group=PG.graph.groups.find(g=>g.key===groupEl.dataset.group);if(!group)return;
+            const members=PG.graph.nodes.filter(n=>group.members.includes(n.key)).map(n=>({key:n.key,x:n.x,y:n.y}));
+            gesture={kind:ev.target.closest('.pg-group-resize')?'group-resize':'group',key:group.key,sx:ev.clientX,sy:ev.clientY,x0:group.x,y0:group.y,w0:group.w,h0:group.h,anchorX:group.layout_x ?? group.x,anchorY:group.layout_y ?? group.y,members,rows:(group.shot_rows || []).map(row=>({row,x:row.x,y:row.y})),el:groupEl,moved:false,ctx:pgContext()};PG.layoutGesture=true;ev.preventDefault();return;
+        }
         if (port && nodeEl) {
             gesture = { kind: 'wire', from: nodeEl.dataset.key, port: port.dataset.port, type: port.dataset.type,
-                a: pgPortCenter(nodeEl.dataset.key, port.dataset.port, 'out') };
+                a: pgPortCenter(nodeEl.dataset.key, port.dataset.port, 'out'), sx:ev.clientX,sy:ev.clientY,moved:false,ctx:pgContext() };
             pgHintTargets(gesture);
             ev.preventDefault();
             return;
@@ -590,16 +672,24 @@ function pgInitCanvas() {
         if (nodeEl && !nodeEl.dataset.emptyFor) {
             const n = pgNode(nodeEl.dataset.key);
             if (!n) return;
-            gesture = { kind: 'node', key: n.key, sx: ev.clientX, sy: ev.clientY, x0: n.x, y0: n.y, moved: false, el: nodeEl };
+            gesture = { kind: 'node', key: n.key, sx: ev.clientX, sy: ev.clientY, x0: n.x, y0: n.y, sourceX:n.source_x ?? n.x,sourceY:n.source_y ?? n.y,moved: false, el: nodeEl,ctx:pgContext() };
+            PG.layoutGesture=true;
             return;
         }
         gesture = { kind: 'pan', sx: ev.clientX, sy: ev.clientY, px: PG.pan.x, py: PG.pan.y, moved: false };
         c.classList.add('panning');
     });
 
-    window.addEventListener('mousemove', ev => {
+    bind(window, 'mousemove', ev => {
         if (!gesture) return;
-        if (gesture.kind === 'pan') {
+        if(gesture.ctx && !pgContextLive(gesture.ctx)){gesture=null;PG.layoutGesture=false;return;}
+        if(gesture.kind==='group' || gesture.kind==='group-resize'){
+            const dx=Math.round((ev.clientX-gesture.sx)/PG.zoom),dy=Math.round((ev.clientY-gesture.sy)/PG.zoom);if(Math.abs(dx)+Math.abs(dy)>3)gesture.moved=true;if(!gesture.moved)return;
+            const group=PG.graph.groups.find(g=>g.key===gesture.key);
+            if(gesture.kind==='group'){group.x=gesture.x0+dx;group.y=gesture.y0+dy;gesture.dx=dx;gesture.dy=dy;gesture.members.forEach(saved=>{const n=pgNode(saved.key);if(!n)return;n.x=saved.x+dx;n.y=saved.y+dy;const el=[...c.querySelectorAll('.pg-node')].find(e=>e.dataset.key===n.key);if(el){el.style.left=n.x+'px';el.style.top=n.y+'px';}});group.layout_x=gesture.anchorX+dx;group.layout_y=gesture.anchorY+dy;gesture.rows.forEach(saved=>{saved.row.x=saved.x+dx;saved.row.y=saved.y+dy;});pgSyncGeometry();}
+            else{const members=PG.graph.nodes.filter(n=>group.members.includes(n.key));const minW=Math.max(320,...members.map(n=>n.x+nodeFootprint(n).w+WORKSPACE_SPACING.padding-group.x)),minH=Math.max(180,...members.map(n=>n.y+nodeFootprint(n).h+WORKSPACE_SPACING.padding-group.y));group.w=Math.max(minW,gesture.w0+dx);group.h=Math.max(minH,gesture.h0+dy);gesture.el.style.width=group.w+'px';gesture.el.style.height=group.h+'px';}
+            pgDrawEdges();pgMinimap();
+        } else if (gesture.kind === 'pan') {
             const dx = ev.clientX - gesture.sx, dy = ev.clientY - gesture.sy;
             if (Math.abs(dx) + Math.abs(dy) > 3) gesture.moved = true;
             PG.pan.x = gesture.px + dx; PG.pan.y = gesture.py + dy;
@@ -613,16 +703,21 @@ function pgInitCanvas() {
             gesture.el.style.left = n.x + 'px'; gesture.el.style.top = n.y + 'px';
             const empty = document.querySelector(`#pgWorld .pg-node[data-empty-for="${n.key}"]`);
             if (empty) { empty.style.left = (n.x + 240) + 'px'; empty.style.top = n.y + 'px'; }
+            const group=PG.graph.groups.find(item=>item.members.includes(n.key));
+            if(group&&!group.collapsed){const right=group.x+group.w,bottom=group.y+group.h;group.x=Math.min(group.x,n.x-WORKSPACE_SPACING.padding);group.y=Math.min(group.y,n.y-WORKSPACE_SPACING.header);group.w=Math.max(right,n.x+nodeFootprint(n).w+WORKSPACE_SPACING.padding)-group.x;group.h=Math.max(bottom,n.y+nodeFootprint(n).h+WORKSPACE_SPACING.padding)-group.y;pgSyncGeometry();}
             pgDrawEdges();
         } else if (gesture.kind === 'wire') {
+            if(Math.abs(ev.clientX-gesture.sx)+Math.abs(ev.clientY-gesture.sy)>3)gesture.moved=true;
             pgDrawEdges({ a: gesture.a, b: pgWorldPoint(ev) });
         }
     });
 
-    window.addEventListener('mouseup', async ev => {
+    bind(window, 'mouseup', async ev => {
         const g = gesture; gesture = null;
+        PG.layoutGesture=false;
         c.classList.remove('panning');
-        if (!g) return;
+        if (!g || (g.ctx && !pgContextLive(g.ctx))) return;
+        if(g.kind==='group' || g.kind==='group-resize'){if(!g.moved){pgMeasureLayout();return;}const group=PG.graph.groups.find(item=>item.key===g.key);const patch=g.kind==='group'?{x:g.anchorX+(g.dx || 0),y:g.anchorY+(g.dy || 0),delta_x:g.dx || 0,delta_y:g.dy || 0}:{w:group.w,h:group.h};try{await api(`/projects/${g.ctx.project}/production-graph/groups/${encodeURIComponent(g.key)}`,{method:'PUT',body:JSON.stringify(patch)});if(pgContextLive(g.ctx))await loadProductionGraph(true);}catch(error){if(pgContextLive(g.ctx)){setStatus('Scene layout not saved: '+error.message,true);await loadProductionGraph();}}return;}
         if (g.kind === 'pan' && !g.moved) {
             // Remembered for a double-click's "sequence from the selected shot".
             if (PG.sel) PG.selBeforeClick = PG.sel;
@@ -635,13 +730,16 @@ function pgInitCanvas() {
             const n = pgNode(g.key);
             n.pinned = true;
             try {
-                await api(`/projects/${state.currentProject.id}/production-graph/layout`, {
+                await api(`/projects/${g.ctx.project}/production-graph/layout`, {
                     method: 'PUT', body: JSON.stringify({ nodes: [{ key: n.key, x: n.x, y: n.y }] }) });
-            } catch (err) { setStatus('Could not keep that position: ' + err.message); }
-            pgMinimap();
+                if(pgContextLive(g.ctx))await loadProductionGraph(true);
+            } catch (err) { if(pgContextLive(g.ctx)){setStatus('Could not keep that position: ' + err.message);await loadProductionGraph(true);} }
+            if(pgContextLive(g.ctx))pgMinimap();
         } else if (g.kind === 'wire') {
             pgClearHints();
             pgDrawEdges();
+            if(!g.moved && g.port==='video'){const owner=pgNode(g.from);if(owner?.type==='shot')await pgGenerateVideo(owner.id);else if(owner?.type==='sequence')await pgGenerateSequence(owner);return;}
+            if(!g.moved && g.port==='scene'){setStatus('Sound: drag to a sound node, then choose conditioning or independent timeline track.');return;}
             const target = document.elementFromPoint(ev.clientX, ev.clientY);
             const port = target && target.closest('.pg-port[data-dir="in"]');
             const nodeEl = target && target.closest('.pg-node[data-key]');
@@ -650,13 +748,13 @@ function pgInitCanvas() {
     });
 
     // Double-click empty canvas: the add palette, at the pointer (PGN-019).
-    c.addEventListener('dblclick', ev => {
+    bind(c, 'dblclick', ev => {
         if (ev.target.closest('.pg-node, button, input, textarea, select, .pg-furniture, .pg-minimap')) return;
         ev.preventDefault();
         pgOpenAddPalette(ev.clientX, ev.clientY, pgWorldPoint(ev));
     });
 
-    c.addEventListener('wheel', ev => {
+    bind(c, 'wheel', ev => {
         ev.preventDefault();
         if (ev.ctrlKey || ev.metaKey || Math.abs(ev.deltaY) > Math.abs(ev.deltaX) * 2 && !ev.shiftKey) {
             pgZoomBy(ev.deltaY < 0 ? 1.1 : 1 / 1.1, ev.clientX, ev.clientY);
@@ -666,7 +764,7 @@ function pgInitCanvas() {
         }
     }, { passive: false });
 
-    c.addEventListener('contextmenu', ev => {
+    bind(c, 'contextmenu', ev => {
         const nodeEl = ev.target.closest('.pg-node[data-key]');
         const group = ev.target.closest('.pg-group');
         if (!nodeEl && !group) return;
@@ -674,11 +772,11 @@ function pgInitCanvas() {
         pgOpenMenu(ev.clientX, ev.clientY, nodeEl ? nodeEl.dataset.key : null, group);
     });
 
-    c.addEventListener('dragover', ev => {
+    bind(c, 'dragover', ev => {
         const t = ev.dataTransfer.types;
         if (t.includes('text/pg-add') || t.includes('Files')) ev.preventDefault();
     });
-    c.addEventListener('drop', ev => {
+    bind(c, 'drop', ev => {
         // A file from the desktop: find which of this project's files it is,
         // or offer it to the node it landed on (PGN-015).
         const dropped = pgDroppedFile(ev.dataTransfer);
@@ -693,7 +791,7 @@ function pgInitCanvas() {
         pgAddAt(what, pgWorldPoint(ev));
     });
 
-    document.getElementById('pgMinimap').addEventListener('click', ev => {
+    bind(document.getElementById('pgMinimap'), 'click', ev => {
         const r = ev.currentTarget.getBoundingClientRect(), b = pgBounds();
         const s = Math.min(148 / b.w, 76 / b.h);
         const wx = (ev.clientX - r.left - 10) / s + b.x, wy = (ev.clientY - r.top - 10) / s + b.y;
@@ -702,26 +800,32 @@ function pgInitCanvas() {
     });
 
     // Ctrl+B (Cmd+B) holds or releases the selected node — not while typing (PGN-016).
-    document.addEventListener('keydown', ev => {
+    bind(document, 'keydown', ev => {
         if (state.currentPage !== 'productiongraph' || !(ev.ctrlKey || ev.metaKey) || String(ev.key).toLowerCase() !== 'b') return;
         if (!PG.sel || /^(INPUT|TEXTAREA|SELECT)$/.test((ev.target && ev.target.tagName) || '') || (ev.target && ev.target.isContentEditable)) return;
         ev.preventDefault();
         pgToggleHold(PG.sel);
     });
-    document.addEventListener('keydown', ev => {
+    bind(document, 'keydown', ev => {
         if (ev.key !== 'Escape' || state.currentPage !== 'productiongraph') return;
         if (document.querySelector('.modal-overlay.open')) return;
         pgCloseMenu();
         pgSelect(null);
     });
-    window.addEventListener('resize', () => { if (state.currentPage === 'productiongraph') { pgDrawEdges(); pgRenderPlayback(); } });
+    bind(window, 'resize', () => { if (state.currentPage === 'productiongraph') { pgDrawEdges(); pgRenderPlayback(); } });
 }
 
 /** Which in-ports this out-port may land on — type-checked by colour, as drawn. */
+function pgOpenDepth(nodeId,sourceAssetId) { window.dispatchEvent(new CustomEvent('film-open-depth',{detail:{node_id:nodeId,source_asset_id:sourceAssetId}})); }
+function pgOpenComposite(node_id,input) { window.dispatchEvent(new CustomEvent('film-open-composite',{detail:{node_id,input}})); }
+
 function pgCanWire(g, toKey, toPort, toType) {
     const from = pgNode(g.from), to = pgNode(toKey);
     if (!from || !to || from.key === to.key) return false;
-    if ((to.type==='depth-map' && depthWireAllowed(from,to,toPort,g.type)) || (['subject-matte','composite'].includes(to.type) && compositeWireAllowed(from,to,toPort))) return true;
+    if (['subject-matte','composite'].includes(to.type) && compositeWireAllowed(from,to,toPort)) return true;
+    if(depthWireAllowed(from,to,toPort,g.type))return true;
+    if(g.type==='image' && from.type==='board-version' && to.type==='draft-request')return true;
+    if (g.type === 'audio' && ['sound','audio'].includes(from.type) && ['shot','sequence','draft-request'].includes(to.type)) return true;
     if (g.type === 'image' && from.type === 'shot' && to.type === 'sequence' && /^slot:/.test(toPort)) return true;
     // Shot picture onto another shot: in-betweens between the two.
     if (g.type === 'image' && from.type === 'shot' && to.type === 'shot' && toPort === 'plates') return true;
@@ -750,8 +854,10 @@ async function pgWire(g, toKey, toPort, toType) {
         return;
     }
     const from = pgNode(g.from), to = pgNode(toKey);
-    if (to.type==='depth-map') { pgOpenDepth(to.id,from.asset_id);setStatus('Source selected. Inspect and save the depth input revision.');return; }
     if (['subject-matte','composite'].includes(to.type)) { const field={source:'source_asset_id',alpha:'alpha_asset_id',background:'background_asset_id',foreground:'foreground_asset_id',depth:'depth_asset_id'}[toPort];pgOpenComposite(to.id,{[field]:from.asset_id});setStatus('Typed input selected. Review and save its input revision.');return; }
+    if(depthWireAllowed(from,to,toPort,g.type))return pgOpenDepth(to.id,from.asset_id);
+    if(g.type==='image' && from.type==='board-version' && to.type==='draft-request'){await pgOpenDraft(to.parent,to.kind);if(PG.draftEdit?.key!==to.parent)return;return pgDraftRef(to.kind==='video'?'init_image':'reference_images','attach',undefined,{asset_id:from.asset_id,reference_role:to.kind==='video'?'first_frame':'reference'});}
+    if(g.type==='audio' && ['sound','audio'].includes(from.type))return pgSoundChoice(to.type==='draft-request'?to.parent:to.key,from.key);
     if (from.type === 'shot' && to.type === 'shot') return ibOpenSetup(from, to);
     try {
         if (from.type === 'shot' && to.type === 'sequence') {
@@ -767,9 +873,7 @@ async function pgWire(g, toKey, toPort, toType) {
             }
             setStatus(`${from.shot_code} is now shot ${body.shot_ids.length} of ${to.name}.`);
         } else if (to.type === 'sound') {
-            await api('/music-cues/' + to.id, { method: 'PUT', body: JSON.stringify(
-                from.type === 'sequence' ? { sequence_id: from.id } : { shot_id: from.id }) });
-            setStatus(`${to.title || 'The sound'} now takes its scene details from ${from.type === 'sequence' ? from.name : from.shot_code}.`);
+            return pgSoundChoice(from.key,to.key);
         } else if (from.type === 'sequence' && to.type === 'sequence') {
             const field = toPort === 'start' ? 'start_frame_ref' : 'end_frame_ref';
             await api('/sequences/' + to.id, { method: 'PUT', body: JSON.stringify({ [field]: { sequence_id: from.id, mode: 'shot_image' } }) });
@@ -780,9 +884,6 @@ async function pgWire(g, toKey, toPort, toType) {
 }
 
 // ── Selection, header, menu ────────────────────────────────────────────────
-
-function pgOpenDepth(node_id,source_asset_id) { window.dispatchEvent(new CustomEvent('film-open-depth',{detail:{node_id,source_asset_id}})); }
-function pgOpenComposite(node_id,input) { window.dispatchEvent(new CustomEvent('film-open-composite',{detail:{node_id,input}})); }
 
 function pgSelect(key) {
     PG.sel = key || null;
@@ -800,7 +901,11 @@ function pgSelect(key) {
 }
 
 function pgHeader() {
+    const arranging=PG.layoutAction && pgContextLive(PG.layoutAction.ctx);
+    const arrange=document.getElementById('pgArrange');if(arrange)arrange.disabled=!!arranging;
+    const undo=document.getElementById('pgUndoArrange');if(undo){undo.hidden=!(PG.layoutUndo && pgContextLive(PG.layoutUndo.ctx));undo.disabled=!!arranging;}
     const g = PG.graph;
+    if(!g)return;
     const m = g.meta || {};
     const meta = document.getElementById('pgMeta');
     if (meta) meta.textContent = `${m.shots} shot${m.shots === 1 ? '' : 's'} · ${m.framed} framed · ${m.with_video} with video · ${m.need_frame} need a frame`;
@@ -1314,12 +1419,26 @@ function pgImpactDrawerHtml(n) {
 }
 
 async function pgTidy() {
+    const ctx=pgContext();
     try {
-        const g = await api(`/projects/${state.currentProject.id}/production-graph/tidy`, { method: 'POST', body: '{}' });
-        PG.graph = g; PG.byKey = new Map(g.nodes.map(n => [n.key, n]));
-        pgRender();
+        await api(`/projects/${ctx.project}/production-graph/tidy`, { method: 'POST', body: '{}' });
+        if(!pgContextLive(ctx))return;await loadProductionGraph(true);
+        if(!pgContextLive(ctx))return;
         setStatus(`Tidied. Nodes you moved stayed where you put them.`);
-    } catch (err) { setStatus('Could not tidy: ' + err.message); }
+    } catch (err) { if(pgContextLive(ctx))setStatus('Could not tidy: ' + err.message); }
+}
+
+async function pgArrange(undo=false) {
+    const ctx=pgContext();if(!ctx.project || (PG.layoutAction && pgContextLive(PG.layoutAction.ctx)))return;
+    const saved=PG.layoutUndo;if(undo && (!saved || !pgContextLive(saved.ctx)))return;
+    const action={ctx};PG.layoutAction=action;pgHeader();
+    try{
+        const result=await api(`/projects/${ctx.project}/production-graph/arrange`,{method:'POST',body:JSON.stringify(undo?{undo:saved.snapshot,expected_fingerprint:saved.fingerprint}:{})});
+        if(!pgContextLive(ctx))return;
+        PG.layoutUndo=result.undo?{ctx,snapshot:result.undo,fingerprint:result.layout_fingerprint}:null;
+        await loadProductionGraph(true);if(pgContextLive(ctx))setStatus(undo?'Previous workspace layout restored.':'Scenes arranged vertically. Undo restores your previous placements.');
+    }catch(error){if(pgContextLive(ctx))setStatus('Could not '+(undo?'undo arrangement':'arrange scenes')+': '+error.message,true);}
+    finally{if(PG.layoutAction===action){PG.layoutAction=null;if(pgContextLive(ctx))pgHeader();}}
 }
 
 async function pgToggleLock() {
@@ -1794,18 +1913,16 @@ async function pgLinkSave() {
 // ── Running ───────────────────────────────────────────────────────────────
 
 async function pgBusy(key, label, work) {
-    PG.busy.set(key, label);
-    pgRender();
-    pgPollRunning();
+    const ctx=pgContext(),busy=PG.busy;busy.set(key,label);pgRender();pgPollRunning();
     try { return await work(); }
-    finally { PG.busy.delete(key); await loadProductionGraph(); }
+    finally {busy.delete(key);if(pgContextLive(ctx))await loadProductionGraph();}
 }
 
 /** The node's own generate, through the same confirmation the old pages use. */
 async function pgRunNode(key) {
-    const n = pgNode(key);
+    const n = pgNode(key),runContext=pgContext();
     if (!n) return;
-    if (n.type === 'shot') return pgBusy(key, n.frames.length ? 'regenerating frame' : 'generating frame', () => regenerateStoryboard(n.id));
+    if (n.type === 'shot') { await pgOpenDraft(key,'image');if(pgContextLive(runContext)&&PG.draftEdit?.key===key)return pgGenerateDraft();return; }
     if (n.type === 'sequence') return pgGenerateSequence(n);
     if (n.type === 'sound') return pgGenerateSound(n);
 }
@@ -1913,13 +2030,16 @@ function pgRenderDrawer() {
     const body = document.getElementById('pgDrawerBody'), foot = document.getElementById('pgDrawerFoot');
     const close = `<button class="pg-dclose" onclick="pgSelect(null)" title="Close (Esc)">×</button>`;
     if (n.workflow==='composite' || ['subject-matte','composite','composite-source','alpha-output','alpha-preview','composite-output','composite-plate','foreground-layer'].includes(n.type)) {body.innerHTML=`<div class="pg-dhead">${close}<h3>${esc(n.name||n.type)}</h3></div><p>${esc(n.output_type||n.status||'Typed production node')}</p><button class="pg-hbtn" onclick="pgOpenComposite('${esc(n.id)}')">Open composite controls</button>`;foot.innerHTML='';}
-    else if (['depth-source','depth-map','depth-output','depth-preview'].includes(n.type)) {body.innerHTML=`<div class="pg-dhead">${close}<h3>Depth workflow</h3></div><button class="pg-hbtn" onclick="pgOpenDepth('${esc(n.id)}')">Open depth controls</button>`;foot.innerHTML='';}
+    else if (DEPTH_NODE_TYPES.includes(n.type)) { body.innerHTML=close+'<div class="pg-dhead"><h3>Depth workflow</h3></div><p>Open Depth Map to inspect the source, raw sequence, display video, timing and provenance.</p><button class="pg-sbtn" onclick="pgOpenDepth('+jsAttr(n.id)+')">Open Depth Map</button>'; foot.innerHTML=''; }
     else if (n.type === 'shot') pgDrawerShot(n, body, foot, close);
     else if (n.type === 'sequence') pgDrawerSequence(n, body, foot, close);
     else if (n.type === 'sound') pgDrawerSound(n, body, foot, close);
     else if (n.type === 'video' || n.type === 'audio') pgDrawerVersion(n, body, foot, close);
     else if (n.type === 'link') pgDrawerLink(n, body, foot, close);
     else if (n.type === 'inbetween') pgDrawerInbetween(n, body, foot, close);
+    else if (n.type==='draft-reference') { pgOpenDraft(n.parent,n.recipe_kind);return; }
+    else if (n.type==='draft-request') { pgOpenDraft(n.parent,n.kind); return; }
+    else if (['origin-request','origin-reference','board-version'].includes(n.type)) pgDrawerOrigin(n,body,foot,close);
     const why = pgImpactDrawerHtml(n);
     if (why) {
         const head = body.querySelector('.pg-dhead');
@@ -2108,15 +2228,16 @@ function pgDrawerShot(n, body, foot, close) {
     foot.innerHTML = `<button class="pg-hbtn" onclick="pgPreviewVideo('${n.id}')">Preview request · free</button><div class="grow"></div>
         <button class="pg-hbtn primary" id="pgGenVideoBtn" onclick="pgGenerateVideo('${n.id}')" ${f ? '' : 'disabled title="A clip starts from the frame — generate or upload one first"'}>Generate video</button>`;
     pgLoadPrevis(n);
+    body.querySelector('.pg-dhead')?.insertAdjacentHTML('afterend', `<div class="pg-dsec pg-btnrow"><button class="pg-hbtn" onclick="pgOpenDraft('${n.key}','image')">Edit image recipe</button><button class="pg-hbtn primary" onclick="pgOpenDraft('${n.key}','video')">Edit video recipe</button></div>`);
     pgLoadShotDetails(n);
     if (f) pgLoadHowMade(f.asset_id, 'frame', n.key);
 }
 
 async function pgLoadShotDetails(n) {
-    const key = n.key;
+    const key = n.key,ctx=pgContext();
     try {
         const d = await api('/shots/' + n.id + '/prompt');
-        if (PG.sel !== key) return;
+        if (!pgContextLive(ctx) || PG.sel !== key) return;
         const refs = d.references || [];
         const el = document.getElementById('pgPlates');
         const count = document.getElementById('pgPlateCount');
@@ -2125,16 +2246,16 @@ async function pgLoadShotDetails(n) {
         if (el) el.innerHTML = refs.length
             ? refs.map(r => `<div class="pg-li"><span class="grow">${esc(r.name || r.tag || r.kind || 'reference')}</span><span class="m">${esc(r.kind || '')}${r.view ? ' · ' + esc(r.view) : ''}</span></div>`).join('')
             : '<div class="pg-note">No plates travel with this shot — every subject is drawn from its words alone.</div>';
-    } catch (err) { const el = document.getElementById('pgPlates'); if (el) el.innerHTML = `<div class="pg-warn">${esc(err.message)}</div>`; }
+    } catch (err) { if(!pgContextLive(ctx))return;const el = document.getElementById('pgPlates'); if (el) el.innerHTML = `<div class="pg-warn">${esc(err.message)}</div>`; }
     await pgRefreshVideoPreview(n);
 }
 
 async function pgRefreshVideoPreview(n) {
-    const key = n.key;
+    const key = n.key,ctx=pgContext();
     const q = pgVideoQuery();
     try {
         const d = await api(`/shots/${n.id}/video/preview${q}`);
-        if (PG.sel !== key) return;
+        if (!pgContextLive(ctx) || PG.sel !== key) return;
         PG.drawerCache.videoPreview = { shot: n.id, prompt: d.prompt || '', negative: d.negative_prompt || '' };
         if (PG.drawerCache.editedFor !== n.id) { PG.drawerCache.edited = null; PG.drawerCache.editedFor = n.id; }
         const prov = document.getElementById('pgVidProvider');
@@ -2144,6 +2265,7 @@ async function pgRefreshVideoPreview(n) {
         if (btn && !btn.disabled) btn.textContent = usd != null ? `Generate video · $${Number(usd).toFixed(2)}` : 'Generate video';
         pgRenderPrompt();
     } catch (err) {
+        if(!pgContextLive(ctx))return;
         const el = document.getElementById('pgVideoPrompt');
         if (el) el.innerHTML = `<div class="pg-warn">Could not read the video request: ${esc(err.message)}</div>`;
     }
@@ -2207,31 +2329,15 @@ async function pgPreviewVideo(shotId) {
 }
 
 /** Paid: the shared confirmation, then the clip with every choice made here. */
-function pgGenerateVideo(shotId) {
-    const n = pgNode('shot:' + shotId);
-    const vp = PG.drawerCache.videoPreview;
-    const override = PG.drawerCache.edited != null && vp && PG.drawerCache.edited !== vp.prompt ? PG.drawerCache.edited : null;
-    return confirmPaidImage({
-        capability: 'video',
-        title: 'Generate this clip',
-        note: 'Costs credits. The selected frame travels as the first keyframe, and the new clip becomes a version that plays.',
-        previewUrl: `/shots/${shotId}/video/preview${pgVideoQuery()}`,
-        editable: false,
-        notEditableWhy: override ? 'Your edited prompt from the drawer is sent in place of this one.' : 'Edit the prompt in the drawer, then generate.',
-        send: async choices => pgBusy('shot:' + shotId, 'generating video', async () => {
-            setStatus(`Generating a clip for ${n ? n.shot_code : 'the shot'}…`, true);
-            try {
-                await api('/shots/' + shotId + '/video/generate', { method: 'POST', body: JSON.stringify({
-                    ...choices,
-                    tier: PG.drawerCache.tier || 'production',
-                    ...(PG.drawerCache.dur ? { duration_s: PG.drawerCache.dur } : {}),
-                    ...(PG.drawerCache.seed ? { seed: Number(PG.drawerCache.seed) } : {}),
-                    ...(override ? { prompt_override: override } : {}),
-                }) });
-                setStatus(`${n ? n.shot_code : 'Clip'}: a new video version is playing.`);
-            } catch (err) { setStatus('Could not generate: ' + err.message); }
-        }),
-    });
+async function pgGenerateVideo(shotId) {
+    const n=pgNode('shot:'+shotId);if(!n)return;
+    PG.generateIntents ||= new Set();const intents=PG.generateIntents,intentContext=pgContext();if(intents.has(n.key))return;intents.add(n.key);
+    try {
+    // One visible final request review is supplied by api(). No intermediate paid modal.
+    await pgOpenDraft(n.key,'video');if(!pgContextLive(intentContext)||PG.draftEdit?.key!==n.key)return;
+    if(PG.drawerCache.edited!=null)pgDraftField('prompt',PG.drawerCache.edited);
+    return await pgGenerateDraft();
+    } finally {intents.delete(n.key);}
 }
 
 function pgVersionRow(v, key) {
@@ -2247,7 +2353,7 @@ function pgDrawerSequence(n, body, foot, close) {
     const members = n.shot_ids.map(id => pgNode('shot:' + id)).filter(Boolean);
     const missing = members.filter(m => !m.frames.length);
     const seqs = PG.graph.nodes.filter(x => x.type === 'sequence' && x.id !== n.id);
-    const free = pgShots().filter(s => !s.sequence_id);
+    const free = pgShots().filter(s => !n.shot_ids.includes(s.id));
     const mode = PG.drawerCache.seqMode || 'legs';
     const generates = (n.joins || []).slice(0, Math.max(0, members.length - 1)).filter(j => j && j.type !== 'cut').length
         + Math.max(0, members.length - 1 - (n.joins || []).length) + (n.links.start && n.links.start.ok ? 1 : 0) + (n.links.end && n.links.end.ok ? 1 : 0);
@@ -2289,7 +2395,7 @@ function pgDrawerSequence(n, body, foot, close) {
       <div class="pg-dsec"><div class="pg-kicker"><span>Shots and joins</span></div>${joinsHtml || '<div class="pg-note">No shots yet.</div>'}
         ${free.length ? `<select style="margin-top:8px;" onchange="pgSeqAdd('${n.id}', this.value)"><option value="">+ Add a shot…</option>
           ${free.map(s => `<option value="${s.id}">${esc(s.shot_code)} · ${esc(s.scene_label)}</option>`).join('')}</select>`
-          : '<div class="pg-note" style="margin-top:8px;">Every shot is in a sequence. Wire one from another sequence to move it here.</div>'}</div>
+          : '<div class="pg-note" style="margin-top:8px;">Every shot is already included here. A shot may also belong to other sequences.</div>'}</div>
       <div class="pg-dsec"><div class="pg-kicker"><span>Start and end frames</span></div>${refBlock('start')}${refBlock('end')}</div>
       <div class="pg-dsec"><div class="pg-kicker"><span>How to make it</span></div>
         <div class="pg-list">
@@ -2354,10 +2460,17 @@ async function pgSeqPlan(id) {
     } catch (err) { if (el) el.innerHTML = `<div class="pg-warn" style="margin-top:8px;">${esc(err.message)}</div>`; }
 }
 
-function pgGenerateSequence(n) {
-    if (!n) return;
-    const native = (PG.drawerCache.seqMode || 'legs') === 'native';
-    return pgBusy(n.key, 'generating', () => native ? generateNativeMultiShot(n.id) : generateSequence(n.id));
+async function pgGenerateSequence(n) {
+    if(!n)return;
+    PG.generateIntents ||= new Set();const intents=PG.generateIntents;if(intents.has(n.key))return;intents.add(n.key);
+    try {
+    const sequenceContext=pgContext(),hasRecipe=!!n.draft?.payload?.video,native=(PG.drawerCache.seqMode || 'legs')==='native';
+    if(!hasRecipe && !native){
+        // The existing route prepares every actual leg for one visible final-review batch.
+        return await pgBusy(n.key,'reviewing sequence legs',async()=>{try{const result=await api('/sequences/'+n.id+'/generate',{method:'POST',body:'{}'});if(!pgContextLive(sequenceContext))return;setStatus(result?.status==='submitted'?'Sequence legs submitted with their original reviewed requests.':'Sequence results saved as new immutable versions.');}catch(error){if(error.code!=='FINAL_REQUEST_CANCELLED'&&pgContextLive(sequenceContext))setStatus(error.message,true);}});
+    }
+    await pgOpenDraft(n.key,'video');if(pgContextLive(sequenceContext)&&PG.draftEdit?.key===n.key)return await pgGenerateDraft();
+    } finally {intents.delete(n.key);}
 }
 
 async function pgDrawerSound(n, body, foot, close) {
@@ -2445,15 +2558,17 @@ function pgDrawerVersion(n, body, foot, close) {
     const auditionUrl = pgSrc(n.url || '') + (String(n.url || '').includes('?') ? '&' : '?') + 'content=' + encodeURIComponent(n.audio_fingerprint || '');
     const media = n.url ? (n.type === 'audio'
         ? `<audio src="${esc(pgSrc(n.url))}" controls style="width:100%;"></audio>`
-        : `<video src="${esc(auditionUrl)}" controls playsinline style="width:100%;border-radius:8px;background:#08080a;"></video>`) : '<div class="pg-warn">The file is missing.</div>';
+        : `<video data-resolution-video src="${esc(auditionUrl)}" controls playsinline preload="metadata" style="width:100%;border-radius:8px;background:#08080a;"></video>`) : '<div class="pg-warn">The file is missing.</div>';
     body.innerHTML = `
       <div class="pg-dhead">${close}<h3 class="pg-dtitle">${n.source === 'flow' ? 'Made by a flow' : `Version ${n.version}`}</h3>
+        ${n.type === 'video' ? '<span class="resolution-badge pg-resolution-badge" data-video-resolution-badge hidden></span>' : ''}
         <div class="pg-dsub">${n.type} · ${esc(n.parent_label || '')} · ${pgSecs(n.duration_ms)}</div>
         ${pgFlowPickControls(n)}
         <div class="${n.selected ? 'pg-okline' : 'pg-note'}" style="margin-top:6px;">${n.selected ? 'Selected — playback uses this version' : 'Not selected — playback uses another'}</div></div>
       <div class="pg-dsec">${media}</div>
       ${n.type === 'video' && parent && parent.type === 'shot' ? `<div class="pg-dsec" id="pgClipEditorial"></div>` : ''}
       <div class="pg-dsec"><div class="pg-list">
+        ${n.type === 'video' ? '<div class="pg-li"><span class="grow">Pixel dimensions</span><span class="m" data-video-resolution-detail>Unavailable</span></div>' : ''}
         <div class="pg-li"><span class="grow">Parent</span><span class="m">${esc(parent ? (parent.type === 'sequence' ? 'Sequence · ' + parent.name : parent.type === 'sound' ? (parent.title || 'Sound') : 'Shot · ' + parent.shot_code) : '—')}</span></div>
         <div class="pg-li"><span class="grow">Generator</span><span class="m">${esc(n.provider || 'uploaded')}${n.model ? ' · ' + esc(n.model) : ''}</span></div>
         ${n.mode ? `<div class="pg-li"><span class="grow">Made as</span><span class="m">${esc(n.mode)}</span></div>` : ''}
@@ -2469,6 +2584,7 @@ function pgDrawerVersion(n, body, foot, close) {
         <div id="pgCompare" style="margin-top:8px;"></div></div>` : ''}
       <div class="pg-dsec"><div class="pg-kicker"><span>All versions of ${esc(n.parent_label || '')}</span></div>
         <div class="pg-list">${siblings.map(v => pgVersionRow(v, 'ver:' + v.asset_id)).join('')}</div></div>`;
+    if (n.type === 'video') bindVideoResolution(body);
     pgLoadHowMade(n.asset_id, n.type, n.parent);
     if (n.type === 'video' && parent && parent.type === 'shot') pgLoadClipEditorial(n, parent);
     foot.innerHTML = `${n.url ? `<a class="pg-hbtn" style="display:inline-flex;align-items:center;text-decoration:none;" href="${esc(pgSrc(n.url))}" download>Download</a>` : ''}
@@ -2530,6 +2646,7 @@ async function pgSaveClipEdit(shotId, assetId) {
  */
 function pgRecipeHtml(r) {
     if (!r) return '<div class="pg-note">Nothing is recorded about how this was made.</div>';
+    if (r.lineage) return pgLineageHtml(r.lineage);
     const unknown = new Set(r.unknown || []);
     const row = (label, val) => `<div class="pg-li"><span class="grow">${esc(label)}</span><span class="m">${val}</span></div>`;
     const rows = [];
@@ -2584,6 +2701,7 @@ function pgRecipeFlowHtml(f) {
  */
 function pgMakeAnotherPlan(r, kind, parent) {
     if (!r) return { refused: 'Nothing is recorded about how this was made.' };
+    if(r.lineage){if(r.lineage.status!=='recorded')return {refused:'Exact historical inputs were not recorded. Start a new draft with explicit current sources.'};return {capability:kind==='video'?'video':'image',prefill:lineageFacts(r.lineage).prompt,notes:['Captured historical references are copied into a new draft.']};}
     // A flow output is made again by applying the same flow to its shot (FOG-008 → FOG-003).
     if (r.flow) {
         if (!r.flow.flow) return { refused: 'The flow that made this has been deleted, so it cannot be applied again.' };
@@ -2613,13 +2731,14 @@ function pgMakeAnotherPlan(r, kind, parent) {
 }
 
 async function pgLoadHowMade(assetId, kind, parentKey) {
-    const box = document.getElementById('pgHowMade');
+    const box = document.getElementById('pgHowMade'), ctx=pgContext();
     if (!box || !assetId) return;
     PG.drawerCache.recipes = PG.drawerCache.recipes || {};
     PG.drawerCache.howMade = { assetId, kind, parentKey };
     box.innerHTML = '<div class="pg-note">Reading how this was made…</div>';
     try {
         const d = await api('/assets/' + assetId + '/provenance');
+        if(!pgContextLive(ctx))return;
         PG.drawerCache.recipes[assetId] = d.recipe || null;
         // The latest request wins: a file dropped on a shot asks for ITS recipe
         // while the drawer is still reading the selected frame's.
@@ -2632,28 +2751,9 @@ async function pgLoadHowMade(assetId, kind, parentKey) {
 }
 
 async function pgMakeAnother(assetId) {
-    const ctx = PG.drawerCache.howMade || {};
-    const r = (PG.drawerCache.recipes || {})[assetId];
-    const plan = pgMakeAnotherPlan(r, ctx.kind, pgNode(ctx.parentKey));
-    if (plan.refused) return setStatus(plan.refused);
-    // The flow's own plan and confirmation, the same as "Apply flow…".
-    if (plan.flowId) return pgApplyFlow(plan.flowId, plan.targets);
-    return confirmPaidImage({
-        capability: plan.capability,
-        title: 'Make another like this',
-        previewUrl: plan.previewUrl,
-        prefill: plan.prefill,
-        note: 'Costs credits. The prompt is the one this version was made with; ' + plan.notes.join(' '),
-        send: async extras => {
-            PG.busy.set(ctx.parentKey, 'making another'); pgRender();
-            try {
-                await api(plan.url, { method: 'POST', body: JSON.stringify(Object.assign({}, plan.body, extras || {})) });
-                setStatus('Made another — it is a new version beside this one.');
-            } catch (err) { setStatus('Could not make another: ' + err.message); }
-            PG.busy.delete(ctx.parentKey);
-            await loadProductionGraph();
-        },
-    });
+    const ctx=PG.drawerCache.howMade || {},recipe=PG.drawerCache.recipes?.[assetId];
+    if(recipe?.lineage?.status!=='recorded')return setStatus('Exact historical inputs are unavailable. Start a new draft from current sources and attach explicit references.',true);
+    return pgOpenDraft(ctx.parentKey,ctx.kind==='video'?'video':'image',assetId);
 }
 
 // ── Drop a file to find its recipe (PGN-015) ───────────────────────────────
@@ -3168,7 +3268,7 @@ function ibMakeClip() {
 function pgTiles() {
     const t = PG.timeline;
     if (!t || !t.entries) return [];
-    return t.entries.map(e => {
+    return timelineTiles(t).map(e => {
         const shot = pgNode('shot:' + e.shot_id);
         const seq = shot && shot.sequence_id ? pgNode('seq:' + shot.sequence_id) : null;
         const covers = e.covers && e.covers.length > 1;
@@ -3189,14 +3289,15 @@ async function pgRenderPlayback() {
     const el = document.getElementById('pgPlayback');
     if (!el || !state.currentProject) return;
     if (!PG.timeline || PG.timelineFor !== PG.graph) {
-        PG.timelineFor = PG.graph;
-        try { PG.timeline = await api('/projects/' + state.currentProject.id + '/timeline'); } catch (_) { PG.timeline = null; }
+        const graph=PG.graph,ctx=pgContext();PG.timelineFor=graph;
+        try {const timeline=await api('/projects/'+ctx.project+'/timeline');if(!pgContextLive(ctx)||PG.timelineFor!==graph)return;PG.timeline=timeline;} catch (_) {if(!pgContextLive(ctx))return;PG.timeline=null;}
     }
     const tiles = pgTiles();
     const total = tiles.reduce((m, t) => Math.max(m, t.start + t.dur), 0) || 1;
     if (PG.play.index >= tiles.length) PG.play.index = 0;
     const cur = tiles[PG.play.index];
-    const tc = ms => { const s = Math.floor(ms / 1000); const f = Math.floor((ms % 1000) / 1000 * 24);
+    const fps=Number(PG.timeline?.fps) || 24;
+    const tc = ms => { const s = Math.floor(ms / 1000); const f = Math.floor((ms % 1000) / 1000 * fps);
         return `01:${String(Math.floor(s / 3600)).padStart(2, '0') === '00' ? String(Math.floor(s / 60)).padStart(2, '0') : '00'}:${String(s % 60).padStart(2, '0')}:${String(f).padStart(2, '0')}`; };
     const wide = el.clientWidth > 1000 || el.clientWidth === 0;
     const beds = (PG.graph ? PG.graph.nodes : []).filter(n => n.type === 'sound');
@@ -3232,15 +3333,16 @@ async function pgRenderPlayback() {
           <button class="pg-tbtn" title="Next shot" onclick="pgStep(1)"><svg width="11" height="11" viewBox="0 0 12 12"><path d="M10 1 V11 M2 1 L8 6 L2 11 Z" stroke="currentColor" stroke-width="1.4" fill="currentColor"/></svg></button>
           <span class="pg-tc" id="pgTc">${cur ? tc(cur.start) : '—'}</span><span class="pg-tc dim">/ ${tc(total)}</span>
           <div style="flex-grow:1;"></div>
-          ${wide ? `<label><input type="checkbox" ${PG.play.stills ? 'checked' : ''} onchange="PG.play.stills=this.checked"> Stills hold for the shot's length</label>
+          ${wide ? `<span class="pg-policy">Selected video · otherwise image exactly 5.000 s · ${fps} fps</span>
             <label style="margin-left:12px;"><input type="checkbox" ${PG.play.audio ? 'checked' : ''} onchange="PG.play.audio=this.checked;pgSyncAudio()"> Audio</label>
-            <button class="pg-hbtn" style="height:28px;margin-left:12px;" onclick="navigateTo('exportpage')">Send to Premiere</button>` : ''}
+            <button class="pg-hbtn" style="height:28px;margin-left:12px;" onclick="pgExportResolve()">Export to DaVinci Resolve</button>` : ''}
         </div>
         <div class="pg-lanes">
           <div class="pg-ruler">${[0, 1, 2, 3, 4].map(i => `<span>${tc(total * i / 4).slice(3, 8)}</span>`).join('')}</div>
           <div class="pg-tiles">${tiles.map((t, i) => `<div class="pg-tile ${t.kind}${i === PG.play.index ? ' cur' : ''}" style="flex:${t.dur} 1 0;"
               onclick="pgTileClick(${i})" title="${esc(t.name)}"><span class="n">${esc(t.name)}</span><span class="k">${esc(t.kindLabel)}</span></div>`).join('')
               || '<div class="pg-note">No shots to play yet.</div>'}</div>
+          ${(PG.timeline?.audio_tracks || []).map(track=>`<div class="pg-edit-lane"><div class="pg-aclip ${track.source?.offline?'offline':''} ${track.muted?'muted':''}" style="left:${Math.max(0,track.timeline_start_ms ?? track.absolute_start_ms)/total*100}%;width:${Math.max(0,track.timeline_used_duration_ms)/total*100}%" title="Offset ${track.offset_ms} ms · source in ${track.source_in_ms} ms · gain ${track.gain_db} dB${track.muted?' · muted':''}${track.source?.offline?' · offline':''}">SOUND ${esc(track.source?.path?.split('/').pop() || track.asset_id)}</div></div>`).join('')}
           ${lane('music', 'MUSIC')}${lane('sfx', 'SFX')}${lane('ambient', 'AMB')}
           ${lanesHidden ? `<div class="pg-note" style="font-size:9px;margin-top:2px;">+${lanesHidden} more sound${lanesHidden === 1 ? '' : 's'} — open them on the graph</div>` : ''}
           <div class="pg-playhead" id="pgPlayhead" style="left:${cur ? cur.start / total * 100 : 0}%;"></div>
@@ -3348,7 +3450,10 @@ function pgPlayCurrent() {
     const t = tiles[PG.play.index];
     if (!t) return pgStopPlay();
     pgShowTile(PG.play.index);
+    pgSyncAudio();
+    const playContext=pgContext();
     const next = () => {
+        if(!pgContextLive(playContext))return;
         if (!PG.play.playing) return;
         if (PG.play.index >= tiles.length - 1) return pgStopPlay();
         PG.play.index += 1;
@@ -3356,27 +3461,26 @@ function pgPlayCurrent() {
     };
     const v = document.getElementById('pgMonVideo');
     if (v) { pgPrepareVideo(t, next); v.play().catch(() => { PG.play.timer = setTimeout(next, t.dur); }); }
-    else PG.play.timer = setTimeout(next, PG.play.stills ? t.dur : 800);
+    else PG.play.timer = setTimeout(next, t.kind === 'still' ? 5000 : t.dur);
 }
 
 /** The selected sound versions under their spans, while playing and allowed to. */
 function pgSyncAudio() {
-    PG.audioEls = PG.audioEls || [];
-    PG.audioEls.forEach(a => a.pause());
-    PG.audioEls = [];
-    if (!PG.play.playing || !PG.play.audio || !PG.graph) return;
-    const tiles = pgTiles();
-    const cur = tiles[PG.play.index];
-    if (!cur) return;
-    for (const s of PG.graph.nodes.filter(n => n.type === 'sound')) {
-        const v = s.versions.find(x => x.selected);
-        const span = v && pgSpanOf(s, tiles);
-        if (!v || !span || !v.url || cur.start < span.start || cur.start >= span.start + span.dur) continue;
-        const a = new Audio(pgSrc(v.url));
-        a.currentTime = (cur.start - span.start) / 1000;
-        a.play().catch(() => {});
-        PG.audioEls.push(a);
-    }
+    PG.audioEls = PG.audioEls || [];PG.audioEls.forEach(a=>a.pause());PG.audioEls=[];
+    PG.audioScheduler?.stop();void PG.audioContext?.close();PG.audioContext=null;
+    if(!PG.play.playing || !PG.play.audio || !PG.graph)return;
+    const current=pgTiles()[PG.play.index];if(!current)return;
+    let audioContext;
+    const gainFor=media=>{
+        const Context=window.AudioContext || window.webkitAudioContext;if(!Context)return null;
+        audioContext ||= new Context();PG.audioContext=audioContext;void audioContext.resume();
+        const source=audioContext.createMediaElementSource(media),gain=audioContext.createGain();source.connect(gain);gain.connect(audioContext.destination);
+        return {set:value=>{gain.gain.value=value;},close:()=>{source.disconnect();gain.disconnect();}};
+    };
+    PG.audioScheduler=createAudioScheduler({createMedia:url=>{const media=new Audio();media.crossOrigin='anonymous';media.src=url;return media;},urlOf:pgSrc,gainFor,onWarning:message=>setStatus(message,true)});
+    const explicit=PG.timeline?.audio_tracks || [],explicitAssets=new Set(explicit.map(t=>t.asset_id || t.source?.asset_id).filter(Boolean));
+    const beds=PG.graph.nodes.filter(n=>n.type==='sound').flatMap(sound=>{const version=sound.versions.find(v=>v.selected),span=version&&pgSpanOf(sound,pgTiles());return version&&span&&!explicitAssets.has(version.asset_id)?[{id:sound.key,url:version.url,absolute_start_ms:span.start,timeline_start_ms:span.start,timeline_used_duration_ms:Math.min(version.duration_ms || span.dur,span.dur),effective_source_in_ms:0,gain_db:0,source:{path:version.url}}]:[];});
+    PG.audioScheduler.start([...explicit,...beds],current.start);
 }
 
 // (pgRenderSide: kept in core, public/legacy/production-graph.js)
@@ -3424,6 +3528,9 @@ function pgSideClick(key) {
 
 
 export {
+    pgContext, pgContextLive, pgDispose, pgReadOrigins, pgOriginNodeHtml, pgLineageHtml, pgDrawerOrigin,
+    pgOpenDraft, pgRenderDraft, pgDraftKind, pgDraftField, pgDraftSettings, pgDraftRefRole, pgDraftRef, pgSaveDraft, pgGenerateDraft,
+    pgPickReference, pgPickReferenceAsset, pgAudioTracksHtml, pgSaveAudioTracks, pgEditAudioTrack, pgRemoveAudioTrack, pgSoundChoice, pgAttachChosenSound, pgExportResolve, pgWriteResolvePackage,
     PG_PORT_COLOR,
     PG_JOINS,
     PG_KIND,
@@ -3444,10 +3551,9 @@ export {
     pgVisible,
     pgPort,
     pgNodeHtml,
-    pgOpenDepth,
-    pgOpenComposite,
     pgBorrowedBy,
     pgRender,
+    pgMeasureLayout,
     pgPortCenter,
     pgPath,
     pgDrawEdges,
@@ -3459,9 +3565,11 @@ export {
     pgFit,
     pgZoomBy,
     pgMinimap,
-    pgPanTo,
+    pgPanTo, pgFocusWorkspace, pgWorkspacesHtml, pgSyncGeometry,
     pgWorldPoint,
     pgInitCanvas,
+    pgOpenDepth,
+    pgOpenComposite,
     pgCanWire,
     pgHintTargets,
     pgClearHints,
@@ -3506,6 +3614,7 @@ export {
     pgToggleBehind,
     pgImpactDrawerHtml,
     pgTidy,
+    pgArrange,
     pgToggleLock,
     pgOpenMenu,
     pgCloseMenu,
@@ -3645,3 +3754,147 @@ export {
     pgEnsureSide,
     pgSideClick,
 };
+
+// ── Recorded origins, editable drafts and explicit audio relationships ─────
+function pgContext() { return {project:state.currentProject?.id,epoch:projectEpoch(),mount:PG.mountGeneration || 0}; }
+function pgContextLive(ctx) { return ctx.project===state.currentProject?.id && ctx.epoch===projectEpoch() && ctx.mount===(PG.mountGeneration || 0); }
+function pgDispose() {
+    PG.mountGeneration=(PG.mountGeneration || 0)+1;
+    PG.canvasCleanup?.();PG.canvasCleanup=null;
+    PG.layoutCleanup?.();PG.layoutCleanup=null;PG.layoutGesture=false;PG.layoutUndo=null;PG.layoutAction=null;
+    clearTimeout(PG.pollTimer);clearTimeout(PG.play?.timer);
+    PG.audioScheduler?.stop();PG.audioScheduler=null;void PG.audioContext?.close();PG.audioContext=null;
+    PG.audioEls?.forEach(a=>a.pause());PG.audioEls=[];
+    if(PG.play)PG.play.playing=false;
+    PG.inflight=null;PG.inflightPid=null;PG.timeline=null;PG.timelineFor=null;PG.draftEdit=null;
+    PG.drawerCache={};PG.lineageRecipes={};PG.generateIntents=new Set();
+}
+async function pgReadOrigins(graph,ctx) {
+    const ids=[...new Set(graph.nodes.flatMap(n=>[...(n.frames || []),...(n.flow_frames || []),...(n.videos || []),...(n.asset_id?[n]:[])].map(v=>v.asset_id)).filter(Boolean))];
+    const results=new Array(ids.length);let cursor=0;
+    const read=async()=>{while(cursor<ids.length){const index=cursor++,id=ids[index];try{const result=await api('/assets/'+encodeURIComponent(id)+'/provenance');results[index]=result.recipe || null;}catch(error){results[index]={lineage:{status:'legacy_unknown',unknown:['provenance_read_failed']}};}}};
+    await Promise.all(Array.from({length:Math.min(4,ids.length)},read));
+    if(!pgContextLive(ctx))return null;return Object.fromEntries(ids.map((id,index)=>[id,results[index]]));
+}
+function pgOriginNodeHtml(n,sel,pos) {
+    const portIn=pgPort('in',n.kind==='video'?'video':'image','in'),portOut=pgPort('out',n.kind==='video'?'video':'image','out');
+    if(n.type==='origin-reference'||n.type==='draft-reference'){
+        const ref=n.reference,preview=ref?.data || ref?.preview_url;
+        return `<div class="pg-node pg-origin pg-origin-reference${sel}" data-key="${esc(n.key)}" style="${pos}width:180px;min-height:64px;">
+          ${preview&&String(ref.mime || 'image/').startsWith('image/')?`<img src="${esc(preview)}" alt="Recorded reference">`:''}<div class="pg-ref-info">${ref?`${esc(ref.order || '')} ${esc(ref.reference_role || ref.role || ref.wire_role || 'reference')}<br><code>${esc(String(ref.sha256 || ref.asset_id || (ref.captured_reference?'Frozen review '+ref.captured_reference.review_id:'hash not recorded')).slice(0,16))} · ${ref.byte_length ?? '?'} bytes</code>`:'Inputs not recorded<br>bytes / role / order unknown'}</div>${pgPort('out',n.kind,'out')}</div>`;
+    }
+    if(n.type==='board-version')return `<div class="pg-node pg-origin${sel}" data-key="${esc(n.key)}" style="${pos}width:260px;min-height:224px;">
+      <div class="pg-nh"><div class="pg-title">Frame v${n.version}${n.selected?' · selected':''}</div><div class="pg-sub">Immutable result</div></div>${portIn}${n.url?`<img class="pg-board-image" src="${esc(pgSrc(n.url))}" alt="Storyboard version ${n.version}">`:''}${portOut}</div>`;
+    if(n.type==='draft-request'){
+        const draft=n.draft?.payload?.[n.kind];
+        return `<div class="pg-node pg-origin kind-video${sel}" data-key="${esc(n.key)}" style="${pos}width:250px;min-height:216px;"><div class="pg-nh"><div class="pg-title">${n.kind==='video'?'Video':'Image'} recipe · draft</div><div class="pg-sub">${n.draft?'Saved revision '+n.draft.revision:'Current sources · no approval'}</div></div>${pgPort('in','image','in')}${n.kind==='video'?pgPort('in','audio','audio'):''}<div class="pg-origin-body"><div class="pg-origin-prompt">${esc(draft?.prompt || 'Edit the prompt and ordered references, then review the exact request.')}</div><button class="pg-sbtn primary" onclick="event.stopPropagation();pgOpenDraft('${esc(n.parent)}','${n.kind}')">Edit &amp; review ${n.kind}</button></div></div>`;
+    }
+    const line=n.lineage,facts=lineageFacts(line);
+    return `<div class="pg-node pg-origin kind-${n.kind}${sel}" data-key="${esc(n.key)}" style="${pos}width:250px;min-height:216px;"><div class="pg-nh"><div class="pg-title">${n.kind==='video'?'Video':'Image'} request</div><span class="pg-lineage-pill${facts.status==='legacy_unknown'?' unknown':''}">${facts.status==='recorded'?'Immutable origin':'Legacy origin incomplete'}</span></div>${portIn}<div class="pg-origin-body">${facts.prompt_format==='native_shots_json'?'<div class="pg-origin-status">Per-shot native prompts and durations (JSON)</div>':''}<div class="pg-origin-prompt">${esc(facts.prompt || 'Exact request was not recorded for this version.')}</div><div class="pg-origin-status">${esc(facts.representation)}</div></div>${portOut}</div>`;
+}
+function pgLineageHtml(lineage) {
+    const facts=lineageFacts(lineage);
+    if(facts.status==='legacy_unknown')return `<div class="pg-warn">Legacy origin incomplete. Exact prompt, reference bytes, order and transport were not recorded. Today's plates are not historical evidence.</div>`;
+    const refs=facts.references.map((r,i)=>`<div class="pg-li" style="display:block"><strong>${i+1}. ${esc(r.role || 'reference')}</strong><div class="pg-note">${esc(r.wire_role || 'wire role unknown')} · ${r.byte_length ?? '?'} bytes · order ${r.order ?? 'unknown'}</div><code>${esc(r.sha256 || 'hash not recorded')}</code></div>`).join('');
+    return `<div class="pg-kicker"><span>Immutable approved snapshot</span></div><div class="pg-note">${esc(lineage.provider || '')} · ${esc(lineage.model || '')} · adapter ${esc(lineage.approved?.adapterVersion || 'not recorded')}</div><pre class="pg-request-json">${esc(JSON.stringify(lineage.approved,null,2))}</pre><div class="pg-kicker"><span>Actually sent transport</span></div>${lineage.transport?`<div class="pg-note">${esc(facts.representation)}. A dispatch attempt is not proof of success.</div><pre class="pg-request-json">${esc(JSON.stringify(lineage.transport,null,2))}</pre>`:'<div class="pg-warn">Transport not recorded. The approved representation cannot establish what was actually sent.</div>'}<div class="pg-kicker"><span>Ordered exact references</span></div>${refs || (facts.references_known?'<div class="pg-note">No references in the recorded approved snapshot.</div>':'<div class="pg-warn">Reference manifest not recorded.</div>')}${lineage.unknown?.length?`<div class="pg-note">Not recorded: ${esc(lineage.unknown.join(', '))}</div>`:''}`;
+}
+function pgDrawerOrigin(n,body,foot,close) {
+    const owner=pgNode(n.parent),lineage=n.lineage || PG.lineageRecipes?.[n.asset_id]?.lineage;
+    body.innerHTML=`<div class="pg-dhead">${close}<h3 class="pg-dtitle">${n.type==='origin-reference'?'Recorded reference':n.type==='board-version'?'Storyboard v'+n.version:'Generation origin'}</h3><div class="pg-dsub">${esc(owner?.shot_code || owner?.name || '')} · ${esc(n.asset_id || '')}</div></div><div class="pg-dsec">${n.url&&n.type==='board-version'?`<img class="pg-dimg" src="${esc(pgSrc(n.url))}" alt="Original storyboard version">`:''}${pgLineageHtml(lineage)}</div>`;
+    foot.innerHTML=`${n.type==='board-version'?`<button class="pg-hbtn" onclick="pgSelectFrame('${esc(owner.id)}',${n.version})">Select frame v${n.version}</button>`:''}<div class="grow"></div><button class="pg-hbtn primary" ${lineage?.status==='recorded'?'':'disabled title="An exact historical recipe was not recorded"'} onclick="pgOpenDraft('${esc(n.parent)}','${n.kind==='video'?'video':'image'}','${esc(n.asset_id)}')">Make a new draft from this origin</button>`;
+}
+async function pgOpenDraft(key,kind='video',sourceAssetId,audioOnly=false) {
+    const owner=pgNode(key);if(!owner || !['shot','sequence'].includes(owner.type))return;
+    const ctx=pgContext();const token=(PG.draftReadToken || 0)+1;PG.draftReadToken=token;
+    PG.sel=key;pgDrawerOpen(true);
+    try{
+        const result=await api(`/projects/${ctx.project}/production-graph/nodes/${encodeURIComponent(key)}/draft`);
+        if(!pgContextLive(ctx)||PG.draftReadToken!==token||PG.sel!==key)return;
+        let payload=copy(result.draft?.payload || {});
+        if(sourceAssetId){const origin=PG.lineageRecipes?.[sourceAssetId]?.lineage;payload[kind]=recipeFromLineage(origin);if(payload.workspace_reference_ids)delete payload.workspace_reference_ids[kind];}
+        let starter;
+        if(!audioOnly && !sourceAssetId && !payload[kind]){
+            starter=await api(`/projects/${ctx.project}/production-graph/nodes/${encodeURIComponent(key)}/draft/starter?kind=${kind}`);
+            if(!pgContextLive(ctx)||PG.draftReadToken!==token||PG.sel!==key)return;
+            payload[kind]=starter.recipe;
+        }
+        if(!audioOnly && !payload[kind])throw new Error('The current-source recipe is unavailable. Choose explicit inputs before generating.');
+        PG.draftEdit={key,kind,payload,audioOnly,revision:result.draft?.revision || 0,source_asset_id:sourceAssetId || result.draft?.source_asset_id || null,tracks:result.audio_tracks || owner.audio_tracks || [],dirty:!!sourceAssetId || !!starter,serial:0,starter};
+        pgRenderDraft();
+    }catch(error){if(pgContextLive(ctx))setStatus(error.message,true);}
+}
+function pgRenderDraft() {
+    const edit=PG.draftEdit,owner=edit&&pgNode(edit.key);if(!owner||PG.sel!==edit.key)return;
+    const recipe=edit.payload[edit.kind] || {},body=document.getElementById('pgDrawerBody'),foot=document.getElementById('pgDrawerFoot');if(!body||!foot)return;
+    if(edit.audioOnly){body.innerHTML=`<div class="pg-dhead"><button class="pg-dclose" onclick="pgSelect(null)">×</button><h3 class="pg-dtitle">${esc(owner.shot_code || owner.name)} · timeline sound</h3><p class="pg-note">Independent edit tracks preserve the full original source. A generation provider is only required for conditioning.</p></div><div class="pg-dsec">${pgAudioTracksHtml(edit.tracks)}<button class="pg-sbtn" onclick="pgPickReference('timeline')">+ Attach timeline sound</button></div>`;foot.innerHTML='';return;}
+    const refs=(name,label)=>(Array.isArray(recipe[name])?recipe[name]:recipe[name]?[recipe[name]]:[]).map((ref,i)=>`<div class="pg-ref-edit"><div>${i+1}. ${esc(ref.reference_role || ref.role || label)}<div class="pg-note">${esc(ref.asset_id || (ref.captured_reference?'Frozen review '+ref.captured_reference.review_id+' · '+ref.captured_reference.order:'explicit reference'))}</div><input aria-label="${label} ${i+1} role" value="${esc(ref.reference_role || ref.role || '')}" onchange="pgDraftRefRole('${name}',${i},this.value)"></div><div class="pg-ref-actions"><button class="pg-sbtn" title="Move up" onclick="pgDraftRef('${name}','up',${i})">↑</button><button class="pg-sbtn" title="Move down" onclick="pgDraftRef('${name}','down',${i})">↓</button><button class="pg-sbtn" onclick="pgPickReference('${name}',${i})">Swap</button><button class="pg-sbtn" onclick="pgDraftRef('${name}','detach',${i})">×</button></div></div>`).join('');
+    body.innerHTML=`<div class="pg-dhead"><button class="pg-dclose" onclick="pgSelect(null)">×</button><h3 class="pg-dtitle">${esc(owner.shot_code || owner.name)} · new recipe</h3><div class="pg-dsub">Past origins stay immutable. Save edits to this draft, then approve the final resolved request.${owner.type==='sequence'?' This explicit recipe makes one native sequence clip; Leg by leg reviews each existing leg separately.':''}</div></div><div class="pg-dsec"><div class="pg-draft-toolbar"><button class="pg-sbtn ${edit.kind==='image'?'on':''}" onclick="pgDraftKind('image')">Image recipe</button><button class="pg-sbtn ${edit.kind==='video'?'on':''}" onclick="pgDraftKind('video')">Video recipe</button></div><label class="pg-l">${recipe.prompt_format==='native_shots_json'?'Per-shot prompts and durations (JSON)':'Full draft prompt'}</label><textarea aria-label="Draft prompt" rows="7" oninput="pgDraftField('prompt',this.value)">${esc(recipe.prompt || '')}</textarea><div class="pg-audio-grid"><label>Provider<input value="${esc(recipe.provider || '')}" onchange="pgDraftField('provider',this.value)"></label><label>Model<input value="${esc(recipe.model || '')}" onchange="pgDraftField('model',this.value)"></label></div><div class="pg-draft-state ${edit.dirty?'unsaved':''}" id="pgDraftState">${edit.dirty?'Unsaved edits':'Saved draft'} · revision ${edit.revision}</div>${edit.starter?.unresolved?.length?`<div class="pg-warn">Some current-source inputs could not be identified. Attach or detach explicit replacements before review.<pre>${esc(JSON.stringify(edit.starter.unresolved,null,2))}</pre></div>`:''}${edit.starter?.warnings?.length?`<div class="pg-note">Provider reports: ${esc(edit.starter.warnings.join(', '))}</div>`:''}<div class="pg-kicker"><span>Ordered image / plate / moodboard inputs</span></div>${refs('reference_images','Image')}${['init_image','image_url','image','end_image','last_frame','keyframes','promptImage'].map(name=>refs(name,name.replaceAll('_',' '))).join('')}<button class="pg-sbtn" onclick="pgPickReference('reference_images')">+ Attach image reference</button><div class="pg-kicker" style="margin-top:14px"><span>Audio conditioning · provider input</span></div><p class="pg-note">Only a supported model audio role can be sent. The final resolver validates capability and freezes full source bytes / role / order. Timeline gain and trim do not apply.</p>${refs('audio_references','Audio')}<button class="pg-sbtn" onclick="pgPickReference('audio_references')">+ Attach conditioning audio</button><label class="pg-l">Provider settings and reference recipe (JSON)</label><textarea aria-label="Draft recipe settings" rows="7" onchange="pgDraftSettings(this.value)">${esc(JSON.stringify(recipe,null,2))}</textarea></div><div class="pg-dsec"><div class="pg-kicker"><span>Independent timeline audio</span></div><p class="pg-note">Edit tracks use the full original file with explicit placement / trim / gain / mute. They are not conditioning inputs.</p>${pgAudioTracksHtml(edit.tracks)}<button class="pg-sbtn" onclick="pgPickReference('timeline')">+ Attach timeline sound</button></div>`;
+    foot.innerHTML=`<button class="pg-hbtn" onclick="pgSaveDraft().catch(()=>{})">Save draft</button><div class="grow"></div><button class="pg-hbtn primary" onclick="pgGenerateDraft()">Review &amp; generate new ${edit.kind==='video'?'video':'image'} version</button>`;
+}
+async function pgDraftKind(kind){const edit=PG.draftEdit;if(!edit)return;const ctx=pgContext();try{if(!edit.payload[kind]){const starter=await api(`/projects/${ctx.project}/production-graph/nodes/${encodeURIComponent(edit.key)}/draft/starter?kind=${kind}`);if(!pgContextLive(ctx)||PG.draftEdit!==edit)return;edit.payload[kind]=starter.recipe;edit.starter=starter;edit.dirty=true;edit.serial++;}edit.kind=kind;pgRenderDraft();}catch(error){if(pgContextLive(ctx))setStatus(error.message,true);}}
+function pgDraftField(field,value){const edit=PG.draftEdit;if(!edit)return;edit.payload[edit.kind][field]=value;edit.dirty=true;edit.serial++;const status=document.getElementById('pgDraftState');if(status){status.classList.add('unsaved');status.textContent='Unsaved edits · revision '+edit.revision;}}
+function pgDraftSettings(text){try{const value=JSON.parse(text);if(!value||typeof value!=='object'||Array.isArray(value))throw new Error('Recipe must be an object');const edit=PG.draftEdit;edit.payload=replaceDraftRecipe(edit.payload,edit.kind,value);edit.dirty=true;edit.serial++;pgRenderDraft();}catch(error){setStatus('Invalid draft recipe: '+error.message,true);}}
+function pgDraftRefRole(name,index,value){const edit=PG.draftEdit;const valueRef=edit.payload[edit.kind][name];(Array.isArray(valueRef)?valueRef[index]:valueRef).reference_role=value;edit.dirty=true;edit.serial++;}
+function pgDraftRef(name,operation,index,reference){const edit=PG.draftEdit;if(!edit)return;edit.payload=editReference(edit.payload,edit.kind,operation,index,reference,name);edit.dirty=true;edit.serial++;pgRenderDraft();}
+async function pgSaveDraft() {
+    const edit=PG.draftEdit;if(!edit)return null;if(edit.saving)return edit.saving;
+    const ctx=pgContext(),serial=edit.serial,payload=copy(edit.payload);
+    const run=api(`/projects/${ctx.project}/production-graph/nodes/${encodeURIComponent(edit.key)}/draft`,{method:'PUT',body:JSON.stringify({expected_revision:edit.revision,payload,source_asset_id:edit.source_asset_id})}).then(result=>{
+        const draft=result.draft || result;if(!pgContextLive(ctx))return null;
+        edit.revision=draft.revision;if(edit.serial===serial)edit.dirty=false;
+        const owner=pgNode(edit.key);if(owner)owner.draft=draft;
+        if(PG.draftEdit===edit)pgRenderDraft();return draft;
+    }).catch(error=>{if(pgContextLive(ctx))setStatus('Draft not saved: '+error.message,true);throw error;}).finally(()=>{edit.saving=null;});edit.saving=run;return run;
+}
+async function pgGenerateDraft() {
+    const edit=PG.draftEdit,owner=edit&&pgNode(edit.key);if(!owner||edit.generating)return;
+    const ctx=pgContext();edit.generating=true;
+    const hasUnresolved=value=>value&&typeof value==='object'&&(value.unresolved===true || Object.values(value).some(hasUnresolved));
+    try{
+        if(edit.payload[edit.kind]?.prompt_format==='native_shots_json'){
+            let shots;try{shots=JSON.parse(edit.payload[edit.kind].prompt);}catch(_){throw new Error('Per-shot prompts must be a valid JSON list of prompts and durations.');}
+            if(!Array.isArray(shots))throw new Error('Per-shot prompts must be a valid JSON list of prompts and durations.');
+        }
+        if(hasUnresolved(edit.payload[edit.kind]))throw new Error('Unresolved inputs must be replaced or detached before final review. Nothing was sent.');
+        if(edit.dirty || !edit.revision)await pgSaveDraft();
+        if(!pgContextLive(ctx))return;
+        if(PG.draftEdit!==edit||PG.sel!==edit.key)throw new Error('Selection changed while saving. Review the currently selected node before generating.');
+        if(edit.dirty)throw new Error('The draft changed while saving. Save and review the latest edits.');
+        const body={production_draft:{node_key:edit.key,revision:edit.revision}},path=owner.type==='shot'?`/shots/${owner.id}/${edit.kind==='video'?'video/generate':'storyboard/regenerate'}`:`/sequences/${owner.id}/generate-native`;
+        if(owner.type==='sequence'&&edit.kind==='image')throw new Error('A sequence generates footage; image recipes belong to its shots.');
+        const result=await api(path,{method:'POST',body:JSON.stringify(body)});
+        if(!pgContextLive(ctx))return;
+        setStatus(result?.status==='submitted'||result?.job_id?'Generation submitted. Its result keeps this original recipe and target.':'A new version was saved; select it in history.');await loadProductionGraph();
+    }catch(error){if(error.code!=='FINAL_REQUEST_CANCELLED'&&pgContextLive(ctx))setStatus(error.message,true);}finally{edit.generating=false;}
+}
+async function pgPickReference(name,index) {
+    const edit=PG.draftEdit;if(!edit)return;const ctx=pgContext();
+    try{const response=await api('/projects/'+ctx.project+'/assets');let looks=[];if(!['audio_references','timeline'].includes(name)){try{const board=await api('/projects/'+ctx.project+'/mood-board');looks=(board.entries || []).filter(entry=>entry.kind==='image').map(entry=>({...entry,asset_type:'moodboard',moodboard_entry_id:entry.id,file_name:entry.note || 'Moodboard image',version:entry.version || 1}));}catch(error){setStatus('Moodboard picker unavailable: '+error.message,true);}}if(!pgContextLive(ctx)||PG.draftEdit!==edit)return;
+        const assets=[...(Array.isArray(response)?response:response.assets || []),...looks].filter(a=>!['audio_references','timeline'].includes(name)?(a.mime_type?.startsWith('image/')||/\.(png|jpe?g|webp)$/i.test(a.file_name || '')||/^(storyboard|keyframe|character|location|prop|style|moodboard|image|reference_image)/.test(a.asset_type)):/^audio_|voice_sample/.test(a.asset_type));
+        PG.referencePick={edit,name,index,assets};
+        const body=document.getElementById('pgDrawerBody');body.innerHTML=`<div class="pg-dhead"><h3 class="pg-dtitle">${name==='timeline'?'Attach timeline sound':'Choose exact source asset'}</h3><p class="pg-note">${name==='audio_references'?'Full audio is a model conditioning input. Capability is validated before final approval.':'The original source stays intact.'}</p></div><div class="pg-dsec pg-reference-picker">${assets.map((a,i)=>`<button class="pg-hbtn" onclick="pgPickReferenceAsset(${i})">${esc(a.file_name || a.id)} · ${esc(a.asset_type)} · v${a.version || 1}</button>`).join('') || '<div class="pg-note">No compatible assets in this project. Upload on its source page, then return.</div>'}</div>`;document.getElementById('pgDrawerFoot').innerHTML='<button class="pg-hbtn" onclick="pgRenderDraft()">Back to draft</button>';
+    }catch(error){setStatus(error.message,true);}
+}
+async function pgPickReferenceAsset(index) {
+    const pick=PG.referencePick,asset=pick?.assets[index];if(!asset||pick.edit!==PG.draftEdit)return;
+    if(pick.name==='timeline')return pgSaveAudioTracks([...pick.edit.tracks,{asset_id:asset.id,offset_ms:0,source_in_ms:0,duration_ms:asset.duration_ms,gain_db:0,muted:false,order:pick.edit.tracks.length}]);
+    const role=pick.name==='audio_references'?'audio':({character:'character',location:'location',prop:'prop',moodboard:'moodboard'}[asset.asset_type] || 'reference');
+    pgDraftRef(pick.name,pick.index===undefined?'attach':'swap',pick.index,{...(asset.moodboard_entry_id?{moodboard_entry_id:asset.moodboard_entry_id,influence_roles:asset.influence_roles,influence_note:asset.influence_note}:{asset_id:asset.id}),reference_role:role});
+}
+function pgAudioTracksHtml(tracks){return (tracks || []).map((track,i)=>`<div class="pg-audio-edit"><strong>${esc(track.source?.path?.split('/').pop() || track.asset_id)}</strong>${track.source?.offline?'<span class="pg-warn"> · Offline source</span>':''}<div class="pg-note">Full source ${pgSecs(track.source?.duration_ms)} · ${esc(String(track.source?.sha256 || 'hash not recorded').slice(0,16))}</div><div class="pg-audio-grid">${[['offset_ms','Offset ms'],['source_in_ms','Source in ms'],['duration_ms','Used duration ms'],['gain_db','Gain dB']].map(([key,label])=>`<label>${label}<input type="number" value="${track[key]}" onchange="pgEditAudioTrack(${i},'${key}',Number(this.value))"></label>`).join('')}<label><input type="checkbox" ${track.muted?'checked':''} onchange="pgEditAudioTrack(${i},'muted',this.checked)">Muted</label><button class="pg-sbtn" onclick="pgRemoveAudioTrack(${i})">Detach track</button></div></div>`).join('');}
+async function pgSaveAudioTracks(tracks) {
+    const edit=PG.draftEdit;if(!edit)return;const ctx=pgContext();edit.tracks=tracks;
+    const prior=edit.audioSaving || Promise.resolve();
+    const save=prior.catch(()=>{}).then(()=>api(`/projects/${ctx.project}/production-graph/nodes/${encodeURIComponent(edit.key)}/audio`,{method:'PUT',body:JSON.stringify({tracks})})).then(result=>{
+        if(!pgContextLive(ctx)||PG.draftEdit!==edit)return;
+        if(edit.tracks===tracks)edit.tracks=result.tracks || [];PG.timeline=null;pgRenderDraft();pgRenderPlayback();
+    }).catch(error=>{if(pgContextLive(ctx))setStatus('Audio edit not saved: '+error.message,true);});
+    edit.audioSaving=save;return save;
+}
+
+function pgEditAudioTrack(index,key,value){const tracks=PG.draftEdit.tracks.map((t,i)=>i===index?{...t,[key]:value}:t);return pgSaveAudioTracks(tracks);}
+function pgRemoveAudioTrack(index){return pgSaveAudioTracks(PG.draftEdit.tracks.filter((_,i)=>i!==index));}
+async function pgSoundChoice(ownerKey,soundKey){const ctx=pgContext(),owner=pgNode(ownerKey),sound=pgNode(soundKey),asset=sound?.versions?.find(v=>v.selected)||sound;if(!owner||!asset?.asset_id)return setStatus('Select an audio version on the sound first.');await pgOpenDraft(ownerKey,'video',undefined,true);if(!pgContextLive(ctx)||PG.draftEdit?.key!==ownerKey)return;const body=document.getElementById('pgDrawerBody');body.insertAdjacentHTML('afterbegin',`<div class="pg-dsec"><div class="pg-kicker"><span>Use this sound explicitly</span></div><button class="pg-hbtn" onclick="pgAttachChosenSound('${esc(asset.asset_id)}','conditioning')">Condition the video request</button><button class="pg-hbtn" onclick="pgAttachChosenSound('${esc(asset.asset_id)}','timeline')">Independent timeline track</button><p class="pg-note">These relationships are separate. Conditioning requires a supported model audio role.</p></div>`);}
+async function pgAttachChosenSound(assetId,relationship){const edit=PG.draftEdit;if(!edit)return;if(relationship==='conditioning'){if(edit.audioOnly){const ctx=pgContext();await pgOpenDraft(edit.key,'video');if(!pgContextLive(ctx)||PG.draftEdit?.key!==edit.key||PG.draftEdit.audioOnly)return;}return pgDraftRef('audio_references','attach',undefined,{asset_id:assetId,reference_role:'audio'});}const sound=PG.graph.nodes.find(n=>n.asset_id===assetId);return pgSaveAudioTracks([...edit.tracks,{asset_id:assetId,offset_ms:0,source_in_ms:0,duration_ms:sound?.duration_ms,gain_db:0,muted:false,order:edit.tracks.length}]);}
+async function pgExportResolve(){const ctx=pgContext();try{const plan=await api(`/projects/${ctx.project}/export/resolve`);if(!pgContextLive(ctx))return;PG.resolvePlan={ctx,plan};pgDrawerOpen(true);document.getElementById('pgDrawerBody').innerHTML=`<div class="pg-dhead"><button class="pg-dclose" onclick="pgSelect(null)">×</button><h3 class="pg-dtitle">DaVinci Resolve package</h3><p class="pg-note">Selected footage, storyboard image fallback (5 s), explicit audio edits and narrative rough cut. Creating this package does not import into Resolve.</p></div><div class="pg-dsec"><pre class="pg-request-json">${esc(JSON.stringify(plan,null,2))}</pre></div>`;document.getElementById('pgDrawerFoot').innerHTML='<button class="pg-hbtn primary" onclick="pgWriteResolvePackage()">Create export package</button>';}catch(error){if(pgContextLive(ctx))setStatus(error.message,true);}}
+async function pgWriteResolvePackage(){const pending=PG.resolvePlan;if(!pending||pending.sending||!pgContextLive(pending.ctx))return;pending.sending=true;try{const result=await api(`/projects/${pending.ctx.project}/export/resolve`,{method:'POST',body:'{}'});if(!pgContextLive(pending.ctx))return;document.getElementById('pgDrawerBody').insertAdjacentHTML('beforeend',`<div class="pg-dsec"><div class="pg-okline">Export package created. Import into DaVinci Resolve separately.</div><pre class="pg-request-json">${esc(JSON.stringify({...result,imported_into_resolve:false},null,2))}</pre></div>`);}catch(error){if(pgContextLive(pending.ctx))setStatus('Package was not created: '+error.message,true);}finally{pending.sending=false;}}

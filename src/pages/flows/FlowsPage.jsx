@@ -23,6 +23,14 @@ export default function FlowsPage() {
             for (const [name] of ENGINE) { if (prior[name] === undefined) delete window[name]; else window[name] = prior[name]; }
         };
     }, []);
+    useLayoutEffect(() => {
+        const resumed = event => {
+            const run = event.detail;
+            if (run?.nodes && (run.id || run.run_id) === legacy.FLOW.lastReviewedRunId) E.flowPaintRun(run);
+        };
+        window.addEventListener('fe-final-request-resumed', resumed);
+        return () => window.removeEventListener('fe-final-request-resumed', resumed);
+    }, []);
     // What the legacy code bound at load (./canvas-pointer.js): bound while the page is mounted.
     useLayoutEffect(() => bindOnMount(), []);
     return (

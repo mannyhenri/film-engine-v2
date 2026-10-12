@@ -20,6 +20,8 @@
 const { db, generateId } = require('../db/database');
 const { validateStylePreset, SPEC_KINDS, allowedSpecValues, validateSpec, applyProjectSpecs } = require('../lib/look-development');
 
+const { ROLES, rolesOf } = require('../lib/moodboard-influence');
+
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function json(res, status, data) {
@@ -56,7 +58,9 @@ const KIND_ORDER = ['medium', 'palette', 'lighting', 'lens', 'framing', 'texture
  * would serve one kind of board image and 404 the rest.
  */
 function withImageUrl(entry) {
-    if (!entry || !entry.image_path) return entry;
+    if (!entry) return entry;
+    entry = { ...entry, influence_roles: rolesOf(entry.influence_roles || ['style']) };
+    if (!entry.image_path) return entry;
     const { getFileUrl, locate } = require('../lib/file-storage');
     // Which project and kind, from file-storage — both layouts. The last three
     // path segments are only project/kind in the OLD layout.
@@ -75,7 +79,7 @@ function listBoard(req, res, projectId) {
     const entries = db.prepare(
         'SELECT * FROM film_mood_board WHERE project_id = ? ORDER BY sort_order, created_at').all(projectId);
     return json(res, 200, {
-        project_id: projectId, entries: entries.map(withImageUrl), count: entries.length,
+        project_id: projectId, entries: entries.map(withImageUrl), count: entries.length, influence_roles: ROLES,
     });
 }
 
@@ -155,6 +159,7 @@ function compose(req, res, projectId) {
         // say?".
         return json(res, 200, {
             project_id: projectId, style_preset: '', applied: false,
+            spec_kinds: Object.fromEntries(Object.entries(SPEC_KINDS).map(([k,v])=>[k,{target:v.target,label:v.label,allowed:allowedSpecValues(k)}])),
             message: entries.length
                 ? 'The board has only images, which cannot be composed into words. Add a note to an entry.'
                 : 'The board is empty, so there is nothing to compose.',
@@ -251,6 +256,9 @@ function compose(req, res, projectId) {
  */
 function importBoardImage(req, res, projectId) {
     const body = req.body || {};
+    let roles;
+    try { roles = rolesOf(body.influence_roles || ['style']); } catch (err) { return json(res, 400, {error:err.message}); }
+    if (typeof body.influence_note === 'string' && body.influence_note.length > 500) return json(res,400,{error:'Influence notes are limited to 500 characters'});
     if (!body.data) return json(res, 400, { error: 'no image supplied' });
     try {
         const { importMedia } = require('../lib/media-imports');
@@ -262,10 +270,10 @@ function importBoardImage(req, res, projectId) {
             'SELECT COALESCE(MAX(sort_order), -1) + 1 AS n FROM film_mood_board WHERE project_id = ?')
             .get(projectId).n;
         db.prepare(
-            `INSERT INTO film_mood_board (id, project_id, kind, note, asset_id, image_path, sort_order)
-             VALUES (?, ?, 'image', ?, ?, ?, ?)`)
+            `INSERT INTO film_mood_board (id, project_id, kind, note, asset_id, image_path, sort_order, influence_roles, influence_note)
+             VALUES (?, ?, 'image', ?, ?, ?, ?, ?, ?)`)
             .run(id, projectId, String(body.note || '').trim(), imported.asset_id,
-                imported.file_path, next);
+                imported.file_path, next, JSON.stringify(roles), String(body.influence_note || '').trim());
         return json(res, 201, {
             entry: withImageUrl(db.prepare('SELECT * FROM film_mood_board WHERE id = ?').get(id)),
             ...imported,
@@ -275,9 +283,41 @@ function importBoardImage(req, res, projectId) {
     }
 }
 
+function updateEntry(req, res, entryId) {
+    const row = db.prepare('SELECT * FROM film_mood_board WHERE id=?').get(entryId);
+    if (!row) return json(res,404,{error:'Entry not found'});
+    const body = req.body || {}, fields = [], values = [];
+    try {
+        for (const key of Object.keys(body)) {
+            if (!['active','influence_roles','influence_note'].includes(key)) throw new Error('Unsupported Moodboard edit: '+key);
+            let value = body[key];
+            if (key === 'active') { if (typeof value !== 'boolean') throw new Error('Active must be true or false'); value = value ? 1 : 0; }
+            if (key === 'influence_roles') value = JSON.stringify(rolesOf(value));
+            if (key === 'influence_note') { if (typeof value !== 'string' || value.length > 500) throw new Error('Influence notes are limited to 500 characters'); value = value.trim(); }
+            fields.push(key+'=?'); values.push(value);
+        }
+        if (!fields.length) throw new Error('No Moodboard edits supplied');
+        db.prepare('UPDATE film_mood_board SET '+fields.join(',')+' WHERE id=?').run(...values,entryId);
+        return json(res,200,{entry:withImageUrl(db.prepare('SELECT * FROM film_mood_board WHERE id=?').get(entryId))});
+    } catch (err) { return json(res,400,{error:err.message}); }
+}
+function orderEntries(req, res, projectId) {
+    if (!db.prepare('SELECT id FROM film_projects WHERE id=?').get(projectId)) return json(res,404,{error:'Project not found'});
+    const ids=req.body?.ids;
+    if (!Array.isArray(ids) || ids.some(id=>typeof id!=='string') || new Set(ids).size!==ids.length) return json(res,400,{error:'Supply every board entry ID once, in order'});
+    const result=db.transaction(()=>{
+        const current=db.prepare('SELECT id FROM film_mood_board WHERE project_id=?').all(projectId).map(r=>r.id);
+        if (ids.length!==current.length || ids.some(id=>!current.includes(id))) return false;
+        const update=db.prepare('UPDATE film_mood_board SET sort_order=? WHERE id=? AND project_id=?');
+        ids.forEach((id,i)=>update.run(i,id,projectId)); return true;
+    }).immediate();
+    return result ? listBoard(req,res,projectId) : json(res,409,{error:'The board changed. Refresh before reordering.'});
+}
+
 function handleMoodBoard(req, res, urlParts) {
     if (urlParts[1] === 'projects' && urlParts[2] && urlParts[3] === 'mood-board') {
         if (!UUID_RE.test(urlParts[2])) return json(res, 400, { error: 'Invalid project ID' });
+        if (urlParts[4] === 'order' && req.method === 'POST') return orderEntries(req,res,urlParts[2]);
         // A look reference made outside Film Engine.
         if (urlParts[4] === 'import' && req.method === 'POST') return importBoardImage(req, res, urlParts[2]);
         if (urlParts[4] === 'compose') {
@@ -290,6 +330,7 @@ function handleMoodBoard(req, res, urlParts) {
     }
 
     if (urlParts[1] === 'mood-board' && urlParts[2]) {
+        if (req.method === 'PATCH') return updateEntry(req,res,urlParts[2]);
         if (req.method !== 'DELETE') return json(res, 405, { error: 'Method not allowed' });
         return deleteEntry(req, res, urlParts[2]);
     }

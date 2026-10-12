@@ -57,7 +57,7 @@ function CharacterCard({ c, onEdit, onDelete }) {
                         )}</p>
                 </div>
             </div>
-            <p>{c.description || 'No description'}</p>
+            <p>{c.appearance_prompt || c.description || 'No description'}</p>
             <div className="tag-row">
                 {c.has_voice_profile ? <span className="tag" style={{ background: 'rgba(34,197,94,0.15)', color: '#4ade80' }}>Voice</span> : null}
                 {c.costume_count > 0 ? <span className="tag">{c.costume_count} costume(s)</span> : null}
@@ -91,7 +91,7 @@ export default function CharactersPage() {
     function editCharacter(id) {
         const c = (legacy.state.characters || []).find(x => x.id === id);
         if (!c) return;
-        setEditing({ id, originalName: c.name || '' });
+        setEditing({ id, originalName: c.name || '', originalText: c });
         setForm(formFrom(c, CHARACTER_FIELDS, SELECTS));
         openModal('characterModal');
     }
@@ -106,6 +106,19 @@ export default function CharactersPage() {
     async function saveCharacter() {
         if (!legacy.state.currentProject) return;
         const data = formBody(form, NUMBER_FIELDS);
+        // Partial PUT leaves untouched legacy text intact, including values longer
+        // than today's backend write caps. Explicit edits and clearing retain their text.
+        for (const key of ['description','appearance_prompt','personality_notes']) {
+            const original = editing.originalText?.[key];
+            if (editing.id && form[key] === String(original ?? '')) delete data[key];
+            else if (original || form[key]) data[key] = form[key];
+        }
+        for (const [key,limit] of Object.entries({description:5000,appearance_prompt:2000,personality_notes:2000})) {
+            if (data[key]?.length > limit) {
+                legacy.setStatus(`${key === 'appearance_prompt' ? 'Appearance' : key === 'personality_notes' ? 'Personality notes' : 'Description'} exceeds the existing ${limit} character write limit. Shorten this edit; nothing was saved.`);
+                return;
+            }
+        }
         if (!data.name) return;
 
         // FILM-122: a rename asks whether the screenplay's cues follow.
@@ -142,6 +155,9 @@ export default function CharactersPage() {
     const list = useListControls(SURFACE, characters);
     const field = (k) => ({ 'data-field': k, value: form[k], onChange: (e) => { const v = e.target.value; setForm(f => ({ ...f, [k]: v })); } });
     const pair = { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 };
+    const descriptionKey = editing.originalText && !editing.originalText.appearance_prompt && editing.originalText.description ? 'description' : 'appearance_prompt';
+    const retainedKey = descriptionKey === 'appearance_prompt' ? 'description' : 'appearance_prompt';
+    const retainedUnique = form[retainedKey] && form[retainedKey] !== form[descriptionKey];
 
     return (
         <div className="page" id="page-characters">
@@ -163,8 +179,8 @@ export default function CharactersPage() {
 
             <Modal id="characterModal" title={editing.id ? 'Edit Character' : 'New Character'}>
                 <div className="form-group"><label>Name</label><input type="text" {...field('name')} placeholder="Character name" /></div>
-                <div className="form-group"><label>Description</label><textarea {...field('description')} rows={2} placeholder="Brief description..." /></div>
-                <div className="form-group"><label>Appearance Prompt</label><textarea {...field('appearance_prompt')} rows={2} placeholder="Visual appearance for AI generation..." /></div>
+                <div className="form-group"><label>Character Description / Appearance</label><textarea {...field(descriptionKey)} rows={4} placeholder="Describe this character..." /></div>
+                {retainedUnique ? <details><summary>Biography / retained story notes</summary><div className="form-group"><label>Retained {retainedKey === 'description' ? 'description' : 'appearance notes'}</label><textarea {...field(retainedKey)} rows={3} /></div></details> : <input type="hidden" {...field(retainedKey)} />}
                 <div className="form-group">
                     <label>Height &mdash; metres</label>
                     <input type="number" step="0.01" min="0" {...field('height_m')} placeholder="1.7" />
@@ -190,7 +206,7 @@ export default function CharactersPage() {
                 </div>
                 <p className="text-sm text-muted" style={{ margin: '-4px 0 12px', lineHeight: 1.5 }}>
                     These four are notes for you and are <strong>not</strong> sent to an image model &mdash;
-                    Appearance Prompt is the field that conditions every frame this character appears in.
+                    The saved appearance text conditions image generation; retained story notes and personality stay available for writing.
                 </p>
                 <div className="form-group"><label>Personality Notes</label><textarea {...field('personality_notes')} rows={2} placeholder="Personality traits..." /></div>
                 <div style={pair}>

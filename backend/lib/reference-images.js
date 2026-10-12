@@ -246,6 +246,7 @@ function resolveUri(ref) {
     const direct = ref && (ref.uri || ref.url);
     if (typeof direct === 'string' && /^https?:\/\//i.test(direct)) return direct;
     if (typeof direct === 'string' && direct.startsWith('data:')) return direct;
+    if (ref?.moodboard_entry_id) return require('./moodboard-influence').exactUri(ref);
     return toDataUri((ref && (ref.file_path || ref.path)) || direct || null);
 }
 
@@ -369,8 +370,9 @@ function selectReferences(candidates, options) {
          * the model was shown, which is the whole point of having views. Only
          * set when present, so nothing else changes shape.
          */
-        out.push({ uri, tag, name: c.name, kind: c.kind, ...(c.view ? { view: c.view } : {}) });
+        out.push({ ...(c.moodboard_entry_id ? {file_path:c.file_path,moodboard_entry_id:c.moodboard_entry_id,reference_role:c.reference_role,influence_roles:c.influence_roles,influence_note:c.influence_note,board_order:c.board_order} : {}), uri, tag, name: c.name, kind: c.kind, ...(c.view ? { view: c.view } : {}) });
     }
+    require('./moodboard-influence').assertSelectedFit(candidates || [], out, limit);
     Object.defineProperty(out, 'diagnostics', { value: opts.diagnostics || [], enumerable: false });
     return out;
 }

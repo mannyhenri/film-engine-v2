@@ -119,6 +119,7 @@ function roleOf(row) {
 
 /** May this image be sent to a provider as conditioning? */
 function isSendable(row) {
+    if (parseMeta(row).reference_role === 'expression') return false;
     const role = ROLES.find(r => r.id === roleOf(row));
     return !!(role && role.reaches_generation);
 }
@@ -145,6 +146,9 @@ function planPromotion(rows, assetId, opts) {
     }
 
     const role = roleOf(target);
+    if (parseMeta(target).reference_role === 'expression') {
+        throw new Error('Expression references are selected in their face slot, separately from canonical body plates.');
+    }
     if (role === 'inspiration' && !(opts && opts.allow_inspiration)) {
         const err = new Error(
             'This is an inspiration — a gathered image, usually somebody else’s frame. '
@@ -296,7 +300,7 @@ function galleryForStrip(db, kind, subjectId) {
  */
 function sendableSql(alias = '') {
     const m = alias ? `${alias}.metadata` : 'metadata';
-    return `(${m} IS NULL OR NOT json_valid(${m})`
+    return `(CASE WHEN json_valid(${m}) THEN COALESCE(json_extract(${m}, '$.reference_role'), '') ELSE '' END != 'expression') AND (${m} IS NULL OR NOT json_valid(${m})`
         + ` OR json_extract(${m}, '$.plate_role') IS NULL`
         + ` OR json_extract(${m}, '$.plate_role') = 'reference')`;
 }

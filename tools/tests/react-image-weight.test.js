@@ -43,6 +43,8 @@ const SIZED = /plateSrc\(|frameSrc\(|[?&]w=|\bshotImg\(|thumbnail_path/;
  * prop (`src = props`) is exempt because its CALLERS are sites too, and each is checked here.
  */
 const EXEMPT = [
+    { file: /UpscaleFrameDialog\.jsx$/, expr: /^preview = source\?\.data/, why: 'single upscale approval displays the immutable source bytes included in the authoritative review snapshot; resizing a mutable URL would conceal what is approved' },
+    { file: /FinalRequestReview\.jsx$/, expr: /^previewOf\(ref\)$/, why: 'final provider review displays immutable reference bytes already included in its snapshot; a thumbnail of the current mutable file would not show the approved content' },
     { file: /StyleBookPage\.jsx$/, expr: /^src( =|$)|style-book\/media/, why: 'style-book media: an author-supplied reference, served whole by design' },
     { file: /MarketingPage\.jsx$/, expr: /marketingImgSrc\(/, why: 'posters are judged at full size' },
     { file: /Gallery\.jsx$/, expr: /^src = gallerySrc\(/, why: 'the gallery tile hands its own src to the full-size plate viewer' },

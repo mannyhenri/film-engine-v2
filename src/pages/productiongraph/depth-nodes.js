@@ -1,3 +1,4 @@
+export const DEPTH_NODE_TYPES=['depth-source','depth-map','depth-output','depth-preview'];
 export function depthNodeHtml(n,{esc,port,src,selected,pos}){
  const head=n.type==='depth-source'?'Source video':n.type==='depth-map'?'Depth Map':n.type==='depth-output'?'Float depth sequence':'Depth display video';
  const media=n.url&&['depth-source','depth-preview'].includes(n.type)?`<video controls preload="metadata" src="${esc(src(n.url))}" style="width:100%;height:100px;object-fit:contain" onclick="event.stopPropagation()"></video>`:'';

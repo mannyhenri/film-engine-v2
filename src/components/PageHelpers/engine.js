@@ -55,6 +55,12 @@ const {
     // SSE STREAMING HELPER
     // ══════════════════════════════════════════════════════════════
     function streamSSE(path, onEvent, onDone, onError) {
+        if (/\/(generate[^/]*|regenerate[^/]*|run|batch|angles|upscale|face-restore|composite|retexture|animate|rig)(?:\/|$)/.test(path)) {
+            const error = new Error('Final review is unavailable for this streaming batch action. Nothing was sent to a provider.');
+            if (typeof window.setStatus === 'function') window.setStatus(error.message);
+            onError?.(error);
+            return { close() {} };
+        }
         const es = new EventSource(API() + path);
         es.onmessage = e => {
             const data = JSON.parse(e.data);

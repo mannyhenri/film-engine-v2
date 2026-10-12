@@ -133,7 +133,7 @@ function handleNLEExport(req, res, urlParts, query) {
                 { id: 'preflight', name: 'Export preflight (free — nothing is written)', extension: '', content_type: 'application/json' },
                 { id: 'package', name: 'Packaged handover (XML + copied media)', extension: '/', content_type: 'application/json' },
                 { id: 'premiere-scenes', name: 'Premiere, one folder per scene (GET plans free, POST writes)', extension: '/', content_type: 'application/json' },
-                { id: 'resolve', name: 'DaVinci Resolve: first edit, media per scene, metadata and an import script (GET plans free, POST writes)', extension: '/', content_type: 'application/json' },
+                { id: 'resolve', name: 'DaVinci Resolve export package: rough cut, full media, sound edits and metadata (GET plans free, POST writes; import separately)', extension: '/', content_type: 'application/json' },
                 { id: 'fdx', name: 'Final Draft XML', extension: '.fdx', content_type: 'application/xml' },
             ],
         }));

@@ -29,6 +29,8 @@ const SKIP_DIRS = new Set(['node_modules', 'vendor', '.git', 'data', '.venv']);
 
 // file|first-argument → why it is not the encoder.
 const NOT_FFMPEG = {
+    "tests/production-audio-timeline.test.js|'python3'": 'parses the timeline import helper with Python ast; no encoder is run',
+    "tests/storyboard-workflow.test.js|'python3'": 'checks the generated storyboard script with Python; no encoder is run',
     'lib/depth-media.js|bin': 'generic binary-output runner also describes workers and probes metadata; defaults to ignored stdin and adds -nostdin first for the encoder (depth-media.test.js exercises both)',
     'tests/production-composite-http.test.js|process.execPath': 'starts the isolated Node HTTP backend, not an encoder',
     'tests/production-depth-http.test.js|process.execPath': 'starts the isolated Node HTTP backend, not an encoder',

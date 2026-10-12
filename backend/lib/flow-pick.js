@@ -149,6 +149,8 @@ async function pickBranch(db, runId, branchKey, opts) {
         flat[r.node_id] = revive(parseJson(r.outputs, {}) || {});
     }
     flat[gateId] = { any: PORT(type, value) };
+    ex.startNodeRun(runId,graph.nodes.find(n=>n.id===gateId),{key:''});
+    ex.finishNodeRun(runId,gateId,{key:''},'complete',flat[gateId],{});
 
     let ctx;
     try {
@@ -171,6 +173,11 @@ async function pickBranch(db, runId, branchKey, opts) {
         let result;
         try { result = await ex.executeNode(node, inputs, { ...ctx, runId, branch: '' }); }
         catch (err) { result = { ok: false, error: err.message }; }
+        if(!result.ok && String(result.error||'').includes('FINAL_REQUEST_REVIEW_REQUIRED')) {
+            ex.finishNodeRun(runId,id,{key:''},'pending',{},result);
+            ex.setRunStatus(runId,'paused','AWAITING_FINAL_REQUEST_REVIEW');
+            return out(200,{run_id:runId,selected:branchKey,status:'awaiting_review',picked:promoted,next_review:{path:`/flow-runs/${runId}/resume`,body:{}}});
+        }
         if (!result.ok) { failed.push({ node: id, error: result.error }); ex.finishNodeRun(runId, id, { key: '' }, 'failed', {}, result); continue; }
         flat[id] = result.outputs || {};
         ex.finishNodeRun(runId, id, { key: '' }, result.skipped ? 'skipped' : 'complete', result.outputs, result);

@@ -30,6 +30,37 @@ function pageFn(src, name) {
 }
 afterEach(() => vi.restoreAllMocks());
 
+describe('Resolve package preflight and honest import boundary', () => {
+    it('a blocking offline sound plan prevents the write and gives its reason', async () => {
+        const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true);
+        const url = '/projects/p1/export/resolve';
+        const { calls } = installLegacy({ routes: { [`GET ${url}`]: {
+            counts: {}, blocking: [{ code: 'AUDIO_SOURCE_OFFLINE', message: 'Shot A audio is offline. Relink its recorded source.' }],
+        } } });
+        render(<ExportPage />);
+        await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Create Resolve package' })); });
+        expect(calls.map(c => `${c.method} ${c.path}`)).toEqual([`GET ${url}`]);
+        expect(confirm).not.toHaveBeenCalled();
+        expect(document.getElementById('resolveExportResult').textContent).toContain('Shot A audio is offline');
+    });
+
+    it('the review includes sound edits and cut-boundary warnings before writing only a package', async () => {
+        const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true);
+        const url = '/projects/p1/export/resolve';
+        const { calls } = installLegacy({ routes: {
+            [`GET ${url}`]: { counts: { shots: 2, clips: 1, storyboard_frames: 1, dialogue_lines: 0, beds: 0, timeline_audio_tracks: 1 },
+                file_count: 3, warnings: [{ code: 'PRELAP_BEFORE_CUT', message: '250 ms of the prelap lies before the cut.' }] },
+            [`POST ${url}`]: { status: 'package_written', imported_into_resolve: false, dest: '/package', copied: 3, xml: 'cut.xml', metadata: 'cut.csv', script: 'Import into Resolve.py' },
+        } });
+        render(<ExportPage />);
+        await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Create Resolve package' })); });
+        expect(confirm.mock.calls[0][0]).toContain('1 independent sound edit');
+        expect(confirm.mock.calls[0][0]).toContain('250 ms of the prelap');
+        expect(calls.map(c => `${c.method} ${c.path}`)).toEqual([`GET ${url}`, `POST ${url}`]);
+        expect(document.getElementById('resolveExportResult').textContent).toContain('Not imported into Resolve');
+    });
+});
+
 describe('premiere-scenes: an agent and a person can both reach it (moved)', () => {
     it('the MCP tools exist, and the page plans then POSTs export/premiere-scenes', async () => {
         const tools = backend('lib/mcp-tools');

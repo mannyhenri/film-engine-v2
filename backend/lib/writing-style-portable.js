@@ -1,11 +1,15 @@
 // Versioned interchange with the private writing-style plugin. No remote sync.
 const VERSION='1.0.0';
+const SOURCE_APP='film-engine-v2', VOICE_DOMAIN='screenplay_story';
 function error(message){const e=new Error(message);e.status=400;throw e;}
 const attested=v=>v===true || (v&&typeof v==='object'&&v.status!=='revoked'&&v.revoked!==true&&typeof v.statement==='string'&&v.statement.trim().length>0);
 function validatePortable(p){
  if(!p||p.schema_version!==VERSION||p.owner!=='Manny')error('Import requires schema_version 1.0.0 and owner Manny');
+ if(p.voice_domain!==undefined&&p.voice_domain!==VOICE_DOMAIN)error('Film Engine accepts screenplay/story voice profiles only; business voice belongs in Marketing Engine');
+ if(p.source_app!==undefined&&p.source_app!==SOURCE_APP)error('This profile belongs to another app. Export a separate Film screenplay/story profile for local review');
  if(typeof p.profile_name!=='string'||typeof p.profile_version!=='string')error('Profile name and version are required');
  for(const key of ['sources','approved_rules','approved_examples','pending_proposals','feedback','history','prior_snapshots'])if(!Array.isArray(p[key]))error(`${key} must be an array`);
+ if(p.approved_rules?.some(r=>r?.status==='active'&&['business','marketing','business_communication'].includes(r.scope)))error('Business communication rules cannot become Film screenplay/story guidance');
  if(p.sources.length>24||p.approved_rules.length>24||p.approved_examples.length>24||JSON.stringify(p).length>500000)error('Portable profile is too large');
  const ids=new Set();
  for(const s of p.sources){
@@ -18,6 +22,10 @@ function validatePortable(p){
   if(rule.evidence.some(e=>!e||!ids.has(e.source_id)||typeof e.locator!=='string'))error('Rule evidence must reference a source in this file');
  }
  for(const ex of p.approved_examples)if(!ex||!ids.has(ex.source_id)||typeof ex.excerpt!=='string'||typeof ex.locator!=='string')error('Invalid example source or excerpt');
+ if(p.film_guidance!==undefined){
+  const g=p.film_guidance;
+  if(!g||typeof g.text!=='string'||!g.text.trim()||g.text.length>4000||!Array.isArray(g.sample_source_ids)||!Array.isArray(g.direct_source_ids)||[...g.sample_source_ids,...g.direct_source_ids].some(id=>!ids.has(id)))error('Film guidance needs its exact text and source IDs from this file');
+ }
  return p;
 }
 function importedEvidence(p,humanConfirmed){
@@ -51,13 +59,13 @@ function portable(snapshot){
  const version=active?`${active.sample_ids.length?'1.0':'0.0'}.${active.version}`:'0.0.0';
  const directSources=[...new Map((active?.direct_rules||[]).map(r=>[r.source.id,r])).values()].map(r=>({...r.source,original_authorship_confirmation:null,voice_analysis_approval:null,eligible_for_voice:false,approved_excerpt:r.pattern}));
  sources.push(...directSources);
- const rules=active?.sample_ids.length?[{id:`film-engine-profile-${active.version}`,pattern:active.guidance,scope:'screenplay',exceptions:[],evidence:active.sample_ids.map(id=>({source_id:id,locator:sources.find(s=>s.id===id).locator,excerpt_or_correction:'Confirmed original writing used for profile analysis; excerpt reuse is not approved.'})),approval:{statement:'Human approved in Film Engine',date:active.approved_at},status:'active',introduced_version:`1.0.${active.version}`,revised_version:`1.0.${active.version}`}]:[];
+ const rules=active?.sample_ids.length?[{id:`film-engine-profile-${active.version}`,pattern:active.guidance,scope:'screenplay',exceptions:[],basis:active.direct_rules.length?'mixed':'original_samples',evidence:[...active.sample_ids.map(id=>({source_id:id,locator:sources.find(s=>s.id===id).locator,excerpt_or_correction:'Confirmed original writing used for profile analysis; excerpt reuse is not approved.'})),...active.direct_rules.map(r=>({source_id:r.source.id,locator:r.source.locator,excerpt_or_correction:r.pattern}))],approval:{statement:'Human approved in Film Engine',date:active.approved_at},status:'active',introduced_version:`1.0.${active.version}`,revised_version:`1.0.${active.version}`}]:[];
  for(const r of active?.direct_rules||[])rules.push({id:r.id,pattern:r.pattern,scope:r.scope,exceptions:r.exceptions,evidence:[{source_id:r.source.id,locator:r.source.locator,excerpt_or_correction:r.pattern}],approval:{statement:'Human approved these explicit preferences in Film Engine',date:active.approved_at},status:'active',introduced_version:version,revised_version:version});
- return {schema_version:VERSION,profile_name:'Manny writing style',profile_version:version,owner:'Manny',status:active?'approved':'empty',sources:sources.map(sourceMetadata),approved_rules:rules,
+ return {schema_version:VERSION,source_app:SOURCE_APP,voice_domain:VOICE_DOMAIN,profile_name:'Manny screenplay and story voice',profile_version:version,owner:'Manny',status:active?'approved':'empty',...(active?{film_guidance:{text:active.guidance,sample_source_ids:active.sample_ids,direct_source_ids:[...new Set(active.direct_rules.map(r=>r.source.id))]}}:{}),sources:sources.map(sourceMetadata),approved_rules:rules,
   // Profile analysis consent is not excerpt-reuse consent. The MVP has no
   // excerpt permission control, so exports contain no reusable prose examples.
   approved_examples:[],
   pending_proposals:snapshot.profiles.filter(p=>p.state==='draft').map(p=>({id:`proposal-${p.version}`,guidance:p.guidance,sample_ids:p.sample_ids,version:p.version})),feedback:snapshot.feedback,
   history:snapshot.profiles.map(p=>({version:p.version,state:p.state,created_at:p.created_at,approved_at:p.approved_at})),prior_snapshots:(snapshot.imports||[]).map(i=>({imported_at:i.imported_at,profile:snapshotMetadata(JSON.parse(i.profile_json))})),apply_instruction:'Use approved active rules and at most three relevant approved examples as style reference data. Keep style separate from canon, director critique and plot facts. Return fresh drafts for human review. No audio cloning, weight training, automatic screenplay overwrite or cross-app synchronization.'};
 }
-module.exports={validatePortable,importedEvidence,portable};
+module.exports={validatePortable,importedEvidence,portable,SOURCE_APP,VOICE_DOMAIN};

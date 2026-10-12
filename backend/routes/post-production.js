@@ -382,23 +382,35 @@ function previewUpscale(res, shotId, query) {
 
 // -- Run a Single Post Step ----------------------------------------------
 
-async function runPostStep(req, res, shotId, jobType) {
+function buildPostStepRequest(shotId, jobType, body = {}) {
+    if (jobType !== 'upscale') throw Object.assign(new Error('Native post providers do not support face restoration or color grading; use the editor.'), { status: 409 });
     const shot = db.prepare('SELECT * FROM film_shots WHERE id = ?').get(shotId);
-    if (!shot) return json(res, 404, { error: 'Shot not found' });
+    if (!shot) throw Object.assign(new Error('Shot not found'), { status: 404 });
 
     const scene = db.prepare('SELECT * FROM film_scenes WHERE id = ?').get(shot.scene_id);
-    if (!scene) return json(res, 404, { error: 'Scene not found' });
+    if (!scene) throw Object.assign(new Error('Scene not found'), { status: 404 });
     let postProvider, videoAsset, payload;
     if (jobType === 'upscale') {
-        const plan = planUpscale(shot, scene, req.body);
-        if (plan.error) return json(res, plan.status, { error: plan.error });
+        const plan = planUpscale(shot, scene, body);
+        if (plan.error) throw Object.assign(new Error(plan.error), { status: plan.status });
         ({ provider: postProvider, source: videoAsset, payload } = plan);
     } else {
         postProvider = resolveGenerator('post', spendContext({ id: scene.project_id }, shot, scene));
         videoAsset = findLatestVideo(shotId);
-        if (!videoAsset) return json(res, 400, { error: 'No video asset found. Generate video first.' });
-        payload = buildPostPayload(jobType, videoAsset, scene.project_id, req.body);
+        if (!videoAsset) throw Object.assign(new Error('No video asset found. Generate video first.'), { status: 400 });
+        payload = buildPostPayload(jobType, videoAsset, scene.project_id, body);
     }
+
+    return { shot, scene, provider: postProvider, source: videoAsset, payload };
+}
+
+async function runPostStep(req, res, shotId, jobType) {
+    let plan;
+    try { plan = buildPostStepRequest(shotId, jobType, req.body); }
+    catch (err) { return json(res, err.status || 409, { error: err.message }); }
+    const { shot, scene, provider: postProvider, source: videoAsset, payload } = plan;
+
+    if (!['seedance', 'magnific'].includes(postProvider.id)) return json(res, 409, { error: 'This post-production provider requires a supported immutable final request review.' });
 
     // Find color preset if applicable
     let colorPresetId = null;
@@ -890,4 +902,4 @@ async function encodeProject(req, res, projectId) {
     });
 }
 
-module.exports = { handlePostProduction };
+module.exports = { handlePostProduction, buildPostStepRequest, upscaleSource };

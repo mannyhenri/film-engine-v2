@@ -1943,7 +1943,8 @@ const { AI_PATH, TYPEWRITER, state } = Object.fromEntries(['AI_PATH', 'TYPEWRITE
             // FILM-111: Ctrl/Cmd + Shift + A for AI chat
             if ((event.key === 'a' || event.key === 'A') && event.shiftKey) {
                 event.preventDefault();
-                toggleAIChat();
+                if (window.__filmOpenAIWorkspace) window.__filmOpenAIWorkspace();
+                else toggleAIChat();
                 return;
             }
 

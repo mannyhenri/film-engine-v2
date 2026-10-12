@@ -12,6 +12,9 @@ const plan = require('../port-plan.json');
 const src = readSource(path.join(ROOT, plan.source));
 // The desktop identity is a deliberate v2 shell transform, independent of legacy.
 src.shell = require('../branding.cjs').brandShell(src.shell);
+// Explicit approved v2 behavior: image marks travel even when text notes are off.
+src.app = require('../storyboard-ui.cjs').referenceBadgeCode(src.app);
+src.app = require('../final-request-ui.cjs').finalRequestCode(src.app);
 const read = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8');
 const exists = (p) => fs.existsSync(path.join(ROOT, p));
 const map = exists('docs/split-map.json') ? JSON.parse(read('docs/split-map.json')) : null;

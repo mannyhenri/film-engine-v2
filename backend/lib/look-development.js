@@ -227,8 +227,8 @@ function previsDefaults(specs) {
  */
 function styleReferences(db, projectId, limit) {
     const rows = db.prepare(
-        `SELECT id, note, asset_id, image_path FROM film_mood_board
-          WHERE project_id = ? AND (image_path <> '' OR asset_id IS NOT NULL)
+        `SELECT id, note, asset_id, image_path, influence_roles, influence_note, sort_order FROM film_mood_board
+          WHERE project_id = ? AND active = 1 AND (image_path <> '' OR asset_id IS NOT NULL)
        ORDER BY sort_order, created_at`).all(projectId);
 
     const out = [];
@@ -238,10 +238,15 @@ function styleReferences(db, projectId, limit) {
             const asset = db.prepare('SELECT file_path FROM film_assets WHERE id = ?').get(row.asset_id);
             filePath = (asset && asset.file_path) || '';
         }
-        if (!filePath) continue;
+        if (!filePath) throw Object.assign(new Error('Moodboard image is unreadable. Restore/replace it or deactivate it.'),{status:409,code:'MOODBOARD_REFERENCE_UNSENDABLE'});
         out.push({
             // Named so the prompt can address it where a provider supports tags.
-            name: String(row.note || 'look').trim() || 'look',
+            name: `Moodboard ${out.length + 1}: ${String(row.note || 'look').trim() || 'look'}`,
+            moodboard_entry_id: row.id,
+            reference_role: 'style',
+            influence_roles: require('./moodboard-influence').rolesOf(row.influence_roles),
+            influence_note: row.influence_note || row.note || '',
+            board_order: row.sort_order,
             kind: 'style',
             file_path: filePath,
         });

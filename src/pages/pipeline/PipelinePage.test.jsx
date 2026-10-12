@@ -24,7 +24,7 @@ const shotSelect = () => document.getElementById('pipelineShotSelect');
 describe('Pipeline', () => {
     it('answers to the loader navigateTo calls: the board, the audit and the providers, then a status line', async () => {
         const { calls, status } = await openPage();
-        expect(calls.map(c => c.path)).toEqual(['/projects/p1/status-board', '/projects/p1/consistency/audit', '/projects/p1/providers']);
+        expect(calls.map(c => c.path)).toEqual(['/projects/p1/status-board', '/projects/p1/consistency/audit', '/projects/p1/pipeline', '/projects/p1/providers']);
         expect(status).toEqual(['Loading pipeline...', '3 shot(s) in pipeline']);
         expect(document.getElementById('pipelineProviders').textContent).toMatch(/^Providers → LLM: claude, image: flux, video: veo, voice: gridlight, music: gridlight · change$/);
     });
@@ -118,7 +118,7 @@ describe('Pipeline', () => {
         fireEvent.change(shotSelect(), { target: { value: 'c' } });
         fireEvent.click(document.getElementById('pipelineStrict'));
         await act(async () => { fireEvent.click(screen.getByText('Run scene')); });
-        expect(calls[3]).toEqual({ method: 'POST', path: '/scenes/sc2/pipeline/run', body: { strict: true } });
+        expect(calls.find(call=>call.method==='POST'&&call.path==='/scenes/sc2/pipeline/run')).toEqual({ method: 'POST', path: '/scenes/sc2/pipeline/run', body: { strict: true } });
         expect(status).toContain('scene pipeline complete');
         await act(async () => { fireEvent.click(screen.getByText('Run project')); });
         expect(calls.find(c => c.path === '/projects/p1/pipeline/run').body).toEqual({ strict: true });
@@ -133,4 +133,10 @@ describe('Pipeline', () => {
         expect(status).toContain('Pick a shot to identify its scene');
         expect(fake.streamSSEPost).not.toHaveBeenCalled();
     });
+});
+
+describe('Pipeline staged final review',()=>{
+ it('reopening discovers a persisted next review without starting any run',async()=>{const saved={run_id:'saved-run',status:'awaiting_review',next_review:{path:'/pipeline/saved-run/resume',body:{}}};const observed=[];window.__feObserveFinalRequestState=value=>observed.push(value);try{const {calls,fake}=await openPage({'GET /projects/p1/pipeline':{runs:[saved]}});expect(observed).toEqual([saved]);expect(calls.every(call=>call.method==='GET')).toBe(true);expect(fake.streamSSEPost).not.toHaveBeenCalled();}finally{delete window.__feObserveFinalRequestState;}});
+ it('a saved waiting stream requires the next review instead of reporting completion',async()=>{const {fake,status}=await openPage();fireEvent.click(screen.getByText('Run shot (live)'));const [, ,onEvent,onDone]=fake.streamSSEPost.mock.calls[0];act(()=>onEvent({type:'status',steps:[{id:'img',name:'Image'}]}));act(()=>onEvent({type:'step_complete',step_id:'img'}));act(()=>onEvent({type:'result',run_id:'saved-run',status:'awaiting_review',next_review:{path:'/pipeline/saved-run/resume',body:{}}}));await act(async()=>onDone({type:'done'}));expect(screen.getByRole('status').textContent).toContain('Next request needs review');expect(screen.queryByText('Pipeline complete → ready to assemble / Export')).toBeNull();expect(status).toContain('Next request needs review');expect(status).not.toContain('Pipeline finished');});
+ it('the existing held run updates on reviewed resume, without starting the original pipeline again',async()=>{const {fake,status}=await openPage();fireEvent.click(screen.getByText('Run shot (live)'));const [, ,onEvent]=fake.streamSSEPost.mock.calls[0];act(()=>onEvent({type:'result',run_id:'saved-run',status:'awaiting_review',next_review:{path:'/pipeline/saved-run/resume',body:{}}}));await act(async()=>window.dispatchEvent(new CustomEvent('fe-final-request-resumed',{detail:{run_id:'saved-run',status:'complete'}})));expect(fake.streamSSEPost).toHaveBeenCalledTimes(1);expect(screen.queryByText(/Completed steps are saved/)).toBeNull();expect(status).toContain('Pipeline complete');});
 });

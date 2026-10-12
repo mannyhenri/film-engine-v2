@@ -108,12 +108,19 @@ export default function ExportPage() {
             const plan = await legacy.api(url);
             const c = plan.counts || {};
             const miss = (plan.missing || []).length;
-            if (!window.confirm(`Make the Resolve project: ${c.shots} shots (${c.clips} with footage, ${c.storyboard_frames} on their storyboard frame${c.gaps ? `, ${c.gaps} ${s(c.gaps, 'gap')}` : ''}), `
+            if ((plan.blocking || []).length) {
+                setResolve({ text: 'Resolve package blocked: ' + plan.blocking.map(x => x.message || x.code).join('; ') });
+                return;
+            }
+            if (!window.confirm(`Create a Resolve export package: ${c.shots} shots (${c.clips} with footage, ${c.storyboard_frames} on their storyboard frame${c.gaps ? `, ${c.gaps} ${s(c.gaps, 'gap')}` : ''}), `
                 + `${c.dialogue_lines} dialogue ${s(c.dialogue_lines, 'line')}, ${c.beds} music/ambience ${s(c.beds, 'bed')}; ${plan.file_count} files copied.`
-                + (miss ? `\n${miss} ${s(miss, 'item is', 'items are')} missing and will be named in the READ ME.` : ''))) return;
+                + (c.timeline_audio_tracks ? `\n${c.timeline_audio_tracks} independent sound ${s(c.timeline_audio_tracks, 'edit')}, with original files and explicit trim/offset/gain/mute.` : '')
+                + (miss ? `\n${miss} ${s(miss, 'item is', 'items are')} missing and will be named in the READ ME.` : '')
+                + ((plan.warnings || []).length ? '\n' + plan.warnings.map(w => w.message).join('\n') : '')
+                + '\nImport this package in Resolve separately.')) return;
             setResolve({ text: 'Copying…' });
             setResolve({ result: await legacy.api(url, { method: 'POST', body: '{}' }) });
-        } catch (err) { setResolve({ text: 'Could not make the Resolve project: ' + err.message }); }
+        } catch (err) { setResolve({ text: 'Could not create the Resolve package: ' + err.message }); }
     }
 
     function downloadBundle() {
@@ -148,12 +155,12 @@ export default function ExportPage() {
                 <div className="card" style={CARD}>
                     <div style={ICON}>🎞</div>
                     <h3>DaVinci Resolve</h3>
-                    <p className="text-sm text-muted mb-8">A first edit from your shots and footage (storyboard frames where there is no clip yet), the media per scene, every shot&apos;s information as markers and metadata, and a script that loads it all into Resolve. Free.</p>
-                    <button className="btn btn-primary btn-sm" onClick={exportResolve}>Make the Resolve project</button>
+                    <p className="text-sm text-muted mb-8">A Resolve interchange package with selected footage, five-second images, independent shot/sequence sound edits, a narrative rough cut, and shot markers/metadata. Full source files are copied. Import in Resolve separately. Free.</p>
+                    <button className="btn btn-primary btn-sm" onClick={exportResolve}>Create Resolve package</button>
                     <div id="resolveExportResult" className="text-sm" style={RESULT}>
                         {resolve?.text}
-                        {resolve?.result && <>Written to <code>{resolve.result.dest}</code><br />{resolve.result.copied} files, {resolve.result.xml}, {resolve.result.metadata}
-                            <br />In Resolve: copy <strong>{resolve.result.script}</strong> into Resolve&apos;s Scripts/Utility folder and run it from Workspace &gt; Scripts. The READ ME has the steps.{missingLine(resolve.result)}</>}
+                        {resolve?.result && <>Package written to <code>{resolve.result.dest}</code><br />{resolve.result.copied} files, {resolve.result.xml}, {resolve.result.metadata}
+                            <br />Not imported into Resolve. Use File &gt; Import &gt; Timeline, or the optional <strong>{resolve.result.script}</strong> after opening Resolve. READ ME.txt explains import, timebase and relinking.{missingLine(resolve.result)}</>}
                     </div>
                 </div>
                 {LATER.map(f => <Download key={f.id} f={f} />)}

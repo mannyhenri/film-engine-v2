@@ -71,7 +71,10 @@ function renderConsole(flags) {
     const need = new Set(['worldConsoleHtml']);
     const pre = `const WORLD_FLAGS = ${JSON.stringify(flags || {})};`
         + 'const WORLD = { overlays:null, lens:35, mode:"keep", pinned:null, world:null, '
-        + 'version:null, move:null, moves:[] }; const esc = s => String(s == null ? "" : s);';
+        + 'version:null, move:null, moves:[] }; const esc = s => String(s == null ? "" : s);'
+        // The location workspace is an imported module; its real markup and
+        // interactions have dedicated UI tests. These tests isolate the console.
+        + 'const previzWorkspace = {railHtml:()=>"",pickerHtml:()=>"",titleHtml:()=>"",footerHtml:()=>"",briefHtml:()=>""};';
     for (let i = 0; i < 60; i++) {
         const src = [...need].map(declSource).filter(Boolean).join('\n');
         try {

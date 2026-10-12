@@ -197,10 +197,11 @@ function gatherShotReferences(projectId, matchedChars, matchedLocation, sceneCar
     // location, so with three slots a look plate never displaces the actor — a
     // viewer notices a different face long before a different grade.
     try {
-        for (const ref of require('./look-development').styleReferences(database(), projectId, 1)) {
+        for (const ref of require('./look-development').styleReferences(database(), projectId)) {
             candidates.push(ref);
         }
     } catch (error) {
+        if (error.code === 'MOODBOARD_REFERENCE_UNSENDABLE') throw error;
         if (opts && opts.diagnostics) opts.diagnostics.push({ code: 'STYLE_REFERENCE_LOOKUP', message: error.message, action: 'Check the moodboard records before generating.' });
     }
 
@@ -420,6 +421,7 @@ function shotReferencesFor(db, opts) {
     const support = o.support || providerReferenceSupport(o.providerConfig);
     const diagnostics = [];
     if (!support.canAttach) {
+        if (require('./look-development').styleReferences(db,o.projectId).length) throw Object.assign(new Error('This provider does not support Moodboard image conditioning. Choose a supported image provider or deactivate the image references.'),{status:409,code:'MOODBOARD_REFERENCE_UNSENDABLE'});
         return { references: [], tagged: false, anchorTag: null, support, diagnostics: [{ code: 'REFERENCES_UNSUPPORTED', action: 'Choose an image provider that supports reference images to preserve visual identity.' }] };
     }
     const references = gatherShotReferences(

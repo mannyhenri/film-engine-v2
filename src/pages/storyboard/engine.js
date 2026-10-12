@@ -37,7 +37,7 @@ const {
     setStatus,
     showModal,
     showModalHtml,
-    streamSSE,
+    streamSSEPost,
 } = Object.fromEntries([
     'annotationFeedbackOn',
     'api',
@@ -65,7 +65,7 @@ const {
     'setStatus',
     'showModal',
     'showModalHtml',
-    'streamSSE',
+    'streamSSEPost',
 ].map(n => [n, (...a) => legacy[n](...a)]));
 const live = (name) => new Proxy({}, {
     get: (_, k) => legacy[name][k],
@@ -408,7 +408,7 @@ const { WORLD, state } = Object.fromEntries(['WORLD', 'state'].map(n => [n, live
         if (!box || !text) return;
         const on = annotationFeedbackOn();
         box.checked = on;
-        text.textContent = on ? 'Marks steer generation' : 'Marks are notes only';
+        text.textContent = on ? 'Text notes added to prompt' : 'Text notes off; marks still in references';
     }
 
     /** The grid card's image calls this on load; kept as its own name. */
@@ -962,20 +962,17 @@ const { WORLD, state } = Object.fromEntries(['WORLD', 'state'].map(n => [n, live
         let totalShots = 1;
 
         const useRefs = document.getElementById('useReferencesToggle').checked;
-        /*
-         * The batch is a GET stream, so the model choice rides in the query
-         * rather than a body — captured from the confirmation above. Without
-         * this the picker would be shown, chosen, and ignored.
-         */
-        const batchQ = new URLSearchParams({
-            ...(useRefs ? { use_references: 'true' } : {}),
+        // POST permits every item's immutable approval to travel in the body.
+        // The bridge completes every final review before starting this stream.
+        const batchBody = {
+            ...(useRefs ? { use_references: true } : {}),
             ...((BATCH_CHOICES && BATCH_CHOICES.quality) ? { quality: BATCH_CHOICES.quality } : {}),
-        }).toString();
-        const storyboardUrl = '/projects/' + state.currentProject.id + '/storyboard/generate/stream'
-            + (batchQ ? `?${batchQ}` : '');
+        };
+        const storyboardUrl = '/projects/' + state.currentProject.id + '/storyboard/generate/stream';
 
-        streamSSE(
+        streamSSEPost(
             storyboardUrl,
+            batchBody,
             (ev) => {
                 if (ev.type === 'status' && ev.total_shots) {
                     totalShots = ev.total_shots;
@@ -1038,10 +1035,10 @@ const { WORLD, state } = Object.fromEntries(['WORLD', 'state'].map(n => [n, live
                 loadStoryboard();
                 setStatus('Storyboard generation complete');
             },
-            () => {
+            (error) => {
                 prog.style.display = 'none';
                 imgProg.style.display = 'none';
-                setStatus('Storyboard generation failed');
+                setStatus(error?.message || 'Storyboard generation failed');
             }
         );
     }

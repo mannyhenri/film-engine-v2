@@ -3,10 +3,9 @@
  *
  * Every node here is a view of something that already exists: a shot row and
  * its frames, a sequence row, a music cue, the assets a generation produced.
- * Nothing is stored twice. The graph adds exactly three facts of its own —
- * where a node sits (production_node_layout), how two shots join
- * (film_sequences.joins_json) and which clip plays (the selected_video pointers)
- * — and everything else is read from the tables the old pages already wrote.
+ * Asset versions remain the source of footage. Workspace geometry, mutable
+ * draft recipes and explicit timeline audio edits are separate editing state;
+ * none of them rewrites historical generation origins or narrative order.
  *
  * VERSIONS ARE ASSETS. film_shot_versions was the obvious home and holds no
  * rows: nothing but the render ledger writes it. Every frame, clip and sound
@@ -18,8 +17,10 @@
 const fs = require('fs');
 const path = require('path');
 const { flowOutputsOf } = require('./flow-outputs');
+const recipes = require('./production-recipes');
 
 const NODE_SIZE = Object.freeze({
+    'depth-source': {w:260,h:220}, 'depth-map': {w:280,h:240}, 'depth-output': {w:260,h:220}, 'depth-preview': {w:260,h:220},
     shot: { w: 200, h: 180 },
     sequence: { w: 240, h: 280 },
     video: { w: 200, h: 178 },
@@ -58,8 +59,7 @@ function shotFrames(db, shot) {
     const byVersion = new Map();
     for (const r of rows) byVersion.set(Number(r.version) || 0, r);   // newest row per version wins
     const list = [...byVersion.values()];
-    const highest = list.reduce((m, r) => Math.max(m, Number(r.version) || 0), 0);
-    const selected = shot.current_frame_version != null ? Number(shot.current_frame_version) : highest;
+    const selected = require('./selected-frame').selectedFrame(db, shot.id);
     return list.map(r => ({
         asset_id: r.id,
         version: Number(r.version) || 0,
@@ -67,7 +67,7 @@ function shotFrames(db, shot) {
         path: r.file_path,
         provider: r.provider || null,
         model: r.provider_model || null,
-        selected: (Number(r.version) || 0) === selected,
+        selected: r.id === selected?.id,
     }));
 }
 
@@ -268,9 +268,10 @@ function checkFrameRef(db, seq, ref) {
 const GAP = 24;
 
 /**
- * Where every node goes if nobody has moved it: one group per sequence, shots in
- * a column, the sequence to their right, versions right of their parent, sound
- * under the sequence. Unsequenced shots group by scene. Deterministic, so a
+ * Where every node goes if nobody has moved it: scene groups, with shots and
+ * sequences in vertical narrative rows and their outputs to the right. A
+ * sequence spanning scenes is housed by its first shot; its membership edges
+ * still connect every member in its own scene. Deterministic, so a
  * reload places an untouched node exactly where it was.
  */
 /** A collapsed group is drawn as one card this size (PGN-018). */
@@ -280,67 +281,55 @@ function autoLayout(graph, collapsed) {
     const shut = collapsed instanceof Set ? collapsed : new Set();
     const pos = {};
     const groups = [];
-    let ox = 20;
+    let sceneY = 8;
     const put = (key, x, y) => { pos[key] = { x, y }; };
     const nodeOf = new Map(graph.nodes.map(n => [n.key, n]));
     const h = key => nodeOf.get(key)?.h || (NODE_SIZE[(nodeOf.get(key) || {}).type] || { h: 120 }).h;
 
     for (const g of graph.groups) {
-        const x0 = ox, y0 = 44;
-        if (g.rows?.length) {
-            let x=x0+20, bottom=y0;
-            for (const key of g.rows) { const n=nodeOf.get(key); put(key,x,y0); bottom=Math.max(bottom,y0+h(key)); x+=(n?.w||260)+40; }
-            let vy=y0, widest=260;
-            for (const key of g.versions||[]) { const n=nodeOf.get(key);put(key,x,vy);vy+=h(key)+GAP;widest=Math.max(widest,n?.w||260); }
-            bottom=Math.max(bottom,vy);const width=x+widest+20-x0;
-            const collapsedGroup=shut.has(g.id);
-            groups.push({id:g.id,label:g.label,x:x0,y:8,w:collapsedGroup?COLLAPSED_GROUP.w:width,h:collapsedGroup?COLLAPSED_GROUP.h:bottom+12});
-            ox=x0+(collapsedGroup?COLLAPSED_GROUP.w:width)+20;continue;
+        const x0 = 20, y0 = sceneY + 68, rowX = x0 + 240;
+        let colY = y0, right = rowX + 240;
+        const placed = new Set();
+        const place = (key, x, y) => {
+            put(key, x, y); placed.add(key);
+            right = Math.max(right, x + (NODE_SIZE[(nodeOf.get(key) || {}).type] || { w: 200 }).w);
+        };
+        for (const key of g.rows || [...g.shots, ...(g.sequence ? [g.sequence] : [])]) {
+            place(key, rowX, colY);
+            const children = (g.versions || []).filter(k => (nodeOf.get(k) || {}).parent === key);
+            let childX = rowX + 280, rowHeight = h(key);
+            for (const child of children) {
+                place(child, childX, colY); childX += (NODE_SIZE[(nodeOf.get(child) || {}).type] || { w: 200 }).w + GAP;
+                rowHeight = Math.max(rowHeight, h(child));
+            }
+            const links = [...(g.links_start || []), ...(g.links_end || [])].filter(k => (nodeOf.get(k) || {}).sequence_id === (nodeOf.get(key) || {}).id);
+            for (const [i, link] of links.entries()) { place(link, x0 + 20, colY + i * (h(link) + GAP)); rowHeight = Math.max(rowHeight, (i + 1) * (h(link) + GAP)); }
+            colY += rowHeight + GAP;
         }
-
-        let colY = y0;
-        const shotX = x0 + 20;
-        for (const key of g.links_start || []) { put(key, shotX, colY); colY += h(key) + GAP; }
-        for (const key of g.shots) { put(key, shotX, colY); colY += h(key) + GAP; }
-        let bottom = colY;
-
-        let nextX = shotX + 220 + 40;
-        if (g.sequence) {
-            put(g.sequence, nextX, y0 + 20);
-            let ly = y0 + 20 + h(g.sequence) + GAP;
-            for (const key of g.links_end || []) { put(key, nextX, ly); ly += h(key) + GAP; }
-            bottom = Math.max(bottom, ly);
-            nextX += 260 + 40;
-        }
-        // Versions and sounds share the next column; each sound's own versions
-        // sit to its right, on its row.
-        let vy = y0;
-        let widest = 200;
-        for (const key of g.versions) {
-            put(key, nextX, vy); vy += h(key) + GAP;
-            widest = Math.max(widest, (NODE_SIZE[(nodeOf.get(key) || {}).type] || { w: 200 }).w);
+        let vy = colY;
+        for (const key of [...(g.versions || []), ...(g.audio_tracks || [])]) {
+            if (placed.has(key)) continue;
+            place(key, rowX + 280, vy); vy += h(key) + GAP;
         }
         for (const s of g.sounds) {
-            put(s.key, nextX, vy);
-            let sx = nextX + 200 + 40;
-            for (const v of s.versions) { put(v, sx, vy); sx += 180 + 20; }
-            widest = Math.max(widest, sx - nextX - 20);
+            place(s.key, rowX, vy);
+            let sx = rowX + 280;
+            for (const v of s.versions) { place(v, sx, vy); sx += 180 + GAP; }
             vy += Math.max(h(s.key), s.versions.length ? NODE_SIZE.audio.h : 0) + GAP;
         }
-        bottom = Math.max(bottom, vy);
-        const width = (nextX + widest + 20) - x0;
+        const bottom = Math.max(colY, vy), width = right + 20 - x0;
         /*
          * A collapsed group is a card, and the groups after it close up. Its
          * members keep the positions they would have open — they are hidden,
          * not moved — so expanding restores them exactly.
          */
         if (shut.has(g.id)) {
-            groups.push({ id: g.id, label: g.label, x: x0, y: 8, w: COLLAPSED_GROUP.w, h: COLLAPSED_GROUP.h });
-            ox = x0 + COLLAPSED_GROUP.w + 20;
+            groups.push({ id: g.id, label: g.label, x: x0, y: sceneY, w: COLLAPSED_GROUP.w, h: COLLAPSED_GROUP.h, expanded_w: width, expanded_h: bottom - sceneY + 24 });
+            sceneY += COLLAPSED_GROUP.h + 64;
             continue;
         }
-        groups.push({ id: g.id, label: g.label, x: x0, y: 8, w: width, h: bottom - 8 + 12 });
-        ox = x0 + width + 20;
+        groups.push({ id: g.id, label: g.label, x: x0, y: sceneY, w: width, h: bottom - sceneY + 24 });
+        sceneY = bottom + 88;
     }
     return { positions: pos, groups };
 }
@@ -355,8 +344,8 @@ function readCollapsed(db, projectId) {
 
 /** Every node key a group draws: its shots, links, sequence, versions, sounds and their versions. */
 function groupMembers(g) {
-    return [...(g.rows || []), ...(g.links_start || []), ...(g.shots || []), ...(g.sequence ? [g.sequence] : []), ...(g.links_end || []),
-        ...(g.versions || []), ...(g.sounds || []).flatMap(x => [x.key, ...(x.versions || [])])];
+    return [...new Set([...(g.rows || []), ...(g.links_start || []), ...(g.shots || []), ...(g.sequences || (g.sequence ? [g.sequence] : [])), ...(g.links_end || []),
+        ...(g.versions || []), ...(g.audio_tracks || []), ...(g.sounds || []).flatMap(x => [x.key, ...(x.versions || [])])])];
 }
 
 /**
@@ -373,7 +362,7 @@ function groupSummary(members, byKey, running) {
     return {
         length_ms: shots.reduce((t, n) => t + (n.duration_ms || 0), 0),
         shots_total: shots.length,
-        shots_done: shots.filter(n => (n.videos && n.videos.length) || seqHasClip(n.sequence_id)).length,
+        shots_done: shots.filter(n => (n.videos && n.videos.length) || (n.sequence_ids || [n.sequence_id]).some(seqHasClip)).length,
         behind: nodes.filter(n => n.impact && (n.impact.state === 'redo' || n.impact.state === 'waiting')).length,
         running: members.filter(k => live.has(k)).length,
     };
@@ -382,6 +371,139 @@ function groupSummary(members, byKey, running) {
 function readLayout(db, projectId) {
     const rows = db.prepare('SELECT node_key, x, y, pinned FROM production_node_layout WHERE project_id = ?').all(projectId);
     return new Map(rows.map(r => [r.node_key, { x: r.x, y: r.y, pinned: !!r.pinned }]));
+}
+
+function readGroupLayout(db, projectId) {
+    return new Map(db.prepare('SELECT * FROM production_group_layout WHERE project_id = ?').all(projectId).map(r => [r.group_key, r]));
+}
+
+/** Geometry identities are project scoped; no content is accepted by this API. */
+const LAYOUT_NODE_KEY=/^(depth|depth-source|depth-output|depth-preview|composite|shot|seq|sound|ver|audio|ib):[0-9a-f-]{36}$|^composite-input:[0-9a-f-]{36}:(source|alpha|background|foreground|depth)$|^composite-output:[0-9a-f-]{36}:(alpha|preview|video|foreground)$|^link:[0-9a-f-]{36}:(start|end)$|^(board|request):[0-9a-f-]{36}$|^reference:[0-9a-f-]{36}:\d+$|^draft:(shot|seq):[0-9a-f-]{36}:(image|video)$|^draft-reference:(shot|seq):[0-9a-f-]{36}:(image|video):(\d+|r[0-9a-f]{16}-\d+|i[0-9a-f-]{36})$/i;
+function draftGeometryReferences(recipe={},identities={}){
+ identities=identities&&typeof identities==='object'&&!Array.isArray(identities)?identities:{};
+ const fields=['reference_images','referenceImages','refImages','references','audio_references','reference_videos','keyframes','promptImage','init_image','image_url','image','end_image','last_frame','source_video','video_url','videoUri','video_uri'];
+ const counts=new Map(),taken=new Set();
+ return fields.flatMap(list=>(Array.isArray(recipe[list])?recipe[list]:recipe[list]?[recipe[list]]:[]).map((ref,index)=>{
+  const entry={...(typeof ref==='string'?{uri:ref}:ref),list},identity=referenceGeometryIdentity(entry);let occurrence=counts.get(identity) || 0;counts.set(identity,occurrence+1);
+  let id=identities[list]?.[index];if(typeof id!=='string'||!/^(r[0-9a-f]{16}-\d+|i[0-9a-f-]{36})$/i.test(id)||taken.has(id)){id=`${identity}-${occurrence}`;while(taken.has(id))id=`${identity}-${++occurrence}`;}
+  taken.add(id);return {...entry,geometry_id:id};
+ }));
+}
+function referenceGeometryIdentity(reference){
+ const canonical=(value,depth=0)=>Array.isArray(value)?value.map(v=>canonical(v,depth+1)):value&&typeof value==='object'?Object.fromEntries(Object.keys(value).sort().filter(k=>depth>0 || !['reference_role','role','wire_role','order','position','geometry_id'].includes(k)).map(k=>[k,canonical(value[k],depth+1)])):value;
+ const text=JSON.stringify(canonical(reference));let a=2166136261,b=2246822507;
+ for(let i=0;i<text.length;i++){a=Math.imul(a^text.charCodeAt(i),16777619);b=Math.imul(b^text.charCodeAt(i),3266489909);}
+ return 'r'+(a>>>0).toString(16).padStart(8,'0')+(b>>>0).toString(16).padStart(8,'0');
+}
+/** Resolve a synthetic card through its real graph owner, including Flows results. */
+function layoutNodeOwner(db,graph,key){
+ if(!LAYOUT_NODE_KEY.test(key))return null;
+ const real=graph.nodes.find(n=>n.key===key);if(real)return real.parent || real.key;
+ const draft=key.match(/^draft(?:-reference)?:(shot|seq):([0-9a-f-]{36}):(image|video)(?::(.+))?$/i);
+ if(draft){
+  const owner=graph.nodes.find(n=>n.key===`${draft[1]}:${draft[2]}`&&['shot','sequence'].includes(n.type));
+  if(!owner || (owner.type==='sequence'&&draft[3]==='image'))return null;
+  if(key.startsWith('draft:'))return owner.key;
+  const recipe=owner.draft?.payload?.[draft[3]] || {};
+  const references=draftGeometryReferences(recipe,owner.draft?.payload?.workspace_reference_ids?.[draft[3]]);
+  if(/^\d+$/.test(draft[4] || ''))return Number(draft[4])<references.length?owner.key:null;
+  const occurrences=new Map();
+  for(const ref of references){const identity=referenceGeometryIdentity(ref),i=occurrences.get(identity) || 0;occurrences.set(identity,i+1);if((ref.geometry_id || `${identity}-${i}`)===draft[4])return owner.key;}
+  return null;
+ }
+ const asset=key.match(/^(board|request|reference):([0-9a-f-]{36})(?::(\d+))?$/i);if(!asset)return null;
+ const owner=graph.nodes.find(n=>['shot','sequence'].includes(n.type)&&[...(n.frames || []),...(n.flow_frames || []),...(n.videos || []),...graph.nodes.filter(v=>v.parent===n.key&&v.type==='video')].some(v=>v.asset_id===asset[2]));
+ if(!owner)return null;
+ if(asset[1]==='board'&&![...(owner.frames || []),...(owner.flow_frames || [])].some(v=>v.asset_id===asset[2]))return null;
+ if(asset[1]==='reference'){
+  const lineage=require('./production-lineage').assetLineage(db,asset[2]);
+  const count=lineage?.status==='recorded'&&lineage.approved?.references_known!==false&&Array.isArray(lineage.approved?.references)?lineage.approved.references.length:1;
+  if(Number(asset[3])>=count)return null;
+ }
+ return owner.key;
+}
+
+/** A layout receipt contains workspace rows only; creative records are never restored. */
+function workspaceLayout(db, projectId) {
+    return { project_id: projectId,
+        nodes: db.prepare('SELECT node_key,x,y,pinned,updated_at FROM production_node_layout WHERE project_id=? ORDER BY node_key').all(projectId),
+        groups: db.prepare('SELECT group_key,collapsed,x,y,w,h,updated_at FROM production_group_layout WHERE project_id=? ORDER BY group_key').all(projectId) };
+}
+function layoutFingerprint(snapshot) {
+    return require('crypto').createHash('sha256').update(JSON.stringify(snapshot)).digest('hex');
+}
+function arrangeWorkspaceLayout(db, projectId, input = {}) {
+    if (!db.prepare('SELECT id FROM film_projects WHERE id=?').get(projectId)) throw Object.assign(new Error('Project not found'), {status:404});
+    return db.transaction(() => {
+        const before = workspaceLayout(db, projectId);
+        if (input.undo !== undefined) {
+            if (input.expected_fingerprint !== layoutFingerprint(before)) throw Object.assign(new Error('Layout changed after arrangement. Undo would overwrite a newer placement.'), {status:409});
+            const snapshot = input.undo;
+            // Deleted owners leave harmless project-scoped workspace rows. A genuine
+            // receipt must still restore the surviving placements, without recreating owners.
+            const nodeKey = LAYOUT_NODE_KEY;
+            const finite = value => Number.isFinite(value), nullable = value => value === null || finite(value);
+            if (!snapshot || snapshot.project_id !== projectId || !Array.isArray(snapshot.nodes) || !Array.isArray(snapshot.groups)
+                || new Set(snapshot.nodes.map(n=>n?.node_key)).size !== snapshot.nodes.length
+                || new Set(snapshot.groups.map(g=>g?.group_key)).size !== snapshot.groups.length
+                || snapshot.nodes.some(n=>!n || !nodeKey.test(n.node_key) || !finite(n.x) || !finite(n.y) || ![0,1].includes(n.pinned) || typeof n.updated_at !== 'string')
+                || snapshot.groups.some(g=>!g || typeof g.group_key !== 'string' || !g.group_key.length || g.group_key.length>200 || g.group_key.includes('\0') || ![0,1].includes(g.collapsed) || !nullable(g.x) || !nullable(g.y)
+                    || !nullable(g.w) || !nullable(g.h) || (g.w!==null && g.w<=0) || (g.h!==null && g.h<=0) || typeof g.updated_at !== 'string')) {
+                throw Object.assign(new Error('The saved workspace layout cannot be restored to this graph.'), {status:400});
+            }
+            db.prepare('DELETE FROM production_node_layout WHERE project_id=?').run(projectId);
+            db.prepare('DELETE FROM production_group_layout WHERE project_id=?').run(projectId);
+            const nodePut=db.prepare('INSERT INTO production_node_layout(project_id,node_key,x,y,pinned,updated_at) VALUES(?,?,?,?,?,?)');
+            const groupPut=db.prepare('INSERT INTO production_group_layout(project_id,group_key,collapsed,x,y,w,h,updated_at) VALUES(?,?,?,?,?,?,?,?)');
+            for(const n of snapshot.nodes)nodePut.run(projectId,n.node_key,n.x,n.y,n.pinned,n.updated_at);
+            for(const g of snapshot.groups)groupPut.run(projectId,g.group_key,g.collapsed,g.x,g.y,g.w,g.h,g.updated_at);
+            return {undo:null,layout_fingerprint:layoutFingerprint(workspaceLayout(db,projectId))};
+        }
+        db.prepare('DELETE FROM production_node_layout WHERE project_id=?').run(projectId);
+        db.prepare("UPDATE production_group_layout SET x=NULL,y=NULL,w=NULL,h=NULL,updated_at=datetime('now') WHERE project_id=?").run(projectId);
+        return {undo:before,layout_fingerprint:layoutFingerprint(workspaceLayout(db,projectId))};
+    }).immediate();
+}
+
+/** Persist one scene gesture, translating all members in the same transaction. */
+function saveGroupLayout(db, projectId, groupKey, input) {
+    const graph = buildGraph(db, projectId);
+    if (!graph) throw Object.assign(new Error('Project not found'), { status: 404 });
+    const group = graph.groups.find(g => g.key === groupKey);
+    if (!group) throw Object.assign(new Error(`No group "${groupKey}" on this graph`), { status: 404 });
+    if (!input || !['x', 'y', 'w', 'h', 'collapsed'].some(k => input[k] !== undefined)) throw Object.assign(new Error('Supply scene geometry or collapsed'), { status: 400 });
+    for (const k of ['x', 'y', 'w', 'h', 'delta_x', 'delta_y']) {
+        if (input[k] !== undefined && (!Number.isFinite(input[k]) || ((k === 'w' || k === 'h') && input[k] <= 0))) {
+            throw Object.assign(new Error(`${k} must be a finite ${k === 'w' || k === 'h' ? 'positive ' : ''}number`), { status: 400, field: k });
+        }
+    }
+    const translated = input.delta_x !== undefined || input.delta_y !== undefined;
+    if (translated && !['x','y','delta_x','delta_y'].every(k=>Number.isFinite(input[k]))) throw Object.assign(new Error('A scene translation needs its anchor and both deltas'), {status:400});
+    if (input.collapsed !== undefined && typeof input.collapsed !== 'boolean') throw Object.assign(new Error('collapsed must be true or false'), { status: 400, field: 'collapsed' });
+    const prior = readGroupLayout(db, projectId).get(groupKey) || {};
+    const dx = translated ? input.delta_x : input.x === undefined ? 0 : input.x - group.x, dy = translated ? input.delta_y : input.y === undefined ? 0 : input.y - group.y;
+    // A member dragged left/up can expand the visible bounds. The automatic
+    // layout anchor stays separate so resize/collapse never repositions nodes.
+    const nextX = translated ? input.x : input.x === undefined ? prior.x ?? null : group.layout_x + dx;
+    const nextY = translated ? input.y : input.y === undefined ? prior.y ?? null : group.layout_y + dy;
+    db.transaction(() => {
+        if (dx || dy) {
+            const upsert = db.prepare(`INSERT INTO production_node_layout(project_id, node_key, x, y, pinned)
+                VALUES (?, ?, ?, ?, ?) ON CONFLICT(project_id, node_key) DO UPDATE SET
+                x = excluded.x, y = excluded.y, pinned = excluded.pinned, updated_at = datetime('now')`);
+            const members = new Set(group.members);
+            for (const node of graph.nodes) if (members.has(node.key)) upsert.run(projectId, node.key, node.x + dx, node.y + dy, node.pinned ? 1 : 0);
+            // Projected cards have no creative rows. Translate their saved placements
+            // by the same gesture delta, without pinning automatic real nodes.
+            for(const [key,position] of readLayout(db,projectId))if(!members.has(key)&&members.has(layoutNodeOwner(db,graph,key)))upsert.run(projectId,key,position.x+dx,position.y+dy,position.pinned?1:0);
+        }
+        db.prepare(`INSERT INTO production_group_layout(project_id, group_key, collapsed, x, y, w, h)
+            VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(project_id, group_key) DO UPDATE SET
+            collapsed = excluded.collapsed, x = excluded.x, y = excluded.y, w = excluded.w, h = excluded.h, updated_at = datetime('now')`)
+            .run(projectId, groupKey, (input.collapsed === undefined ? group.collapsed : input.collapsed) ? 1 : 0,
+                nextX, nextY, input.w === undefined ? prior.w || null : input.w, input.h === undefined ? prior.h || null : input.h);
+    }).immediate();
+    return buildGraph(db, projectId).groups.find(g => g.key === groupKey);
 }
 
 // ── The graph ──────────────────────────────────────────────────────────────
@@ -405,9 +527,12 @@ function buildGraph(db, projectId) {
     const edge = (from, fromPort, to, toPort, type, style) =>
         edges.push({ from, from_port: fromPort, to, to_port: toPort, type, style: style || 'solid' });
 
-    // Which sequence owns each shot. First claim wins: a shot belongs to ONE.
+    // All real memberships survive. A canvas home and playback are separate.
     const owner = new Map();
-    for (const q of sequences) for (const id of parseJson(q.shot_ids, [])) if (!owner.has(id)) owner.set(id, q.id);
+    for (const q of sequences) for (const id of parseJson(q.shot_ids, [])) {
+        if (!owner.has(id)) owner.set(id, []);
+        if (!owner.get(id).includes(q.id)) owner.get(id).push(q.id);
+    }
 
     const seqAssets = new Set();
     const seqData = new Map();
@@ -443,7 +568,10 @@ function buildGraph(db, projectId) {
             description: card.action || card.description || '',
             dialogue_lines: Array.isArray(card.dialogue) ? card.dialogue.length : 0,
             status: sh.status,
-            sequence_id: owner.get(sh.id) || null,
+            // Compatibility primary plus all real memberships. Neither field
+            // changes running_order or the selected clip's editorial coverage.
+            sequence_id: (owner.get(sh.id) || [])[0] || null,
+            sequence_ids: owner.get(sh.id) || [],
             frames, selected_frame: sel,
             videos, selected_video_asset_id: sh.selected_video_asset_id || null,
             state: frames.length ? 'ok' : 'no_frame',
@@ -485,7 +613,7 @@ function buildGraph(db, projectId) {
 
     const seqNode = new Map();
     for (const q of sequences) {
-        const ids = parseJson(q.shot_ids, []).filter(id => owner.get(id) === q.id);
+        const ids = [...new Set(parseJson(q.shot_ids, []))].filter(id => shotNode.has(id));
         const vids = seqData.get(q.id);
         const links = linkState(db, q);
         const members = ids.map(id => shotNode.get(id)).filter(Boolean);
@@ -530,9 +658,11 @@ function buildGraph(db, projectId) {
         }
     }
 
+    const cueVersionMap = new Map();
     for (const c of cues) {
         const kind = SOUND_KIND[c.cue_type] || 'music';
         const versions = cueVersions(db, c);
+        cueVersionMap.set(c.id, versions);
         const parentKey = c.sequence_id && seqNode.has(c.sequence_id) ? `seq:${c.sequence_id}`
             : c.shot_id && shotNode.has(c.shot_id) ? `shot:${c.shot_id}` : null;
         const n = {
@@ -553,79 +683,72 @@ function buildGraph(db, projectId) {
         if (!versions.length) edge(n.key, 'audio', null, null, 'audio', 'dotted');
     }
 
-    // ── Groups: one per sequence, then unsequenced shots by scene ─────────
-    const groups = [];
-    const shotsOfSeq = q => seqNode.get(q.id).shot_ids.map(id => `shot:${id}`);
-    const soundGroup = parentKeys => cues
-        .filter(c => parentKeys.includes(c.sequence_id ? `seq:${c.sequence_id}` : c.shot_id ? `shot:${c.shot_id}` : ''))
-        .map(c => ({ key: `sound:${c.id}`, versions: cueVersions(db, c).map(v => `ver:${v.asset_id}`) }));
-    const placedSound = new Set();
+    // Editing state is separate from generation origins. Each edit track has
+    // its own instance key even when several owners use the same source asset.
+    for (const n of [...shotNode.values(), ...seqNode.values()]) {
+        n.draft = recipes.readDraft(db, projectId, n.key);
+        n.audio_tracks = recipes.readAudioTracks(db, projectId, n.key);
+        for (const track of n.audio_tracks) {
+            const key = `audio:${track.id}`;
+            nodes.push({ key, type: 'audio', kind: 'audio', asset_id: track.asset_id,
+                parent: n.key, parent_label: n.shot_code || n.name, relationship: 'timeline_audio',
+                track_id: track.id, path: track.source.path, url: urlFor(track.source.path),
+                duration_ms: track.duration_ms, source: track.source, track, selected: !track.muted });
+            edges.push({ from: key, from_port: 'audio', to: n.key, to_port: 'sound',
+                type: 'audio', style: 'solid', relationship: 'timeline_audio', label: 'Timeline audio' });
+        }
+    }
 
-    // Where a shot plays in the film; a missing shot (an empty sequence) plays nowhere.
-    const filmIndex = id => { const i = shots.findIndex(sh => sh.id === id); return i < 0 ? Infinity : i; };
-    const orderedSeqs = sequences.slice().sort((a, b) => {
-        const fa = shots.findIndex(s => seqNode.get(a.id).shot_ids[0] === s.id);
-        const fb = shots.findIndex(s => seqNode.get(b.id).shot_ids[0] === s.id);
-        return (fa < 0 ? 1e9 : fa) - (fb < 0 ? 1e9 : fb);
-    });
-    for (const q of orderedSeqs) {
-        const sn = seqNode.get(q.id);
-        const shotKeys = shotsOfSeq(q);
-        const firstShot = shotNode.get(sn.shot_ids[0]);
-        // A sound that scores its whole scene sits under the first sequence of
-        // that scene, rather than drifting into a group of its own.
-        const sceneWide = firstShot ? cues
-            .filter(c => !c.sequence_id && !c.shot_id && c.scene_id === firstShot.scene_id && !placedSound.has(`sound:${c.id}`))
-            .map(c => ({ key: `sound:${c.id}`, versions: cueVersions(db, c).map(v => `ver:${v.asset_id}`) })) : [];
-        const sounds = soundGroup([sn.key, ...shotKeys]).concat(sceneWide);
-        sounds.forEach(s => placedSound.add(s.key));
-        const first = shotNode.get(sn.shot_ids[0]);
-        groups.push({
-            order: filmIndex(sn.shot_ids[0]),
-            id: `seq:${q.id}`,
-            label: `${first ? `SC ${first.scene_number} · ` : ''}${(sn.name || 'SEQUENCE').toUpperCase()}`,
-            shots: shotKeys, sequence: sn.key,
-            links_start: sn.links.start ? [`link:${q.id}:start`] : [],
-            links_end: sn.links.end ? [`link:${q.id}:end`] : [],
-            versions: [...sn.videos.map(v => `ver:${v.asset_id}`),
-                ...shotKeys.flatMap(k => ((nodes.find(n => n.key === k) || {}).videos || []).map(v => `ver:${v.asset_id}`)),
-                ...shotKeys.flatMap(k => (nodes.find(n => n.key === k) || {}).flow_versions || [])],
-            sounds,
-        });
+    // One independently movable group per scene. Membership is real sequence
+    // data; a sequence spanning scenes has one home beside its first shot.
+    const groups = [], placedSound = new Set();
+    const scenes = db.prepare('SELECT id, scene_number, location FROM film_scenes WHERE project_id = ? ORDER BY scene_number, id').all(projectId);
+    const sequenceHome = new Map();
+    for (const q of sequences) {
+        const first = shotNode.get(seqNode.get(q.id).shot_ids[0]);
+        sequenceHome.set(q.id, first ? first.scene_id : null);
     }
-    const byScene = new Map();
-    for (const sh of shots) {
-        if (owner.has(sh.id)) continue;
-        if (!byScene.has(sh.scene_id)) byScene.set(sh.scene_id, { scene_number: sh.scene_number, location: sh.location, shots: [] });
-        byScene.get(sh.scene_id).shots.push(`shot:${sh.id}`);
+    for (const scene of scenes) {
+        const sceneShots = shots.filter(sh => sh.scene_id === scene.id), shotKeys = sceneShots.map(sh => `shot:${sh.id}`);
+        const sceneSequences = sequences.filter(q => sequenceHome.get(q.id) === scene.id), sequenceKeys = sceneSequences.map(q => `seq:${q.id}`);
+        const parentKeys = [...shotKeys, ...sequenceKeys];
+        const sounds = cues.filter(c => (c.sequence_id ? sequenceKeys.includes(`seq:${c.sequence_id}`)
+            : c.shot_id ? shotKeys.includes(`shot:${c.shot_id}`) : c.scene_id === scene.id))
+            .map(c => ({ key: `sound:${c.id}`, versions: cueVersionMap.get(c.id).map(v => `ver:${v.asset_id}`) }));
+        sounds.forEach(c => placedSound.add(c.key));
+        // Put a sequence after its last member in this scene, retaining shot
+        // narrative order while giving every sequence its own vertical row.
+        const rows = [];
+        for (const shot of sceneShots) {
+            rows.push(`shot:${shot.id}`);
+            for (const q of sceneSequences) {
+                const members = seqNode.get(q.id).shot_ids.filter(id => shotNode.get(id).scene_id === scene.id);
+                if (members[members.length - 1] === shot.id) rows.push(`seq:${q.id}`);
+            }
+        }
+        const group = { id: `scene:${scene.id}`, scene_id: scene.id,
+            label: `SC ${scene.scene_number} · ${(scene.location || '').toUpperCase()}`,
+            shots: shotKeys, sequences: sequenceKeys, sequence: null, rows,
+            links_start: sceneSequences.filter(q => seqNode.get(q.id).links.start).map(q => `link:${q.id}:start`),
+            links_end: sceneSequences.filter(q => seqNode.get(q.id).links.end).map(q => `link:${q.id}:end`),
+            versions: nodes.filter(n => (n.type === 'video' || n.source === 'flow') && parentKeys.includes(n.parent)).map(n => n.key),
+            audio_tracks: nodes.filter(n => n.relationship === 'timeline_audio' && parentKeys.includes(n.parent)).map(n => n.key),
+            sounds };
+        groups.push(group);
     }
-    for (const [sceneId, s] of byScene) {
-        const sounds = soundGroup(s.shots).concat(cues
-            .filter(c => !c.sequence_id && !c.shot_id && c.scene_id === sceneId && !placedSound.has(`sound:${c.id}`))
-            .map(c => ({ key: `sound:${c.id}`, versions: cueVersions(db, c).map(v => `ver:${v.asset_id}`) })));
-        sounds.forEach(x => placedSound.add(x.key));
-        groups.push({
-            order: filmIndex(s.shots[0] && s.shots[0].slice('shot:'.length)),
-            id: `scene:${sceneId}`, label: `SC ${s.scene_number} · ${(s.location || '').toUpperCase()}`,
-            shots: s.shots, sequence: null, links_start: [], links_end: [],
-            versions: [...s.shots.flatMap(k => ((nodes.find(n => n.key === k) || {}).videos || []).map(v => `ver:${v.asset_id}`)),
-                ...s.shots.flatMap(k => (nodes.find(n => n.key === k) || {}).flow_versions || [])],
-            sounds,
-        });
+    const empty = sequences.filter(q => !sequenceHome.get(q.id));
+    if (empty.length) {
+        const sequenceKeys = empty.map(q => `seq:${q.id}`);
+        const sounds = cues.filter(c => c.sequence_id && sequenceKeys.includes(`seq:${c.sequence_id}`))
+            .map(c => ({ key: `sound:${c.id}`, versions: cueVersionMap.get(c.id).map(v => `ver:${v.asset_id}`) }));
+        sounds.forEach(c => placedSound.add(c.key));
+        groups.push({ id: 'unassigned-sequences', scene_id: null, label: 'UNASSIGNED SEQUENCES',
+            shots: [], sequences: sequenceKeys, rows: sequenceKeys, sequence: null,
+            links_start: empty.filter(q => seqNode.get(q.id).links.start).map(q => `link:${q.id}:start`),
+            links_end: empty.filter(q => seqNode.get(q.id).links.end).map(q => `link:${q.id}:end`),
+            versions: nodes.filter(n => sequenceKeys.includes(n.parent) && n.type === 'video').map(n => n.key),
+            audio_tracks: nodes.filter(n => sequenceKeys.includes(n.parent) && n.relationship === 'timeline_audio').map(n => n.key), sounds });
     }
-    /*
-     * THE BOXES READ IN FILM ORDER.
-     *
-     * Groups were laid out as every sequence first and then every scene of
-     * loose shots, so a new sequence landed in front of scene 1's loose shots
-     * even though nothing in it comes before them. Sequence boxes and scene
-     * boxes are one list ordered by where their first shot plays; a sequence
-     * with no shots yet has no place in the film, so it goes at the END —
-     * after everything, in the order it was made — until shots are added.
-     * Sorted after they are built, because which box claims a scene-wide
-     * sound is decided above and must not change with the order.
-     */
-    groups.sort((a, b) => (a.order === b.order ? 0 : a.order - b.order));
     /*
      * IN-BETWEENS between two key shots: a node in the group of the shot it
      * leaves from, wired from that shot's picture and on to the shot it arrives
@@ -672,12 +795,22 @@ function buildGraph(db, projectId) {
     const collapsed = readCollapsed(db, projectId);
     const auto = autoLayout(graph, collapsed);
     const stored = readLayout(db, projectId);
+    const savedGroups = readGroupLayout(db, projectId);
+    const nodeGroup = new Map();
+    for (const [i, group] of groups.entries()) {
+        const saved = savedGroups.get(group.id), base = auto.groups[i];
+        const shift = { x: saved && saved.x != null ? saved.x - base.x : 0,
+            y: saved && saved.y != null ? saved.y - base.y : 0 };
+        for (const key of groupMembers(group)) nodeGroup.set(key, shift);
+    }
     for (const n of nodes) {
         const s = stored.get(n.key);
         const a = auto.positions[n.key] || { x: 40, y: 40 };
-        n.x = s ? s.x : a.x; n.y = s ? s.y : a.y;
+        const shift = nodeGroup.get(n.key) || { x: 0, y: 0 };
+        // Unpinned rows are old automatic/group translations, not individual gestures.
+        n.x = s && s.pinned ? s.x : a.x + shift.x; n.y = s && s.pinned ? s.y : a.y + shift.y;
         n.pinned = !!(s && s.pinned);
-        n.w = n.w || (NODE_SIZE[n.type] || {}).w; n.h = n.h || (NODE_SIZE[n.type] || {}).h;
+        n.w = n.w || (NODE_SIZE[n.type] || { w: 200 }).w; n.h = n.h || (NODE_SIZE[n.type] || { h: 120 }).h;
     }
 
     attachImpact(nodes, projectId);
@@ -685,13 +818,25 @@ function buildGraph(db, projectId) {
     const byKey = new Map(nodes.map(n => [n.key, n]));
     const framed = nodes.filter(n => n.type === 'shot' && n.frames.length).length;
     const withVideo = nodes.filter(n => n.type === 'shot'
-        && (n.videos.length || (n.sequence_id && seqNode.get(n.sequence_id).videos.length))).length;
+        && (n.videos.length || n.sequence_ids.some(id => seqNode.get(id).videos.length))).length;
     return {
         project_id: projectId,
         board_locked: !!project.board_locked_at,
+        workspace_geometry: {nodes:Object.fromEntries(stored)},
         nodes, edges: graph.edges, groups: auto.groups.map((g, i) => {
-            const members = groupMembers(graph.groups[i]);
-            return { ...g, key: graph.groups[i].id, collapsed: collapsed.has(graph.groups[i].id), members,
+            const model = graph.groups[i], members = groupMembers(model), saved = savedGroups.get(model.id) || {};
+            const memberNodes = members.map(k => byKey.get(k)).filter(Boolean);
+            const x = saved.x == null ? g.x : saved.x, y = saved.y == null ? g.y : saved.y;
+            const left = Math.min(x, ...memberNodes.map(n => n.x - 20)), top = Math.min(y, ...memberNodes.map(n => n.y - 36));
+            const width = Math.max(saved.w || 0, g.expanded_w || g.w, ...memberNodes.map(n => n.x + n.w + 20 - left));
+            const height = Math.max(saved.h || 0, g.expanded_h || g.h, ...memberNodes.map(n => n.y + n.h + 20 - top));
+            const shut = collapsed.has(model.id);
+            return { ...g, key: model.id, scene_id: model.scene_id || null, rows: model.rows || [],
+                sequences: model.sequences || [], x: left, y: top, layout_x: x, layout_y: y,
+                w: shut ? COLLAPSED_GROUP.w : width, h: shut ? COLLAPSED_GROUP.h : height,
+                expanded_w: width, expanded_h: height, minimum_w: saved.w || null, minimum_h: saved.h || null,
+                manual_position: saved.x != null || saved.y != null,
+                collapsed: shut, members,
                 summary: groupSummary(members, byKey, running) };
         }),
         running_order: shots.map(s => s.id),
@@ -859,6 +1004,7 @@ function pendingWork(graph) { return pendingAll(graph).filter(p => !p.held); }
 function pendingHeld(graph) { return pendingAll(graph).filter(p => p.held); }
 
 module.exports = {    NODE_SIZE, LINK_MODES, SOUND_KIND,
-    buildGraph, autoLayout, readLayout, readCollapsed, groupMembers, COLLAPSED_GROUP, pendingWork, pendingHeld, runningWork, jobNodeKey, IMPACT_STATES, IMPACT_WHY, IMPACT_ACTION, NODE_IMPACT, attachImpact, RUNNING_RULES, RUNNING_SILENCE_SEC,
+    LAYOUT_NODE_KEY, layoutNodeOwner, referenceGeometryIdentity, workspaceLayout, layoutFingerprint, arrangeWorkspaceLayout,
+    buildGraph, autoLayout, readLayout, readGroupLayout, saveGroupLayout, readCollapsed, groupMembers, COLLAPSED_GROUP, pendingWork, pendingHeld, runningWork, jobNodeKey, IMPACT_STATES, IMPACT_WHY, IMPACT_ACTION, NODE_IMPACT, attachImpact, RUNNING_RULES, RUNNING_SILENCE_SEC,
     shotFrames, shotVideos, sequenceVideos, cueVersions,
     resolveLinkedFrame, linkState, linkFingerprintOf, checkFrameRef,};

@@ -100,14 +100,10 @@ test('keyframes are pinned by TIME, the way the contract says', () => {
         'a keyframe carries a first/last position, which this endpoint has no concept of');
 });
 
-test('more keyframes than the contract allows are REPORTED, not silently dropped', () => {
+test('more keyframes than the contract allows are rejected before preview', () => {
     const many = Array.from({ length: contract.references.max + 2 },
         (_, i) => ({ uri: `https://x/${i}.png`, seconds: i }));
-    const req = runway.buildVideoRequest({ model: MODEL, videoUri: 'https://x/clip.mp4', keyframes: many });
-    assert.strictEqual(req.body.keyframes.length, contract.references.max,
-        'more keyframes were sent than the endpoint accepts — the request will be refused');
-    assert.ok(req.dropped && req.dropped.length,
-        'keyframes were dropped and nothing said so');
+    assert.throws(() => runway.buildVideoRequest({ model: MODEL, videoUri: 'https://x/clip.mp4', keyframes: many }), /timed keyframe references/);
 });
 
 test('a source clip is NEVER sent as a data URI', () => {

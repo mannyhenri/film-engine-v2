@@ -8,6 +8,10 @@ if (arg) contextBridge.exposeInMainWorld('__filmEngineApiBase', arg.slice('--fe-
 
 // Which desktop shell this is, so the page can make room for the window controls.
 contextBridge.exposeInMainWorld('__feDesktop', { platform: process.platform });
+contextBridge.exposeInMainWorld('__feImageHandoff', {
+    availability: () => ipcRenderer.invoke('fe-image-handoff-availability'),
+    copyAndOpen: (id,destination='desktop') => ipcRenderer.invoke('fe-image-handoff-open', String(id),String(destination)),
+});
 // This IPC resolves only for main's trusted app window; the token stays out of
 // renderer argv, URLs and persisted settings.
 contextBridge.exposeInMainWorld('__filmAI', {getCapability: () => ipcRenderer.invoke('fe-ai-capability')});

@@ -245,6 +245,7 @@ async function awaitResult(requestId, key, deadline, opts) {
 }
 
 async function generate(capability, payload, opts) {
+    return { ok:false, status:428, error:'Exact final request review is not supported for topaz yet; generation is blocked before any provider request.' };
     if (capability !== 'post') return { ok: false, status: 400, error: `topaz: ${capability} is not served here` };
     const { apiKey } = getCredential('topaz');
     if (!apiKey) return { ok: false, status: 401, error: 'topaz: no API key configured' };

@@ -17,18 +17,12 @@ const { buildVideoRequest } = require('../lib/providers/seedance');
 
 const base = { motion_prompt: 'the man walks toward the light', target_resolution: '1920x1080' };
 
-test('one keyframe plus reference plates stays image-to-video', () => {
-    const r = buildVideoRequest({ ...base, init_image: 'data:kf', reference_images: ['data:plate'] });
-    assert.equal(r.workflow, 'image-to-video');
-    assert.equal(r.body.image_url, 'data:kf', 'the keyframe is the anchor, not the plate');
-    assert.equal(r.images.length, 1);
-    assert.deepEqual(r.dropped, ['data:plate'], 'the plate is reported dropped, not swallowed');
+test('one keyframe plus reference plates requires choosing a workflow that carries both', () => {
+    assert.throws(() => buildVideoRequest({ ...base, init_image: 'data:kf', reference_images: ['data:plate'] }), /image|reference/i);
 });
 
 test('many references never displace a single keyframe', () => {
-    const r = buildVideoRequest({ ...base, init_image: 'kf', reference_images: ['r1', 'r2', 'r3'] });
-    assert.equal(r.workflow, 'image-to-video');
-    assert.equal(r.dropped.length, 3);
+    assert.throws(() => buildVideoRequest({ ...base, init_image: 'kf', reference_images: ['r1', 'r2', 'r3'] }), /image|reference/i);
 });
 
 test('two real keyframes still select first-last-frame, in order', () => {

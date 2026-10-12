@@ -32,6 +32,11 @@ function json(res, status, data) {
 // -- Route Handler -------------------------------------------------------
 
 function handlePipeline(req, res, urlParts, query) {
+    const stagedPath = '/' + urlParts.slice(1).join('/');
+    if (req.method === 'POST' && (/^\/(shots|scenes|projects)\/[^/]+\/pipeline\/run(?:\/stream)?$/.test(stagedPath) || /^\/pipeline\/[^/]+\/resume$/.test(stagedPath)))
+        return require('../lib/final-pipeline-request-plans').runReviewedPipeline(req, res, stagedPath);
+    if (req.method === 'POST' && /^\/pipeline\/[^/]+\/recover$/.test(stagedPath))
+        return require('../lib/final-pipeline-request-plans').recoverReviewedPipeline(req, res, urlParts[2]);
     // /film/pipeline/:id[/pause|resume|cancel]
     if (urlParts[1] === 'pipeline' && urlParts[2] && !['shots', 'scenes', 'projects'].includes(urlParts[2])) {
         const runId = urlParts[2];
@@ -124,8 +129,17 @@ async function persistStepResult(stepId, capability, result, ctx) {
 
     const shot = ctx && ctx.shot;
     const scene = ctx && ctx.scene;
+    const jobId = ctx && ctx.jobId;
+    if (jobId) {
+        const existing = db.prepare("SELECT id,file_path FROM film_assets WHERE json_valid(metadata) AND json_extract(metadata,'$.generation_job_id')=?").get(jobId);
+        if (existing) return { ok:true,assetId:existing.id,path:existing.file_path,already:true };
+    }
     const code = (shot && shot.shot_code) || (shot && shot.id) || 'shot';
-    const filename = `${code}_${stepId}.${PERSIST_EXT[capability]}`;
+    const filename = `${code}_${stepId}_${jobId || generateId().slice(0,8)}.${PERSIST_EXT[capability]}`;
+    const versionRow = capability === 'image'
+        ? db.prepare("SELECT MAX(version) AS v FROM film_assets WHERE shot_id=? AND asset_type IN ('storyboard','keyframe')").get(shot?.id)
+        : db.prepare('SELECT MAX(version) AS v FROM film_assets WHERE shot_id=? AND asset_type=?').get(shot?.id,ASSET_TYPE[capability]||'other');
+    const version = Number(versionRow?.v || 0) + 1;
 
     try {
         const saved = await persistCapabilityResult(capability, result, ctx, filename);
@@ -133,7 +147,7 @@ async function persistStepResult(stepId, capability, result, ctx) {
         const assetId = generateId();
         db.prepare(
             `INSERT INTO film_assets (id, project_id, shot_id, scene_id, asset_type, file_path, file_name, version, license_source, license_status, metadata)
-             VALUES (?, ?, ?, ?, ?, ?, ?, 1, 'generated', 'generated', ?)`
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'generated', 'generated', ?)`
         ).run(
             assetId,
             (scene && scene.project_id) || null,
@@ -142,8 +156,11 @@ async function persistStepResult(stepId, capability, result, ctx) {
             ASSET_TYPE[capability] || 'other',
             saved.path,
             filename,
-            JSON.stringify({ source: 'pipeline', step: stepId })
+            version,
+            JSON.stringify({ source: 'pipeline', step: stepId, ...(jobId ? { generation_job_id:jobId } : {}) })
         );
+
+        if (capability === 'image' && shot?.id) db.prepare('UPDATE film_shots SET current_frame_version=? WHERE id=?').run(version,shot.id);
 
         // Record what this was generated FROM, so a later edit to the card,
         // a character or the style preset can mark it stale instead of leaving
@@ -165,7 +182,7 @@ async function persistStepResult(stepId, capability, result, ctx) {
 /** Capabilities this function knows how to store. */
 persistStepResult.supports = capability => !!PERSIST_EXT[capability];
 
-async function executeStep(stepId, shot, scene, project) {
+async function executeStep(stepId, shot, scene, project, options = {}) {
     // Assembly conforms the shots into one film. It used to return a hardcoded
     // success with a message telling the caller to go and do it themselves, so
     // an orchestrated run reported complete and produced no movie — the single
@@ -223,7 +240,7 @@ async function executeStep(stepId, shot, scene, project) {
         }
     }
 
-    const config = providerConfigOf(project);
+    const config = {...providerConfigOf(project), __project_id:project?.id, __shot_id:shot?.id};
 
     // Build the SAME payload the per-domain route would build. This used to be
     // { shot_id, scene_id, project_id, step }, which asked the generator to
@@ -254,16 +271,34 @@ async function executeStep(stepId, shot, scene, project) {
         return { ok: true, skipped: true, message: `No ${capability} work for this shot`, results: [] };
     }
 
+    const results = [];
     try {
         // resolveGenerator guarantees a real generator even if a source provider
         // (a licensed catalog, which only searches and licenses) is configured
         // for this capability.
         const generator = resolveGenerator(capability, config);
 
-        const results = [];
-        for (const payload of requests) {
-            const result = await generator.generate(capability, payload);
+        for (const [item_index, payload] of requests.entries()) {
+            if ((options.completedItems || []).includes(item_index)) continue;
+            if (options.preview) {
+                const preview = await generator.generate(capability,payload,{previewRequest:true});
+                if (!preview?.preview) throw new Error('Pipeline provider did not stop at preview');
+                results.push({provider:generator.id,capability,payload:preview.payload,provenance:{project_id:project.id,shot_id:shot.id,node_id:stepId,item_index,source_shot_ids:[shot.id],source_paths:require('../lib/final-request-review').sourcePaths(preview.payload)}});
+                continue;
+            }
+            let finalRequest;
+            if(options.reviewedPipeline){
+                finalRequest=require('../lib/final-request-review').getExecutionContext().approvals.find(token=>{
+                    const reviewed=require('../lib/final-request-review').store().get(token.id),p=reviewed.editable.provenance||{};
+                    return p.shot_id===shot.id&&p.node_id===stepId&&p.item_index===item_index&&p.pipeline_run_id===options.pipelineRunId&&reviewed.state==='approved';
+                });
+                if(!finalRequest)return {ok:false,error:'This pipeline item needs a fresh review for this run'};
+            }
+            const result = await generator.generate(capability, payload, {finalRequest,jobMeta:{node_id:stepId,item_index,
+                ...(options.reviewedPipeline ? { pipeline_task:shot.id+':'+stepId, ...(options.pipelineRunId ? {pipeline_run_id:options.pipelineRunId} : {}),
+                    pipeline_delivery:{run_id:options.deliveryRunId,task_key:shot.id+':'+stepId,step_id:stepId,item_index} } : {})}});
             results.push(result);
+            if (result) result.item_index=item_index;
             // An adapter that is handed a request it has nothing to work from (a
             // renderer with no notes) says PRECONDITION, exactly as a builder does:
             // work that is not ready, not a fault to retry.
@@ -271,14 +306,17 @@ async function executeStep(stepId, shot, scene, project) {
                 return { ok: true, skipped: true, message: result.error, results };
             }
             if (!result || !result.ok) {
-                return { ok: false, error: (result && result.error) || `${capability} generation failed`, results };
+                return { ok: false, error: (result && result.error) || `${capability} generation failed`, results,expected_items:requests.length };
             }
 
             // Save it. Generating and discarding is what left orchestrated runs
             // with no assets and downstream steps with nothing to consume.
-            const saved = await persistStepResult(stepId, capability, result, { shot, scene, project });
+            const delivery = options.reviewedPipeline
+                ? await require('../lib/generation-jobs').collect(result.job_id || result.review_id)
+                : await persistStepResult(stepId, capability, result, { shot, scene, project });
+            const saved = options.reviewedPipeline ? { ...delivery,assetId:delivery.asset_id,path:delivery.stored } : delivery;
             if (!saved.ok) {
-                return { ok: false, error: saved.error, results };
+                return { ok: false, error: saved.error, results,expected_items:requests.length };
             }
             result.assetId = saved.assetId;
 
@@ -304,11 +342,12 @@ async function executeStep(stepId, shot, scene, project) {
             }
         }
 
+        if (options.preview) return {ok:true,items:results};
         return requests.length === 1
             ? results[0]
             : { ok: true, count: results.length, results };
     } catch (err) {
-        return { ok: false, error: err.message };
+        return { ok: false, error: err.message,results,expected_items:requests.length };
     }
 }
 
@@ -1100,6 +1139,7 @@ function getPipelineStatus(req, res, runId) {
 
     json(res, 200, {
         ...run,
+        ...require('../lib/final-pipeline-request-plans').pendingReview(run),
         steps_completed: run.steps_completed ? JSON.parse(run.steps_completed) : [],
         steps_remaining: run.steps_remaining ? JSON.parse(run.steps_remaining) : [],
         steps_failed: run.steps_failed ? JSON.parse(run.steps_failed) : [],
@@ -1151,7 +1191,7 @@ function listPipelineRuns(req, res, projectId, query) {
     } else {
         jobs = db.prepare('SELECT * FROM film_pipeline_runs WHERE project_id = ? ORDER BY created_at DESC').all(projectId);
     }
-    json(res, 200, { project_id: projectId, total: jobs.length, runs: jobs });
+    json(res, 200, { project_id: projectId, total: jobs.length, runs: jobs.map(run => ({...run,...require('../lib/final-pipeline-request-plans').pendingReview(run)})) });
 }
 
 // -- FILM-072: Smart Scheduling & Model Residency -------------------------
@@ -1216,4 +1256,4 @@ function getLatestSchedule(req, res, projectId) {
     json(res, 200, { ...run, schedule, residency });
 }
 
-module.exports = { handlePipeline, persistStepResult, executeStep, STEP_CAPABILITY, CONFORM_STATES, runStatus, scoreGate };
+module.exports = { handlePipeline, persistStepResult, executeStep, STEP_CAPABILITY, CONFORM_STATES, runStatus, scoreGate, preflightProjectSteps };

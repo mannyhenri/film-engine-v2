@@ -300,7 +300,7 @@ function startApply(db, args) {
                     resolved.ctx.approvedInputAssets = graph.nodes.map(n => (n.config || {}).asset_id).filter(Boolean);
                     await runFlow({ nodes: graph.nodes, edges: graph.edges }, resolved.ctx, {
                         runId: r.run_id, applyId, flowId: plan.flow_id,
-                        params: { apply_id: applyId, shot_id: r.shot_id, revision: approved, vars: args.vars || {} },
+                        params: { apply_id: applyId, shot_id: r.shot_id, revision: approved, vars: args.vars || {}, flow_fingerprint:loadGraph(plan.flow_id).fingerprint },
                         ignoreBudget: !!args.ignoreBudget,
                     });
                 } catch (err) {
@@ -330,12 +330,13 @@ function readApply(db, applyId) {
     const runs = db.prepare(`SELECT r.id AS run_id, r.shot_id, sh.shot_code, r.status, r.error_message, r.started_at, r.completed_at
                                FROM film_flow_runs r LEFT JOIN film_shots sh ON sh.id = r.shot_id
                               WHERE r.apply_id = ? ORDER BY r.rowid`).all(a.id)
-        .map(r => (!alive && (r.status === 'pending' || r.status === 'running')) ? { ...r, status: 'interrupted' } : r);
-    const status = runs.some(r => r.status === 'interrupted') ? 'interrupted' : deriveApplyStatus(runs.map(r => r.status));
+        .map(r => r.status==='paused'&&r.error_message==='AWAITING_FINAL_REQUEST_REVIEW'?{...r,status:'awaiting_review',next_review:{path:`/flow-runs/${r.run_id}/resume`,body:{}}}:(!alive && (r.status === 'pending' || r.status === 'running')) ? { ...r, status: 'interrupted' } : r);
+    const status = runs.some(r => r.status === 'interrupted') ? 'interrupted' : deriveApplyStatus(runs.map(r => r.status==='awaiting_review'?'paused':r.status));
     return {
+        ...(runs.find(r=>r.next_review)?{next_review:runs.find(r=>r.next_review).next_review}:{}),
         apply_id: a.id, flow_id: a.flow_id, project_id: a.project_id, fingerprint: a.fingerprint,
         targets: parseJson(a.targets_json, []), vars: parseJson(a.vars_json, {}),
-        status, total_cost: a.total_cost, ignore_budget: !!a.ignore_budget,
+        status:runs.some(r=>r.next_review)?'awaiting_review':status, total_cost: a.total_cost, ignore_budget: !!a.ignore_budget,
         created_at: a.created_at, completed_at: a.completed_at, runs,
     };
 }

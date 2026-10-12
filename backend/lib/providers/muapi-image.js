@@ -282,14 +282,15 @@ async function pollResult(requestId, apiKey, budgetMs, onPoll) {
     return { ok: false, status: 504, error: `muapi: no image after ${Math.round((Number(budgetMs) || POLL_MS * POLL_TRIES) / 1000)}s — the request may still be running at MuAPI; the tool call is abandoned at 60s so a slower model needs a shorter prompt or a smaller tier` };
 }
 
-async function generate(capability, payload, opts) {
+async function generate(capability,payload,opts) { return require('../final-provider-request').finishGeneration(opts,()=>generateApproved(capability,payload,opts)); }
+async function generateApproved(capability, payload, opts) {
     if (capability !== 'image') {
         return { ok: false, status: 400, error: `muapi: ${capability} is not served here` };
     }
     const { apiKey } = muapiCredential();
     if (!apiKey) return { ok: false, status: 401, error: 'muapi: no API key configured' };
 
-    const req = buildImageRequest(payload || {});
+    const req = await require('../final-provider-request').approvedRequest('muapi', capability, opts);
     if (!req.body.prompt) return { ok: false, status: 400, error: 'muapi: nothing to generate from' };
     /*
      * Same rule as the video adapter: MuAPI takes URLs, not bytes. Uploaded
@@ -300,13 +301,14 @@ async function generate(capability, payload, opts) {
         const { hostImages } = require('./muapi-upload');
         const hosted = await hostImages(req.body.images_list, apiKey);
         if (!hosted.ok) return { ok: false, status: 422, error: `muapi: ${hosted.error}` };
+        require('../generation-transport').hostedList(req,req.body.images_list,hosted.urls);
         req.body.images_list = hosted.urls;
     }
 
 
     let res;
     try {
-        res = await fetch(req.url, {
+        res = await require('../generation-transport').dispatch(req, req.url, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, accept: 'application/json' },
             body: JSON.stringify(req.body),

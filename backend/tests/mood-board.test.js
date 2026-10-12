@@ -288,10 +288,8 @@ test('a pinned board image conditions the plates, not only the storyboard', () =
     assert.ok(/^data:/.test(refs[0].uri), 'the reference travels as a disk path no provider can read');
 });
 
-test('a plate takes ONE look reference, never a committee', () => {
-    // A plate has exactly one subject and the board is there for its grade. Two
-    // or three look plates start voting on what the object IS, and the thing
-    // being established stops being the thing.
+test('a plate gathers every active look reference in board order', () => {
+    // Explicit visual roles keep look images separate from subject identity.
     const { styleReferencesFor } = require('../lib/reference-plates');
     const fs_ = require('fs');
     const os_ = require('os');
@@ -307,8 +305,8 @@ test('a plate takes ONE look reference, never a committee', () => {
         db.prepare(`INSERT INTO film_mood_board (id, project_id, kind, note, image_path)
                     VALUES (?, ?, 'image', ?, ?)`).run(generateId(), projectId, 'look ' + n, f);
     }
-    assert.strictEqual(styleReferencesFor(db, projectId).length, 1,
-        'more than one look reference reached a plate');
+    assert.strictEqual(styleReferencesFor(db, projectId).length, 3,
+        'an active look reference was silently dropped');
 });
 
 test('the look drops whole on a moderation refusal — words and picture', () => {

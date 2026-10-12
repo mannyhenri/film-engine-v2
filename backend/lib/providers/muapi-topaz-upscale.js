@@ -124,7 +124,8 @@ function outputMime(response, bytes) {
     return 'application/octet-stream';
 }
 
-async function upscaleImage(input) {
+async function upscaleImage(input,options={}) { return require('../final-provider-request').finishGeneration(options,()=>upscaleApproved(input,options)); }
+async function upscaleApproved(input, options = {}) {
     let resolution;
     try { resolution = normalizeResolution(input && input.resolution); }
     catch (error) { return { ok: false, status: 400, error: error.message }; }
@@ -138,28 +139,37 @@ async function upscaleImage(input) {
 
     const key = apiKey();
     if (!key) return { ok: false, status: 401, error: 'MuAPI API key is not configured' };
-    const hosted = await hostOne(input.image, key);
-    if (!hosted.ok) return { ok: false, status: 422, error: hosted.error };
-
     let request;
-    try { request = buildUpscaleRequest({ ...source, resolution, image_url: hosted.url }); }
+    try { request = buildUpscaleRequest({ ...source, resolution, image_url: 'https://placeholder.invalid/source' }); }
     catch (error) { return { ok: false, status: 400, error: error.message }; }
+    let requestId = options.requestId || null;
+    if (!requestId) {
+        request = await require('../final-provider-request').approvedRequest('muapi-upscale', 'image-upscale', options);
+        const approvedImage = request.body.image_url;
+        const hosted = await hostOne(approvedImage, key);
+        if (!hosted.ok) return { ok: false, status: 422, error: hosted.error };
 
-    let response;
-    try {
-        response = await fetch(request.url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'x-api-key': key, accept: 'application/json' },
-            body: JSON.stringify(request.body),
-        });
-    } catch (error) {
-        return { ok: false, status: 502, error: `MuAPI upscale request failed: ${error.message}` };
+        require('../generation-transport').hosted(request,approvedImage,hosted.url);
+        request.body.image_url = hosted.url;
+
+        let response;
+        try {
+            response = await require('../generation-transport').dispatch(request, request.url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'x-api-key': key, accept: 'application/json' },
+                body: JSON.stringify(request.body),
+            });
+        } catch (error) {
+            return { ok: false, status: 502, error: `MuAPI upscale request failed: ${error.message}` };
+        }
+        const accepted = await response.json().catch(() => ({}));
+        if (!response.ok) return { ok: false, status: response.status, error: `MuAPI rejected the upscale: ${detailOf(accepted, response.status)}` };
+        requestId = accepted.request_id || accepted.id;
+        if (requestId && options.onHandle) options.onHandle(requestId);
+        if (!requestId) return { ok: false, status: 502, error: 'MuAPI accepted the upscale without returning a request id' };
+
+        if (options.onSubmitted) options.onSubmitted(String(requestId));
     }
-    const accepted = await response.json().catch(() => ({}));
-    if (!response.ok) return { ok: false, status: response.status, error: `MuAPI rejected the upscale: ${detailOf(accepted, response.status)}` };
-    const requestId = accepted.request_id || accepted.id;
-    if (!requestId) return { ok: false, status: 502, error: 'MuAPI accepted the upscale without returning a request id' };
-
     const completed = await poll(requestId, key);
     if (!completed.ok) return completed;
 

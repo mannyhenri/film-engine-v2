@@ -618,10 +618,13 @@ function selectedClip(db, shotId) {
         `SELECT id, shot_id, asset_type, file_path, file_name, format, duration_ms, width, height, created_at, metadata
            FROM film_assets
           WHERE shot_id = ? AND asset_type IN (${VIDEO_PRECEDENCE.map(() => '?').join(',')})
+            AND (id = COALESCE((SELECT selected_video_asset_id FROM film_shots WHERE id = ?), '')
+              OR NOT json_valid(COALESCE(metadata, ''))
+              OR COALESCE(json_extract(metadata, '$.historical'), 0) != 1)
        ORDER BY (id = COALESCE((SELECT selected_video_asset_id FROM film_shots WHERE id = ?), '')) DESC,
                 CASE asset_type ${VIDEO_PRECEDENCE.map((t, i) => `WHEN '${t}' THEN ${i}`).join(' ')} END,
                 version DESC, created_at DESC
-          LIMIT 1`).get(shotId, ...VIDEO_PRECEDENCE, shotId) || null;
+          LIMIT 1`).get(shotId, ...VIDEO_PRECEDENCE, shotId, shotId) || null;
 }
 
 module.exports = {    selectedClip, planConform, buildFfmpegArgs, availableExecutors, runConform, VIDEO_PRECEDENCE,

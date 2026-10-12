@@ -482,12 +482,16 @@ const { FLOW, state } = Object.fromEntries(['FLOW', 'state'].map(n => [n, live(n
             // Read the body even on a non-2xx: a failed run still returns the
             // full per-node record, and the whole point of the panel is to say
             // WHICH node failed. api() throws on !ok, which would discard it.
+            if (!window.__fePrepareFinalRequest) throw new Error('Final review is unavailable for this flow action. Nothing was sent to a provider.');
+            window.__feFinalReviewBase = () => API();
+            const approvedRun = await window.__fePrepareFinalRequest(`/flows/${FLOW.flow.id}/run`, {
+                method:'POST', body:JSON.stringify({project_id:state.currentProject.id})
+            });
             const res = await fetch(API() + `/flows/${FLOW.flow.id}/run`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ project_id: state.currentProject.id }),
+                ...approvedRun, headers:{'Content-Type':'application/json'},
             });
             const run = await res.json();
+            window.__feObserveFinalRequestState?.(run);
 
             // 402: the run would cost more than the project allows. Offer the
             // override rather than dead-ending, since an estimate can be wrong
@@ -506,11 +510,14 @@ const { FLOW, state } = Object.fromEntries(['FLOW', 'state'].map(n => [n, live(n
                         `$${(b.spent || 0).toFixed(2)} of $${(b.limit || 0).toFixed(2)} already spent.</p>`;
                     return;
                 }
+                const approvedRetry = await window.__fePrepareFinalRequest(`/flows/${FLOW.flow.id}/run`, {
+                    method:'POST', body:JSON.stringify({project_id:state.currentProject.id,ignore_budget:true})
+                });
                 const retry = await fetch(API() + `/flows/${FLOW.flow.id}/run`, {
-                    method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ project_id: state.currentProject.id, ignore_budget: true }),
+                    ...approvedRetry, headers:{'Content-Type':'application/json'},
                 });
                 const forced = await retry.json();
+                window.__feObserveFinalRequestState?.(forced);
                 if (forced && forced.nodes) return flowPaintRun(forced);
             }
 
@@ -524,10 +531,11 @@ const { FLOW, state } = Object.fromEntries(['FLOW', 'state'].map(n => [n, live(n
 
     /** Paint a finished run onto the canvas and the panel. */
     function flowPaintRun(run) {
+        FLOW.lastReviewedRunId = run.id || run.run_id;
         FLOW.runNodeStatus = {};
         (run.nodes || []).forEach(n => { FLOW.runNodeStatus[n.id] = n.skipped ? 'skipped' : (n.ok ? 'complete' : 'failed'); });
         flowCanvasRender();
-        setFlowStatus(`Run ${run.status}`);
+        setFlowStatus(run.status==='awaiting_review'?'Next request needs review':`Run ${run.status}`);
 
         const branches = [...new Set((run.nodes || []).map(n => n.branch).filter(Boolean))];
         document.getElementById('flowRunOutput').innerHTML =

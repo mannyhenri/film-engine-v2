@@ -1,0 +1,14 @@
+.storyboard-print-overlay { position: fixed; inset: 0; z-index: 100000; background: rgba(0, 0, 0, .78); display: flex; align-items: center; justify-content: center; padding: 24px; }
+.storyboard-print-dialog { width: min(1180px, 100%); height: min(900px, calc(100vh - 48px)); display: flex; flex-direction: column; color: #e8e8ea; background: #1a1b23; border: 1px solid #52546c; border-radius: 12px; box-shadow: 0 20px 80px #0008; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; }
+.storyboard-print-dialog > header { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 18px 20px 12px; }
+.storyboard-print-dialog h3 { font-size: 18px; margin: 0 0 6px; }
+.storyboard-print-dialog header p, .storyboard-print-dialog footer { font-size: 12px; line-height: 1.5; color: #8e8e97; margin: 0; }
+.storyboard-print-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 16px; padding: 10px 20px 16px; font-size: 12px; }
+.storyboard-print-toolbar label { display: flex; align-items: center; gap: 8px; }
+.storyboard-print-toolbar select { color: inherit; background: #11121a; border: 1px solid #52546c; border-radius: 5px; padding: 6px 8px; }
+.storyboard-print-toolbar .btn-primary { margin-left: auto; }
+.storyboard-print-dialog iframe { flex: 1; min-height: 120px; width: 100%; border: 0; background: white; }
+.storyboard-print-dialog > footer { padding: 12px 20px; }
+.storyboard-print-error, .storyboard-print-loading { margin: 0 20px 12px; font-size: 13px; line-height: 1.5; }
+.storyboard-print-error { color: #efb48b; }
+@media (max-width: 640px) { .storyboard-print-overlay { padding: 8px; } .storyboard-print-dialog { height: calc(100dvh - 16px); } .storyboard-print-dialog > header, .storyboard-print-toolbar { padding-left: 12px; padding-right: 12px; } .storyboard-print-toolbar { gap: 10px; } .storyboard-print-toolbar span { width: 100%; } }

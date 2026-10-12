@@ -32,7 +32,8 @@
  */
 const fs = require('fs');
 const path = require('path');
-const { escapeXml: esc, isNtscFps, elapsedFrames: msToFrames, msToTimecode, timecodeToFrames, isDropFrameFps, audioLevelXml } = require('./nle-export');
+const crypto = require('crypto');
+const { escapeXml: esc, isNtscFps, elapsedFrames: msToFrames, actualRate, fpsToRational, timecodeToFrames, isDropFrameFps, audioLevelXml } = require('./nle-export');
 const { sceneFolder } = require('./premiere-scenes');
 
 const DEFAULT_FPS = 24;
@@ -40,6 +41,7 @@ const DEFAULT_FPS = 24;
 // editor can rely on: A1 production sound, A2 dialogue, A3 effects, then beds.
 const LANES = [
     { key: 'clip', name: 'Production sound' },
+    { key: 'timeline', name: 'Independent shot and sequence sound' },
     { key: 'dialogue', name: 'Dialogue' },
     { key: 'sfx', name: 'Effects' },
     { key: 'music', name: 'Music' },
@@ -122,18 +124,24 @@ function planResolve(db, projectId) {
     const blocking = [];
     const warnings = [{code:'INTERCHANGE_LIMITATIONS',message:'Caption tracks, grades/LUTs, compositing, transitions and plug-in effects do not transfer. Import SRT/VTT separately. Production sound and separate stems are both retained; audition and mute duplicates when mixing.'}];
     const fileFor = (from, rel, kind) => {
-        if (!from || !fs.existsSync(from)) { missing.push({ kind, file: rel, reason: `there is no file at ${from || '(no path)'}` }); return null; }
+        let available = false;
+        try { available = !!from && fs.statSync(from).isFile(); } catch (_) { /* retain the missing source in the plan */ }
+        if (!available) { missing.push({ kind, file: rel, reason: `there is no file at ${from || '(no path)'}` }); return null; }
         if (!files.has(from)) {
             let to = rel; let n = 1;
             const used = new Set([...files.values()].map(f => f.to));
             while (used.has(to)) { n += 1; to = rel.replace(/(\.[^.]+)$/, `_${n}$1`); }
-            files.set(from, { from, to, kind });
+            const bytes = fs.readFileSync(from);
+            files.set(from, { from, to, kind, source_path: from, byte_length: bytes.length,
+                sha256: crypto.createHash('sha256').update(bytes).digest('hex') });
         }
         return files.get(from).to;
     };
 
     const video = [];
-    const lanes = { clip: [], dialogue: [], sfx: [], music: [], ambient: [] };
+    const lanes = { clip: [], timeline: [], dialogue: [], sfx: [], music: [], ambient: [] };
+    const audioTracks = ((timeline && timeline.audio_tracks) || []).map(t => ({ ...t }));
+    const explicitAudioIds = new Set(audioTracks.map(t => t.asset_id || t.source && t.source.asset_id));
     const markers = [];
     const shots = [];
     const entries = (timeline && timeline.entries) || [];
@@ -146,6 +154,7 @@ function planResolve(db, projectId) {
     for (const r of db.prepare(`SELECT id, shot_id, file_path, file_name, duration_ms, metadata, version FROM film_assets
         WHERE project_id = ? AND asset_type = 'audio_sfx' AND shot_id IS NOT NULL ORDER BY created_at DESC`).all(projectId)) {
         if (require('./nle-media').metadata(r).selected === false) continue;
+        if (explicitAudioIds.has(r.id)) continue;
         const list = sfxByShot.get(r.shot_id) || [];
         if (!list.some(x => x.file_name === r.file_name)) list.push(r);
         sfxByShot.set(r.shot_id, list);
@@ -162,13 +171,23 @@ function planResolve(db, projectId) {
         const code = e.shot_code || shot.shot_code || `shot${e.index + 1}`;
         const sc = sceneById.get(e.scene_id) || {};
         const heading = [sc.int_ext, sc.location, sc.time_of_day].filter(Boolean).join(' ');
-        const sourceAsset = e.video && db.prepare('SELECT * FROM film_assets WHERE file_path = ? AND project_id = ? ORDER BY created_at DESC LIMIT 1').get(e.video.path, projectId);
-        const range = sourceAsset ? require('./nle-media').sourceRange({ ...shot, duration_ms:e.duration_ms }, sourceAsset) : null;
-        if (range) e.duration_ms=range.duration_ms;
+        const sourceAsset = e.video && (e.video.asset_id
+            ? db.prepare('SELECT * FROM film_assets WHERE id = ? AND project_id = ?').get(e.video.asset_id, projectId)
+            : db.prepare('SELECT * FROM film_assets WHERE file_path = ? AND project_id = ? ORDER BY created_at DESC LIMIT 1').get(e.video.path, projectId));
+        const range = e.video ? { source_in_ms: e.video.source_in_ms || 0, source_ms: e.video.source_duration_ms, duration_ms: e.duration_ms } : null;
         timing.push({oldStart:entry.start_ms,oldEnd:entry.start_ms+entry.duration_ms,start:e.start_ms,end:e.start_ms+e.duration_ms});
         editorialOffset+=e.duration_ms;
         if (sourceAsset) { const pending = require('./nle-media').audition(sourceAsset); if (pending) blocking.push(pending); }
-        const row = { shot_id: e.shot_id, shot_code: code, scene: sc.scene_number, heading, start_ms: e.start_ms, duration_ms: e.duration_ms, info, picture: 'none', file: null };
+        const row = { shot_id: e.shot_id, shot_code: code, scene: sc.scene_number, heading, start_ms: e.start_ms, duration_ms: e.duration_ms,
+            asset_id: e.video ? e.video.asset_id : e.still ? e.still.asset_id : null,
+            asset_version: e.video ? e.video.version : e.still ? e.still.version : null,
+            source_in_ms: e.video ? e.video.source_in_ms : 0, source_duration_ms: e.video ? e.video.source_duration_ms : null,
+            duration_basis: e.duration_basis,
+            ...(e.unavailable_video ? { unavailable_video: e.unavailable_video } : {}), info, picture: 'none', file: null };
+        if (e.unavailable_video) warnings.push({ code: 'SELECTED_VIDEO_OFFLINE', shot_id: e.shot_id,
+            asset_id: e.unavailable_video.asset_id, message: `${code}: ${e.unavailable_video.reason}` });
+        if (e.video && e.video.duration_basis === 'unverified_source_duration') warnings.push({ code: 'VIDEO_DURATION_UNKNOWN', shot_id: e.shot_id,
+            message: `${code}: the source duration was not recorded. This rough-cut range is an estimate; verify the full clip duration before conforming.` });
 
         if (e.scene_id !== lastScene) {
             markers.push({ at_ms: e.start_ms, name: `Scene ${sc.scene_number == null ? '?' : sc.scene_number}`, note: [heading, sc.description].filter(Boolean).join('\n'), color: 'Blue' });
@@ -179,7 +198,7 @@ function planResolve(db, projectId) {
         if (e.video && e.video.path) {
             const rel = fileFor(e.video.path, `${folder}/Video/${code}.${extOf(e.video.path)}`, 'video');
             if (rel) {
-                let srcMs = Number(e.video.duration_ms) || 0;
+                let srcMs = Number(e.video.source_duration_ms) || 0;
                 try { const seen = inspectMedia(e.video.path); carries = !!(seen.ok && seen.hasAudio); if (!srcMs && seen.ok && seen.durationSeconds) srcMs = Math.round(seen.durationSeconds * 1000); } catch (_) { /* unreadable clips still go on the timeline */ }
                 video.push({ name: code, file: rel, start_ms: e.start_ms, duration_ms: e.duration_ms, source_ms: srcMs || e.duration_ms, source_in_ms:range && range.source_in_ms || 0, still: false, note: markerNote(info) });
                 if (carries) lanes.clip.push({ name: code, file: rel, start_ms: e.start_ms, duration_ms: e.duration_ms, source_ms: srcMs || e.duration_ms, source_in_ms:range && range.source_in_ms || 0, gain_db: 0 });
@@ -210,6 +229,7 @@ function planResolve(db, projectId) {
                 const rel = fileFor(line.path, `${folder}/Sound/${code}_dialogue_${i + 1}.${extOf(line.path)}`, 'dialogue');
                 const raw=db.prepare('SELECT * FROM film_assets WHERE file_path = ? AND shot_id = ? ORDER BY created_at DESC LIMIT 1').get(line.path,e.shot_id);
                 const m=require('./nle-media').metadata(raw || {});
+                if (raw && explicitAudioIds.has(raw.id)) continue;
                 if (m.selected === false) continue;
                 const sourceIn=Number(m.source_in_ms) || 0;
                 const dur = Number(m.duration_ms) || Math.max(0,(Number(line.duration_ms) || 0)-sourceIn);
@@ -227,6 +247,57 @@ function planResolve(db, projectId) {
             }
         }
         shots.push(row);
+    }
+
+    for (const track of audioTracks) {
+        const source = track.source || {};
+        const label = track.shot_id ? (shotById.get(track.shot_id) || {}).shot_code || track.shot_id : `sequence ${track.sequence_id}`;
+        track.export_name = `${label} sound ${track.order + 1} [${track.id}]`;
+        if (track.status === 'offline' || !source.path || !fs.existsSync(source.path)) {
+            blocking.push({ code: 'AUDIO_SOURCE_OFFLINE', track_id: track.id, asset_id: track.asset_id,
+                message: `${label}: attached timeline audio is offline at ${source.path || '(no path)'}. Relink its recorded source before export.` });
+            missing.push({ kind: 'timeline_audio', track_id: track.id, source, reason: 'The recorded full source is offline.' });
+            continue;
+        }
+        const bytes = fs.readFileSync(source.path), hash = crypto.createHash('sha256').update(bytes).digest('hex');
+        if ((source.sha256 && source.sha256 !== hash) || (source.byte_length != null && source.byte_length !== bytes.length)) {
+            blocking.push({ code: 'AUDIO_SOURCE_BYTES_CHANGED', track_id: track.id, asset_id: track.asset_id,
+                message: `${label}: the recorded audio bytes changed. Restore the original source or explicitly attach the new version.` });
+            track.actual_source = { sha256: hash, byte_length: bytes.length };
+            continue;
+        }
+        if (!source.sha256) warnings.push({ code: 'AUDIO_SOURCE_HASH_UNKNOWN', track_id: track.id,
+            message: `${label}: no hash was recorded when this source was attached; the package records the current copied bytes.` });
+        track.copied_source = { sha256: hash, byte_length: bytes.length };
+        const shot = track.shot_id && shotById.get(track.shot_id);
+        const owner = entries.find(e => e.start_ms === track.owner_start_ms);
+        track.file = fileFor(source.path, `${folderOf(shot && shot.scene_id || owner && owner.scene_id)}/Sound/attached_${track.id}.${extOf(source.path)}`, 'timeline_audio');
+        for (const adjustment of track.timeline_adjustments || []) warnings.push({ ...adjustment, track_id: track.id,
+            message: `${label}: ${adjustment.omitted_ms} ms lies ${adjustment.code === 'PRELAP_BEFORE_CUT' ? 'before the cut begins' : 'after the cut ends'}; original placement and full source remain in the manifest.` });
+        if (track.status === 'unplaced' || track.status === 'outside_cut') {
+            warnings.push({ code: track.status === 'unplaced' ? 'AUDIO_OWNER_UNPLACED' : 'AUDIO_OUTSIDE_CUT', track_id: track.id,
+                message: `${label}: ${track.placement_reason || 'this sound has no playable range in the narrative cut'}; it is retained as a source and manifest edit.` });
+            continue;
+        }
+        const linearGain = Math.pow(10, track.gain_db / 20);
+        if (!Number.isFinite(linearGain)) {
+            blocking.push({ code: 'AUDIO_GAIN_UNREPRESENTABLE', track_id: track.id,
+                message: `${label}: ${track.gain_db} dB cannot be represented as a finite interchange gain.` });
+            continue;
+        }
+        track.xml_audio = { enabled: !track.muted, linear_gain: Number(linearGain.toFixed(5)) };
+        if (track.xml_audio.linear_gain === 0 && track.gain_db !== 0) warnings.push({ code: 'AUDIO_GAIN_PRECISION', track_id: track.id,
+            message: `${label}: the interchange gain rounds to zero; the original ${track.gain_db} dB edit remains in the manifest.` });
+        lanes.timeline.push({ name: track.export_name, track_id: track.id, file: track.file,
+            start_ms: track.timeline_start_ms, duration_ms: track.timeline_used_duration_ms,
+            source_in_ms: track.effective_source_in_ms, source_ms: source.duration_ms,
+            gain_db: track.gain_db, muted: track.muted });
+        track.xml_frames = xmlFrameRange(lanes.timeline[lanes.timeline.length - 1], fps);
+        if (track.xml_frames.duration === 0) {
+            lanes.timeline.pop();
+            warnings.push({ code: 'AUDIO_BELOW_FRAME', track_id: track.id,
+                message: `${label}: this sound edit rounds to zero frames at the selected timebase; its full source and millisecond edit are retained in the manifest.` });
+        }
     }
 
     const mapTime=ms => { const t=timing.find(t=>ms >= t.oldStart && ms <= t.oldEnd); return t ? t.start+Math.min(ms-t.oldStart,t.end-t.start) : editorialOffset; };
@@ -248,8 +319,14 @@ function planResolve(db, projectId) {
 
     return {
         project_id: projectId,
+        status: 'package_plan',
+        imported_into_resolve: false,
+        interchange: 'FCP7_XML',
         title: project.title || 'Untitled',
         fps,
+        timebase: { requested_fps: fps, actual_fps: actualRate(fps), frame_duration: fpsToRational(fps),
+            xml_timebase: Math.round(fps), xml_ntsc: isNtscFps(fps), quantization: 'Start and end round to the nearest frame at the actual rational frame rate; duration is their difference.',
+            import_verified: false },
         timecode_start: project.timecode_start || '01:00:00:00',
         blocking, warnings,
         resolution: project.target_resolution || '1920x1080',
@@ -257,6 +334,7 @@ function planResolve(db, projectId) {
         shots,
         video,
         lanes,
+        audio_tracks: audioTracks,
         markers,
         folders: [...new Set([...files.values()].map(f => f.to.split('/')[0]))],
         files: [...files.values()].map(({ from, ...rest }) => rest),
@@ -269,6 +347,7 @@ function planResolve(db, projectId) {
             gaps: shots.filter(s => s.picture === 'none').length,
             dialogue_lines: lanes.dialogue.length,
             effects: lanes.sfx.length,
+            timeline_audio_tracks: audioTracks.length,
             beds: lanes.music.length + lanes.ambient.length,
             markers: markers.length,
         },
@@ -285,6 +364,14 @@ function stack(items) {
         t.push(it);
     }
     return tracks;
+}
+
+function xmlFrameRange(item, fps) {
+    const start = msToFrames(item.start_ms, fps), end = msToFrames(item.start_ms + item.duration_ms, fps), duration = end - start;
+    const sourceIn = msToFrames(item.source_in_ms || 0, fps);
+    return { start, end, source_in: sourceIn, source_out: sourceIn + duration,
+        duration, start_error_ms: start / actualRate(fps) * 1000 - item.start_ms,
+        duration_error_ms: duration / actualRate(fps) * 1000 - item.duration_ms };
 }
 
 /** The first edit as FCP 7 XML (xmeml v5), the format Resolve imports with stills. */
@@ -308,13 +395,14 @@ function buildResolveXml(plan, urlOf) {
     let n = 0;
     const clipitem = (it, kind) => {
         n += 1;
-        const dur = f(it.duration_ms);
-        const start = f(it.start_ms);
-        const sourceIn = f(it.source_in_ms || 0);
-        const level = kind === 'video' ? '' : audioLevelXml(it, fps);
+        const frames = xmlFrameRange(it, fps);
+        const dur = frames.duration;
+        const start = frames.start;
+        const sourceIn = frames.source_in;
+        const level = kind === 'video' ? '' : audioLevelXml({ ...it, duration_ms: dur / actualRate(fps) * 1000 }, fps);
         const marker = kind === 'video' && it.note
             ? `<marker><name>${esc(it.name)}</name><comment>${esc(it.note)}</comment><in>0</in><out>-1</out></marker>` : '';
-        return `<clipitem id="clipitem-${n}"><name>${esc(it.name)}</name><enabled>TRUE</enabled><duration>${it.still ? dur : f(it.source_ms || it.duration_ms)}</duration>${rate}`
+        return `<clipitem id="clipitem-${n}"><name>${esc(it.name)}</name><enabled>${it.muted ? 'FALSE' : 'TRUE'}</enabled><duration>${it.still ? dur : f(it.source_ms || it.duration_ms)}</duration>${rate}`
             + `<start>${start}</start><end>${start + dur}</end><in>${sourceIn}</in><out>${sourceIn+dur}</out>`
             + fileEl(it.file, !!it.still, it.source_ms, kind === 'video' ? undefined : true)
             + (kind !== 'video' ? '<sourcetrack><mediatype>audio</mediatype><trackindex>1</trackindex></sourcetrack>' : '')
@@ -359,8 +447,8 @@ function buildMetadataCsv(plan) {
 }
 
 /**
- * The connection. Runs inside Resolve (Workspace > Scripts, which works in the
- * free version) or from a terminal with Resolve Studio open. It makes the project,
+ * Optional import helper. Runs inside Resolve when its Scripts menu is available,
+ * or through configured external scripting with a running Resolve instance. It makes the project,
  * a bin per scene, imports the media, the first edit and the metadata, and puts a
  * marker with the shot's information on every shot.
  */
@@ -371,8 +459,9 @@ function buildImportScript(plan, xmlName, csvName) {
 #
 # Inside Resolve: copy this folder anywhere, then copy this file into
 #   ~/Library/Application Support/Blackmagic Design/DaVinci Resolve/Fusion/Scripts/Utility/
-# and run it from Workspace > Scripts > Utility. That works in the free version.
-# With Resolve Studio open you can also run it from a terminal:  python3 "Import into Resolve.py"
+# and run it from Workspace > Scripts > Utility if available in your installation.
+# External scripting requires a running instance and its scripting access configured.
+# This helper has not been run or its import verified by Film Engine's package export.
 #
 # It creates the project, sets its frame rate and resolution, makes a bin per
 # scene, imports the media, the first edit (${xmlName}) and the shot information
@@ -409,7 +498,7 @@ def get_resolve():
 def main():
     r = get_resolve()
     if not r:
-        print("Open DaVinci Resolve first. From a terminal this needs Resolve Studio; in the free version run it from Workspace > Scripts.")
+        print("Open DaVinci Resolve first and check scripting access. You may run this inside Workspace > Scripts when available.")
         return 1
     pm = r.GetProjectManager()
     name = TITLE
@@ -439,12 +528,15 @@ def main():
     tl = pool.ImportTimelineFromFile(os.path.join(HERE, ${JSON.stringify(xmlName)}), {"timelineName": TITLE + " — first edit", "importSourceClips": False, "sourceClipsPath": HERE})
     if not tl:
         print("The timeline did not import. In Resolve: File > Import > Timeline and pick", ${JSON.stringify(xmlName)})
+        return 2
     else:
         project.SetCurrentTimeline(tl)
+        marker_count = 0
         for m in MARKERS:
-            tl.AddMarker(m["frame"], m["color"], m["name"], m["note"], 1)
+            if tl.AddMarker(m["frame"], m["color"], m["name"], m["note"], 1):
+                marker_count += 1
     csv = os.path.join(HERE, ${JSON.stringify(csvName)})
-    print("Done: project", name, "with", len(MARKERS), "markers.")
+    print("Timeline imported into project", name, "with", marker_count, "of", len(MARKERS), "markers added.")
     print("For the shot information on every clip: Media Pool > select all > right-click > Import Metadata, and pick", csv)
     return 0
 
@@ -471,9 +563,14 @@ function writeResolve(db, projectId, opts = {}) {
     if (plan.blocking.length) { const err = new Error(plan.blocking.map(b=>b.message).join('; ')); err.code=plan.blocking[0].code || 'EXPORT_PREFLIGHT_FAILED'; err.plan=plan; throw err; }
     fs.mkdirSync(dest, { recursive: true });
     for (const f of plan._files) {
+        const sourceBytes = fs.readFileSync(f.from);
+        if (sourceBytes.length !== f.byte_length || crypto.createHash('sha256').update(sourceBytes).digest('hex') !== f.sha256) {
+            const error = new Error(`The source changed during export: ${f.from}. No successful package is reported.`);
+            error.code = 'EXPORT_SOURCE_CHANGED'; error.plan = plan; throw error;
+        }
         const to = path.join(dest, f.to);
         fs.mkdirSync(path.dirname(to), { recursive: true });
-        fs.copyFileSync(f.from, to);
+        fs.writeFileSync(to, sourceBytes);
     }
     const stem = plan.title.replace(/[^A-Za-z0-9._-]+/g, '_').slice(0, 60) || 'export';
     const xmlName = `${stem}.xml`;
@@ -484,7 +581,10 @@ function writeResolve(db, projectId, opts = {}) {
     fs.writeFileSync(path.join(dest, 'Import into Resolve.py'), buildImportScript(plan, xmlName, csvName).replace('"__HERE__"', JSON.stringify(dest)), 'utf8');
     const c = plan.counts;
     fs.writeFileSync(path.join(dest, 'READ ME.txt'), [
-        `${plan.title} — DaVinci Resolve export, ready to edit.`,
+        `${plan.title} — DaVinci Resolve interchange package.`,
+        'This package has not been imported into Resolve. No live Resolve connection was used or verified.',
+        'The FCP 7 XML contains the narrative rough cut. Available images hold exactly five seconds before frame quantization.',
+        `Timebase: ${plan.timebase.actual_fps} fps (${plan.timebase.xml_timebase} nominal, NTSC ${plan.timebase.xml_ntsc}); ${plan.timebase.quantization}`,
         '',
         'Fastest: in Resolve, Workspace > Scripts needs the script in its Scripts folder; copy "Import into Resolve.py" to',
         '  ~/Library/Application Support/Blackmagic Design/DaVinci Resolve/Fusion/Scripts/Utility/',
@@ -493,7 +593,8 @@ function writeResolve(db, projectId, opts = {}) {
         `By hand: File > Import > Timeline > ${xmlName}, then select the clips in the Media Pool > Import Metadata > ${csvName}.`,
         '',
         `The first edit: ${c.shots} shots, ${c.clips} with footage, ${c.storyboard_frames} held on their storyboard frame (yellow markers), ${c.gaps} gaps;`,
-        `${c.dialogue_lines} dialogue lines, ${c.effects} effects, ${c.beds} music and ambience beds. Audio lanes: production sound, dialogue, effects, music, ambience.`,
+        `${c.dialogue_lines} dialogue lines, ${c.effects} effects, ${c.beds} music and ambience beds, ${c.timeline_audio_tracks} independent timeline sound edits. Audio lanes: clip sound, independent sound edits, dialogue, effects, music, ambience.`,
+        'Independent sound source files are copied whole. Source trim, signed offset, gain and mute are explicit edits; manifest.json retains original milliseconds and XML frames.',
         'Every shot carries a marker with its description, dialogue, camera and cast; scenes start with a blue marker; open notes are red.',
         '',
         plan.missing.length ? 'Missing when this was made:' : 'Nothing was missing when this was made.',
@@ -504,8 +605,11 @@ function writeResolve(db, projectId, opts = {}) {
         '',
     ].join('\n'), 'utf8');
     const { _files, ...pub } = plan;
-    fs.writeFileSync(path.join(dest,'manifest.json'),JSON.stringify({...pub,xml:xmlName,metadata:csvName,score_stems:'Sidecar files in Score/Stems: import manually when replacing the approved mix',relink:'After moving the package, relink media to these scene folders and update HERE in the import script if it is copied into Resolve Scripts.'},null,2));
-    return { ...pub, dest, xml: xmlName, metadata: csvName, script: 'Import into Resolve.py', copied: _files.length };
+    const result = { ...pub, status: 'package_written', imported_into_resolve: false, dest, xml: xmlName, metadata: csvName, script: 'Import into Resolve.py', copied: _files.length,
+        score_stems:'Sidecar files in Score/Stems: import manually when replacing the approved mix',
+        relink:'After moving the package, relink media to these scene folders and update HERE in the import script if it is copied into Resolve Scripts.' };
+    fs.writeFileSync(path.join(dest,'manifest.json'),JSON.stringify(result,null,2));
+    return result;
 }
 
 module.exports = { planResolve, writeResolve, buildResolveXml, buildMetadataCsv, buildImportScript, shotInfo, LANES };

@@ -1,0 +1,12 @@
+// Small lossless PNG raster helper. JPEG/interlaced/indexed inputs use the existing decoder.
+const zlib=require('zlib');
+const signature=Buffer.from([137,80,78,71,13,10,26,10]);
+function crc(buf){let c=0xffffffff;for(const b of buf){c^=b;for(let i=0;i<8;i++)c=(c>>>1)^((c&1)?0xedb88320:0);}return (c^0xffffffff)>>>0;}
+function chunk(type,data){const t=Buffer.from(type),out=Buffer.alloc(data.length+12);out.writeUInt32BE(data.length);t.copy(out,4);data.copy(out,8);out.writeUInt32BE(crc(Buffer.concat([t,data])),data.length+8);return out;}
+function encode({width,height,pixels}){if(pixels.length!==width*height*4)throw new Error('Invalid RGBA raster');const head=Buffer.alloc(13);head.writeUInt32BE(width);head.writeUInt32BE(height,4);head[8]=8;head[9]=6;const rows=Buffer.alloc(height*(width*4+1));for(let y=0;y<height;y++)pixels.copy(rows,y*(width*4+1)+1,y*width*4,(y+1)*width*4);return Buffer.concat([signature,chunk('IHDR',head),chunk('IDAT',zlib.deflateSync(rows)),chunk('IEND',Buffer.alloc(0))]);}
+function decode(buf){if(!buf.subarray(0,8).equals(signature))return null;const width=buf.readUInt32BE(16),height=buf.readUInt32BE(20),type=buf[25],bpp=type===6?4:type===2?3:0;if(buf[24]!==8||!bpp||buf[28]!==0||width*height>32e6)return null;const idat=[];let transparent=null;for(let p=8;p+12<=buf.length;){const n=buf.readUInt32BE(p),t=buf.toString('ascii',p+4,p+8);if(p+n+12>buf.length)throw new Error('Truncated PNG');if(t==='IDAT')idat.push(buf.subarray(p+8,p+8+n));if(t==='eXIf')return null;if(t==='tRNS')transparent=buf.subarray(p+8,p+8+n);p+=n+12;}if(transparent)return null;
+ const stride=width*bpp,raw=zlib.inflateSync(Buffer.concat(idat),{maxOutputLength:(stride+1)*height}),filtered=Buffer.alloc(stride*height);if(raw.length!==(stride+1)*height)throw new Error('Invalid PNG scanlines');
+ const paeth=(a,b,c)=>{const p=a+b-c,pa=Math.abs(p-a),pb=Math.abs(p-b),pc=Math.abs(p-c);return pa<=pb&&pa<=pc?a:pb<=pc?b:c;};
+ for(let y=0;y<height;y++){const mode=raw[y*(stride+1)];if(mode>4)throw new Error('Invalid PNG filter');for(let x=0;x<stride;x++){const i=y*stride+x,a=x>=bpp?filtered[i-bpp]:0,b=y?filtered[i-stride]:0,c=y&&x>=bpp?filtered[i-stride-bpp]:0;filtered[i]=(raw[y*(stride+1)+x+1]+(mode===1?a:mode===2?b:mode===3?Math.floor((a+b)/2):mode===4?paeth(a,b,c):0))&255;}}
+ const pixels=Buffer.alloc(width*height*4);for(let i=0;i<width*height;i++){pixels[i*4]=filtered[i*bpp];pixels[i*4+1]=filtered[i*bpp+1];pixels[i*4+2]=filtered[i*bpp+2];pixels[i*4+3]=bpp===4?filtered[i*bpp+3]:255;}return {width,height,pixels};}
+module.exports={encode,decode};

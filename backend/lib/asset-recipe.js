@@ -165,6 +165,7 @@ function assetRecipe(db, assetId) {
         ledger_match: ledgerMatch,
         cost_match: costMatch,
         flow,
+        lineage: require('./production-lineage').assetLineage(db,a),
     };
     // Whether the provider honours a seed at all — read from the adapter, so
     // "make another like this" never promises the same again from a provider

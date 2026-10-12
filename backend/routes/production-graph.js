@@ -16,9 +16,10 @@
 
 const { db } = require('../db/database');
 const pg = require('../lib/production-graph');
+const recipes = require('../lib/production-recipes');
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const KEY_RE = /^(shot|seq|sound|ver):[0-9a-f-]{36}$|^link:[0-9a-f-]{36}:(start|end)$/i;
+const KEY_RE = pg.LAYOUT_NODE_KEY;
 
 function json(res, status, data) {
     res.writeHead(status, { 'Content-Type': 'application/json' });
@@ -40,7 +41,8 @@ function putLayout(req, res, projectId) {
     if (!project) return json(res, 404, { error: 'Project not found' });
     const nodes = Array.isArray((req.body || {}).nodes) ? req.body.nodes : null;
     if (!nodes) return json(res, 400, { error: 'nodes must be a list of { key, x, y }' });
-    const bad = nodes.filter(n => !n || !KEY_RE.test(String(n.key || ''))
+    const graph=pg.buildGraph(db,projectId);
+    const bad = nodes.filter(n => !n || !KEY_RE.test(String(n.key || '')) || !pg.layoutNodeOwner(db,graph,String(n.key))
         || !Number.isFinite(Number(n.x)) || !Number.isFinite(Number(n.y)));
     if (bad.length) return json(res, 400, { error: `${bad.length} node(s) have no valid key or position`, bad });
     const upsert = db.prepare(`INSERT INTO production_node_layout (project_id, node_key, x, y, pinned, updated_at)
@@ -66,6 +68,7 @@ function tidy(req, res, projectId) {
     const all = (req.body || {}).all === true;
     const graph = pg.buildGraph(db, projectId);
     const keep = new Set((graph.groups || []).filter(g => g.collapsed).flatMap(g => g.members));
+    for(const key of pg.readLayout(db,projectId).keys())if(keep.has(pg.layoutNodeOwner(db,graph,key)))keep.add(key);
     const rows = db.prepare('SELECT node_key, pinned FROM production_node_layout WHERE project_id = ?').all(projectId)
         .filter(r => (all || !r.pinned) && !keep.has(r.node_key));
     const del = db.prepare('DELETE FROM production_node_layout WHERE project_id = ? AND node_key = ?');
@@ -73,17 +76,37 @@ function tidy(req, res, projectId) {
     return getGraphAfter(res, projectId, { released: rows.length, kept_pinned: !all, kept_collapsed: keep.size });
 }
 
-/** Collapse or expand one group, per project (PGN-018). Moves no node. */
+/** Collapse, move or resize a scene. Geometry translates members atomically. */
 function putGroup(req, res, projectId, groupKey) {
-    const graph = pg.buildGraph(db, projectId);
-    if (!graph) return json(res, 404, { error: 'Project not found' });
-    const value = (req.body || {}).collapsed;
-    if (value !== true && value !== false) return json(res, 400, { error: 'collapsed must be true (draw the group as one card) or false (expand it)', field: 'collapsed' });
-    if (!(graph.groups || []).some(g => g.key === groupKey)) return json(res, 404, { error: `No group "${groupKey}" on this graph` });
-    db.prepare(`INSERT INTO production_group_layout (project_id, group_key, collapsed, updated_at) VALUES (?, ?, ?, datetime('now'))
-        ON CONFLICT(project_id, group_key) DO UPDATE SET collapsed = excluded.collapsed, updated_at = excluded.updated_at`)
-        .run(projectId, groupKey, value ? 1 : 0);
-    return json(res, 200, { group: groupKey, collapsed: value });
+    try {
+        const group = pg.saveGroupLayout(db, projectId, groupKey, req.body || {});
+        return json(res, 200, { group: groupKey, collapsed: group.collapsed, geometry: group, ...group });
+    } catch (error) { return recipeError(res, error); }
+}
+
+function recipeError(res, error) {
+    if (!error.status) throw error;
+    return json(res, error.status, { error: error.message, ...(error.field ? { field: error.field } : {}),
+        ...(error.draft !== undefined ? { draft: error.draft } : {}) });
+}
+function nodeRecipe(req, res, projectId, nodeKey, kind) {
+    try {
+        if (kind === 'draft') {
+            const draft = req.method === 'PUT' ? recipes.saveDraft(db, projectId, nodeKey, req.body || {}) : recipes.readDraft(db, projectId, nodeKey);
+            return json(res, 200, { draft, audio_tracks: recipes.readAudioTracks(db, projectId, nodeKey) });
+        }
+        const tracks = req.method === 'PUT' ? recipes.saveAudioTracks(db, projectId, nodeKey, (req.body || {}).tracks) : recipes.readAudioTracks(db, projectId, nodeKey);
+        return json(res, 200, { tracks });
+    } catch (error) { return recipeError(res, error); }
+}
+
+async function draftStarter(req, res, projectId, nodeKey, kind) {
+    try {
+        if (!['image','video'].includes(kind)) return json(res, 400, { error:'Recipe kind must be image or video' });
+        recipes.nodeOwner(db, projectId, nodeKey);
+        const starter = await require('../lib/production-draft-request').starterDraft(db, projectId, nodeKey, kind);
+        return json(res, 200, starter);
+    } catch (error) { return recipeError(res, error); }
 }
 
 function getGraphAfter(res, projectId, extra) {
@@ -130,6 +153,23 @@ function handleProductionGraph(req, res, parts, query) {
     if (parts[1] === 'projects' && parts[2] && parts[3] === 'production-graph') {
         if (!UUID_RE.test(parts[2])) return json(res, 400, { error: 'Invalid project ID' });
         if (!parts[4] && req.method === 'GET') return getGraph(res, parts[2]);
+        if (parts[4] === 'arrange' && !parts[5]) {
+            if (req.method !== 'POST') return json(res,405,{error:'Method not allowed'});
+            try { return getGraphAfter(res,parts[2],pg.arrangeWorkspaceLayout(db,parts[2],req.body || {})); }
+            catch(error) { return recipeError(res,error); }
+        }
+        if (parts[4] === 'nodes' && parts[5] && parts[6] === 'draft' && parts[7] === 'starter' && !parts[8]) {
+            if (req.method !== 'GET') return json(res, 405, { error:'Method not allowed' });
+            let key;
+            try { key = decodeURIComponent(parts[5]); } catch (_) { return json(res, 400, { error:'Invalid node key' }); }
+            return draftStarter(req, res, parts[2], key, query?.kind || 'image');
+        }
+        if (parts[4] === 'nodes' && parts[5] && !parts[7] && ['draft', 'audio'].includes(parts[6])) {
+            if (req.method !== 'GET' && req.method !== 'PUT') return json(res, 405, { error: 'Method not allowed' });
+            let nodeKey;
+            try { nodeKey = decodeURIComponent(parts[5]); } catch (_) { return json(res, 400, { error: 'Invalid node key' }); }
+            return nodeRecipe(req, res, parts[2], nodeKey, parts[6]);
+        }
         // What is running right now, and on which node — free, polled by the page
         // while anything runs, because the live channel is silent about our own writes.
         if (parts[4] === 'running' && req.method === 'GET') return json(res, 200, { running: pg.runningWork(db, parts[2]) });

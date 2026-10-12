@@ -86,11 +86,11 @@ describe('Export', () => {
             [`GET ${url}`]: { file_count: 9, counts: { shots: 5, clips: 3, storyboard_frames: 2, gaps: 1, dialogue_lines: 1, beds: 2 }, missing: [] },
             [`POST ${url}`]: () => { posted++; throw new Error('disk full'); },
         });
-        await act(async () => { fireEvent.click(screen.getByText('Make the Resolve project')); });
-        expect(confirm.mock.calls[0][0]).toBe('Make the Resolve project: 5 shots (3 with footage, 2 on their storyboard frame, 1 gap), 1 dialogue line, 2 music/ambience beds; 9 files copied.');
+        await act(async () => { fireEvent.click(screen.getByText('Create Resolve package')); });
+        expect(confirm.mock.calls[0][0]).toBe('Create a Resolve export package: 5 shots (3 with footage, 2 on their storyboard frame, 1 gap), 1 dialogue line, 2 music/ambience beds; 9 files copied.\nImport this package in Resolve separately.');
         expect(posted).toBe(0);
-        await act(async () => { fireEvent.click(screen.getByText('Make the Resolve project')); });
-        expect(document.getElementById('resolveExportResult').textContent).toBe('Could not make the Resolve project: disk full');
+        await act(async () => { fireEvent.click(screen.getByText('Create Resolve package')); });
+        expect(document.getElementById('resolveExportResult').textContent).toBe('Could not create the Resolve package: disk full');
     });
 
     it('Resolve, written: says where, the script to run, and the steps', async () => {
@@ -100,8 +100,9 @@ describe('Export', () => {
             [`GET ${url}`]: { file_count: 1, counts: { shots: 1, clips: 1, storyboard_frames: 0, dialogue_lines: 2, beds: 1 }, missing: [] },
             [`POST ${url}`]: { dest: '/x/Exports/Resolve', copied: 1, xml: 'edit.xml', metadata: 'meta.csv', script: 'Load Film Engine.py' },
         });
-        await act(async () => { fireEvent.click(screen.getByText('Make the Resolve project')); });
-        expect(document.getElementById('resolveExportResult').textContent).toMatch(/^Written to \/x\/Exports\/Resolve1 files, edit\.xml, meta\.csvIn Resolve: copy Load Film Engine\.py into Resolve's Scripts\/Utility folder/);
+        await act(async () => { fireEvent.click(screen.getByText('Create Resolve package')); });
+        expect(document.getElementById('resolveExportResult').textContent).toMatch(/^Package written to \/x\/Exports\/Resolve1 files, edit\.xml, meta\.csvNot imported into Resolve\./);
+        expect(document.getElementById('resolveExportResult').textContent).toContain('Load Film Engine.py');
     });
 
     it('the bundle downloads from the API under /film; the import goes to the shared core function', async () => {

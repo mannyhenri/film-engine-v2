@@ -1,7 +1,8 @@
-import WritingStyleWorkbench from './components/WritingStyle/WritingStyleWorkbench.jsx';
-import AIWorkspace from './components/AIWorkspace/AIWorkspace.jsx';
-import AskAI from './components/AIWorkspace/AskAI.jsx';
 import AIConnections from './components/AIWorkspace/AIConnections.jsx';
+import AIWorkspace from './components/AIWorkspace/AIWorkspace.jsx';
+import FinalRequestReview from './components/FinalRequestReview/FinalRequestReview.jsx';
+import WritingStyleWorkbench from './components/WritingStyle/WritingStyleWorkbench.jsx';
+import AskAI from './components/AIWorkspace/AskAI.jsx';
 import ReferenceCompare from './components/ReferenceCompare/ReferenceCompare.jsx';
 import Sidebar from './components/Sidebar/Sidebar.jsx';
 import Main from './components/Main/Main.jsx';
@@ -27,6 +28,7 @@ export default function App() {
             <PageBoundary name="AskAI"><AskAI /></PageBoundary>
             <PageBoundary name="AIConnections"><AIConnections /></PageBoundary>
             <PageBoundary name="ReferenceCompare"><ReferenceCompare /></PageBoundary>
+            <FinalRequestReview />
             {/* Components that took code over from core (src/components/<Name>/react.json): mounted once, here, so
                 what each provides is on window before any legacy script runs. */}
             {REACT_COMPONENTS.map(({ name, Component }) => <PageBoundary key={name} name={name}><Component /></PageBoundary>)}

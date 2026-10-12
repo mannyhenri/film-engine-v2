@@ -1,0 +1,13 @@
+# Storyboard refinements
+
+The React board and shared viewer omit the unused 4 Angles control. + Shot still inserts a described shot immediately after the current shot in the same scene without renumbering existing shots.
+
+Refine's Electron prompt uses the available parent viewport, grows for its message, and can be resized. Text scrolls with the app scrollbar only when it cannot fit. The app's confirmation dialogs can use more available height; the generation confirmation is wider without overflowing small screens.
+
+Visible annotations are composited into a separate generation reference. The clean asset and editable marks are preserved. Shared shot video payloads, sequence frames, in-between footage keys and frame refinement use this reference. Optional annotation text in prompts remains a separate setting. Geometry is normalized to the image, not the letterboxed card. PNG rasterization is lossless; JPEG orientation and text labels use the existing local Python/Pillow installation. An unavailable decoder fails closed instead of silently dropping marks. Derived images are content-addressed by source bytes and marks, so deleting or changing a mark cannot reuse an old composite. Marks can appear in generated output; they are guidance rather than a final-footage overlay.
+
+Upscale finishes the selected clean PNG/JPEG through the existing MuAPI Topaz image API. This is the supported image finisher; video-only or generative upscalers are not offered. It uses the smallest supported scale reaching the requested tier and conforms the result to a 2048 or 4096 long edge while preserving aspect. It does not assemble a scene prompt. Unknown pricing is disclosed, and explicit provider/data/cost approval is required. Missing credentials, locked boards, unsupported target sizes and stale source plans cannot submit.
+
+Migration 140 stores the job and its provider handle before polling. Closing the dialog stops UI polling, not the accepted paid job. Reopening resumes the existing handle. Uncertain acceptance without a handle never resubmits automatically. Late results are retained if the source changed or the board was locked; collection is idempotent and uses existing frame archival/versioning. A provider result below target or with a changed aspect cannot replace the clean frame.
+
+The source and built frontend are ready. Activation requires a planned restart of the v2 backend for the route/migration and of Electron for its main-process prompt sizing. Implementation tests use temporary databases/images and mocked providers; no paid generation or live-data migration was performed.

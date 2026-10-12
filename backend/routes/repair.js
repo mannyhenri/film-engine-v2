@@ -16,6 +16,7 @@
  */
 
 const { db } = require('../db/database');
+const { inspectMedia } = require('../lib/ffmpeg');
 const { getFilePath } = require('../lib/file-storage');
 const { runRepair, runBridge, repairGenerator } = require('../lib/repair-run');
 
@@ -118,7 +119,7 @@ async function handleRepair(req, res, urlParts) {
         const secondPath = getFilePath(next.project_id, 'video', nextClip.file_name);
         const dur = (p2) => { const m = inspectMedia(p2); return m.ok ? m.durationSeconds : 0; };
         const bridged = await runBridge({
-            db,
+            db, finalReview: true, previewOnly: !!req.finalPreviewOnly,
             projectId: shot.project_id,
             spans: [
                 { shotId, shotCode: shot.shot_code, sourcePath: firstPath,
@@ -135,7 +136,7 @@ async function handleRepair(req, res, urlParts) {
     }
 
     const result = await runRepair({
-        db,
+        db, finalReview: true, previewOnly: !!req.finalPreviewOnly,
         projectId: shot.project_id,
         shotId,
         shotCode: shot.shot_code,

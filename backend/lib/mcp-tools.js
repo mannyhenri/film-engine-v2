@@ -1341,7 +1341,7 @@ const PRODUCTION_TOOLS = [
             + 'Also re-polls a job this engine recorded as FAILED: a failure on this side does not '
             + 'un-render or refund anything, and the provider is the authority on its own job.',
         schema: {
-            job_id: { type: 'string' },
+            job_id: { type: 'string', description:'Generation job ID, or the approved review_id receipt returned when accepted-job recording failed.' },
             belongs_to: {
                 type: 'object',
                 description: 'Names what a generation was FOR when the handle does not say. For a PLATE: { kind: character|location|prop, subject_id, view? } \u2014 this also claims a job already settled, filing the picture it left on disk under a job id, with nothing re-polled and nothing re-bought. Otherwise: only for a handle recorded before the engine stamped what it was. '

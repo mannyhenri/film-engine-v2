@@ -12,6 +12,8 @@ function operationOf(method, action, parts) {
  if (method==='GET' && action==='export') return 'portable';
  if (method==='GET' && action==='context') return 'context';
  if (method==='POST' && action==='samples' && !parts[5]) return 'addSample';
+ if (method==='POST' && action==='import-preview') return 'importPreview';
+ if (method==='POST' && action==='corrections') return 'correctProfile';
  if (method==='POST' && action==='import') return 'importProfile';
  if (method==='POST' && action==='profiles' && !parts[5]) return 'propose';
  if (method==='POST' && action==='profiles' && parts[6]==='approve') return 'approve';
@@ -36,6 +38,8 @@ function handleWritingStyle(req,res,parts) {
   else if (op==='setSampleAccess') result=s.setSampleAccess(id,{...body,sample_id:parts[5]});
   else if (op==='deleteSample') result=s.deleteSample(id,{...body,sample_id:parts[5]});
   else if (op==='deleteSource') result=s.deleteSource(id,{...body,document_id:parts[5]});
+  else if (op==='importPreview') result=s.importPreview(id,body);
+  else if (op==='correctProfile') result=s.correctProfile(id,body);
   else if (op==='importProfile') result=s.importProfile(id,body);
   else if (op==='propose') result=s.propose(id,{...body,direct_rules:undefined});
   else if (op==='approve') result=s.approve(id,Number(parts[5]),body);

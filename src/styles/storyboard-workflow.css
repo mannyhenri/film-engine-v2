@@ -1,0 +1,7 @@
+/* Viewport-bounded dialogs scroll only when their contents exceed the available space. */
+.modal { max-height:calc(100dvh - 48px); }
+#confirmGenModal .modal { width:min(960px, calc(100vw - 48px)); max-width:min(960px, calc(100vw - 48px)) !important; }
+.reference-guidance-note { font-size:11px; color:var(--gl-text-muted); margin-top:6px; }
+.upscale-dialog { width:min(760px, calc(100vw - 48px)); max-width:760px; }
+.upscale-dialog label { display:block; margin:12px 0; }
+.upscale-dialog .actions { display:flex; gap:8px; justify-content:flex-end; flex-wrap:wrap; margin-top:16px; }

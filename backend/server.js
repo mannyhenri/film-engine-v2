@@ -77,6 +77,7 @@ const { handleStoryDevelopment } = require('./routes/story-development');
 const { handleSubjectGallery } = require('./routes/subject-gallery');
 const { handleVoiceCasting } = require('./routes/voice-casting');
 const { handleAgentPresence } = require('./routes/agent-presence');
+const { handleProductionDepth } = require('./routes/production-depth');
 const { handleScenes } = require('./routes/scenes');
 const { handleShots } = require('./routes/shots');
 const { handleAppSettings } = require('./routes/app-settings');
@@ -100,6 +101,9 @@ const { handleMusicSessions } = require('./routes/music-sessions');
 const { handleAnnotations } = require('./routes/annotations');
 const { handleScreenplayAI } = require('./routes/screenplay-ai');
 const { handleWritingStyle } = require('./routes/writing-style');
+const { handleStoryboardUpscale } = require('./routes/storyboard-upscale');
+const { handlePrevizWorkspace } = require('./routes/previz-workspace');
+const { handleFinalRequestReview } = require('./routes/final-request-review');
 const { handleStyleProfile } = require('./routes/style-profile');
 const { handleStyleDrafting } = require('./routes/style-drafting');
 const { handleStylePilot } = require('./routes/style-pilot');
@@ -122,6 +126,7 @@ const { handleCallSheets } = require('./routes/call-sheets');
 const { handleTextConvert } = require('./routes/text-convert');
 const { handleNLEExport } = require('./routes/nle-export');
 const { handleStoryboard } = require('./routes/storyboard');
+const { handleStoryboardPrint } = require('./routes/storyboard-print');
 const { handleVoice } = require('./routes/voice');
 const { handleVideoGen } = require('./routes/video-gen');
 const { handleLipsync } = require('./routes/lipsync');
@@ -425,6 +430,7 @@ const server = http.createServer(async (req, res) => {
         const maxSize = bodyLimit.limitForPath(parts);
         try {
             req.body = await readBody(req, maxSize, res);
+            require('./lib/final-request-review').enterExecutionContext(req.body?.final_request_approvals, req.body);
         } catch (err) {
             // A 413 has already been written and the socket closed; writing
             // again throws and replaces a clear refusal with a stack trace.
@@ -452,6 +458,15 @@ const server = http.createServer(async (req, res) => {
      * covers every route, present and future, with nothing to remember, and it
      * costs nothing at all on the ordinary path where the field is absent.
      */
+    if (req.body?.final_request_approvals && parts[1] !== 'final-request-review') {
+        try {
+            await require('./lib/final-request-review').preflightApprovals({ path: pathname, body: req.body });
+        } catch (err) {
+            res.writeHead(err.status || 409, { 'Content-Type': 'application/json' });
+            return res.end(JSON.stringify({ error: err.message, code: 'FINAL_REQUEST_APPROVAL_INVALID', existing_review: err.existing_review, request_id: err.request_id }));
+        }
+    }
+
     if (req.body && req.body[approvalGuard.FIELD]) {
         const verdict = approvalGuard.checkApproval(req.body, approvalGuard.subjectOf(parts));
         if (!verdict.ok) {
@@ -515,7 +530,7 @@ const server = http.createServer(async (req, res) => {
         if ((parts[1] === 'projects' && parts[3] === 'production-graph')
             || (parts[1] === 'shots' && parts[3] === 'video' && parts[4] === 'select')
             || (parts[1] === 'music-cues' && parts[3] === 'select')) {
-            const handled = require('./routes/production-graph').handleProductionGraph(req, res, parts, query);
+            const handled = await require('./routes/production-graph').handleProductionGraph(req, res, parts, query);
             if (handled !== false) return handled;
         }
 
@@ -667,6 +682,10 @@ const server = http.createServer(async (req, res) => {
             return await handleBreakdown(req, res, parts);
         }
 
+        if (parts[1] === 'previz-workspace') return await handlePrevizWorkspace(req, res, parts);
+        if (parts[1] === 'final-request-review') return await handleFinalRequestReview(req, res, parts);
+        if (parts[1] === 'shots' && parts[2] && parts[3] === 'storyboard-upscale') return await handleStoryboardUpscale(req, res, parts, query);
+
         if (parts[1] === 'projects' && parts[2] && parts[3] === 'writing-style') return await handleWritingStyle(req, res, parts);
         if (parts[1] === 'projects' && parts[2] && parts[3] === 'style-profile') return await handleStyleProfile(req, res, parts);
         if (parts[1] === 'projects' && parts[2] && parts[3] === 'style-drafting') return await handleStyleDrafting(req, res, parts);
@@ -699,8 +718,10 @@ const server = http.createServer(async (req, res) => {
             return await handleScripts(req, res, parts, query);
         }
 
-        if (parts[1] === 'projects' && parts[2] && parts[3] === 'production-depth') return await require('./routes/production-depth').handleProductionDepth(req, res, parts);
         if (parts[1] === 'projects' && parts[2] && parts[3] === 'production-composite') return await require('./routes/production-composite').handleProductionComposite(req, res, parts);
+        if (parts[1] === 'projects' && parts[2] && parts[3] === 'production-depth') {
+            return await handleProductionDepth(req, res, parts);
+        }
 
         // Route: /film/projects/:id/script[s] and /film/projects/:id/outline
         //
@@ -985,6 +1006,9 @@ const server = http.createServer(async (req, res) => {
         }
 
         // Route: /film/projects/:id/storyboard[/generate[/stream]]
+        if (parts[1] === 'projects' && parts[2] && parts[3] === 'storyboard' && parts[4] === 'print') {
+            return await handleStoryboardPrint(req, res, parts, query);
+        }
         if (parts[1] === 'projects' && parts[2] && parts[3] === 'storyboard') {
             return await handleStoryboard(req, res, parts, query);
         }

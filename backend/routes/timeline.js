@@ -12,6 +12,8 @@
  */
 const { db } = require('../db/database');
 const { buildTimeline, msToTimecode } = require('../lib/timeline');
+const fs = require('fs');
+const crypto = require('crypto');
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -56,7 +58,7 @@ function loadTimeline(projectId) {
                -- long to hold after each line: who speaks next, whether the
                -- writer marked a beat, whether the line trails off or is cut
                -- into. Without it every pause falls back to the plain turn gap.
-               s.scene_card_yaml,
+               s.scene_card_yaml, s.selected_video_asset_id, s.current_frame_version,
                sc.scene_number
         FROM film_shots s
         JOIN film_scenes sc ON s.scene_id = sc.id
@@ -83,6 +85,8 @@ function loadTimeline(projectId) {
 
     const assetsByShot = {};
     for (const asset of assets) {
+        try { asset.offline = !asset.file_path || !fs.statSync(asset.file_path).isFile(); }
+        catch (_) { asset.offline = true; }
         (assetsByShot[asset.shot_id] = assetsByShot[asset.shot_id] || []).push(asset);
     }
 
@@ -151,11 +155,30 @@ function loadTimeline(projectId) {
     }
 
     const { coverageFor } = require('../lib/clip-coverage');
+    const sequenceShots = {};
+    for (const sequence of db.prepare('SELECT id, shot_ids FROM film_sequences WHERE project_id = ?').all(projectId)) {
+        try { const ids = JSON.parse(sequence.shot_ids); sequenceShots[sequence.id] = Array.isArray(ids) ? ids : []; }
+        catch (_) { sequenceShots[sequence.id] = []; }
+    }
+    const { readAudioTracks } = require('../lib/production-recipes');
+    const audioTracks = db.prepare('SELECT DISTINCT node_key FROM production_audio_tracks WHERE project_id = ?').all(projectId)
+        .flatMap(row => readAudioTracks(db, projectId, row.node_key)).map(track => {
+            if (track.source.offline) return { ...track, source_bytes_status: 'offline' };
+            try {
+                const bytes = fs.readFileSync(track.source.path);
+                const current = { sha256: crypto.createHash('sha256').update(bytes).digest('hex'), byte_length: bytes.length };
+                const changed = (track.source.sha256 && current.sha256 !== track.source.sha256)
+                    || (track.source.byte_length != null && current.byte_length !== track.source.byte_length);
+                return { ...track, source_bytes_status: changed ? 'changed' : track.source.sha256 ? 'verified' : 'unknown', current_source: current };
+            } catch (_) { return { ...track, source: { ...track.source, offline: true }, source_bytes_status: 'offline' }; }
+        });
     const timeline = buildTimeline(shots, assetsByShot, {
         fps: project.target_fps,
         coverage: coverageFor(db, projectId),
         sceneAssets,
         cues,
+        audioTracks,
+        sequenceShots,
     });
 
     /*

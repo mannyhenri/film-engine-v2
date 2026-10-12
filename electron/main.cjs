@@ -36,6 +36,7 @@ let quitting = false;
 // The smoke run records what would leave the app instead of opening a browser.
 const leftApp = [];
 const openExternal = (url) => (SMOKE ? leftApp.push(url) : shell.openExternal(url));
+require('./image-handoff.cjs').registerDesktopHandoff({ipcMain,BrowserWindow,clipboard:require('electron').clipboard,shell,getApiBase:()=>API,disabled:SMOKE});
 
 function health(base) {
     return new Promise((resolve) => {
@@ -156,8 +157,11 @@ function guardWindow(win) {
 let lastPrompt = null; // the open prompt window, for the smoke run
 ipcMain.on('fe-prompt', (event, message, value) => {
     const parent = BrowserWindow.fromWebContents(event.sender);
+    const bounds = parent ? parent.getContentBounds() : { width: 1000, height: 800 };
+    const promptWidth = Math.min(760, Math.max(280, bounds.width - 64));
+    const promptHeight = Math.min(Math.max(180, bounds.height - 64), Math.max(220, 124 + Math.ceil(String(message).length / (promptWidth / 8)) * 20));
     const win = new BrowserWindow({
-        parent, modal: !!parent, width: 440, height: 170, resizable: false, minimizable: false, maximizable: false,
+        parent, modal: !!parent, width: promptWidth, height: promptHeight, resizable: true, minimizable: false, maximizable: false,
         show: !SMOKE, frame: false, backgroundColor: '#151517',
         webPreferences: { preload: path.join(__dirname, 'prompt-preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true },
     });

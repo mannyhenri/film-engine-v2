@@ -197,24 +197,29 @@ test('a continuous join plans one clip per leg; a cut plans nothing; no joins pl
     assert.deepStrictEqual(gen.data.segments, []);
 });
 
-// ── A shot belongs to one sequence ─────────────────────────────────────────
+// ── Shared sequence versions; only explicit move removes membership ────────
 
-test('a shot belongs to one sequence: a second claim is refused, and move moves it', async () => {
+test('a shot remains in both sequence versions; an explicit move releases its other membership', async () => {
     const f = fixture();
     const a = (await api(`/film/projects/${f.projectId}/sequences`, { method: 'POST', body: { name: 'A', shot_ids: [f.shots['1A'], f.shots['1B']] } })).data.sequence;
     const b = (await api(`/film/projects/${f.projectId}/sequences`, { method: 'POST', body: { name: 'B', shot_ids: [], empty: true } })).data.sequence;
-    const refused = await api(`/film/sequences/${b.id}`, { method: 'PUT', body: { shot_ids: [f.shots['1B']] } });
-    assert.strictEqual(refused.status, 409);
-    assert.strictEqual(refused.data.error, 'SHOT_IN_SEQUENCE');
+    const shared = await api(`/film/sequences/${b.id}`, { method: 'PUT', body: { shot_ids: [f.shots['1B']] } });
+    assert.strictEqual(shared.status, 200, JSON.stringify(shared.data));
+    const aShared = (await api(`/film/sequences/${a.id}`)).data.sequence;
+    assert.deepStrictEqual(aShared.shot_ids, [f.shots['1A'], f.shots['1B']], 'sharing removed the first sequence membership');
+    const g = await graphOf(f.projectId);
+    const shot = g.nodes.find(n => n.key === `shot:${f.shots['1B']}`);
+    assert.deepStrictEqual(shot.sequence_ids, [a.id, b.id], 'the graph lost a real membership');
+    for (const id of [a.id, b.id]) assert.ok(g.edges.some(e => e.from === shot.key && e.to === `seq:${id}`), 'a shared membership has no edge');
     const moved = await api(`/film/sequences/${b.id}`, { method: 'PUT', body: { shot_ids: [f.shots['1B']], move: true } });
     assert.strictEqual(moved.status, 200, JSON.stringify(moved.data));
     const aNow = (await api(`/film/sequences/${a.id}`)).data.sequence;
     assert.deepStrictEqual(aNow.shot_ids, [f.shots['1A']], 'the move left the shot in both');
 });
 
-test('the boxes read in film order: loose shots, sequences and a new empty sequence last', async () => {
-    // A sequence box used to be laid out before EVERY scene of loose shots, so
-    // a new sequence jumped in front of shots that play before anything in it.
+test('scene groups start in film order, contain their sequences, and keep empty sequence versions last', async () => {
+    // Canvas homes are scenes. A sequence belongs beside its first shot; an
+    // empty version remains in the unassigned group until it gains members.
     const f = fixture();
     const scene2 = generateId();
     db.prepare('INSERT INTO film_scenes (id, project_id, scene_number, location) VALUES (?, ?, 2, ?)').run(scene2, f.projectId, 'STREET');
@@ -229,10 +234,19 @@ test('the boxes read in film order: loose shots, sequences and a new empty seque
     const empty2 = (await api(`/film/projects/${f.projectId}/sequences`, { method: 'POST', body: { name: 'Later still', shot_ids: [], empty: true } })).data.sequence;
     const g = await graphOf(f.projectId);
     assert.deepStrictEqual(g.groups.map(x => x.key),
-        [`scene:${f.sceneId}`, `seq:${seq.id}`, `seq:${empty1.id}`, `seq:${empty2.id}`],
-        'the boxes are not in the order the film plays, with empty sequences last in the order they were made');
+        [`scene:${f.sceneId}`, `scene:${scene2}`, 'unassigned-sequences'],
+        'the default boxes are not in scene order, with unassigned sequence versions last');
+    const street = g.groups.find(x => x.scene_id === scene2);
+    assert.deepStrictEqual(street.sequences, [`seq:${seq.id}`]);
+    for (const id of s2) assert.ok(street.members.includes(`shot:${id}`), 'a sequence shot left its scene group');
+    assert.ok(street.members.includes(`seq:${seq.id}`), 'the sequence is outside its first shot\'s scene');
+    assert.deepStrictEqual(g.groups[2].rows, [`seq:${empty1.id}`, `seq:${empty2.id}`], 'empty versions lost creation order');
+    const rows = street.rows.map(key => g.nodes.find(n => n.key === key));
+    assert.ok(rows.every(n => n.x === rows[0].x), 'shot and sequence rows are not aligned vertically');
+    assert.ok(rows.every((n, i) => !i || n.y >= rows[i - 1].y + rows[i - 1].h), 'vertical rows overlap');
+    assert.deepStrictEqual(g.running_order, [...Object.values(f.shots), ...s2], 'canvas grouping changed narrative order');
     const xs = g.groups.map(x => x.x);
-    assert.deepStrictEqual(xs, [...xs].sort((a, b) => a - b), 'the boxes do not run left to right in that order');
+    assert.deepStrictEqual(xs, [...xs].sort((a, b) => a - b), 'the default boxes do not run left to right in that order');
 });
 
 // ── Linked frames ──────────────────────────────────────────────────────────

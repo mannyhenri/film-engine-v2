@@ -24,6 +24,8 @@ async function route(id,method,suffix='',body={},extra={}){
 // One request per operation, as the route addresses it. Every operation in OPERATIONS must be here.
 function request(op,id,ctx){
  return ({
+  importPreview:['POST','import-preview',{profile:PORTABLE}],
+  correctProfile:['POST','corrections',{expected_version:ctx.version,approval_fingerprint:ctx.fingerprint,correction:'Prefer plain verbs.',preference_source:'Explicit test instruction'}],
   snapshot:['GET',''],context:['GET','context'],portable:['GET','export'],
   addSample:['POST','samples',{text:'A note in my own words.',source:'My notebook',authorship:'original_human',confirmed_original:true}],
   feedback:['POST','feedback',{profile_version:ctx.version,text:'Shorter lines.'}],
@@ -46,7 +48,7 @@ test('every operation is addressable and maps to a declared permission',()=>{
   assert.ok(perms.has(perm),`${op} needs a declared permission, got ${perm}`);
   assert.ok(request(op,'p',{version:1,sample:'s'}),`${op} has no route`);
  }
- assert.equal(Object.keys(OPERATIONS).length,13);
+ assert.equal(Object.keys(OPERATIONS).length,15);
 });
 
 test('profile states: the schema accepts every declared state and refuses any other',()=>{
@@ -128,12 +130,12 @@ test('idempotency: a retried write with the same key creates nothing new, across
  const count=()=>['film_writing_samples','film_writing_profiles','film_writing_feedback','film_writing_imports']
   .map(t=>db.prepare(`SELECT COUNT(*) n FROM ${t} WHERE project_id=?`).get(id).n).join(',');
  const writes=Object.entries(OPERATIONS).filter(([,perm])=>perm!=='read').map(([op])=>op);
- const ORDER=['addSample','propose','approve','feedback','importProfile','importSource','updateSample','setSampleAccess','deleteSource','deleteSample'];
+ const ORDER=['addSample','propose','approve','feedback','correctProfile','importProfile','importSource','updateSample','setSampleAccess','deleteSource','deleteSample'];
  assert.deepEqual(writes.sort(),[...ORDER].sort());
  const other=project();
  for(const op of ORDER){
   const version=store.snapshot(id).profiles[0]?.version||0;
-  const ctx={version:op==='propose'?version:version||1,sample,other,document:store.snapshot(id).sources[0]?.id};
+  const ctx={version:op==='propose'?version:version||1,sample,other,document:store.snapshot(id).sources[0]?.id,fingerprint:store.snapshot(id).profiles[0]?.evidence_hash};
   const [method,suffix,body]=request(op,id,ctx);
   if(op==='approve')body[FIELD]=store.snapshot(id).profiles[0].evidence_hash;
   const key=`key-${op}`;

@@ -183,7 +183,7 @@ test('the page draws the scene in Look and opens on it', () => {
     assert.match(fnBody('worldSplatSync'), /info\.mesh\) \{ worldSplatStop\(\); return worldMeshSync/);
     assert.match(fnBody('worldViewMode'), /info && info\.mesh\) return 'look'/);
     const sync = fnBody('worldMeshSync');
-    assert.match(sync, /GLTFLoader\(\)\.load\(mediaUrl\(info\.mesh\.url\)/);
+    assert.match(sync, /previzWorkspace\.loadModel\(T,\s*mediaUrl\(info\.mesh\.url\)\)/);
     // The same pose the painter uses, or Look would be a different shot.
     assert.match(fnBody('worldMeshRenderOnce'), /worldCameraPose\(\)/);
 });

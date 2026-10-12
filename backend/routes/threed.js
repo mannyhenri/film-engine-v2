@@ -308,49 +308,14 @@ function mimeFor(format) {
     return map[String(format).toLowerCase()] || 'application/octet-stream';
 }
 
-// ── Generate (text -> mesh) ───────────────────────────────────────────────
-
-async function generateModel(req, res, kind, subjectId, stream) {
+async function buildModelGenerationPlan(kind, subjectId, body = {}, fromImage = false) {
     const loaded = loadSubject(kind, subjectId);
-    if (!loaded) return json(res, 404, { error: `${kind} not found` });
-
+    if (!loaded) throw Object.assign(new Error(`${kind} not found`), { status: 404 });
     const { row, projectId } = loaded;
     const subject = { ...normalizeSubject(row, kind), id: subjectId };
-    const opts = req.body || {};
-    const payload = build3DPayload(subject, opts);
-    const format = payload.format;
-
-    const jobId = generateId();
-    db.prepare(
-        `INSERT INTO film_3d_jobs (id, project_id, character_id, prop_id, subject_kind, gen_type, status, model, format, seed, prompt, params)
-         VALUES (?, ?, ?, ?, ?, 'generate', 'generating', ?, ?, ?, ?, ?)`
-    ).run(
-        jobId, projectId,
-        kind === 'character' ? subjectId : null,
-        kind === 'prop' ? subjectId : null,
-        kind === 'location' ? 'set' : kind, payload.model, format, payload.seed, payload.prompt, JSON.stringify(payload)
-    );
-
-    if (stream) {
-        return runGenerateStream(res, THREED_ENDPOINTS.generate, payload, {
-            projectId, subject, kind, format, jobId, metaKind: 'model_3d',
-        });
-    }
-    return runGenerateSync(res, THREED_ENDPOINTS.generate, payload, {
-        projectId, subject, kind, format, jobId, subjectId, metaKind: 'model_3d', req,
-    });
-}
-
-// ── Generate (reference image -> mesh) ────────────────────────────────────
-
-async function generateFromImage(req, res, kind, subjectId, stream) {
-    const loaded = loadSubject(kind, subjectId);
-    if (!loaded) return json(res, 404, { error: `${kind} not found` });
-
-    const { row, projectId } = loaded;
-    const subject = { ...normalizeSubject(row, kind), id: subjectId };
-    const opts = req.body || {};
-
+    const opts = body, sourcePaths = [];
+    let payload;
+    if (fromImage) {
     // Resolve an init image: explicit body ref, else the subject's newest reference asset on disk.
     let imageRef = opts.init_image || null;
     if (!imageRef) {
@@ -369,16 +334,76 @@ async function generateFromImage(req, res, kind, subjectId, stream) {
                 // enforces containment, so a refusal just means "not here".
                 let p;
                 try { p = getFilePath(projectId, dir, refAsset.file_name); } catch (_) { continue; }
-                if (fs.existsSync(p)) { imageRef = fs.readFileSync(p).toString('base64'); break; }
+                if (fs.existsSync(p)) { imageRef = require('../lib/reference-images').toDataUri(p); sourcePaths.push(p); break; }
             }
         }
     }
     if (!imageRef) {
-        return json(res, 400, { error: 'No reference image available. Generate a reference image/sheet first or pass init_image.' });
+        throw Object.assign(new Error('No reference image available. Generate a reference image/sheet first or pass init_image.'), { status: 400 });
     }
 
-    const payload = buildFromImagePayload(imageRef, opts);
-    const format = payload.format;
+        payload = buildFromImagePayload(imageRef, opts);
+    } else payload = build3DPayload(subject, opts);
+    const endpoint = fromImage ? THREED_ENDPOINTS.fromImage : THREED_ENDPOINTS.generate;
+    const provider = threedProviderFor(projectId, { body });
+    if (!provider || provider.id === 'gridlight') throw Object.assign(new Error('Exact final review is unsupported for legacy Gridlight 3D'), { status: 428 });
+    payload = threedPayloadFor(provider, endpoint, payload, Boolean(body.model));
+    payload = require('../lib/final-provider-request').normalizeInheritedInputs(provider.id,'model3d',payload);
+    const preview = await provider.generate('model3d', payload, { previewRequest: true });
+    if (!preview?.preview) throw Object.assign(new Error(preview?.error || '3D provider did not resolve a final request'), { status: 409 });
+    return { provider, payload: preview.payload, projectId, subject, kind, endpoint, format: payload.format,
+        provenance: { project_id: projectId, subject_kind: kind, subject_id: subjectId, source_paths: sourcePaths } };
+}
+async function authorizeModelPlan(plan, req, res) {
+    const approved = await require('../lib/final-request-review').authorizeGeneration({ provider: plan.provider.id, capability: 'model3d', payload: plan.payload, provenance: plan.provenance, approvals: req.body?.final_request_approvals });
+    if (!approved.ok) { json(res, approved.status || 428, approved); return false; }
+    req._finalThreeDPlan = { ...plan, finalRequest: approved.finalRequest };
+    return true;
+}
+async function approvedModelStream(res, endpoint, payload, ctx) {
+    // Use the same frozen native execution as sync; serialize terminal data as SSE.
+    const bridge = { writeHead(status) { this.status = status; }, end(text) {
+        res.writeHead(this.status || 200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache' });
+        const data = JSON.parse(text);
+        res.end(`data: ${JSON.stringify({ type: this.status >= 400 ? 'error' : 'complete', ...data })}\n\ndata: {"type":"done"}\n\n`);
+    }};
+    return runGenerateSync(bridge, endpoint, payload, ctx);
+}
+
+// ── Generate (text -> mesh) ───────────────────────────────────────────────
+
+async function generateModel(req, res, kind, subjectId, stream) {
+    const plan = await buildModelGenerationPlan(kind, subjectId, req.body || {}, false);
+    if (!await authorizeModelPlan(plan, req, res)) return;
+    const { projectId, subject, payload, format } = plan;
+
+    const jobId = generateId();
+    db.prepare(
+        `INSERT INTO film_3d_jobs (id, project_id, character_id, prop_id, subject_kind, gen_type, status, model, format, seed, prompt, params)
+         VALUES (?, ?, ?, ?, ?, 'generate', 'generating', ?, ?, ?, ?, ?)`
+    ).run(
+        jobId, projectId,
+        kind === 'character' ? subjectId : null,
+        kind === 'prop' ? subjectId : null,
+        kind === 'location' ? 'set' : kind, payload.model, format, payload.seed, payload.prompt, JSON.stringify(payload)
+    );
+
+    if (stream) {
+        return approvedModelStream(res, THREED_ENDPOINTS.generate, payload, {
+            projectId, subject, kind, format, jobId, req, subjectId, metaKind: 'model_3d',
+        });
+    }
+    return runGenerateSync(res, THREED_ENDPOINTS.generate, payload, {
+        projectId, subject, kind, format, jobId, subjectId, metaKind: 'model_3d', req,
+    });
+}
+
+// ── Generate (reference image -> mesh) ────────────────────────────────────
+
+async function generateFromImage(req, res, kind, subjectId, stream) {
+    const plan = await buildModelGenerationPlan(kind, subjectId, req.body || {}, true);
+    if (!await authorizeModelPlan(plan, req, res)) return;
+    const { projectId, subject, payload, format } = plan;
 
     const jobId = generateId();
     db.prepare(
@@ -392,8 +417,8 @@ async function generateFromImage(req, res, kind, subjectId, stream) {
     );
 
     if (stream) {
-        return runGenerateStream(res, THREED_ENDPOINTS.fromImage, payload, {
-            projectId, subject, kind, format, jobId, metaKind: 'model_3d',
+        return approvedModelStream(res, THREED_ENDPOINTS.fromImage, payload, {
+            projectId, subject, kind, format, jobId, req, subjectId, metaKind: 'model_3d',
         });
     }
     return runGenerateSync(res, THREED_ENDPOINTS.fromImage, payload, {
@@ -438,19 +463,14 @@ function threedProviderFor(projectId, req) {
 }
 
 /** Gateway payload -> what the resolved adapter expects. */
-function threedPayloadFor(adapter, endpoint, payload) {
+function threedPayloadFor(adapter, endpoint, payload, explicitModel = false) {
     const p = { ...(payload || {}) };
     if ((adapter && (adapter.id || adapter.provider)) !== 'meshy') return p;
 
-    /*
-     * The gateway's model names are not Meshy's. build3DPayload sets a
-     * Gridlight default, and Meshy answers
-     * "AIModel must be one of [meshy-4 … meshy-t2]". Dropping an unrecognised
-     * name lets the adapter apply its own default rather than guessing a
-     * mapping between two vendors' model families.
-     */
-    const MESHY_MODELS = /^(meshy-4|meshy-5|meshy-6|meshy-7|latest|meshy-t1|meshy-t2)$/;
-    if (p.model && !MESHY_MODELS.test(String(p.model))) delete p.model;
+    // Only the builder's implicit gateway default is translated. An explicit
+    // model must reach Meshy's validation unchanged, so typos cannot buy a
+    // different model from the one the director selected.
+    if (!explicitModel && p.model === require('../lib/threed-prompt').DEFAULT_MODEL) delete p.model;
 
     if (endpoint === THREED_ENDPOINTS.fromImage) {
         // Meshy decides image-to-mesh by the presence of this field.
@@ -474,10 +494,14 @@ function threedPayloadFor(adapter, endpoint, payload) {
  * feature down with it.
  */
 async function callThreeD(endpoint, payload, projectId, req) {
+    if (req?._finalThreeDPlan) {
+        const plan = req._finalThreeDPlan;
+        return plan.provider.generate('model3d', plan.payload, { finalRequest: plan.finalRequest });
+    }
     const adapter = threedProviderFor(projectId, req);
     const id = adapter && (adapter.id || adapter.provider);
     if (adapter && id !== 'gridlight' && typeof adapter.generate === 'function') {
-        const result = await adapter.generate('model3d', threedPayloadFor(adapter, endpoint, payload));
+        const result = await adapter.generate('model3d', threedPayloadFor(adapter, endpoint, payload, Boolean(req && req.body && req.body.model)));
         if (result && result.ok) return result;
         // A provider that refuses is reported as itself, not as the gateway
         // being offline — the misdiagnosis this whole change exists to end.
@@ -674,6 +698,7 @@ async function batchModels(req, res, projectId) {
 }
 
 async function batchModelsStream(req, res, projectId) {
+    return json(res, 428, { error: '3D batch requires per-subject approved native execution; use individual subject generation.' });
     const project = db.prepare('SELECT * FROM film_projects WHERE id = ?').get(projectId);
     if (!project) return json(res, 404, { error: 'Project not found' });
 
@@ -771,4 +796,4 @@ function listModelJobs(req, res, projectId) {
 
 function safeParse(s) { try { return JSON.parse(s || '{}'); } catch (_) { return {}; } }
 
-module.exports = { handleThreeD, threedPayloadFor, threedProviderFor };
+module.exports = { handleThreeD, threedPayloadFor, threedProviderFor, buildModelGenerationPlan, collectSubjects };

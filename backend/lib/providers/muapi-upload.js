@@ -140,10 +140,16 @@ async function hostFile(fileRef, apiKey) {
     if (/^https?:\/\//i.test(s)) return { ok: true, url: s, uploaded: false };
     const fs = require('fs');
     const p = s.startsWith('file://') ? decodeURI(s.slice(7)) : s;
-    let st;
-    try { st = fs.statSync(p); } catch (_) { return { ok: false, error: `there is no file at ${p}` }; }
-    if (st.size > MEDIA_MAX_BYTES) return { ok: false, error: `${p} is ${Math.round(st.size / 1048576)}MB; uploads are held to ${MEDIA_MAX_BYTES / 1048576}MB here` };
-    const bytes = fs.readFileSync(p);
+    const frozen = parseDataUri(s);
+    let bytes;
+    if (frozen) bytes = frozen.bytes;
+    else {
+        let st;
+        try { st = fs.statSync(p); } catch (_) { return { ok: false, error: `there is no file at ${p}` }; }
+        if (st.size > MEDIA_MAX_BYTES) return { ok: false, error: 'Media exceeds the upload limit' };
+        bytes = fs.readFileSync(p);
+    }
+    if (bytes.length > MEDIA_MAX_BYTES) return { ok: false, error: 'Media exceeds the upload limit' };
     const kind = sniffMedia(bytes);
     if (!kind) return { ok: false, error: `${p} is not an mp4, mov, webm, mp3, m4a or wav file` };
     const form = new FormData();

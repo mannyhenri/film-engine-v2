@@ -31,6 +31,34 @@ const { getFilePath, ensureDir } = require('./file-storage');
  * A registry rather than six inline returns, so a stage that can never fail —
  * whose error path has therefore never run — is visible as a gap.
  */
+// Local immutable frame cache survives the review dialog and is keyed by the
+// original clip bytes plus extraction timestamp. No public hosting is required.
+function reviewFrame(source, atSeconds, cut) {
+    const root = path.join(require('./file-storage').DATA_DIR || process.env.FILM_DATA_DIR || require('os').tmpdir(), 'final-repair-references');
+    fs.mkdirSync(root, { recursive: true });
+    const sourceHash = crypto.createHash('sha256').update(fs.readFileSync(source)).digest('hex');
+    const key = crypto.createHash('sha256').update(sourceHash).update(String(atSeconds)).digest('hex');
+    const target = path.join(root, key + '.png');
+    if (!fs.existsSync(target)) {
+        const temp = target + '.' + crypto.randomUUID() + '.png';
+        const result = cut(source, { atSeconds, out: temp });
+        if (!result.ok || result.fellBack) { try { fs.unlinkSync(temp); } catch (_) {} return result; }
+        if (crypto.createHash('sha256').update(fs.readFileSync(source)).digest('hex') !== sourceHash) {
+            try { fs.unlinkSync(result.path); } catch (_) {}
+            return { ok: false, reason: 'The source clip changed while extracting the review frame. Prepare a fresh review.' };
+        }
+        fs.renameSync(result.path, target);
+    }
+    return { ok: true, path: target };
+}
+function repairPayload(gen) {
+    const spec = gen.plan.generate;
+    return { workflow: 'first-last-frame', keyframes: gen.images.map((uri, i) => ({ uri, position: i ? 'last' : 'first' })),
+        duration: spec.durationSeconds, resolution: spec.resolution,
+        ...(spec.width ? { width: spec.width, height: spec.height } : {}),
+        prompt: gen.prompt || 'Continue the action between these two frames, matching the surrounding shot.' };
+}
+
 const REPAIR_STAGES = Object.freeze([
     { id: 'plan', why: 'the geometry, the floor and the cost, decided before anything is spent or written' },
     { id: 'budget', why: 'the gate belongs with the thing that SPENDS; one consulted by the planner and '
@@ -112,7 +140,7 @@ async function runRepair(input) {
             const out = o.projectId
                 ? getFilePath(o.projectId, 'repairs', `${scope}-${f.role}.png`)
                 : path.join(work, `${f.role}.png`);
-            const got = cut(o.sourcePath, { atSeconds: f.atSeconds, out });
+            const got = o.finalReview ? reviewFrame(o.sourcePath, f.atSeconds, cut) : cut(o.sourcePath, { atSeconds: f.atSeconds, out });
             if (!got.ok) {
                 return fail('extract',
                     `the ${f.role} frame at ${f.atSeconds}s could not be taken: ${got.reason}`);
@@ -130,20 +158,20 @@ async function runRepair(input) {
                     + 'taken would be the start of it. Mark the range again against this clip\'s real length.');
             }
             frames.push({ role: f.role, path: got.path, index: i });
-            scratch.push(got.path);
+            if (!o.finalReview) scratch.push(got.path);
         }
 
-        at = 'host';
         /* 4 · host — the provider cannot read our disk. */
         const urls = [];
         for (const f of frames) {
+            if (o.finalReview) { urls.push('data:image/png;base64,' + fs.readFileSync(f.path).toString('base64')); continue; }
             const h = mintHandle(f.path, { scope, publicBase: o.publicBase });
             if (!h.ok) return fail('host', h.reason, { code: h.code });
             minted.push(h.id);
             urls.push(h.url);
         }
 
-        at = 'generate';
+        if (o.previewOnly) return { ok: true, preview: true, payload: repairPayload({ images: urls, plan }), source_paths: [o.sourcePath, ...frames.map(f => f.path)] };
         /* 5 · generate — the only step that spends. */
         const gen = o.generate;
         if (typeof gen !== 'function') {
@@ -258,31 +286,15 @@ async function repairGenerator(request, opts) {
     if (!provider) {
         try {
             const { resolve } = require('./providers');
-            /*
-             * `providerConfigOf`, NOT `parseProjectConfig`. The latter is a
-             * stale name that survives only in a COMMENT in usage-meter.js, and
-             * I copied it from there — so this threw on every real call and the
-             * runner reported "no video provider could be resolved", which
-             * reads as a configuration problem rather than a typo. The unit
-             * test injected a provider and never walked this path; only running
-             * it against a real project found it.
-             */
-            const { providerConfigOf } = require('./provider-config');
-            provider = resolve('video', providerConfigOf(gen.projectId));
+            // The resolver takes project IDs; the row-based helper would lose the project's selection.
+            const { providerConfigFor } = require('./provider-config');
+            provider = resolve('video', providerConfigFor(gen.projectId));
         } catch (err) {
             return { ok: false, reason: `no video provider could be resolved: ${err.message}` };
         }
     }
 
-    const payload = {
-        workflow: 'first-last-frame',
-        // Ordered. [0] starts, [1] arrives.
-        keyframes: images.map((uri, i) => ({ uri, position: i === 0 ? 'first' : 'last' })),
-        duration: spec.durationSeconds,
-        resolution: spec.resolution,
-        ...(spec.width ? { width: spec.width, height: spec.height } : {}),
-        prompt: gen.prompt || 'Continue the action between these two frames, matching the surrounding shot.',
-    };
+    const payload = repairPayload(gen);
 
     let result;
     try {
@@ -391,7 +403,7 @@ async function runBridge(input) {
                 ? (ensureDir(o.projectId, 'repairs'),
                    getFilePath(o.projectId, 'repairs', `${scope}-${f.role}.png`))
                 : path.join(work, `${f.role}.png`);
-            const got = cut(f.sourcePath, { atSeconds: f.atSeconds, out });
+            const got = o.finalReview ? reviewFrame(f.sourcePath, f.atSeconds, cut) : cut(f.sourcePath, { atSeconds: f.atSeconds, out });
             if (!got.ok) {
                 return fail('extract',
                     `the ${f.role} frame of ${f.shot_code} at ${f.atSeconds}s could not be taken: ${got.reason}`);
@@ -402,18 +414,20 @@ async function runBridge(input) {
                     + 'clip, so the frame taken would be its start. Re-mark against its real length.');
             }
             frames.push(got.path);
-            scratch.push(got.path);
+            if (!o.finalReview) scratch.push(got.path);
         }
 
         /* 4 · host — the provider cannot read our disk. */
         const urls = [];
         for (const p2 of frames) {
+            if (o.finalReview) { urls.push('data:image/png;base64,' + fs.readFileSync(p2).toString('base64')); continue; }
             const h = mintHandle(p2, { scope, publicBase: o.publicBase });
             if (!h.ok) return fail('host', h.reason, { code: h.code });
             minted.push(h.id);
             urls.push(h.url);
         }
 
+        if (o.previewOnly) return { ok: true, preview: true, payload: repairPayload({ images: urls, plan }), source_paths: [...o.spans.map(s => s.sourcePath), ...frames] };
         /* 5 · generate — the only step that spends. */
         if (typeof o.generate !== 'function') return fail('generate', 'no generator was supplied');
         let made;

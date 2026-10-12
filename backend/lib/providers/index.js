@@ -571,6 +571,9 @@ function pinnedModelFor(capability, projectConfig, adapterOrId) {
     const adapter = adapterOrId ? (typeof adapterOrId === 'string' ? get(adapterOrId) : adapterOrId)
         : get(resolveId(capability, cfg));
     const offered = adapter ? modelIdsFor(adapter, capability) : null;
+    // Meshy validates 3D pins explicitly; an unsupported saved choice must
+    // fail locally rather than silently switching to a billable default.
+    if (capability === 'model3d' && adapter && adapter.id === 'meshy') return want.trim();
     return offered && offered.includes(want.trim()) ? want.trim() : null;
 }
 
@@ -705,7 +708,7 @@ function withJobRecording_(adapter, capability, projectConfig) {
     const innerStream = typeof adapter.generateStream === 'function' ? adapter.generateStream.bind(adapter) : null;
 
     const open = (cap, o) => progress.start({
-        provider: adapter.id, capability: cap || capability,
+        provider: (o && o.finalProvider) || adapter.id, capability: cap || capability,
         projectId: cfg.__project_id || null,
         shotId: cfg.__shot_id || null,
         sceneId: cfg.__scene_id || null,
@@ -753,7 +756,13 @@ function withJobRecording_(adapter, capability, projectConfig) {
          * does not inherit them. Nothing chosen changes nothing.
          */
         require('../generation-options').applyChosen(cap || capability, cfg, adapter.id, payload);
-        if ((cap || capability) === 'video') Object.assign(payload, require('../video-audio-policy').applyVideoAudioPolicy(payload, { provider_config: cfg }));
+        if ((cap || capability) === 'image' && cfg.__project_id && cfg.__production_explicit_recipe !== true) {
+            payload = require('../moodboard-influence').includeInPayload(require('../../db/database').db, cfg.__project_id, payload, adapter);
+        }
+        if ((cap || capability) === 'video' && cfg.__production_explicit_recipe !== true) Object.assign(payload, require('../video-audio-policy').applyVideoAudioPolicy(payload, { provider_config: cfg }));
+        if (cfg.__production_explicit_recipe !== true && Object.prototype.hasOwnProperty.call(require('../final-request-validation').supportedInputFields, adapter.id + '/' + (cap || capability))) {
+            payload = require('../final-provider-request').normalizeInheritedInputs(adapter.id,cap || capability,payload);
+        }
         /*
          * STOP AT THE PROVIDER'S DOOR.
          *
@@ -774,6 +783,33 @@ function withJobRecording_(adapter, capability, projectConfig) {
             return { ok: true, preview: true, provider: adapter.id, payload, request };
         }
         const o = Object.assign({}, opts || {});
+        // Approval selects a frozen adapter request before job creation or transport.
+        // Route composition is checked as provenance; the adapter consumes the
+        // approved snapshot so an edit is never re-composed after Send.
+        const approval = await require('../final-request-review').authorizeGeneration({
+            provider: adapter.id, capability: cap || capability, payload,
+            provenance: { ...o.jobMeta, project_id: cfg.__project_id || undefined, shot_id: cfg.__shot_id || undefined }, opts: o,
+        });
+        if (!approval.ok) return approval;
+        o.finalRequest = approval.finalRequest;
+        o.jobMeta = { ...o.jobMeta, approval_id: approval.approvalId };
+        o.__meter = { ...o.__meter, sourceRef: 'final-review:' + approval.approvalId };
+        const nativeAudio = typeof approval.snapshot.body?.generate_audio === 'boolean' ? approval.snapshot.body.generate_audio
+            : typeof approval.snapshot.body?.audio === 'boolean' ? approval.snapshot.body.audio : undefined;
+        const dispatchAdapter = get(approval.snapshot.provider);
+        if (!dispatchAdapter || !dispatchAdapter.supports(cap || capability)) return {ok:false,status:409,error:'The explicitly approved provider is unavailable. Review again.'};
+        o.finalProvider = dispatchAdapter.id;
+        const sendPayload = require('../final-request-review').store().get(approval.approvalId).editable.payload;
+        const reviewedAudio = nativeAudio !== undefined ? nativeAudio : sendPayload.generate_audio;
+        if ((cap || capability) === 'video' && typeof reviewedAudio === 'boolean') o.jobMeta.audio = reviewedAudio;
+        const dispatch = dispatchAdapter.id === adapter.id ? inner : metered(dispatchAdapter, cfg).generate.bind(metered(dispatchAdapter, cfg));
+        if(o.jobMeta.storyboard_frame){
+            try{const db=require('../../db/database').db,frame=o.jobMeta.storyboard_frame;
+                const shot=db.prepare('SELECT current_frame_version FROM film_shots WHERE id=?').get(frame.shot_id);
+                const latest=db.prepare("SELECT id,version FROM film_assets WHERE shot_id=? AND asset_type IN ('storyboard','keyframe') ORDER BY version DESC LIMIT 1").get(frame.shot_id);
+                o.jobMeta.storyboard_frame={...frame,delivery_baseline:{selected_version:shot?.current_frame_version??null,latest_asset_id:latest?.id||null,latest_version:latest?.version||0}};
+            }catch(_){}
+        }
         let jobId = open(cap, o);
         /*
          * PROGRESS REACHES THE ROW (PGN-002). Every adapter reports through
@@ -785,7 +821,7 @@ function withJobRecording_(adapter, capability, projectConfig) {
             try { if (jobId && evt) progress.report(jobId, evt); } catch (_) { /* never fails a render */ }
             if (typeof theirProgress === 'function') { try { theirProgress(evt); } catch (_) { /* the caller's painter */ } }
         };
-        if (adapter.asyncGeneration) {
+        if (dispatchAdapter.asyncGeneration) {
             const theirs = o.onHandle;
             o.onHandle = (requestId, meta) => {
                 /*
@@ -800,38 +836,39 @@ function withJobRecording_(adapter, capability, projectConfig) {
                  * handle `collect` can post the spend without the request.
                  */
                 let meterPlan = null;
-                try {
-                    if (typeof adapter.meter === 'function') {
-                        const u = adapter.meter(cap || capability, payload, null);
-                        if (u && Number(u.quantity) > 0) {
-                            meterPlan = { unit: u.unit, quantity: u.quantity, model: u.model || null,
-                                          parts: u.parts || null };
-                        }
-                    }
-                } catch (_) { /* a price that cannot be worked out is not a blocker */ }
+                try { meterPlan=jobs.meterPlan(dispatchAdapter.id,cap||capability,sendPayload,approval.snapshot,null); }
+                catch (_) { /* a price that cannot be worked out is not a blocker */ }
                 /*
                  * WHAT THIS GENERATION IS, not just which capability it used:
                  * the caller's jobMeta says which sequence leg or shot, so a
                  * collected result can be FILED. Adapter facts win on a clash.
                  */
-                const m = Object.assign({}, o.jobMeta || {}, meta || {}, (cap || capability) === 'video' ? { audio: payload.generate_audio, video_audio_policy: payload.video_audio_policy } : {}, meterPlan ? { meter: meterPlan } : {});
+                const m = Object.assign({}, o.jobMeta || {}, meta || {}, (cap || capability) === 'video' && reviewedAudio !== undefined ? { audio: reviewedAudio } : {}, meterPlan ? { meter: meterPlan } : {});
                 // The row opened at the start becomes the handle; if that write
                 // failed, record() still files the handle on its own.
                 jobId = jobId
                     ? progress.attachHandle(jobId, requestId, m)
-                    : jobs.record({ provider: adapter.id, capability: cap || capability, requestId,
+                    : jobs.record({ provider: dispatchAdapter.id, capability: cap || capability, requestId,
                         projectId: cfg.__project_id || null, shotId: cfg.__shot_id || null,
                         sceneId: cfg.__scene_id || null, meta: m });
                 if (typeof theirs === 'function') { try { theirs(requestId, meta); } catch (e) { console.error('[providers] an onHandle callback threw:', e.message); } }
                 return jobId;
             };
             o.onTimeout = (requestId, waitedMs) =>
-                jobs.timedOut({ provider: adapter.id, jobId, requestId, waitedMs });
+                jobs.timedOut({ provider: dispatchAdapter.id, jobId, requestId, waitedMs });
         }
         let result;
-        try { result = await inner(cap, payload, o); }
-        catch (err) { settle(jobId, { ok: false, error: err && err.message }); throw err; }
-        settle(jobId, result);
+        try { result = await dispatch(cap, sendPayload, o); }
+        catch (err) {
+            settle(jobId, { ok: false, error: err && err.message });
+            throw err;
+        }
+        // Native wrappers own approval transitions and retain the complete
+        // provider receipt. A registry failure must not settle another claim.
+        if (result) { result.review_id = approval.approvalId; result.job_id = jobId || result.job_id || null; }
+        if (result?.pending && !result.job_id) result.error += ` Its approved receipt is ${approval.approvalId}; recover it with generation_collect(job_id=${approval.approvalId}).`;
+        if(result?.ok){try{jobs.retainMeter(jobId,jobs.meterPlan(dispatchAdapter.id,cap||capability,sendPayload,approval.snapshot,result));}catch(_){} }
+        if (!(result && result.ok && o.jobMeta.pipeline_delivery)) settle(jobId, result);
         /*
          * ONE RESULT SHAPE FOR THE SAVE. Every route persists `result.data`,
          * and the async adapters (Runway, Seedance/MuAPI) answer with a
@@ -842,17 +879,27 @@ function withJobRecording_(adapter, capability, projectConfig) {
         if (result && result.ok && result.data === undefined && typeof result.url === 'string' && result.url) {
             result.data = { url: result.url };
         }
-        if (result && result.ok && (cap || capability) === 'video') {
-            result.audio = payload.generate_audio;
-            if (result.data && typeof result.data === 'object') result.data.audio = payload.generate_audio;
+        if (result && result.ok && (cap || capability) === 'video' && reviewedAudio !== undefined) {
+            result.audio = reviewedAudio;
+            if (result.data && typeof result.data === 'object') result.data.audio = reviewedAudio;
+        }
+        if (result && result.ok && o.jobMeta.pipeline_delivery) {
+            progress.flush(jobId);
+            jobs.accepted(jobId, result);
         }
         return result;
     };
     if (innerStream) {
         wrapped.generateStream = async (cap, payload, res, callbacks) => {
-            if ((cap || capability) === 'video') Object.assign(payload, require('../video-audio-policy').applyVideoAudioPolicy(payload, { provider_config: cfg }));
-            const jobId = open(cap, null);
+            if ((cap || capability) === 'video' && cfg.__production_explicit_recipe !== true) Object.assign(payload, require('../video-audio-policy').applyVideoAudioPolicy(payload, { provider_config: cfg }));
             const cb = Object.assign({}, callbacks || {});
+            const approval = await require('../final-request-review').authorizeGeneration({
+                provider: adapter.id, capability: cap || capability, payload,
+                provenance: { project_id: cfg.__project_id || undefined, shot_id: cfg.__shot_id || undefined }, opts: cb,
+            });
+            if (!approval.ok) return approval;
+            cb.finalRequest = approval.finalRequest;
+            const jobId = open(cap, null);
             const complete=cb.onComplete;
             cb.onComplete=data=>{
                 if ((cap || capability)==='video' && data && typeof data==='object') { data.audio=payload.generate_audio; if(data.data && typeof data.data==='object') data.data.audio=payload.generate_audio; }

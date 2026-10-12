@@ -494,6 +494,7 @@ function referenceKey(references, tagFor) {
     const refs = (references || []).filter(Boolean);
     if (!refs.length) return null;
     const parts = refs.map((r, i) => {
+        if (r.moodboard_entry_id) return require('./moodboard-influence').instruction(r, i + 1);
         const kind = REFERENCE_KIND_LABEL[r.kind] || r.kind || 'reference';
         const name = String(r.name || r.subject_name || '').trim();
         const label = r.kind === 'anchor'
@@ -502,7 +503,7 @@ function referenceKey(references, tagFor) {
         const tag = tagFor && name && tagFor.get(name.toUpperCase());
         return `Reference ${i + 1}: ${label}${r.view ? `, ${r.view} view` : ''}${tag ? ` (@${tag})` : ''}`;
     });
-    return `${parts.join('. ')}. Each picture shows what that subject looks like; this text says how the shot is framed and what happens in it`;
+    return `${parts.join('. ')}. Subject pictures establish identity and location; Moodboard pictures influence only their named visual roles. This text says how the shot is framed and what happens in it`;
 }
 
 function buildStoryboardPrompt(sceneCard, characters, location, stylePreset, options) {

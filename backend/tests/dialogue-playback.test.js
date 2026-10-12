@@ -123,16 +123,9 @@ test('served media carries a length and accepts ranges', () => {
     assert.ok(/416/.test(body), 'an unsatisfiable range is not refused');
 });
 
-/* ── a shot holds for its dialogue ─────────────────────────────────────── */
+/* ── Production holds a still for exactly five seconds ────────────────── */
 
-test('a still shot holds for its dialogue, not for the card', () => {
-    /*
-     * The card's duration was written before the lines existed and is usually
-     * four seconds. Shot 1B of The Glass Harbour is a 4000ms card carrying a
-     * four-line exchange that measures 5040ms — so playback cut away
-     * mid-sentence and moved on, which is the same fault an uploaded clip had
-     * when it was held for the length its card asked for.
-     */
+test('dialogue does not change the exact five-second still fallback', () => {
     const shot = { id: 's1', shot_code: '1B', duration_ms: 4000 };
     const assets = [
         { asset_type: 'storyboard', file_path: '/a/1B.png' },
@@ -143,28 +136,23 @@ test('a still shot holds for its dialogue, not for the card', () => {
     ];
     const tl = buildTimeline([shot], { s1: assets });
     const entry = tl.entries[0];
-    const spoken = 1070 + 1250 + 1280 + 1440;
-    assert.ok(entry.duration_ms >= spoken,
-        `the shot holds ${entry.duration_ms}ms for ${spoken}ms of dialogue — it cuts off a line`);
-    assert.ok(entry.duration_ms > 4000, 'the card duration won over the measured dialogue');
+    assert.equal(entry.duration_ms, 5000);
+    assert.equal(entry.audio_lines.length, 4, 'the source dialogue should remain available');
 });
 
-test('a longer card still wins — holding on a face is a decision', () => {
-    // Shortening a shot to its dialogue would overrule a director who
-    // deliberately holds after the last line.
+test('a longer card does not override the still fallback', () => {
     const shot = { id: 's1', shot_code: '1B', duration_ms: 30000 };
     const tl = buildTimeline([shot], { s1: [
         { asset_type: 'storyboard', file_path: '/a/1B.png' },
         asset({ file_name: '1B_RAY_0.mp3', duration_ms: 1000 }),
     ] });
-    assert.equal(tl.entries[0].duration_ms, 30000);
+    assert.equal(tl.entries[0].duration_ms, 5000);
 });
 
-test('a shot with no dialogue is unchanged', () => {
-    // The byte-identical guarantee for every project that has generated none.
+test('a shot with no dialogue holds for exactly five seconds', () => {
     const shot = { id: 's1', shot_code: '1A', duration_ms: 4000 };
     const tl = buildTimeline([shot], { s1: [{ asset_type: 'storyboard', file_path: '/a/1A.png' }] });
-    assert.equal(tl.entries[0].duration_ms, 4000);
+    assert.equal(tl.entries[0].duration_ms, 5000);
 });
 
 test('a measured clip still beats both', () => {

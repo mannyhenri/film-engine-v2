@@ -20,6 +20,9 @@
  */
 
 const { getCredential } = require('./credentials');
+const fs = require('fs');
+const path = require('path');
+const { fileURLToPath } = require('url');
 
 const BASE_URL = process.env.GOOGLE_BASE_URL || 'https://generativelanguage.googleapis.com/v1beta';
 
@@ -65,6 +68,32 @@ function aspectFor(payload) {
         Math.abs(k[1] - r) < Math.abs(best[1] - r) ? k : best, known[0])[0];
 }
 
+/** Inline every selected reference without reading remote content. */
+function imageReference(ref, index) {
+    const source = typeof ref === 'string' ? ref : ref && (ref.uri || ref.url || ref.image_url || ref.src || ref.file_path);
+    const fail = why => { throw new Error(`google: reference image ${index + 1} ${why}`); };
+    if (typeof source !== 'string' || !source.trim()) return fail('has no supported source');
+    const inline = /^data:([^;,]+);base64,([A-Za-z0-9+/]+={0,2})$/i.exec(source);
+    if (inline) {
+        if (!Buffer.from(inline[2], 'base64').length) return fail('has no image bytes');
+        return { type: 'image', mime_type: inline[1], data: inline[2] };
+    }
+    let filePath = source;
+    if (/^file:/i.test(source)) {
+        try { filePath = fileURLToPath(source); } catch (_) { return fail('has an invalid file URI'); }
+    } else if (/^[a-z][a-z0-9+.-]*:/i.test(source)) return fail('needs immutable local bytes before review');
+    try {
+        if (!fs.statSync(filePath).isFile()) return fail('is not a local file');
+        const bytes = fs.readFileSync(filePath);
+        if (!bytes.length) return fail('has no image bytes');
+        const mime = ({ '.webp': 'image/webp', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg' })[path.extname(filePath).toLowerCase()] || 'image/png';
+        return { type: 'image', mime_type: mime, data: bytes.toString('base64') };
+    } catch (error) {
+        if (error.message.startsWith('google: reference image')) throw error;
+        return fail('cannot be read as a local file');
+    }
+}
+
 function buildImageRequest(payload) {
     const p = payload || {};
     const model = MODELS[p.model] ? p.model : DEFAULT_MODEL;
@@ -94,13 +123,10 @@ function buildImageRequest(payload) {
      * the same contract Meshy and OpenAI impose, and the reason the shot anchor
      * ranks 0 rather than relying on a tag.
      */
-    for (const ref of (p.reference_images || []).slice(0, MAX_REFERENCES)) {
-        const uri = typeof ref === 'string' ? ref : (ref && (ref.uri || ref.url || ref.image_url));
-        if (!uri) continue;
-        const m = /^data:([^;,]+);base64,(.+)$/i.exec(String(uri));
-        if (!m) continue;                      // a bare URL cannot be inlined
-        input.push({ type: 'image', mime_type: m[1], data: m[2] });
-    }
+    if (p.reference_images != null && !Array.isArray(p.reference_images)) throw new Error('google: reference_images must be an array');
+    const refs = p.reference_images || [];
+    if (refs.length > MAX_REFERENCES) throw new Error(`google: at most ${MAX_REFERENCES} reference images are supported; remove the excess references`);
+    input.push(...refs.map(imageReference));
 
     const body = {
         model,
@@ -120,7 +146,8 @@ function buildImageRequest(payload) {
 const MAX_REFERENCES = 8;
 const PROMPT_LIMIT = 16000;
 
-async function generate(capability, payload, opts) {
+async function generate(capability,payload,opts) { return require('../final-provider-request').finishGeneration(opts,()=>generateApproved(capability,payload,opts)); }
+async function generateApproved(capability, payload, opts) {
     if (capability !== 'image') {
         return { ok: false, status: 400, error: `google: ${capability} is not served here` };
     }
@@ -129,14 +156,14 @@ async function generate(capability, payload, opts) {
         return { ok: false, status: 401, error: 'google: no API key configured' };
     }
 
-    const req = buildImageRequest(payload);
+    const req = await require('../final-provider-request').approvedRequest('google', capability, opts);
     if (!req.body.input.length) {
         return { ok: false, status: 400, error: 'google: nothing to generate from' };
     }
 
     let res;
     try {
-        res = await fetch(req.url, {
+        res = await require('../generation-transport').dispatch(req, req.url, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
             body: JSON.stringify(req.body),

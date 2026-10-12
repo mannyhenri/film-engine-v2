@@ -51,6 +51,8 @@ function handleCharacters(req, res, urlParts, query) {
         if (!UUID_RE.test(charId)) return badRequest(res, 'Invalid character ID');
         const sub = urlParts[3];
 
+        if (sub === 'expressions') return require('./character-expressions').handleCharacterExpressions(req,res,charId,urlParts);
+
         if (sub === 'voice') {
             if (req.method === 'GET') return getVoiceProfile(req, res, charId);
             if (req.method === 'POST') return createVoiceProfile(req, res, charId);
@@ -797,46 +799,11 @@ function previewRefSheet(req, res, charId, query) {
     }));
 }
 
-async function generateRefSheet(req, res, charId) {
-    const ch = db.prepare('SELECT * FROM film_characters WHERE id = ?').get(charId);
-    if (!ch) {
-        res.writeHead(404, { 'Content-Type': 'application/json' });
-        return res.end(JSON.stringify({ error: 'Character not found' }));
-    }
-
-    const views = (req.body && req.body.views) || REFSHEET_VIEWS;
-    const seed = (req.body && req.body.seed) || null;
-    /*
-     * No default model.
-     *
-     * This named a model none of the image providers wired here offers, so
-     * Meshy fell through to its own default of nano-banana-pro at 9 credits —
-     * every reference sheet silently buying the most expensive model in the
-     * catalogue while ignoring the project's quality tier entirely.
-     *
-     * The job row keeps a readable value; the PAYLOAD gets nothing unless a
-     * caller asked, which lets the tier decide.
-     */
-    const model = (req.body && req.body.model) || null;
-
-    const jobId = generateId();
-    db.prepare(
-        `INSERT INTO film_refsheet_jobs (id, project_id, character_id, status, views, model, seed)
-         VALUES (?, ?, ?, 'processing', ?, ?, ?)`
-    ).run(jobId, ch.project_id, charId, JSON.stringify(views), model, seed);
-
-    const results = [];
-    ensureDir(ch.project_id, 'refsheets');
-
-    // Resolve the image provider for this project (gridlight default → OpenAI/etc when configured).
+function buildCharacterViewRequest(ch, view, body, imageProvider) {
     const { imageOverride, promptOverride } = require('../lib/generation-override');
-    const tierOverride = imageOverride(req.body || {});
-    const promptEdit = promptOverride(req.body || {});
-    const imageProvider = resolve('image',
-        require('../lib/provider-config').spendContext({ id: ch.project_id }, null, null, tierOverride)
-            || parseProjectConfig(ch.project_id));
-
-    for (const view of views) {
+    const tierOverride = imageOverride(body || {});
+    const promptEdit = promptOverride(body || {});
+    const model = body.model || null, seed = body.seed || null;
         const project = db.prepare('SELECT style_preset FROM film_projects WHERE id = ?').get(ch.project_id);
         const projectStyle = project && project.style_preset;
         let styleApplied = !!(projectStyle && String(projectStyle).trim());
@@ -876,6 +843,53 @@ async function generateRefSheet(req, res, charId) {
             seed,
         };
 
+    require('../lib/capability-payloads').withTierModel(payload, { project: { id: ch.project_id }, tierOverride }, imageProvider);
+    return { payload, styleApplied, sourcePaths: styleRefs.map(r=>r.file_path||r.path).filter(Boolean) };
+}
+
+async function generateRefSheet(req, res, charId) {
+    const ch = db.prepare('SELECT * FROM film_characters WHERE id = ?').get(charId);
+    if (!ch) {
+        res.writeHead(404, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ error: 'Character not found' }));
+    }
+
+    const views = (req.body && req.body.views) || REFSHEET_VIEWS;
+    const seed = (req.body && req.body.seed) || null;
+    /*
+     * No default model.
+     *
+     * This named a model none of the image providers wired here offers, so
+     * Meshy fell through to its own default of nano-banana-pro at 9 credits —
+     * every reference sheet silently buying the most expensive model in the
+     * catalogue while ignoring the project's quality tier entirely.
+     *
+     * The job row keeps a readable value; the PAYLOAD gets nothing unless a
+     * caller asked, which lets the tier decide.
+     */
+    const model = (req.body && req.body.model) || null;
+
+    const jobId = generateId();
+    db.prepare(
+        `INSERT INTO film_refsheet_jobs (id, project_id, character_id, status, views, model, seed)
+         VALUES (?, ?, ?, 'processing', ?, ?, ?)`
+    ).run(jobId, ch.project_id, charId, JSON.stringify(views), model, seed);
+
+    const results = [];
+    ensureDir(ch.project_id, 'refsheets');
+
+    // Resolve the image provider for this project (gridlight default → OpenAI/etc when configured).
+    const { imageOverride, promptOverride } = require('../lib/generation-override');
+    const tierOverride = imageOverride(req.body || {});
+    const promptEdit = promptOverride(req.body || {});
+    const imageProvider = resolve('image',
+        require('../lib/provider-config').spendContext({ id: ch.project_id }, null, null, tierOverride)
+            || parseProjectConfig(ch.project_id));
+
+    for (const [itemIndex, view] of views.entries()) {
+        const planned = buildCharacterViewRequest(ch, view, req.body || {}, imageProvider);
+        const { payload } = planned;
+        let { styleApplied } = planned;
         try {
             /*
              * A reference sheet is generated on the film's chosen quality too.
@@ -889,6 +903,7 @@ async function generateRefSheet(req, res, charId) {
                 payload, { project: { id: ch.project_id }, tierOverride }, imageProvider);
 
             let result = await imageProvider.generate('image', payload, {
+                ...require('../lib/final-subject-request-plans').subjectExecutionOptions('character',ch.id,view,itemIndex),
                 timeout: 300000,
                 /*
                  * WHAT THIS GENERATION IS, written onto the handle.
@@ -905,32 +920,7 @@ async function generateRefSheet(req, res, charId) {
                     characterName: ch.name, view, styleApplied }),
             });
 
-            // A style written for the FILM can be refused on a reference sheet:
-            // it lands beside a full-body physical description, and the pair
-            // trips provider moderation where either alone passes. The sheet's
-            // job is identity — wardrobe, face, build — and the look can come
-            // from the shot prompt at generation time, so a styleless sheet is
-            // far better than no sheet. Retried once, and reported: silently
-            // dropping the style is how a director ends up anchoring a whole
-            // film to a look nobody chose.
-            if (!result.ok && styleApplied && /moderation/i.test(String(result.error || ''))) {
-                // The look drops whole — its words AND its picture. Retrying
-                // with the reference still attached re-sends what may have been
-                // refused, and would report style_applied: false while the look
-                // was in fact still applied.
-                const { reference_images: _dropped, ...styleless } = payload;
-                result = await imageProvider.generate('image', {
-                    ...styleless,
-                    prompt: buildRefSheetPrompt(ch, view, null, ch.project_id),
-                }, {
-                    timeout: 300000,
-                    // The retry is a different handle, and the look is off it.
-                    jobMeta: plateDelivery.jobMeta({
-                        projectId: ch.project_id, characterId: charId,
-                        characterName: ch.name, view, styleApplied: false }),
-                });
-                if (result.ok) styleApplied = false;
-            }
+            // A changed style or reference requires a fresh final review.
 
             if (!result.ok) {
                 results.push({ view, status: 'failed', error: result.error });
@@ -1224,23 +1214,15 @@ function previewOrbit(res, charId, query) {
 }
 
 /** The approved front plate, as a data URI, or null. */
+function frontPlatePathFor(ch) {
+    const row=db.prepare("SELECT file_name FROM film_assets WHERE character_id=? AND asset_type IN ('character_sheet','reference_image') AND json_extract(metadata,'$.view')='front' ORDER BY created_at DESC LIMIT 1").get(ch.id);
+    if(!row)return null;
+    const file=require('../lib/file-storage').getFilePath(ch.project_id,'refsheets',row.file_name);
+    return require('fs').existsSync(file)?file:null;
+}
 function frontPlateUriFor(ch) {
-    try {
-        const row = db.prepare(
-            // Same widening as the card query above, and for the same reason:
-            // the plate a frame is generated from must be the plate a person
-            // can see.
-            `SELECT file_name FROM film_assets
-              WHERE character_id = ? AND asset_type IN ('character_sheet', 'reference_image')
-                AND json_extract(metadata, '$.view') = 'front'
-              ORDER BY created_at DESC LIMIT 1`).get(ch.id);
-        if (!row) return null;
-        const fsx = require('fs');
-        const { getFilePath } = require('../lib/file-storage');
-        const p = getFilePath(ch.project_id, 'refsheets', row.file_name);
-        if (!fsx.existsSync(p)) return null;
-        return `data:image/png;base64,${fsx.readFileSync(p).toString('base64')}`;
-    } catch (_) { return null; }
+    const file=frontPlatePathFor(ch);
+    return file?`data:image/png;base64,${require('fs').readFileSync(file).toString('base64')}`:null;
 }
 
 /**
@@ -1250,27 +1232,37 @@ function frontPlateUriFor(ch) {
  * filename, same per-view replacement — so `gatherShotReferences` and
  * `headlinePlate` pick them up with nothing else to change.
  */
-async function generateOrbit(req, res, charId) {
-    const { orbitPlan, orbitPrompt, mayOverwrite } = require('../lib/character-orbit');
-    const ch = db.prepare('SELECT * FROM film_characters WHERE id = ?').get(charId);
-    if (!ch) return json(res, 404, { error: 'Character not found' });
-
-    const seconds = Number((req.body || {}).seconds) || 5;
+function buildCharacterOrbitRequest(ch, body) {
+    const { orbitPlan, orbitPrompt } = require('../lib/character-orbit');
+    const seconds = Number((body || {}).seconds) || 5;
     const plan = orbitPlan({ seconds });
     const built = orbitPrompt(ch, projectMedium(ch.project_id, db),
         { frontPlateUri: frontPlateUriFor(ch) || undefined });
 
     const provider = resolve('video', parseProjectConfig(ch.project_id));
-    const result = await provider.generate('video', {
+    const payload = {
         prompt: built.prompt,
         negative_prompt: built.negative_prompt,
         init_image: built.init_image,
         motion: built.motion,
         camera_control: built.camera_control,
         duration_s: seconds,
-        model: (req.body || {}).model || 'gen4_turbo',
+        model: (body || {}).model || 'gen4_turbo',
+        // The orbit supplies reference views; its default model has no sound
+        // control. Declare the silent intent before the final request review.
+        audio: false, generate_audio: false, video_audio_policy: 'silent',
         width: 1280, height: 720,
-    }, { timeout: 300000 });
+    };
+    return { provider, payload, seconds, plan, sourcePaths: [frontPlatePathFor(ch)].filter(Boolean) };
+}
+
+async function generateOrbit(req, res, charId) {
+    const { orbitPlan, orbitPrompt, mayOverwrite } = require('../lib/character-orbit');
+    const ch = db.prepare('SELECT * FROM film_characters WHERE id = ?').get(charId);
+    if (!ch) return json(res, 404, { error: 'Character not found' });
+
+    const { provider, payload, seconds, plan } = buildCharacterOrbitRequest(ch, req.body || {});
+    const result = await provider.generate('video', payload, { timeout: 300000, ...require('../lib/final-subject-request-plans').subjectExecutionOptions('character',ch.id) });
     if (!result.ok) return json(res, result.status || 500, { error: result.error });
 
     const fsx = require('fs');
@@ -1422,4 +1414,4 @@ async function generateOrbit(req, res, charId) {
 }
 
 
-module.exports = { handleCharacters, buildRefSheetPrompt, REFSHEET_NEGATIVE };
+module.exports = { handleCharacters, buildRefSheetPrompt, buildCharacterViewRequest, buildCharacterOrbitRequest, REFSHEET_NEGATIVE, REFSHEET_VIEWS };

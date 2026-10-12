@@ -38,21 +38,15 @@ const parseProjectConfig = providerConfigFor;
  * lib/reference-plates.js — a second copy is how the character path acquired a
  * moderation fallback the others would not have inherited.
  */
-async function generateSubjectPlate(req, res, kind, subjectId) {
+function buildSubjectGenerationRequest(kind, subjectId, input) {
     const { PLATE_KINDS } = require('../lib/reference-plates');
     const spec = PLATE_KINDS[kind];
     const subject = db.prepare(`SELECT * FROM ${spec.table} WHERE id = ?`).get(subjectId);
-    if (!subject) {
-        res.writeHead(404, { 'Content-Type': 'application/json' });
-        return res.end(JSON.stringify({ error: `${kind} not found` }));
-    }
+    if (!subject) throw Object.assign(new Error(`${kind} not found`), { status: 404 });
 
     const project = db.prepare('SELECT id, style_preset, aspect_ratio, target_resolution FROM film_projects WHERE id = ?')
         .get(subject.project_id);
-    if (!project) {
-        res.writeHead(404, { 'Content-Type': 'application/json' });
-        return res.end(JSON.stringify({ error: 'Project not found' }));
-    }
+    if (!project) throw Object.assign(new Error('Project not found'), { status: 404 });
 
     /*
      * Which VIEW of this subject to photograph, and the existing plate to match
@@ -64,7 +58,7 @@ async function generateSubjectPlate(req, res, kind, subjectId) {
      * already exists so the set agrees with itself, which is the whole reason
      * for having a set.
      */
-    const body = req.body || {};
+    const body = input || {};
     const view = String(body.view || '').trim();
     let anchorPath = null;
     if (view) {
@@ -77,7 +71,7 @@ async function generateSubjectPlate(req, res, kind, subjectId) {
     }
 
     const { imageOverride, promptOverride } = require('../lib/generation-override');
-    const tierOverride = imageOverride(req.body || {});
+    const tierOverride = imageOverride(input || {});
     /*
      * A location plate declares a 2048 floor, and reaching it is a PROVIDER
      * choice: a ratio-only adapter turns a size into an aspect ratio and picks
@@ -90,8 +84,8 @@ async function generateSubjectPlate(req, res, kind, subjectId) {
         project);
     const provider = chosenFor.provider;
     const floorNote = chosenFor.floor;
-    const result = await generatePlate({
-        promptOverride: promptOverride(req.body || {}),
+    const args = {
+        promptOverride: promptOverride(input || {}),
         tierOverride,
         projectId: project.id,
         kind,
@@ -107,7 +101,13 @@ async function generateSubjectPlate(req, res, kind, subjectId) {
         // So the board's pinned look travels as a picture, not only as the
         // words it composed into style_preset.
         db,
-    });
+    };
+    return { args, subject, project, provider, floorNote };
+}
+
+async function generateSubjectPlate(req, res, kind, subjectId) {
+    const { args, subject, project, provider, floorNote } = buildSubjectGenerationRequest(kind, subjectId, req.body || {});
+    const result = await generatePlate(args);
 
     if (!result.ok) {
         res.writeHead(502, { 'Content-Type': 'application/json' });
@@ -201,19 +201,14 @@ function compassPlan(res, locationId) {
     }));
 }
 
-async function sweepCompassViews(req, res, locationId) {
+function buildCompassRequests(locationId, body) {
     const { planCompassSweep, generatePlate } = require('../lib/reference-plates');
     const location = db.prepare('SELECT * FROM film_locations WHERE id = ?').get(locationId);
-    if (!location) {
-        res.writeHead(404, { 'Content-Type': 'application/json' });
-        return res.end(JSON.stringify({ error: 'location not found' }));
-    }
+    if (!location) throw Object.assign(new Error('location not found'), { status: 404 });
+
     const project = db.prepare('SELECT id, style_preset, aspect_ratio, target_resolution FROM film_projects WHERE id = ?')
         .get(location.project_id);
-    if (!project) {
-        res.writeHead(404, { 'Content-Type': 'application/json' });
-        return res.end(JSON.stringify({ error: 'Project not found' }));
-    }
+    if (!project) throw Object.assign(new Error('Project not found'), { status: 404 });
 
     const plates = db.prepare(
         `SELECT file_path, metadata FROM film_assets
@@ -226,15 +221,10 @@ async function sweepCompassViews(req, res, locationId) {
     };
     const plan = planCompassSweep({
         existingViews: plates.map(viewOf),
-        overwrite: !!(req.body && req.body.overwrite),
+        overwrite: !!(body && body.overwrite),
     });
 
-    if (plan.refused) {
-        // 409 rather than 502: nothing failed, the prerequisite is missing, and
-        // the fix is one button away on the same page.
-        res.writeHead(409, { 'Content-Type': 'application/json' });
-        return res.end(JSON.stringify({ error: 'NO_ANCHOR_PLATE', ...plan, location: location.name }));
-    }
+    if (plan.refused) throw Object.assign(new Error('NO_ANCHOR_PLATE'), { status: 409 });
 
     /*
      * The anchor is the DEFAULT plate — the one the director generated and
@@ -245,13 +235,15 @@ async function sweepCompassViews(req, res, locationId) {
     const anchorRow = plates.find(r => !viewOf(r)) || plates[0];
     const provider = resolve('image', parseProjectConfig(location.project_id));
 
+    const calls = plan.generate.map((side,itemIndex) => ({ side, args: { itemIndex, projectId: project.id, kind: 'location', subject: location, stylePreset: project.style_preset, aspectRatio: project.aspect_ratio, provider, view: side.name, anchorPath: anchorRow.file_path, db } }));
+    return { location, project, provider, plan, calls };
+}
+
+async function sweepCompassViews(req, res, locationId) {
+    const { location, project, provider, plan, calls } = buildCompassRequests(locationId, req.body || {});
     const generated = [];
-    for (const side of plan.generate) {
-        const result = await generatePlate({
-            projectId: project.id, kind: 'location', subject: location,
-            stylePreset: project.style_preset, aspectRatio: project.aspect_ratio,
-            provider, view: side.name, anchorPath: anchorRow.file_path, db,
-        });
+    for (const { side, args } of calls) {
+        const result = await generatePlate(args);
         generated.push({ view: side.name, bearing: side.bearing, ...result });
         // A provider that has started refusing will refuse the next two as
         // well; stopping reports the reason once instead of three times, and
@@ -632,15 +624,15 @@ function notFoundJson(res, msg) {
     res.end(JSON.stringify({ error: msg }));
 }
 
-async function refineSubjectPlate(req, res, kind, subjectId) {
+function buildSubjectRefineRequest(kind, subjectId, input) {
     const { PLATE_KINDS, buildPlateRefinePrompt, REFINE_NEGATIVE, plateFileName } = require('../lib/reference-plates');
     const spec = PLATE_KINDS[kind];
     const subject = db.prepare(`SELECT * FROM ${spec.table} WHERE id = ?`).get(subjectId);
-    if (!subject) return badReq(res, `${kind} not found`, 404);
+    if (!subject) throw Object.assign(new Error(`${kind} not found`), { status: 404 });
 
-    const body = req.body || {};
+    const body = input || {};
     const instruction = String(body.instruction || '').trim();
-    if (!instruction) return badReq(res, 'Say what should change: a refine is one instruction.');
+    if (!instruction) throw Object.assign(new Error('Say what should change: a refine is one instruction.'), { status: 400 });
 
     const view = String(body.view || '').trim();
     const fileName = plateFileName(kind, subject.name, view);
@@ -657,9 +649,7 @@ async function refineSubjectPlate(req, res, kind, subjectId) {
         .get(subjectId, subjectId, spec.assetType, `${stem}.png`, `${stem}.jpg`, `${stem}.jpeg`, `${stem}.webp`);
     if (!existing || !existing.file_path || !fs.existsSync(existing.file_path)) {
         // Nothing to refine is a different problem from a failed refine.
-        return badReq(res, view
-            ? `There is no "${view}" plate to refine yet. Generate that view first.`
-            : 'There is no plate to refine yet. Generate one first.', 409);
+        throw Object.assign(new Error(view ? `There is no "${view}" plate to refine yet. Generate that view first.` : 'There is no plate to refine yet. Generate one first.'), { status: 409 });
     }
 
     const project = db.prepare('SELECT id, style_preset, aspect_ratio, target_resolution FROM film_projects WHERE id = ?')
@@ -670,12 +660,12 @@ async function refineSubjectPlate(req, res, kind, subjectId) {
         spendContext({ id: subject.project_id }, null, null, tierOverride)
             || parseProjectConfig(subject.project_id));
     if (!provider || typeof provider.generate !== 'function') {
-        return badReq(res, 'no image provider resolved', 502);
+        throw Object.assign(new Error('no image provider resolved'), { status: 502 });
     }
 
     const { toDataUri } = require('../lib/reference-images');
     const uri = toDataUri(existing.file_path);
-    if (!uri) return badReq(res, 'The existing plate could not be read from disk.', 500);
+    if (!uri) throw Object.assign(new Error('The existing plate could not be read from disk.'), { status: 500 });
 
     // An edited prompt replaces the composed one whole. The negative stays:
     // it is what keeps a refine from drifting into a fresh generation.
@@ -698,7 +688,14 @@ async function refineSubjectPlate(req, res, kind, subjectId) {
     // refine honours a per-call quality exactly as a generation does.
     require('../lib/capability-payloads').withTierModel(
         refinePayload_, { project: project || { id: subject.project_id }, tierOverride }, provider);
-    const result = await provider.generate('image', refinePayload_, { timeout: 300000 });
+    return { provider, payload: refinePayload_, subject, spec, existing, project, view, fileName, prompt, instruction };
+}
+
+async function refineSubjectPlate(req, res, kind, subjectId) {
+    const planned = buildSubjectRefineRequest(kind, subjectId, req.body || {});
+    const { provider, subject, spec, existing, project, view, fileName, prompt, instruction } = planned;
+    const refinePayload_ = planned.payload;
+    const result = await provider.generate('image', refinePayload_, { timeout: 300000, ...require('../lib/final-subject-request-plans').subjectExecutionOptions(kind,subjectId,view) });
 
     if (!result.ok) {
         res.writeHead(502, { 'Content-Type': 'application/json' });
@@ -1845,6 +1842,38 @@ function buildLocationPrompt(location) {
     return parts.join(', ');
 }
 
+function buildLocationImageRequest(loc, body) {
+    const model = body.model || null, seed = body.seed || null;
+    const prompt = buildLocationPrompt(loc);
+    const negativePrompt = 'blurry, low quality, distorted, text, watermark, people, characters';
+
+    const payload = {
+        prompt,
+        negative_prompt: negativePrompt,
+        // Absent rather than null: a null falls through to the provider's own
+        // default, which is the most expensive model it sells.
+        ...(model ? { model } : {}),
+        // At the project's resolution: every picture of a subject is a plate.
+        ...require('../lib/image-standard').plateSize('1:1',
+            require('../lib/image-standard').projectResolution(loc.project_id)),
+        steps: 30,
+        guidance_scale: 7.5,
+        seed,
+    };
+
+        const imageProvider = resolve('image', parseProjectConfig(loc.project_id));
+        // Names the house model (Nano Banana Pro) for whichever vendor of it runs.
+        require('../lib/capability-payloads').withTierModel(payload, { project: { id: loc.project_id } }, imageProvider);
+    const refs = require('../lib/reference-plates').styleReferencesFor(db,loc.project_id);
+    if (refs.length) {
+        if (!imageProvider?.supportsReferenceImages) throw Object.assign(new Error('This provider does not support Moodboard image conditioning'),{status:409});
+        if (refs.length > (imageProvider.maxReferenceImages || 3)) throw Object.assign(new Error(`Moodboard references exceed provider capacity (${imageProvider.maxReferenceImages || 3} slots)`),{status:409});
+        payload.reference_images=refs;
+        payload.prompt += '. ' + require('../lib/moodboard-influence').instructions(refs);
+    }
+    return { provider: imageProvider, payload };
+}
+
 async function generateLocationImage(req, res, locId) {
     const loc = db.prepare('SELECT * FROM film_locations WHERE id = ?').get(locId);
     if (!loc) {
@@ -1872,28 +1901,10 @@ async function generateLocationImage(req, res, locId) {
          VALUES (?, ?, ?, 'processing', ?, ?)`
     ).run(jobId, loc.project_id, locId, model, seed);
 
-    const prompt = buildLocationPrompt(loc);
-    const negativePrompt = 'blurry, low quality, distorted, text, watermark, people, characters';
-
-    const payload = {
-        prompt,
-        negative_prompt: negativePrompt,
-        // Absent rather than null: a null falls through to the provider's own
-        // default, which is the most expensive model it sells.
-        ...(model ? { model } : {}),
-        // At the project's resolution: every picture of a subject is a plate.
-        ...require('../lib/image-standard').plateSize('1:1',
-            require('../lib/image-standard').projectResolution(loc.project_id)),
-        steps: 30,
-        guidance_scale: 7.5,
-        seed,
-    };
-
+    const planned = buildLocationImageRequest(loc, req.body || {});
+    const { provider: imageProvider, payload } = planned;
     try {
-        const imageProvider = resolve('image', parseProjectConfig(loc.project_id));
-        // Names the house model (Nano Banana Pro) for whichever vendor of it runs.
-        require('../lib/capability-payloads').withTierModel(payload, { project: { id: loc.project_id } }, imageProvider);
-        const result = await imageProvider.generate('image', payload, { timeout: 300000 });
+        const result = await imageProvider.generate('image', payload, { timeout: 300000, ...require('../lib/final-subject-request-plans').subjectExecutionOptions('location',loc.id) });
         if (!result.ok) {
             db.prepare('UPDATE film_location_image_jobs SET status = ?, error_message = ? WHERE id = ?')
                 .run('failed', result.error, jobId);
@@ -1973,6 +1984,31 @@ function buildPropPrompt(prop) {
     return parts.join(', ');
 }
 
+function buildPropImageRequest(prop, body) {
+    const model = body.model || null, seed = body.seed || null;
+    const prompt = buildPropPrompt(prop);
+    const negativePrompt = 'blurry, low quality, distorted, text, watermark, multiple objects, cluttered background';
+
+    const payload = {
+        prompt,
+        negative_prompt: negativePrompt,
+        // Absent rather than null: a null falls through to the provider's own
+        // default, which is the most expensive model it sells.
+        ...(model ? { model } : {}),
+        // At the project's resolution: every picture of a subject is a plate.
+        ...require('../lib/image-standard').plateSize('1:1',
+            require('../lib/image-standard').projectResolution(prop.project_id)),
+        steps: 30,
+        guidance_scale: 7.5,
+        seed,
+    };
+
+        const imageProvider = resolve('image', parseProjectConfig(prop.project_id));
+        // Names the house model (Nano Banana Pro) for whichever vendor of it runs.
+        require('../lib/capability-payloads').withTierModel(payload, { project: { id: prop.project_id } }, imageProvider);
+    return { provider: imageProvider, payload };
+}
+
 async function generatePropImage(req, res, propId) {
     const prop = db.prepare('SELECT * FROM film_props WHERE id = ?').get(propId);
     if (!prop) {
@@ -2000,28 +2036,10 @@ async function generatePropImage(req, res, propId) {
          VALUES (?, ?, ?, 'processing', ?, ?)`
     ).run(jobId, prop.project_id, propId, model, seed);
 
-    const prompt = buildPropPrompt(prop);
-    const negativePrompt = 'blurry, low quality, distorted, text, watermark, multiple objects, cluttered background';
-
-    const payload = {
-        prompt,
-        negative_prompt: negativePrompt,
-        // Absent rather than null: a null falls through to the provider's own
-        // default, which is the most expensive model it sells.
-        ...(model ? { model } : {}),
-        // At the project's resolution: every picture of a subject is a plate.
-        ...require('../lib/image-standard').plateSize('1:1',
-            require('../lib/image-standard').projectResolution(prop.project_id)),
-        steps: 30,
-        guidance_scale: 7.5,
-        seed,
-    };
-
+    const planned = buildPropImageRequest(prop, req.body || {});
+    const { provider: imageProvider, payload } = planned;
     try {
-        const imageProvider = resolve('image', parseProjectConfig(prop.project_id));
-        // Names the house model (Nano Banana Pro) for whichever vendor of it runs.
-        require('../lib/capability-payloads').withTierModel(payload, { project: { id: prop.project_id } }, imageProvider);
-        const result = await imageProvider.generate('image', payload, { timeout: 300000 });
+        const result = await imageProvider.generate('image', payload, { timeout: 300000, ...require('../lib/final-subject-request-plans').subjectExecutionOptions('prop',prop.id) });
         if (!result.ok) {
             db.prepare('UPDATE film_prop_image_jobs SET status = ?, error_message = ? WHERE id = ?')
                 .run('failed', result.error, jobId);
@@ -2090,4 +2108,4 @@ function getPropImageStatus(req, res, propId) {
     }));
 }
 
-module.exports = { handleLocations };
+module.exports = { handleLocations, buildCompassRequests, buildLocationImageRequest, buildPropImageRequest, buildSubjectGenerationRequest, buildSubjectRefineRequest };
