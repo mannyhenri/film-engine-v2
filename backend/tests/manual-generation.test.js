@@ -179,3 +179,18 @@ test('a local clip or model in a review keeps its path, hash and size, not inlin
  assert.ok(!JSON.stringify(r).includes(bytes.toString('base64').slice(0,200)),'no base64 of the clip anywhere in the review');
  fs.rmSync(dir,{recursive:true});
 });
+
+test('the creative transport still sends for every kept provider capability (Gridlight included)',async()=>{
+ const transport=require('../lib/generation-transport');
+ const original=global.fetch,sent=[];global.fetch=async(url)=>{sent.push(String(url));return new Response('{}',{status:200});};
+ try{
+  for(const adapter of require('../lib/providers').list())for(const capability of adapter.capabilities||[]){
+   if(manual.isManual(adapter.id,capability))continue;
+   const url='http://127.0.0.1:8080/'+adapter.id+'/'+capability,body={prompt:'kept'};
+   const request=transport.attach({},{snapshot:{provider:adapter.id,capability,endpoint:url,body,references:[]},store:{recordTransport:()=>1,settleTransport(){}},reviewId:'r'});
+   const res=await transport.dispatch(request,url,{method:'POST',body:JSON.stringify(body)});
+   assert.equal(res.status,200,adapter.id+'/'+capability+' is sent');
+  }
+  assert.ok(sent.some(u=>u.includes('/gridlight/')),'Gridlight was sent');
+ }finally{global.fetch=original;}
+});

@@ -42,7 +42,7 @@ test('every real generation route reaches a manual review with its full prompt a
   characters:first('SELECT id FROM film_characters WHERE project_id=? LIMIT 1'),locations:first('SELECT id FROM film_locations WHERE project_id=? LIMIT 1'),props:first('SELECT id FROM film_props WHERE project_id=? LIMIT 1')};
  const outbound=[];const original=global.fetch;
  global.fetch=async(url)=>{outbound.push(String(url));return new Response(JSON.stringify({error:'offline in test'}),{status:503,headers:{'content-type':'application/json'}});};
- const problems=[],reached=[];
+ const problems=[],reached=[],batchCounts={};
  try{
   const cases=await fixtures.generationCases({db,call,project,ids});
   // Set-complete: every real route the router serves is either a generation case or named, with a reason, as not a manual generation.
@@ -61,7 +61,16 @@ test('every real generation route reaches a manual review with its full prompt a
    const id=(out.text.match(/FINAL_REQUEST_REVIEW_REQUIRED:([A-Za-z0-9_-]+)/)||[])[1];
    // A batch hands over every item, not the first: each item's review comes back.
    const allIds=[...new Set([...out.text.matchAll(/FINAL_REQUEST_REVIEW_REQUIRED:([A-Za-z0-9_-]+)/g)].map(m=>m[1]))];
-   if(/batch/.test(c.path)&&allIds.length<2)problems.push({route:key(c),problem:'batch handed over only '+allIds.length+' review(s)'});
+   if(/batch/.test(c.path)){
+    batchCounts[key(c)]=allIds.length;
+    // Every item, counted from the project itself: each dialogue line for voice, every scene for music.
+    const {extractDialogue}=require('../lib/dialogue-builder');
+    const shots=db.prepare('SELECT s.scene_card_yaml FROM film_shots s JOIN film_scenes sc ON s.scene_id=sc.id WHERE sc.project_id=?').all(project);
+    const lines=shots.reduce((n,s)=>{try{return n+extractDialogue(JSON.parse(s.scene_card_yaml||'{}')).length;}catch(_){return n;}},0);
+    const scenes=db.prepare('SELECT COUNT(*) n FROM film_scenes WHERE project_id=?').get(project).n;
+    const expected=/voice/.test(c.path)?lines:scenes;
+    if(allIds.length<3||(/voice/.test(c.path)?allIds.length!==expected:allIds.length<expected))problems.push({route:key(c),problem:`batch handed over ${allIds.length} review(s), expected ${/voice/.test(c.path)?'':'at least '}${expected}`});
+   }
    for(const other of allIds.slice(1)){const r=JSON.parse((await call('GET','/final-request-review/'+other)).text);if(!manual.isManual(r.snapshot?.provider,r.snapshot?.capability)||!promptOf(r.snapshot?.body))problems.push({route:key(c),problem:'batch item review incomplete',id:other});}
    if(vendor.length)problems.push({route:key(c),problem:'vendor call',vendor});
    if(!id){problems.push({route:key(c),problem:'no review',status:out.status,text:out.text.slice(0,200)});continue;}
@@ -88,6 +97,7 @@ test('every real generation route reaches a manual review with its full prompt a
   }
  }finally{global.fetch=original;}
  console.log('reached review:\n  '+reached.join('\n  '));
+ console.log('batch reviews handed over',JSON.stringify(batchCounts));
  console.log(`routes ${inventory.routes.length}: generation ${reached.length} reached review; not manual ${fixtures.NOT_MANUAL_GENERATION.length}`);
  assert.deepEqual(problems,[]);
 });
