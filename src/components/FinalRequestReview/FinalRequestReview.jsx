@@ -142,6 +142,7 @@ export function FinalRequestReviewDialog({ initialReview, onSend, onCancel, onRe
   <header><h2>Prompt and assets for {vendorOf(snapshot.provider)}{batch?.total>1?` (${batch.index+1} of ${batch.total})`:null}</h2><button aria-label="Close final review" disabled={busy} onClick={cancel}>×</button></header>
   <div className="final-review-body">
    <p className="final-review-manual">Film Engine does not send this request. Copy the prompt, download the assets in order, and generate in {vendorOf(snapshot.provider)}'s own app with the settings below.</p>
+   {batch?.total>1&&<p>Item {batch.index+1} of {batch.total}. Use Next and Previous to go through every item; Close ends the batch.</p>}
    <section className="final-review-handover" aria-label="Manual generation hand-over">
     <h3>Prompt</h3>
     <pre aria-label="Prompt to copy">{resolvedPrompt || ''}</pre>
@@ -186,7 +187,7 @@ export function FinalRequestReviewDialog({ initialReview, onSend, onCancel, onRe
    </details>
    {error&&<p role="alert">{error}</p>}
   </div>
-  <footer><button disabled={busy} onClick={cancel}>Close</button>{destination==='copy'?<><button disabled={busy||dirty} onClick={()=>copy('brief')}>Copy prompt, settings &amp; asset list</button><button disabled={busy||dirty} onClick={()=>copy('prompt')}>Copy prompt</button></>:<button disabled={!canHandOff} onClick={handOff}>{busy?'Preparing…':'Copy prompt & open ChatGPT'}</button>}</footer>
+  <footer><button disabled={busy} onClick={cancel}>Close</button>{batch?.total>1&&<span className="final-review-nav">{batch.index>0&&<button disabled={busy} onClick={()=>onSend({__manual_nav:'previous'})}>Previous item</button>}{batch.index<batch.total-1&&<button disabled={busy} onClick={()=>onSend({__manual_nav:'next'})}>Next item</button>}</span>}{destination==='copy'?<><button disabled={busy||dirty} onClick={()=>copy('brief')}>Copy prompt, settings &amp; asset list</button><button disabled={busy||dirty} onClick={()=>copy('prompt')}>Copy prompt</button></>:<button disabled={!canHandOff} onClick={handOff}>{busy?'Preparing…':'Copy prompt & open ChatGPT'}</button>}</footer>
  </section></div>;
 }
 

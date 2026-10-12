@@ -8,6 +8,6 @@ async function handleFinalRequestReview(req,res,parts){
  else if(req.method==='POST'&&action==='cancel')result=s.cancel(id);
  else {res.writeHead(405,{'Content-Type':'application/json'});return res.end(JSON.stringify({error:'Method not allowed'}));}
  res.writeHead(200,{'Content-Type':'application/json'});res.end(JSON.stringify(result));
- }catch(e){res.writeHead(e.status||500,{'Content-Type':'application/json'});res.end(JSON.stringify({error:e.message}));}
+ }catch(e){res.writeHead(e.status||500,{'Content-Type':'application/json'});res.end(JSON.stringify({error:e.message,...(e.code?{code:e.code}:{})}));}
 }
 module.exports={handleFinalRequestReview};

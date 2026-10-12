@@ -35,4 +35,14 @@ describe('manual generation: the final screen hands over prompt and assets',()=>
   expect(request.mock.calls.some(([path])=>/\/approve$/.test(path))).toBe(false);
   expect(send).not.toHaveBeenCalled();
  });
+ it.each([[0,3],[1,3],[2,3]])('batch item %i of %i offers Previous/Next where there is one and Close everywhere',async(index,total)=>{
+  const r={...review('runway','video'),review_position:{index,total}},send=vi.fn(),cancel=vi.fn();
+  render(<FinalRequestReviewDialog initialReview={r} onSend={send} onCancel={cancel} request={vi.fn().mockResolvedValue({})}/>);
+  expect(screen.getByRole('heading',{level:2}).textContent).toContain(`(${index+1} of ${total})`);
+  const previous=screen.queryByRole('button',{name:'Previous item'}),next=screen.queryByRole('button',{name:'Next item'});
+  expect(Boolean(previous)).toBe(index>0);expect(Boolean(next)).toBe(index<total-1);
+  if(next){fireEvent.click(next);expect(send).toHaveBeenLastCalledWith({__manual_nav:'next'});}
+  if(previous){fireEvent.click(previous);expect(send).toHaveBeenLastCalledWith({__manual_nav:'previous'});}
+  expect(screen.getByRole('button',{name:'Close'})).toBeTruthy();
+ });
 });

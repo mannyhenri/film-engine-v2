@@ -4,7 +4,7 @@ export async function reviewApi(path, body, method = body === undefined ? 'GET' 
  const base = typeof window.__feFinalReviewBase === 'function' ? window.__feFinalReviewBase() : 'http://localhost:3100/film';
  const response = await fetch(base + path, { method, headers: {'Content-Type':'application/json'}, ...(body === undefined ? {} : {body:JSON.stringify(body)}) });
  const data = await response.json();
- if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
+ if (!response.ok) throw Object.assign(new Error(data.error || `HTTP ${response.status}`),data.code?{code:data.code}:{});
  return data;
 }
 export function reviewRequired(data) {
@@ -38,21 +38,53 @@ export async function prepareFinalRequest(path, opts, openReview, request=review
  let body; try { body=typeof opts.body==='string'?JSON.parse(opts.body):opts.body || {}; } catch { throw new Error('A provider request must have a JSON body for final review.'); }
  if (body.final_request_approvals?.length) throw new Error('An approval cannot be reused without a fresh visible final review.');
  const epoch=projectEpoch();
- const prepared=await request('/final-request-review/prepare',{path,body});
+ let prepared;
+ try { prepared=await request('/final-request-review/prepare',{path,body}); }
+ catch (error) {
+  if (error.code!=='FINAL_REQUEST_REVIEW_UNSUPPORTED') throw error;
+  return routeReview(path,opts,body,openReview,request,epoch);
+ }
  const reviews=prepared.reviews || (prepared.id?[prepared]:[]);
  if (!reviews.length) throw new Error(prepared.error || 'This generation path does not yet support a complete final request review. Nothing was sent to a provider.');
+ return walkReviews(path,opts,body,reviews,openReview,request,epoch);
+}
+/*
+ * A route the planner cannot prepare composes its own request. Sent with no
+ * approval, the provider funnel stops at the door and answers 428 with the
+ * review, which becomes the hand-over. A route that reaches no manual vendor
+ * (imports, local tools, Gridlight) simply completes, once, and its result is
+ * handed back so the caller does not post it again.
+ */
+async function routeReview(path,opts,body,openReview,request,epoch) {
+ const base = typeof window.__feFinalReviewBase === 'function' ? window.__feFinalReviewBase() : 'http://localhost:3100/film';
+ const response = await fetch(base + path, { method: opts.method || 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
+ const text = await response.text();
+ const ids=[...new Set([...text.matchAll(/FINAL_REQUEST_REVIEW_REQUIRED:([A-Za-z0-9_-]+)/g)].map(m=>m[1]))];
+ if (!ids.length) {
+  let data; try { data=JSON.parse(text); } catch { data={output:text}; }
+  if (!response.ok) throw Object.assign(new Error(data.error || `HTTP ${response.status}`),{data,status:response.status});
+  return {...opts,__manual_handoff:data};
+ }
+ const reviews=await Promise.all(ids.map(id=>request(`/final-request-review/${id}`)));
+ return walkReviews(path,opts,body,reviews,openReview,request,epoch);
+}
+// Each item is shown in turn; Next/Previous move through the batch and Close
+// anywhere ends it. Every review shown or refreshed is cancelled on the way out.
+async function walkReviews(path,opts,body,reviews,openReview,request,epoch) {
  const reviewIds=new Set(reviews.map(review=>review.id));
+ const current=[...reviews];
  const approvals=[];
  let finalBody=body;
  try {
   if(epoch!==projectEpoch())throw cancelledReview();
-  for (const [index,review] of reviews.entries()) {
+  for (let index=0; index<current.length;) {
    if(epoch!==projectEpoch())throw cancelledReview();
-   const itemReviewIds=new Set([review.id]);
-   const onReview=next=>{if(next?.id){reviewIds.add(next.id);itemReviewIds.add(next.id);}};
-   const approved=await openReview({...review,route_request:{path,body}},{index,total:reviews.length,onReview});
+   const itemReviewIds=new Set([current[index].id]);
+   const onReview=next=>{if(next?.id){reviewIds.add(next.id);itemReviewIds.add(next.id);if(next.snapshot)current[index]=next;}};
+   const approved=await openReview({...current[index],route_request:{path,body}},{index,total:current.length,onReview});
+   if(epoch!==projectEpoch())throw cancelledReview();
+   if(approved?.__manual_nav) { index=Math.max(0,Math.min(current.length-1,index+(approved.__manual_nav==='previous'?-1:1))); continue; }
    onReview(approved);
-   if(epoch!==projectEpoch())throw cancelledReview();
    if(approved.__manual_handoff) {
     await Promise.allSettled([...reviewIds].filter(id=>!itemReviewIds.has(id)).map(id=>request(`/final-request-review/${id}/cancel`,{})));
     const handoff=approved.__manual_handoff;
@@ -60,9 +92,9 @@ export async function prepareFinalRequest(path, opts, openReview, request=review
     return {...opts,__manual_handoff:{manual_handoff:true,...handoff,pending:!!handoff.pending,...(handoff.result || {})}};
    }
    if(approved.__route_body) finalBody=approved.__route_body;
-   if(epoch!==projectEpoch())throw cancelledReview();
    const {__route_body,...token}=approved;
    approvals.push(token);
+   index++;
   }
  } catch (error) {
   // Earlier item approvals are cancelled too; the original generation route has
