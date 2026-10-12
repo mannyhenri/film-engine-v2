@@ -480,6 +480,10 @@ function threedPayloadFor(adapter, endpoint, payload, explicitModel = false) {
         p.operation = 'text_to_mesh';
     } else if (endpoint === THREED_ENDPOINTS.rig) {
         p.operation = 'rig';
+        // Meshy rigs a task of its own, or the model it is handed: the local file
+        // (or its URL) when no Meshy task produced it.
+        if (!p.input_task_id && !p.model_url && typeof p.asset === 'string'
+            && (/^https?:\/\//i.test(p.asset) || require('fs').existsSync(p.asset))) p.model_url = p.asset;
     } else if (endpoint === THREED_ENDPOINTS.animate) {
         p.operation = 'animate';
     }
@@ -631,7 +635,10 @@ async function meshOp(req, res, assetId, op) {
     db.prepare(
         `INSERT INTO film_3d_jobs (id, project_id, character_id, subject_kind, gen_type, status, source_asset_id, model, format, params)
          VALUES (?, ?, ?, ?, ?, 'generating', ?, ?, ?, ?)`
-    ).run(jobId, asset.project_id, asset.character_id, meta.subject_kind || 'character', genType, assetId, payload.model, format, JSON.stringify(payload));
+    ).run(jobId, asset.project_id, asset.character_id,
+        // The jobs table admits only these kinds; an imported mesh files under its subject, else as a prop.
+        ['character', 'prop', 'set', 'shot'].includes(meta.subject_kind) ? meta.subject_kind : (asset.character_id ? 'character' : 'prop'),
+        genType, assetId, payload.model, format, JSON.stringify(payload));
 
     try {
         const result = await callThreeD(endpoint, payload, asset.project_id, req);

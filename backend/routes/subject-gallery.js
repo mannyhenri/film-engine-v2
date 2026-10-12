@@ -139,15 +139,13 @@ async function generateExploration({ kind, subject, project, provider, view, tok
         });
     }
 
-    const { callImageGen } = require('../lib/image-fallback');
     const size = plateImageSize(project, provider.maxImagePixels, 'prop', provider);
     let out;
     try {
-        out = await callImageGen({
-            projectId: project.id,
-            payload: { prompt, ...(size ? { width: size.width, height: size.height } : {}) },
-            provider,
-        });
+        // The resolved adapter itself: the same funnel (and final review) as every
+        // other image. lib/image-fallback never exported a callImageGen.
+        out = await provider.generate('image', { prompt, ...(size ? { width: size.width, height: size.height } : {}) },
+            { jobMeta: { subject_kind: 'character', subject_id: subject.id, view: view || 'front' } });
     } catch (err) {
         return { ok: false, error: err.message };
     }

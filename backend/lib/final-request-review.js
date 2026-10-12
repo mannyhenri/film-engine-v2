@@ -252,4 +252,17 @@ async function preflightApprovals({path,body={},prepare,reviewStore}) {
  }
  return {ok:true,count:items.length};
 }
-module.exports={createFinalRequestStore,store,canonical,hash,runWithApprovals,enterExecutionContext,getExecutionContext,authorizeGeneration,authorizeWithStore,semanticRow,payloadDigest,quoteFor,preflightApprovals,sourcePaths};
+/*
+ * The original file behind one reviewed reference, for the manual hand-over:
+ * the vendor's web app takes the full-resolution source, not the bytes this app
+ * would have encoded for the API. Only a path the review itself recorded is served.
+ */
+function originalReference(s,id,order){
+ const ref=(s.get(id).snapshot.references||[]).find(r=>Number(r.order)===Number(order));
+ const file=ref&&(ref.source_path||ref.path);
+ if(!file||!fs.existsSync(file)||!fs.statSync(file).isFile())fail('No original file is recorded for this reference',404);
+ const ext=require('path').extname(file)||({'image/png':'.png','image/jpeg':'.jpg','video/mp4':'.mp4','audio/wav':'.wav','audio/mpeg':'.mp3'})[ref.mime]||'';
+ const label=String(ref.tag||ref.name||ref.role||'reference').replace(/[^a-z0-9_-]+/gi,'-');
+ return {file,mime:ref.mime||'application/octet-stream',name:`${String(ref.order).padStart(2,'0')}-${label}${ext}`};
+}
+module.exports={originalReference,createFinalRequestStore,store,canonical,hash,runWithApprovals,enterExecutionContext,getExecutionContext,authorizeGeneration,authorizeWithStore,semanticRow,payloadDigest,quoteFor,preflightApprovals,sourcePaths};

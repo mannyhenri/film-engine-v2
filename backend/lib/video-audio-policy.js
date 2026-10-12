@@ -9,6 +9,8 @@ function policyOf(project) {
     return policy;
 }
 function applyVideoAudioPolicy(payload, project) {
+    // An edit of existing footage keeps the source's own sound: no generated-audio setting.
+    if (payload && (payload.videoUri || payload.video_uri)) return { ...payload };
     const p = { ...payload };
     const configured = project && (project.video_audio_policy || (typeof project.provider_config === 'object' && project.provider_config.video_audio_policy));
     p.video_audio_policy = configured ? policyOf(project) : policyOf({ ...project, video_audio_policy: p.video_audio_policy || policyOf(project) });

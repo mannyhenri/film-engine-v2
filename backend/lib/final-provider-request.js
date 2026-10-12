@@ -156,12 +156,13 @@ async function resolveFinalRequest(provider, capability, payload) {
    }
    if(typeof v!=='string') return;
    const match=/^data:([^;,]+);base64,(.+)$/s.exec(v);
-   if(match) references.push({role,mime:match[1],sha256:sha(Buffer.from(match[2],'base64')),data:v});
+   // A tag beside the media in the wire body (Runway { uri, tag }) is how the prompt addresses it.
+   if(match) references.push({role,mime:match[1],sha256:sha(Buffer.from(match[2],'base64')),data:v,...(parent&&typeof parent.tag==='string'?{tag:parent.tag}:{})});
    else if(isMediaField(role)) {
     if(/^https?:\/\//i.test(v))throw new Error(`Reference ${role} needs immutable bytes before review; a remote URL cannot prove its content`);
     let file=v;try{if(/^file:/i.test(v))file=fileURLToPath(v);}catch(_){throw new Error(`Reference ${role} has an invalid file URI`);}
     if(!fs.existsSync(file)||!fs.statSync(file).isFile())throw new Error(`Reference ${role} needs resolved immutable bytes before review`);
-    const bytes=fs.readFileSync(file); const mime = ({'.png':'image/png','.jpg':'image/jpeg','.jpeg':'image/jpeg','.webp':'image/webp','.wav':'audio/wav','.mp3':'audio/mpeg','.mp4':'video/mp4'})[path.extname(file).toLowerCase()] || require('./providers/muapi-upload').sniffMedia(bytes)?.mime; if(!mime) throw new Error('Unknown reference MIME type'); const data=`data:${mime};base64,${bytes.toString('base64')}`; references.push({role,mime,sha256:sha(bytes),data,path:file}); if(parent)parent[key]=data;
+    const bytes=fs.readFileSync(file); const mime = ({'.glb':'model/gltf-binary','.gltf':'model/gltf+json','.fbx':'application/octet-stream','.obj':'model/obj','.png':'image/png','.jpg':'image/jpeg','.jpeg':'image/jpeg','.webp':'image/webp','.wav':'audio/wav','.mp3':'audio/mpeg','.mp4':'video/mp4'})[path.extname(file).toLowerCase()] || require('./providers/muapi-upload').sniffMedia(bytes)?.mime; if(!mime) throw new Error('Unknown reference MIME type'); const data=`data:${mime};base64,${bytes.toString('base64')}`; references.push({role,mime,sha256:sha(bytes),data,path:file,...(parent&&typeof parent.tag==='string'?{tag:parent.tag}:{})}); if(parent)parent[key]=data;
    }
   }
   walk(body,'');
@@ -246,7 +247,7 @@ async function resolveFinalRequest(provider, capability, payload) {
 }
 function isMediaField(role) {
  const field=role.replace(/\[\d+\]/g,'').split('.').pop();
- return /^(?:uri|url|image|images|image_url|image_uri|image_path|image_urls|images_list|init_image|source_image|promptImage|reference_image_urls|video|video_url|video_urls|videos_list|videoUri|source_video|audio|audio_url|audio_urls|audios_list|first_frame_image|last_frame_image|keyframes)$/.test(field) || /_(?:url|uri|path)$/.test(field);
+ return /^(?:model_url|uri|url|image|images|image_url|image_uri|image_path|image_urls|images_list|init_image|source_image|promptImage|reference_image_urls|video|video_url|video_urls|videos_list|videoUri|source_video|audio|audio_url|audio_urls|audios_list|first_frame_image|last_frame_image|keyframes)$/.test(field) || /_(?:url|uri|path)$/.test(field);
 }
 function restore(snapshot) {
  if(snapshot.body && snapshot.body.encoding==='multipart') {

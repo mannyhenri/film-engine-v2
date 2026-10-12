@@ -204,10 +204,20 @@ async function runBackgroundEdit(input) {
             if (!gate.ok) return fail('budget', gate.why, { code: 'over_budget', quote: plan.quote });
         }
 
-        /* 3 · host — the provider cannot read our disk. */
-        const h = mintHandle(plan.source.path, { scope, publicBase: o.publicBase });
+        /*
+         * 3 · host — the provider cannot read our disk. A manual vendor is never
+         * sent anything: its review reads the clip from disk for the hand-over,
+         * so no public link is minted for it.
+         */
+        const manualVendor = !o.generate && (() => {
+            try {
+                const id = require('./providers').resolveId('video', require('./provider-config').providerConfigFor(o.projectId));
+                return require('./manual-generation').isManual(id, 'video');
+            } catch (_) { return false; }
+        })();
+        const h = manualVendor ? { ok: true, url: plan.source.path, id: null } : mintHandle(plan.source.path, { scope, publicBase: o.publicBase });
         if (!h.ok) return fail('host', h.reason, { code: h.code });
-        minted.push(h.id);
+        if (h.id) minted.push(h.id);
 
         /* 4 · generate — the only step that spends. */
         const gen = o.generate || backgroundGenerator;
@@ -289,8 +299,9 @@ async function backgroundGenerator(request) {
     if (!provider) {
         try {
             const { resolve } = require('./providers');
-            const { providerConfigOf } = require('./provider-config');
-            provider = resolve('video', providerConfigOf(gen.projectId));
+            // By id: providerConfigOf takes a project ROW and would drop the project's pin.
+            const { providerConfigFor } = require('./provider-config');
+            provider = resolve('video', providerConfigFor(gen.projectId));
         } catch (err) {
             return { ok: false, reason: `no video provider could be resolved: ${err.message}` };
         }

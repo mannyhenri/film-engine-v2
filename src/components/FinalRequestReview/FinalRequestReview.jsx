@@ -42,9 +42,20 @@ const settingsOf = snapshot => {
  const entries=body.encoding==='multipart'?(body.fields||[]).filter(f=>f.value!==undefined&&!f.data).map(f=>[f.name,f.value]):Object.entries(body);
  return entries.filter(([key,value])=>!PROMPT_KEYS.has(key)&&(value===null||['string','number','boolean'].includes(typeof value))&&!(typeof value==='string'&&(value.startsWith('data:')||value.length>200)));
 };
-const assetPathOf = ref => ref?.path || ref?.file_path || ref?.source_path || '';
+// The original on disk first: the vendor's app takes the full-resolution source.
+const assetPathOf = ref => ref?.source_path || ref?.path || ref?.file_path || '';
+const tagOf = ref => (typeof ref?.tag === 'string' && ref.tag) ? '@' + ref.tag.replace(/^@/, '') : '';
 const extOf = mime => ({'image/png':'png','image/jpeg':'jpg','image/webp':'webp','video/mp4':'mp4','audio/wav':'wav','audio/mpeg':'mp3','model/gltf-binary':'glb'})[mime] || (mime||'').split('/')[1] || 'bin';
-const assetNameOf = (ref,i) => `${String(ref.order ?? i+1).padStart(2,'0')}-${String(ref.role || 'reference').replace(/[^a-z0-9_-]+/gi,'-')}.${extOf(ref.mime)}`;
+const assetLabelOf = ref => String((ref.tag && ref.tag.replace(/^@/, '')) || ref.role || 'reference').replace(/[^a-z0-9_-]+/gi,'-');
+const assetNameOf = (ref,i,ext) => `${String(ref.order ?? i+1).padStart(2,'0')}-${assetLabelOf(ref)}.${ext || extOf(ref.mime)}`;
+function reviewBase() { return typeof window.__feFinalReviewBase === 'function' ? window.__feFinalReviewBase() : 'http://localhost:3100/film'; }
+async function downloadOriginal(reviewId, ref, i) {
+ const response = await fetch(`${reviewBase()}/final-request-review/${reviewId}/references/${ref.order ?? i+1}/original`);
+ if (!response.ok) throw new Error('The original file is not available');
+ const url = URL.createObjectURL(await response.blob());
+ const a = document.createElement('a'); a.href = url; a.download = assetNameOf(ref, i, (assetPathOf(ref).split('.').pop() || '').toLowerCase() || undefined); a.click();
+ setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
 const vendorOf = provider => ({openai:'ChatGPT / OpenAI',google:'Google (Gemini / Flow)',muapi:'muapi',seedance:'Seedance',runway:'Runway',higgsfield:'Higgsfield','muapi-upscale':'Topaz (via muapi)',meshy:'Meshy',worldlabs:'World Labs',magnific:'Magnific',elevenlabs:'ElevenLabs',topaz:'Topaz'})[provider] || provider || 'the generator';
 async function copyText(text) {
  if (navigator.clipboard?.writeText) { await navigator.clipboard.writeText(text); return; }
@@ -54,7 +65,7 @@ function briefOf(snapshot,prompt,refs) {
  const lines=[`Generator: ${vendorOf(snapshot.provider)}${snapshot.model?` · model ${snapshot.model}`:''} · ${snapshot.capability || ''}`,'','PROMPT',prompt || '(no text prompt)'];
  const settings=settingsOf(snapshot);
  if(settings.length)lines.push('','SETTINGS',...settings.map(([k,v])=>`${k}: ${v}`));
- if(refs.length)lines.push('','ASSETS (in order)',...refs.map((ref,i)=>`${ref.order ?? i+1}. ${ref.role || 'reference'}${assetPathOf(ref)?` — ${assetPathOf(ref)}`:''}`));
+ if(refs.length)lines.push('','ASSETS (in order)',...refs.map((ref,i)=>`${ref.order ?? i+1}. ${tagOf(ref)?tagOf(ref)+' ':''}${ref.role || 'reference'}${assetPathOf(ref)?` — ${assetPathOf(ref)}`:''}`));
  return lines.join('\n');
 }
 
@@ -150,8 +161,9 @@ export function FinalRequestReviewDialog({ initialReview, onSend, onCancel, onRe
     <h3>Assets ({snapshotRefs.length})</h3>
     {snapshotRefs.length?<ol aria-label="Assets to upload" className="final-review-assets">{snapshotRefs.map((ref,i)=><li key={i}>
      {previewOf(ref)&&ref.mime?.startsWith('image/')&&<img src={previewOf(ref)} alt={`Asset ${i+1}`}/>}
-     <span>{ref.order ?? i+1}. {ref.role || 'reference'}{ref.mime?` · ${ref.mime}`:''}{assetPathOf(ref)?<> · <code>{assetPathOf(ref)}</code></>:null}</span>
-     {previewOf(ref)&&<a href={previewOf(ref)} download={assetNameOf(ref,i)} aria-label={`Download asset ${i+1}`}>Download</a>}
+     <span>{ref.order ?? i+1}. {tagOf(ref)&&<strong>{tagOf(ref)} </strong>}{ref.role || 'reference'}{ref.mime?` · ${ref.mime}`:''}{assetPathOf(ref)?<> · <code>{assetPathOf(ref)}</code></>:null}{ref.source_transform?' · the prepared copy was re-encoded; download the original for full resolution':''}</span>
+     {(ref.source_path||ref.path)&&<button type="button" aria-label={`Download original of asset ${i+1}`} onClick={()=>downloadOriginal(review.id,ref,i).catch(e=>live()&&setError(e.message))}>Download original</button>}
+     {previewOf(ref)&&<a href={previewOf(ref)} download={assetNameOf(ref,i)} aria-label={`Download asset ${i+1}`}>{ref.source_path||ref.path?'Download prepared copy':'Download'}</a>}
      {assetPathOf(ref)&&<button type="button" aria-label={`Copy path of asset ${i+1}`} onClick={()=>copyText(assetPathOf(ref)).then(()=>live()&&setCopied('Path copied.')).catch(e=>setError(e.message))}>Copy path</button>}
     </li>)}</ol>:<p>No assets: this request is prompt only.</p>}
     {copied&&<p role="status">{copied}</p>}

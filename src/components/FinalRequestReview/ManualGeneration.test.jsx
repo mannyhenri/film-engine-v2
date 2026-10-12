@@ -12,7 +12,7 @@ function review(provider,capability){
  const prompt=`Exact ${provider} ${capability} prompt, 35mm, dusk`;
  return {id:`r-${provider}-${capability}`,state:'preview',fingerprint:'fp',editable:{provider,capability,payload:{model:'m1',prompt,duration:5,references:[{image:'a.png',role:'first_frame'},{image:'b.png',role:'style'}]},provenance:{shot_id:'shot'}},
   snapshot:{provider,capability,model:'m1',endpoint:'https://vendor.invalid/x',body:{prompt,model:'m1',duration:5,ratio:'16:9',seed:7},
-   references:[{order:1,role:'first_frame',mime:'image/png',data:PNG,path:'/media/a.png',sha256:'h1',byte_length:8},{order:2,role:'style',mime:'image/png',data:PNG,path:'/media/b.png',sha256:'h2',byte_length:8}],quote:{amount:1.2,currency:'USD'}}};
+   references:[{order:1,role:'first_frame',tag:'hero',mime:'image/png',data:PNG,path:'/media/a.png',source_path:'/media/a-original.png',source_transform:'encoded_reference_bytes_differ',sha256:'h1',byte_length:8},{order:2,role:'style',mime:'image/png',data:PNG,path:'/media/b.png',sha256:'h2',byte_length:8}],quote:{amount:1.2,currency:'USD'}}};
 }
 afterEach(()=>{cleanup();vi.unstubAllGlobals();});
 
@@ -26,8 +26,19 @@ describe('manual generation: the final screen hands over prompt and assets',()=>
   expect(screen.getByLabelText('Prompt to copy').textContent).toBe(r.snapshot.body.prompt);
   const assets=screen.getByRole('list',{name:'Assets to upload'});
   expect(assets.querySelectorAll('li')).toHaveLength(2);
-  expect(assets.textContent).toContain('/media/a.png');expect(assets.textContent).toContain('first_frame');
+  expect(assets.textContent).toContain('/media/a-original.png');expect(assets.textContent).toContain('/media/b.png');expect(assets.textContent).toContain('first_frame');
   expect(screen.getAllByRole('link',{name:/Download asset/})).toHaveLength(2);
+  expect(assets.textContent).toContain('@hero');
+  expect(screen.getByRole('link',{name:'Download asset 1'}).getAttribute('download')).toBe('01-hero.png');
+  window.__feFinalReviewBase=()=>'/film';
+  const blob=vi.fn().mockResolvedValue(new Blob(['ORIGINAL'])),fetchSpy=vi.fn().mockResolvedValue({ok:true,blob});vi.stubGlobal('fetch',fetchSpy);
+  URL.createObjectURL=vi.fn(()=>'blob:original');URL.revokeObjectURL=vi.fn();
+  expect(screen.getAllByRole('button',{name:/Download original/})).toHaveLength(2);
+  fireEvent.click(screen.getByRole('button',{name:'Download original of asset 1'}));
+  await waitFor(()=>expect(fetchSpy).toHaveBeenCalledWith(`/film/final-request-review/${r.id}/references/1/original`));
+  delete window.__feFinalReviewBase;
+  fireEvent.click(screen.getByRole('button',{name:'Copy prompt, settings & asset list'}));
+  await waitFor(()=>expect(writeText).toHaveBeenLastCalledWith(expect.stringMatching(/ASSETS \(in order\)\n1\. @hero first_frame[^\n]*\n2\. style/)));
   fireEvent.click(screen.getByRole('button',{name:'Copy prompt'}));
   await waitFor(()=>expect(writeText).toHaveBeenCalledWith(r.snapshot.body.prompt));
   fireEvent.click(screen.getByRole('button',{name:'Close'}));

@@ -164,5 +164,318 @@
   "/video/batch/stream",
   "/video/generate",
   "/video/stitch"
+ ],
+ "routes": [
+  {
+   "path": "/backups/folder/run",
+   "method": "POST"
+  },
+  {
+   "path": "/characters/ID/explore",
+   "method": "POST"
+  },
+  {
+   "path": "/characters/ID/expressions/ID/generate",
+   "method": "POST"
+  },
+  {
+   "path": "/characters/ID/refsheet/import",
+   "method": "POST"
+  },
+  {
+   "path": "/inbetweens/ID/frames/ID/select",
+   "method": "POST"
+  },
+  {
+   "path": "/locations/ID/plate/import",
+   "method": "POST"
+  },
+  {
+   "path": "/marketing/ID/generate",
+   "method": "POST"
+  },
+  {
+   "path": "/models/ID/rig",
+   "method": "POST"
+  },
+  {
+   "path": "/models/batch/stream",
+   "method": "POST"
+  },
+  {
+   "path": "/music-cues/ID/generate",
+   "method": "POST"
+  },
+  {
+   "path": "/music-sessions/ID/batch",
+   "method": "POST"
+  },
+  {
+   "path": "/music-sessions/ID/generate",
+   "method": "POST"
+  },
+  {
+   "path": "/previz-workspace/explore",
+   "method": "POST"
+  },
+  {
+   "path": "/projects/ID/inbetweens",
+   "method": "POST"
+  },
+  {
+   "path": "/projects/ID/music/batch/stream",
+   "method": "POST"
+  },
+  {
+   "path": "/projects/ID/production-graph/nodes/ID/run-to-here",
+   "method": "POST"
+  },
+  {
+   "path": "/projects/ID/production-graph/run-changed",
+   "method": "POST"
+  },
+  {
+   "path": "/projects/ID/sounds/generate",
+   "method": "POST"
+  },
+  {
+   "path": "/projects/ID/voice/batch",
+   "method": "POST"
+  },
+  {
+   "path": "/props/ID/plate/import",
+   "method": "POST"
+  },
+  {
+   "path": "/scenes/ID/ambient/generate",
+   "method": "POST"
+  },
+  {
+   "path": "/scenes/ID/music/generate",
+   "method": "POST"
+  },
+  {
+   "path": "/sequences/ID/inbetweens/approve",
+   "method": "POST"
+  },
+  {
+   "path": "/sequences/ID/stations/ID/ID",
+   "method": "PUT"
+  },
+  {
+   "path": "/sequences/ID/stitch",
+   "method": "POST"
+  },
+  {
+   "path": "/shots/ID/lipsync/generate",
+   "method": "POST"
+  },
+  {
+   "path": "/shots/ID/post/upscale/previewID",
+   "method": "POST"
+  },
+  {
+   "path": "/shots/ID/storyboard/angles",
+   "method": "POST"
+  },
+  {
+   "path": "/shots/ID/video/background/generate",
+   "method": "POST"
+  },
+  {
+   "path": "/shots/ID/video/stitch",
+   "method": "POST"
+  },
+  {
+   "path": "/shots/ID/voice/generate",
+   "method": "POST"
+  }
+ ],
+ "excluded": [
+  {
+   "path": "/ID/ID/plate/views",
+   "method": "POST",
+   "reason": "not a route"
+  },
+  {
+   "path": "/IDs/ID/explore",
+   "method": "POST",
+   "reason": "not a route"
+  },
+  {
+   "path": "/IDs/ID/model/generate",
+   "method": "POST",
+   "reason": "not a route"
+  },
+  {
+   "path": "/IDs/ID/plate/import",
+   "method": "POST",
+   "reason": "not a route"
+  },
+  {
+   "path": "/ambient/generate",
+   "method": "POST",
+   "reason": "not a route"
+  },
+  {
+   "path": "/batch",
+   "method": "POST",
+   "reason": "not a route"
+  },
+  {
+   "path": "/characters/ID/refsheet",
+   "method": "POST",
+   "reason": "not served for POST"
+  },
+  {
+   "path": "/characters/ID/refsheet/views",
+   "method": "POST",
+   "reason": "not served for POST"
+  },
+  {
+   "path": "/characters/ID/refsheet/views/ID",
+   "method": "POST",
+   "reason": "not served for POST"
+  },
+  {
+   "path": "/film/models/ID/file",
+   "method": "POST",
+   "reason": "not a route"
+  },
+  {
+   "path": "/generate",
+   "method": "POST",
+   "reason": "not a route"
+  },
+  {
+   "path": "/generate-native",
+   "method": "POST",
+   "reason": "not a route"
+  },
+  {
+   "path": "/inbetweens",
+   "method": "POST",
+   "reason": "not a route"
+  },
+  {
+   "path": "/inbetweens/",
+   "method": "POST",
+   "reason": "not a route"
+  },
+  {
+   "path": "/lipsync/generate",
+   "method": "POST",
+   "reason": "not a route"
+  },
+  {
+   "path": "/locations/ID/plate",
+   "method": "POST",
+   "reason": "not served for POST"
+  },
+  {
+   "path": "/locations/ID/plate/plate-preview",
+   "method": "POST",
+   "reason": "not served for POST"
+  },
+  {
+   "path": "/locations/ID/plate/refine-preview",
+   "method": "POST",
+   "reason": "not served for POST"
+  },
+  {
+   "path": "/locations/ID/plate/views",
+   "method": "POST",
+   "reason": "not served for POST"
+  },
+  {
+   "path": "/locations/ID/plate/views/ID",
+   "method": "POST",
+   "reason": "not served for POST"
+  },
+  {
+   "path": "/models/",
+   "method": "POST",
+   "reason": "not a route"
+  },
+  {
+   "path": "/music/batch/stream",
+   "method": "POST",
+   "reason": "not a route"
+  },
+  {
+   "path": "/music/generate",
+   "method": "POST",
+   "reason": "not a route"
+  },
+  {
+   "path": "/pipeline/run",
+   "method": "POST",
+   "reason": "not served for POST"
+  },
+  {
+   "path": "/pipeline/run/stream",
+   "method": "POST",
+   "reason": "not served for POST"
+  },
+  {
+   "path": "/plate/generate",
+   "method": "POST",
+   "reason": "not a route"
+  },
+  {
+   "path": "/plate/plate-preview",
+   "method": "POST",
+   "reason": "not a route"
+  },
+  {
+   "path": "/post/upscale",
+   "method": "POST",
+   "reason": "not a route"
+  },
+  {
+   "path": "/props/ID/plate",
+   "method": "POST",
+   "reason": "not served for POST"
+  },
+  {
+   "path": "/props/ID/plate/plate-preview",
+   "method": "POST",
+   "reason": "not served for POST"
+  },
+  {
+   "path": "/refsheet/generate",
+   "method": "POST",
+   "reason": "not a route"
+  },
+  {
+   "path": "/sounds/generate",
+   "method": "POST",
+   "reason": "not a route"
+  },
+  {
+   "path": "/storyboard/generate/stream",
+   "method": "POST",
+   "reason": "not a route"
+  },
+  {
+   "path": "/storyboard/regenerate",
+   "method": "POST",
+   "reason": "not a route"
+  },
+  {
+   "path": "/video/batch/stream",
+   "method": "POST",
+   "reason": "not a route"
+  },
+  {
+   "path": "/video/generate",
+   "method": "POST",
+   "reason": "not a route"
+  },
+  {
+   "path": "/video/stitch",
+   "method": "POST",
+   "reason": "not a route"
+  }
  ]
 }

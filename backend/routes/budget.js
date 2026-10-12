@@ -40,6 +40,20 @@ const VALID_COST_TYPES = [
  * and the footage will cost on the generators this project would use, at its
  * resolution, or at another resolution and on other generators to compare.
  */
+/*
+ * A manual vendor's price is what its own web app or plan charges when the
+ * director generates there; Film Engine prepares the prompt and sends nothing.
+ * Every priced entry naming such a provider says so.
+ */
+function markManual(value, capability) {
+    const { isManual } = require('../lib/manual-generation');
+    if (Array.isArray(value)) { value.forEach(v => markManual(v, capability)); return value; }
+    if (!value || typeof value !== 'object') return value;
+    if (typeof value.provider === 'string' && isManual(value.provider, value.capability || capability)) value.manual = true;
+    for (const [key, v] of Object.entries(value)) if (v && typeof v === 'object') markManual(v, ['image', 'video', 'upscale', 'post', 'voice', 'music', 'sfx', 'model3d', 'world'].includes(key) ? key : capability);
+    return value;
+}
+
 function productionEstimate(req, res, projectId, query) {
     const q = query || {};
     const n = v => (v === undefined || v === '' ? undefined : Number(v));
@@ -55,6 +69,7 @@ function productionEstimate(req, res, projectId, query) {
             alternatives: q.alternatives !== 'false',
         });
         if (!out) { res.writeHead(404, { 'Content-Type': 'application/json' }); return res.end(JSON.stringify({ error: 'Project not found' })); }
+        markManual(out);
         res.writeHead(200, { 'Content-Type': 'application/json' });
         return res.end(JSON.stringify(out));
     } catch (err) {
@@ -654,4 +669,4 @@ function compareReport(req, res, query) {
     res.end(JSON.stringify(report));
 }
 
-module.exports = { handleBudget, VALID_COST_TYPES };
+module.exports = { handleBudget, VALID_COST_TYPES, markManual };

@@ -99,3 +99,53 @@ test('with no stored keys, a project pinned to any manual capability resolves to
   }
  }finally{credentials.getCredential=original;}
 });
+
+test('every priced estimate entry for a manual capability is labelled as the vendor web app; kept ones are not',()=>{
+ process.env.FILM_DATA_DIR=process.env.FILM_DATA_DIR||fs.mkdtempSync(path.join(os.tmpdir(),'manual-budget-'));
+ const {markManual}=require('../routes/budget');
+ const entries=[];
+ for(const adapter of require('../lib/providers').list())for(const capability of adapter.capabilities||[])entries.push({provider:adapter.id,capability,usd:1});
+ markManual({alternatives:{image:[{provider:'runway',usd:1}],video:[{provider:'gridlight',usd:0}]},lines:entries});
+ for(const e of entries)assert.equal(!!e.manual,manual.isManual(e.provider,e.capability),e.provider+'/'+e.capability);
+});
+
+test('a review stop removes only output-less job rows whose review is for a manual vendor; kept providers are never touched',()=>{
+ const db=new Database(':memory:');
+ db.exec("CREATE TABLE film_demo_jobs (id TEXT PRIMARY KEY, status TEXT, error_message TEXT, output_path TEXT)");
+ manual.installReviewStopCleanup(db);
+ const review=(id,provider,capability)=>db.prepare("INSERT INTO film_final_request_reviews (id,fingerprint,snapshot_json,editable_json,provenance_json) VALUES (?,?,?,'{}','{}')").run(id,'fp',JSON.stringify({provider,capability}));
+ const rows=[];
+ // Set-based: every registered adapter capability, manual or kept.
+ for(const adapter of require('../lib/providers').list())for(const capability of adapter.capabilities||[]){
+  const id=`${adapter.id}-${capability}`;review('r-'+id,adapter.id,capability);rows.push([id,manual.isManual(adapter.id,capability)]);
+  db.prepare("INSERT INTO film_demo_jobs VALUES (?,'generating',NULL,NULL)").run(id);
+  db.prepare("UPDATE film_demo_jobs SET status='failed',error_message=? WHERE id=?").run('FINAL_REQUEST_REVIEW_REQUIRED:r-'+id,id);
+ }
+ review('r-made','runway','video');
+ db.prepare("INSERT INTO film_demo_jobs VALUES ('made','generating',NULL,'/out/a.mp4'),('real','generating',NULL,NULL),('unknown','generating',NULL,NULL)").run();
+ db.prepare("UPDATE film_demo_jobs SET status='failed',error_message='FINAL_REQUEST_REVIEW_REQUIRED:r-made' WHERE id='made'").run();
+ db.prepare("UPDATE film_demo_jobs SET status='failed',error_message='upstream 500' WHERE id='real'").run();
+ db.prepare("UPDATE film_demo_jobs SET status='failed',error_message='FINAL_REQUEST_REVIEW_REQUIRED:no-such-review' WHERE id='unknown'").run();
+ const left=new Set(db.prepare('SELECT id FROM film_demo_jobs').all().map(r=>r.id));
+ for(const [id,isManual] of rows)assert.equal(left.has(id),!isManual,id+(isManual?' (manual) is removed':' (kept) stays'));
+ for(const id of ['made','real','unknown'])assert.ok(left.has(id),id+' stays');
+ assert.ok(left.has('gridlight-video')&&left.has('anthropic-llm')&&left.has('openai-llm'));
+ db.close();
+});
+
+test('every reference with a recorded original serves that exact file, and nothing else is served',async()=>{
+ const {originalReference}=require('../lib/final-request-review');
+ const dir=fs.mkdtempSync(path.join(os.tmpdir(),'manual-orig-')),original=path.join(dir,'hero-original.png');fs.writeFileSync(original,'ORIGINAL-FULL-RES');
+ const db=new Database(':memory:');db.exec(fs.readFileSync(path.join(__dirname,'../db/migrations/141_final_request_reviews.sql'),'utf8'));
+ const refs=[{order:1,role:'image_reference',tag:'hero',mime:'image/png',data:'data:image/png;base64,c2VudA==',source_path:original,source_transform:'encoded_reference_bytes_differ'},
+  {order:2,role:'image_reference',mime:'image/png',data:'data:image/png;base64,c2VudA=='}];
+ db.prepare("INSERT INTO film_final_request_reviews (id,fingerprint,snapshot_json,editable_json,provenance_json) VALUES ('r1','fp',?, '{}','{}')").run(JSON.stringify({provider:'runway',capability:'image',references:refs}));
+ const store={get:id=>{const r=db.prepare('SELECT * FROM film_final_request_reviews WHERE id=?').get(id);if(!r)throw Object.assign(new Error('Request review not found'),{status:404});return {id:r.id,snapshot:JSON.parse(r.snapshot_json)};}};
+ for(const ref of refs){
+  if(ref.source_path){const out=originalReference(store,'r1',ref.order);assert.equal(fs.readFileSync(out.file,'utf8'),'ORIGINAL-FULL-RES');assert.equal(out.name,'01-hero.png');assert.equal(out.mime,'image/png');}
+  else assert.throws(()=>originalReference(store,'r1',ref.order),e=>e.status===404);
+ }
+ assert.throws(()=>originalReference(store,'r1',9),e=>e.status===404);
+ assert.throws(()=>originalReference(store,'missing',1),e=>e.status===404);
+ db.close();fs.rmSync(dir,{recursive:true});
+});

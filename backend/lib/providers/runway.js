@@ -612,6 +612,9 @@ function requireFetchableVideo(uri, policy) {
             + 'and a 2-30 second clip is far larger. Host it and pass the URL (lib/frame-handles.js '
             + 'mints an opaque, scoped, expiring one).');
     }
+    // Manual generation: nothing is sent to Runway, so a clip on this machine is
+    // what the review hands over (it reads the bytes as the source asset).
+    if (require('../manual-generation').isManual('runway', 'video') && require('fs').existsSync(v)) return v;
     if (!/^https?:\/\//i.test(v) && !/^runway:/i.test(v)) {
         throw new Error(`Runway cannot fetch "${v}" — it must be an https URL or a runway: upload `
             + 'URI. A path on this machine is not reachable from their side; mint a frame handle.');
