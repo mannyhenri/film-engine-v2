@@ -218,3 +218,17 @@ test('every kept provider without a review builder (Gridlight, local tools) gene
  }
  assert.ok(checked>=9,'gridlight and local capabilities were exercised: '+checked);
 });
+
+test('the direct path is closed to unregistered ids and to every manual vendor, whatever the capability',async()=>{
+ const {authorizeWithStore}=require('../lib/final-request-review');
+ const f=fixture('bypass-guard');
+ const attempts=[['not-a-registered-provider','image'],['gridlight-evil','video'],...[...manual.MANUAL_PROVIDERS].flatMap(id=>[[id,'image'],[id,'video'],[id,'unknown-capability']])];
+ for(const [provider,capability] of attempts){
+  const result=await authorizeWithStore(f.s,{provider,capability,payload,approvals:[]}).catch(e=>({ok:false,error:e.message}));
+  assert.notEqual(result.bypass,true,`${provider}/${capability} must not run directly`);
+  assert.notEqual(result.ok,true,`${provider}/${capability} must not be authorized without a review`);
+ }
+ // The registered kept gateway is the one that does.
+ assert.equal((await authorizeWithStore(f.s,{provider:'gridlight',capability:'video',payload,approvals:[]})).bypass,true);
+ f.close();
+});
