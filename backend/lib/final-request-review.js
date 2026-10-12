@@ -257,11 +257,24 @@ async function preflightApprovals({path,body={},prepare,reviewStore}) {
  * the vendor's web app takes the full-resolution source, not the bytes this app
  * would have encoded for the API. Only a path the review itself recorded is served.
  */
-function originalReference(s,id,order){
+const MEDIA_EXT=/\.(png|jpe?g|webp|gif|tiff?|exr|mp4|mov|m4v|webm|wav|mp3|m4a|aac|flac|ogg|glb|gltf|fbx|obj|usdz)$/i;
+// Where originals may come from: the app's data folder and each project's own folder.
+function mediaRoots(){
+ const roots=[require('./data-paths').DATA_DIR];
+ try{for(const r of require('../db/database').db.prepare("SELECT assets_dir FROM film_projects WHERE assets_dir IS NOT NULL AND assets_dir <> ''").all())roots.push(r.assets_dir);}catch(_){}
+ return roots.filter(Boolean);
+}
+function originalReference(s,id,order,opts={}){
  const ref=(s.get(id).snapshot.references||[]).find(r=>Number(r.order)===Number(order));
- const file=ref&&(ref.source_path||ref.path);
- if(!file||!fs.existsSync(file)||!fs.statSync(file).isFile())fail('No original file is recorded for this reference',404);
- const ext=require('path').extname(file)||({'image/png':'.png','image/jpeg':'.jpg','video/mp4':'.mp4','audio/wav':'.wav','audio/mpeg':'.mp3'})[ref.mime]||'';
+ const recorded=ref&&(ref.source_path||ref.path);
+ // A recorded path can come from a client-built review, so it is served only when
+ // its real location (symlinks and '..' resolved) is a media file inside a root.
+ let file=null;
+ try{if(recorded&&fs.existsSync(recorded))file=fs.realpathSync(recorded);}catch(_){file=null;}
+ const path=require('path');
+ const inside=file&&(opts.roots||mediaRoots()).some(root=>{try{const r=fs.realpathSync(root);return file===r||file.startsWith(r+path.sep);}catch(_){return false;}});
+ if(!file||!inside||!MEDIA_EXT.test(file)||!fs.statSync(file).isFile())fail('No original file is recorded for this reference',404);
+ const ext=path.extname(file)||({'image/png':'.png','image/jpeg':'.jpg','video/mp4':'.mp4','audio/wav':'.wav','audio/mpeg':'.mp3'})[ref.mime]||'';
  const label=String(ref.tag||ref.name||ref.role||'reference').replace(/[^a-z0-9_-]+/gi,'-');
  return {file,mime:ref.mime||'application/octet-stream',name:`${String(ref.order).padStart(2,'0')}-${label}${ext}`};
 }

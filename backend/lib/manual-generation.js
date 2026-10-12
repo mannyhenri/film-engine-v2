@@ -71,4 +71,8 @@ function installReviewStopCleanup(db) {
     return tables.length;
 }
 
-module.exports = { MANUAL_PROVIDERS, isManual, manualError, assertSendable, installReviewStopCleanup };
+// "This item stopped at its manual review": a hand-over, not a refusal. A batch
+// that meets one carries on to the next item so every prompt is handed over.
+function isReviewStop(error) { return /FINAL_REQUEST_REVIEW_REQUIRED:[A-Za-z0-9_-]+/.test(String(error || '')); }
+
+module.exports = { MANUAL_PROVIDERS, isManual, isReviewStop, manualError, assertSendable, installReviewStopCleanup };

@@ -142,10 +142,40 @@ test('every reference with a recorded original serves that exact file, and nothi
  db.prepare("INSERT INTO film_final_request_reviews (id,fingerprint,snapshot_json,editable_json,provenance_json) VALUES ('r1','fp',?, '{}','{}')").run(JSON.stringify({provider:'runway',capability:'image',references:refs}));
  const store={get:id=>{const r=db.prepare('SELECT * FROM film_final_request_reviews WHERE id=?').get(id);if(!r)throw Object.assign(new Error('Request review not found'),{status:404});return {id:r.id,snapshot:JSON.parse(r.snapshot_json)};}};
  for(const ref of refs){
-  if(ref.source_path){const out=originalReference(store,'r1',ref.order);assert.equal(fs.readFileSync(out.file,'utf8'),'ORIGINAL-FULL-RES');assert.equal(out.name,'01-hero.png');assert.equal(out.mime,'image/png');}
+  if(ref.source_path){const out=originalReference(store,'r1',ref.order,{roots:[dir]});assert.equal(fs.readFileSync(out.file,'utf8'),'ORIGINAL-FULL-RES');assert.equal(out.name,'01-hero.png');assert.equal(out.mime,'image/png');}
   else assert.throws(()=>originalReference(store,'r1',ref.order),e=>e.status===404);
  }
  assert.throws(()=>originalReference(store,'r1',9),e=>e.status===404);
  assert.throws(()=>originalReference(store,'missing',1),e=>e.status===404);
  db.close();fs.rmSync(dir,{recursive:true});
+});
+
+test('the original download serves only media inside the app data or a project folder; a crafted review cannot read other files',()=>{
+ const {originalReference}=require('../lib/final-request-review');
+ const root=fs.mkdtempSync(path.join(os.tmpdir(),'manual-root-')),outside=fs.mkdtempSync(path.join(os.tmpdir(),'manual-outside-'));
+ const write=(dir,name,body='X')=>{const f=path.join(dir,name);fs.mkdirSync(path.dirname(f),{recursive:true});fs.writeFileSync(f,body);return f;};
+ const inside=write(root,'shots/frame.png'),secretInside=write(root,'keys/id_rsa'),textInside=write(root,'notes.txt'),outsidePng=write(outside,'frame.png'),secret=write(outside,'id_rsa');
+ const link=path.join(root,'shots/escape.png');fs.symlinkSync(outsidePng,link);
+ const cases=[[inside,true],[secretInside,false],[textInside,false],[outsidePng,false],[secret,false],[link,false],[path.join(root,'..',path.basename(outside),'frame.png'),false]];
+ const store={get:()=>({snapshot:{references:cases.map(([file],i)=>({order:i+1,mime:'image/png',source_path:file}))}})};
+ cases.forEach(([file,allowed],i)=>{
+  if(allowed)assert.equal(originalReference(store,'r',i+1,{roots:[root]}).file,fs.realpathSync(file),file);
+  else assert.throws(()=>originalReference(store,'r',i+1,{roots:[root]}),e=>e.status===404,file+' must not be served');
+ });
+ fs.rmSync(root,{recursive:true});fs.rmSync(outside,{recursive:true});
+});
+
+test('a local clip or model in a review keeps its path, hash and size, not inline bytes; images stay inline',async()=>{
+ const {resolveFinalRequest}=require('../lib/final-provider-request');
+ const dir=fs.mkdtempSync(path.join(os.tmpdir(),'manual-media-')),clip=path.join(dir,'clip.mp4');
+ require('child_process').execFileSync(require('ffmpeg-static'),['-y','-f','lavfi','-i','color=c=gray:s=320x240:d=3','-pix_fmt','yuv420p',clip],{stdio:'ignore'});
+ const bytes=fs.readFileSync(clip);
+ const r=await resolveFinalRequest('runway','video',{prompt:'Replace the background',videoUri:clip,model:'aleph2'});
+ const ref=r.references.find(x=>x.mime==='video/mp4');
+ assert.ok(ref,'the clip is listed as an asset');
+ assert.equal(ref.data,undefined,'the clip is not inlined');
+ assert.equal(ref.path,clip);assert.equal(ref.byte_length,bytes.length);
+ assert.equal(ref.sha256,require('crypto').createHash('sha256').update(bytes).digest('hex'));
+ assert.ok(!JSON.stringify(r).includes(bytes.toString('base64').slice(0,200)),'no base64 of the clip anywhere in the review');
+ fs.rmSync(dir,{recursive:true});
 });

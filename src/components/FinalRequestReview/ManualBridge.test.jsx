@@ -13,7 +13,7 @@ afterEach(()=>{vi.unstubAllGlobals();delete window.__feFinalReviewBase;});
 
 describe('unplannable generation paths reach the hand-over through their route',()=>{
  it('the inventory is generated and non-empty',()=>{expect(inventory.route_reviewed.length).toBeGreaterThan(0);});
- it.each(inventory.route_reviewed)('%s opens the route review and never re-sends the route',async(path)=>{
+ it.each(inventory.route_reviewed.filter(p=>!/\/stream$/.test(p)))('%s opens the route review and never re-sends the route',async(path)=>{
   window.__feFinalReviewBase=()=>'/film';
   const route=vi.fn(async()=>({ok:false,status:428,text:async()=>JSON.stringify({error:'FINAL_REQUEST_REVIEW_REQUIRED:route-review'})}));vi.stubGlobal('fetch',route);
   const request=vi.fn(async p=>{if(p.endsWith('/prepare'))throw unsupported();if(p==='/final-request-review/route-review')return review('route-review');return {};});
@@ -30,6 +30,13 @@ describe('unplannable generation paths reach the hand-over through their route',
   const open=vi.fn().mockRejectedValue(cancelledReview());
   await expect(prepareFinalRequest(concrete(inventory.route_reviewed[0]),{method:'POST',body:'{}'},open,request)).rejects.toMatchObject({code:'FINAL_REQUEST_CANCELLED'});
   expect(open.mock.calls[0][0].id).toBe('structured');
+ });
+ it.each(inventory.route_reviewed.filter(p=>/\/stream$/.test(p)))('%s is streamed by its caller (live progress); the bridge sends nothing',async(path)=>{
+  const route=vi.fn();vi.stubGlobal('fetch',route);
+  const request=vi.fn(async p=>{if(p.endsWith('/prepare'))throw unsupported();return {};}),open=vi.fn();
+  const opts={method:'POST',body:'{"a":1}'};
+  expect(await prepareFinalRequest(concrete(path),opts,open,request)).toBe(opts);
+  expect(route).not.toHaveBeenCalled();expect(open).not.toHaveBeenCalled();
  });
  it('a route that needs no manual vendor completes once and returns its own result',async()=>{
   window.__feFinalReviewBase=()=>'/film';

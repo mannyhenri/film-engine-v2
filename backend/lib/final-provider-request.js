@@ -162,7 +162,8 @@ async function resolveFinalRequest(provider, capability, payload) {
     if(/^https?:\/\//i.test(v))throw new Error(`Reference ${role} needs immutable bytes before review; a remote URL cannot prove its content`);
     let file=v;try{if(/^file:/i.test(v))file=fileURLToPath(v);}catch(_){throw new Error(`Reference ${role} has an invalid file URI`);}
     if(!fs.existsSync(file)||!fs.statSync(file).isFile())throw new Error(`Reference ${role} needs resolved immutable bytes before review`);
-    const bytes=fs.readFileSync(file); const mime = ({'.glb':'model/gltf-binary','.gltf':'model/gltf+json','.fbx':'application/octet-stream','.obj':'model/obj','.png':'image/png','.jpg':'image/jpeg','.jpeg':'image/jpeg','.webp':'image/webp','.wav':'audio/wav','.mp3':'audio/mpeg','.mp4':'video/mp4'})[path.extname(file).toLowerCase()] || require('./providers/muapi-upload').sniffMedia(bytes)?.mime; if(!mime) throw new Error('Unknown reference MIME type'); const data=`data:${mime};base64,${bytes.toString('base64')}`; references.push({role,mime,sha256:sha(bytes),data,path:file,...(parent&&typeof parent.tag==='string'?{tag:parent.tag}:{})}); if(parent)parent[key]=data;
+    const bytes=fs.readFileSync(file); const mime = ({'.glb':'model/gltf-binary','.gltf':'model/gltf+json','.fbx':'application/octet-stream','.obj':'model/obj','.png':'image/png','.jpg':'image/jpeg','.jpeg':'image/jpeg','.webp':'image/webp','.wav':'audio/wav','.mp3':'audio/mpeg','.mp4':'video/mp4'})[path.extname(file).toLowerCase()] || require('./providers/muapi-upload').sniffMedia(bytes)?.mime; if(!mime) throw new Error('Unknown reference MIME type'); // Clips and models stay on disk (path, hash, size): the hand-over serves the original, and a review row is not a copy of the footage.
+    const large=/^(video|model)\//.test(mime)||mime==='application/octet-stream'; const data=large?null:`data:${mime};base64,${bytes.toString('base64')}`; references.push({role,mime,sha256:sha(bytes),...(large?{byte_length:bytes.length}:{data}),path:file,...(parent&&typeof parent.tag==='string'?{tag:parent.tag}:{})}); if(parent&&data)parent[key]=data;
    }
   }
   walk(body,'');
@@ -170,7 +171,7 @@ async function resolveFinalRequest(provider, capability, payload) {
  // Every reference describes the bytes actually in the resolved request.
  // Input labels are attached only after a byte/order match; a selected plate
  // that a model dropped must never look like a used conditioning reference.
- references.forEach((ref,index)=>Object.assign(ref,{wire_role:ref.wire_role||ref.role,order:index+1,byte_length:Buffer.from(ref.data.split(',')[1],'base64').length,role:ref.mime.startsWith('audio/')?(ref.wire_index!==undefined?'audio_source':'audio_conditioning'):ref.mime.startsWith('video/')?'video_reference':'image_reference'}));
+ references.forEach((ref,index)=>Object.assign(ref,{wire_role:ref.wire_role||ref.role,order:index+1,byte_length:ref.data?Buffer.from(ref.data.split(',')[1],'base64').length:ref.byte_length,role:ref.mime.startsWith('audio/')?(ref.wire_index!==undefined?'audio_source':'audio_conditioning'):ref.mime.startsWith('video/')?'video_reference':'image_reference'}));
  function selectedBytes(ref,kind) {
   let source=typeof ref==='string'?ref:(ref?.uri||ref?.url||ref?.file_path||ref?.path);
   if(typeof source==='string' && /^file:/i.test(source)){try{source=fileURLToPath(source);}catch(_){return null;}}

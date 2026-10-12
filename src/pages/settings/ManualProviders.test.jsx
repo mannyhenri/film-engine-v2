@@ -1,7 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { render } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { vi } from 'vitest';
+vi.mock('../../lib/legacy.js', () => ({ legacy: { api: vi.fn().mockResolvedValue({}), setStatus: vi.fn() } }));
+import { legacy } from '../../lib/legacy.js';
 import { createRequire } from 'module';
-import { keyTiles, CapabilityMap } from './ProviderCards.jsx';
+import { keyTiles, CapabilityMap, KeysCard } from './ProviderCards.jsx';
 
 // Registry-based: the manual set comes from the backend's own classification.
 const require = createRequire(import.meta.url);
@@ -31,5 +34,19 @@ describe('manual vendors need no API key setup', () => {
         const row = container.querySelector(`[data-cap="${cap}"]`);
         expect(row.textContent).not.toMatch(/no key/);
         expect(row.textContent).toMatch(/prompt and assets/i);
+    });
+    it('a key still stored for any manual vendor can be cleared; one never stored is not listed', async () => {
+        const stored = [...MANUAL_PROVIDERS].filter((_, i) => i % 2 === 0);
+        const catalog = { ...CATALOG, providers: CATALOG.providers.map(p => ({ ...p, credentials: { set: stored.includes(p.id) } })) };
+        render(<KeysCard catalog={catalog} onChanged={() => {}} />);
+        const list = screen.getByRole('list', { name: 'Stored keys you no longer need' });
+        for (const id of MANUAL_PROVIDERS) {
+            const entry = manualEntry(id);
+            if (!entry.manual) continue;
+            const button = list.querySelector(`[data-clear="${id}"]`);
+            expect(Boolean(button), id).toBe(stored.includes(id));
+        }
+        fireEvent.click(list.querySelector(`[data-clear="${stored.find(id => manualEntry(id).manual)}"]`));
+        await waitFor(() => expect(legacy.api).toHaveBeenCalledWith(`/providers/${stored.find(id => manualEntry(id).manual)}/credentials`, { method: 'DELETE' }));
     });
 });

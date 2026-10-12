@@ -17,7 +17,8 @@ let callCount=0;
 function call(method,url,body){return new Promise((resolve,reject)=>{
  const req=Readable.from([Buffer.from(JSON.stringify(body??{}))]);req.socket={remoteAddress:'127.0.0.'+(++callCount%250+1)};req.method=method;req.url='/film'+url;req.headers={'content-type':'application/json'};
  let chunks='';const timer=setTimeout(()=>resolve({status:'timeout',text:chunks}),15000);
- const res={statusCode:200,headersSent:false,writableEnded:false,setHeader(){},getHeader(){},on(){},once(){},flushHeaders(){},writeHead(code){this.statusCode=code;this.headersSent=true;return this;},write(d){chunks+=String(d);return true;},end(d){if(d)chunks+=String(d);this.writableEnded=true;clearTimeout(timer);resolve({status:this.statusCode,text:chunks});}};
+ // A real EventEmitter, so a file can be piped into it as into a response.
+ const res=Object.assign(new (require('events'))(),{statusCode:200,headersSent:false,writableEnded:false,setHeader(){},getHeader(){},flushHeaders(){},writeHead(code){this.statusCode=code;this.headersSent=true;return this;},write(d){chunks+=Buffer.isBuffer(d)?d.toString('latin1'):String(d);return true;},end(d){if(d)chunks+=Buffer.isBuffer(d)?d.toString('latin1'):String(d);this.writableEnded=true;clearTimeout(timer);resolve({status:this.statusCode,text:chunks});}});
  Promise.resolve(handler(req,res)).catch(e=>{clearTimeout(timer);resolve({status:'threw',text:e.message});});
 });}
 const SIDE_EFFECT_TABLES=db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND (name LIKE '%job%' OR name LIKE '%asset%' OR name LIKE '%usage%' OR name LIKE '%transport_receipt%')").all().map(r=>r.name);
@@ -58,6 +59,10 @@ test('every real generation route reaches a manual review with its full prompt a
    if(c.followUp){const more=await c.followUp(out,call);if(process.env.ROUTE_DEBUG)console.log('FOLLOWUP',key(c),String(typeof more==='string'?more:more?.text).slice(0,400));out={...out,text:out.text+'\n'+(typeof more==='string'?more:more?.text??'')};}
    const vendor=outbound.slice(sent).filter(u=>!/^https?:\/\/(localhost|127\.0\.0\.1)/.test(u));
    const id=(out.text.match(/FINAL_REQUEST_REVIEW_REQUIRED:([A-Za-z0-9_-]+)/)||[])[1];
+   // A batch hands over every item, not the first: each item's review comes back.
+   const allIds=[...new Set([...out.text.matchAll(/FINAL_REQUEST_REVIEW_REQUIRED:([A-Za-z0-9_-]+)/g)].map(m=>m[1]))];
+   if(/batch/.test(c.path)&&allIds.length<2)problems.push({route:key(c),problem:'batch handed over only '+allIds.length+' review(s)'});
+   for(const other of allIds.slice(1)){const r=JSON.parse((await call('GET','/final-request-review/'+other)).text);if(!manual.isManual(r.snapshot?.provider,r.snapshot?.capability)||!promptOf(r.snapshot?.body))problems.push({route:key(c),problem:'batch item review incomplete',id:other});}
    if(vendor.length)problems.push({route:key(c),problem:'vendor call',vendor});
    if(!id){problems.push({route:key(c),problem:'no review',status:out.status,text:out.text.slice(0,200)});continue;}
    const review=JSON.parse((await call('GET','/final-request-review/'+id)).text),snap=review.snapshot||{};
@@ -66,7 +71,11 @@ test('every real generation route reaches a manual review with its full prompt a
    // A text prompt, or, for an operation on a model or clip (rig, upscale), the asset it operates on.
    if(!prompt&&!(['post','image-upscale','model3d'].includes(snap.capability)&&(snap.references||[]).length))problems.push({route:key(c),problem:'review has no prompt',capability:snap.capability});
    if(!Array.isArray(snap.references))problems.push({route:key(c),problem:'review has no asset list'});
-   for(const ref of snap.references||[])if(!ref.data||!ref.mime||!ref.order)problems.push({route:key(c),problem:'asset missing bytes/mime/order'});
+   for(const ref of snap.references||[]){
+    if(!ref.mime||!ref.order||!(ref.data||(ref.path&&ref.byte_length)))problems.push({route:key(c),problem:'asset missing bytes/mime/order'});
+    // A clip or model kept on disk is handed over by the original download.
+    if(!ref.data){const got=await call('GET',`/final-request-review/${id}/references/${ref.order}/original`);if(got.status!==200||got.text.length!==ref.byte_length)problems.push({route:key(c),problem:'original asset not downloadable',status:got.status});}
+   }
    const after=counts(),grew=Object.keys(after).filter(t=>after[t]!==before[t]&&!/review/.test(t));
    if(grew.length)problems.push({route:key(c),problem:'rows left behind the review',grew});
    reached.push(`${key(c)} → ${snap.provider}/${snap.capability} · ${(snap.references||[]).length} assets · "${prompt.slice(0,50)}"`);

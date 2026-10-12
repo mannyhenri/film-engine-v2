@@ -221,7 +221,17 @@ export default function FinalRequestReview() {
   };
   window.__feOpenFinalRequestReview=show;
   window.__fePrepareFinalRequest=(path,opts)=>prepareFinalRequest(path,opts,show);
+  const announced=new Set();
   window.__feObserveFinalRequestState=data=>{
+   // A streamed route names each item's manual review in its events: open each
+   // once. Only stream events (a typed object), never a listing that happens to
+   // carry an old job's error, and only a review still awaiting its hand-over.
+   if(data&&typeof data==='object'&&!Array.isArray(data)&&typeof data.type==='string'){
+    for(const m of JSON.stringify(data).matchAll(/FINAL_REQUEST_REVIEW_REQUIRED:([A-Za-z0-9_-]+)/g)){
+     if(announced.has(m[1]))continue;announced.add(m[1]);
+     reviewApi(`/final-request-review/${m[1]}`).then(r=>r?.state==='preview'?show(r):null).catch(()=>{});
+    }
+   }
    const result=[data,data?.result,data?.run,data?.job,...(Array.isArray(data?.runs)?data.runs:[]),...(Array.isArray(data?.jobs)?data.jobs:[])].find(item=>item?.next_review);
    if(result?.next_review && ['awaiting_review','waiting_review','paused'].includes(result.status || result.state)) {setWaiting(clone(result));setStageError('');}
   };

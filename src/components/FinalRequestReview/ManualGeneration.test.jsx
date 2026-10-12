@@ -1,6 +1,6 @@
 import {afterEach,describe,it,expect,vi} from 'vitest';
 import {render,screen,fireEvent,waitFor,cleanup} from '@testing-library/react';
-import {FinalRequestReviewDialog} from './FinalRequestReview.jsx';
+import FinalRequestReview,{FinalRequestReviewDialog} from './FinalRequestReview.jsx';
 
 // Every provider the final review resolves (backend REVIEW_PROVIDER_MODULES) and
 // every capability those adapters serve. The last screen is the deliverable:
@@ -55,5 +55,21 @@ describe('manual generation: the final screen hands over prompt and assets',()=>
   if(next){fireEvent.click(next);expect(send).toHaveBeenLastCalledWith({__manual_nav:'next'});}
   if(previous){fireEvent.click(previous);expect(send).toHaveBeenLastCalledWith({__manual_nav:'previous'});}
   expect(screen.getByRole('button',{name:'Close'})).toBeTruthy();
+ });
+ it('a review announced inside a streamed event opens once, with its prompt, and Close settles it',async()=>{
+  window.__feFinalReviewBase=()=>'/film';
+  const r=review('elevenlabs','music');
+  const transport=vi.fn(async url=>({ok:true,json:async()=>String(url).endsWith('/cancel')?{}:{...r,id:'streamed'}}));vi.stubGlobal('fetch',transport);
+  render(<FinalRequestReview/>);
+  window.__feObserveFinalRequestState({type:'music_failed',scene_id:'s1',error:'FINAL_REQUEST_REVIEW_REQUIRED:streamed'});
+  window.__feObserveFinalRequestState({type:'music_failed',scene_id:'s1',error:'FINAL_REQUEST_REVIEW_REQUIRED:streamed'});
+  // A listing that carries an old job's marker (no event type) opens nothing.
+  window.__feObserveFinalRequestState({jobs:[{status:'failed',error_message:'FINAL_REQUEST_REVIEW_REQUIRED:old-job'}]});
+  expect((await screen.findByLabelText('Prompt to copy')).textContent).toBe(r.snapshot.body.prompt);
+  expect(transport.mock.calls.filter(([u])=>String(u).endsWith('/final-request-review/streamed')).length).toBe(1);
+  expect(transport.mock.calls.some(([u])=>String(u).includes('old-job'))).toBe(false);
+  fireEvent.click(screen.getByRole('button',{name:'Close'}));
+  await waitFor(()=>expect(screen.queryByRole('dialog')).toBeNull());
+  delete window.__feFinalReviewBase;
  });
 });

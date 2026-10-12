@@ -704,16 +704,21 @@ async function batchVoice(req, res, projectId) {
     for (const shot of withDialogue) {
         if (refusal) { notAttempted.push(shot.shot_code); continue; }
         const out = await generateVoiceForShotId(shot.shot_id, req.body);
+        const { isReviewStop } = require('../lib/manual-generation');
+        if (out.error && isReviewStop(out.error)) { done.push({ shot_id: shot.shot_id, shot_code: shot.shot_code, generated: 0, failed: 0, reviews: [out.error] }); continue; }
         if (out.error) { refusal = out.error; notAttempted.push(shot.shot_code); continue; }
         const failed = (out.audio_files || []).filter(a => a.status !== 'complete');
+        // A line that stopped at its manual review is handed over, not failed.
+        const stops = failed.filter(f => isReviewStop(f.error)), realFailures = failed.filter(f => !isReviewStop(f.error));
         done.push({ shot_id: shot.shot_id, shot_code: shot.shot_code,
             generated: (out.audio_files || []).length - failed.length,
-            failed: failed.length,
-            ...(failed.length ? { errors: failed.map(f => f.hint || f.error) } : {}) });
+            failed: realFailures.length,
+            ...(realFailures.length ? { errors: realFailures.map(f => f.hint || f.error) } : {}),
+            ...(stops.length ? { reviews: stops.map(f => f.error) } : {}) });
         // A per-line failure is reported and does not stop the run; a provider
-        // that refuses outright does.
-        if (failed.length && failed.length === (out.audio_files || []).length) {
-            refusal = failed[0].error;
+        // that refuses outright does. Review stops never do.
+        if (realFailures.length && realFailures.length === (out.audio_files || []).length) {
+            refusal = realFailures[0].error;
         }
     }
 

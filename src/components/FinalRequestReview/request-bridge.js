@@ -42,6 +42,9 @@ export async function prepareFinalRequest(path, opts, openReview, request=review
  try { prepared=await request('/final-request-review/prepare',{path,body}); }
  catch (error) {
   if (error.code!=='FINAL_REQUEST_REVIEW_UNSUPPORTED') throw error;
+  // A streamed route is read by its caller, so real work shows live progress; a
+  // review it announces in an event is opened by the review host as it arrives.
+  if (/\/stream$/.test(String(path).split('?')[0])) return opts;
   return routeReview(path,opts,body,openReview,request,epoch);
  }
  const reviews=prepared.reviews || (prepared.id?[prepared]:[]);
