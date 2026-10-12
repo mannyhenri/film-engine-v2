@@ -732,6 +732,7 @@ const CAPABILITY_BUILDERS = {
                 .filter(Boolean);
         }
         if (picked.dropped.length) built.references_dropped = picked.dropped;
+        if (ctx.annotatedReference?.annotated) built.annotated_reference = { count: ctx.annotatedReference.count, digest: ctx.annotatedReference.digest, guidance_only: true, warning: 'Marks are baked into the reference and may appear in generated footage.' };
 
         /*
          * THE SHOT'S OWN DIALOGUE, AS AN AUDIO REFERENCE — asked for per
@@ -964,6 +965,7 @@ const CAPABILITY_BUILDERS = {
  * contracts are budgeted.
  */
 function buildImagePayloadForAdapter(ctx, adapter) {
+    const expressionPayload = payload => require('./character-expressions').appendSelectedExpressions(payload,ctx?.expressionReferences || ctx?.sceneCard?.expression_references,ctx,adapter);
     const declared = Number(adapter && adapter.promptLimit) || imagePromptLimit(ctx && ctx.project);
     // The same route the prompt ceiling takes: the adapter's own limit, applied
     // where the payload is built for it, so the frame is as large as this
@@ -998,12 +1000,12 @@ function buildImagePayloadForAdapter(ctx, adapter) {
         ? negative.length + '\n\nAvoid: '.length
         : 0;
     const available = declared ? Math.max(1, declared - reserve) : declared;
-    if (!declared || available === declared) return withTierModel(firstPayload, ctx, adapter);
+    if (!declared || available === declared) return expressionPayload(withTierModel(firstPayload, ctx, adapter));
 
     const rebuiltCtx = { ...firstCtx, imagePromptLimit: available, maxImagePixels: pixels };
     const rebuilt = CAPABILITY_BUILDERS.image(rebuiltCtx);
     if (ctx && typeof ctx === 'object') ctx.__budget = rebuiltCtx.__budget || null;
-    return withTierModel(Array.isArray(rebuilt) ? rebuilt[0] : rebuilt, ctx, adapter);
+    return expressionPayload(withTierModel(Array.isArray(rebuilt) ? rebuilt[0] : rebuilt, ctx, adapter));
 }
 
 /**
@@ -1308,9 +1310,12 @@ function loadShotContext(shotId, opts) {
      * of them would leave the other two sending a bare blob.
      */
     let initImage = null;
+    let annotatedReference = null;
     if (keyframeAsset && keyframeAsset.file_name) {
         try {
-            const imgPath = keyframeAsset.file_path || getFilePath(scene.project_id, 'storyboards', keyframeAsset.file_name);
+            const cleanPath = keyframeAsset.file_path || getFilePath(scene.project_id, 'storyboards', keyframeAsset.file_name);
+            annotatedReference = require('./annotated-reference').annotatedReferenceForShot(db, shotId, cleanPath);
+            const imgPath = annotatedReference.path;
             if (fs.existsSync(imgPath)) {
                 const mime = /\.jpe?g$/i.test(imgPath) ? 'image/jpeg'
                     : /\.webp$/i.test(imgPath) ? 'image/webp' : 'image/png';
@@ -1327,7 +1332,7 @@ function loadShotContext(shotId, opts) {
                     if (small) initImage = `data:image/jpeg;base64,${fs.readFileSync(small).toString('base64')}`;
                 }
             }
-        } catch (_) { initImage = null; }
+        } catch (error) { throw new Error(`Cannot prepare storyboard reference: ${error.message}`); }
     }
 
     let consistencyContext = null;
@@ -1467,6 +1472,7 @@ function loadShotContext(shotId, opts) {
         anchorTag = gathered.anchorTag;
         anchorAttached = gathered.anchorAttached;
     } catch (error) {
+        if (error.code === 'MOODBOARD_REFERENCE_UNSENDABLE') throw error;
         referenceDiagnostics.push({ code: 'REFERENCE_LOOKUP', message: error.message, action: 'Repair the reference lookup before generating.' });
         // A project with no plates, or a provider that cannot be resolved,
         // generates exactly as it did before rather than failing to build a
@@ -1484,7 +1490,7 @@ function loadShotContext(shotId, opts) {
         previsApplication,
         references, tagged, anchorTag, anchorAttached, anchorCovers, referenceDiagnostics, keepPlates,
         generationRevision: require('./generation-revision').generationRevision(db, shotId),
-        annotations,
+        annotations, annotatedReference,
         // The project's standing answer to PAR-026. A route may override it per
         // request; nothing else may, because a default that turns itself on is
         // the failure this column exists to prevent.

@@ -52,9 +52,16 @@ describe('every dialog is React-owned', () => {
             const el = mine[0], ref = REF.getElementById(id);
             if (el.classList.contains('open')) bad.push(`${id}: open at boot`);
             if (!!ref.closest('.main') !== !!el.closest('.main')) bad.push(`${id}: ${ref.closest('.main') ? 'belongs in' : 'must not be in'} .main`);
-            const theirs = domWalk(ref), ours = domWalk(el);
-            const first = theirs.findIndex((x, i) => x !== ours[i]);
-            if (first !== -1 || theirs.length !== ours.length) bad.push(`${id}: differs from the reference at ${first}: ${theirs[first]} | ${ours[first]}`);
+            if (id === 'sceneCardModal') {
+                expect(el.querySelector('#sceneCardHeading').tagName).toBe('P');
+                expect(el.querySelector('#sceneCardNotes').tagName).toBe('TEXTAREA');
+                expect(el.textContent).toContain('screenplay stays unchanged');
+                expect(el.querySelector('[onclick="deleteIndexCard()"]')).toBeNull();
+            } else {
+                const theirs = domWalk(ref), ours = domWalk(el);
+                const first = theirs.findIndex((x, i) => x !== ours[i]);
+                if (first !== -1 || theirs.length !== ours.length) bad.push(`${id}: differs from the reference at ${first}: ${theirs[first]} | ${ours[first]}`);
+            }
             for (const h of handlersOf(el)) if (typeof window[h] !== 'function' && !coreFn(h) && h !== 'document' && h !== 'event') bad.push(`${id}: ${h} is neither on window nor a core function`);
         }
         expect(VERBATIM.reduce((n, o) => n + o.modals.length, 0)).toBeGreaterThanOrEqual(23);

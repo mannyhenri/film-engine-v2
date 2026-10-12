@@ -130,7 +130,8 @@ function buildImageRequest(payload) {
 
     return body;
 }
-const DEFAULT_TEXT_MODEL = 'meshy-5';
+const DEFAULT_TEXT_MODEL = 'meshy-6-lite';
+const MESH_MODELS = Object.freeze(['meshy-6-lite', 'meshy-6', 'meshy-7.1', 'latest']);
 
 // Polling. Mesh generation is slow — minutes, not seconds — so the ceiling is
 // generous, but bounded: a task that never terminates must fail rather than
@@ -192,11 +193,12 @@ async function parseBody(response) {
 }
 
 /** One authenticated request with a timeout. */
-async function call(method, path, apiKey, body) {
+async function call(method, path, apiKey, body, approvedRequest) {
+    if(String(method).toUpperCase()==='POST' && (!approvedRequest || !approvedRequest.finalRequestId || approvedRequest.url!==`${baseUrl()}${path}` || require('../final-request-review').canonical(approvedRequest.body)!==require('../final-request-review').canonical(body))) return {ok:false,status:428,error:'Meshy requires the exact approved final request before submission.'};
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
     try {
-        const response = await fetch(`${baseUrl()}${path}`, {
+        const response = await (String(method).toUpperCase()==='POST'?require('../generation-transport').dispatch.bind(null,approvedRequest):fetch)(`${baseUrl()}${path}`, {
             method,
             headers: {
                 Authorization: `Bearer ${apiKey}`,
@@ -293,6 +295,10 @@ function buildRequest(payload) {
     const op = OPERATIONS[operation];
     if (!op) return { error: `meshy: unsupported operation "${operation}"` };
 
+    if (['text_to_mesh', 'image_to_mesh'].includes(operation) && p.model && !MESH_MODELS.includes(p.model)) {
+        return { error: `meshy: unsupported 3D model "${p.model}"; choose ${MESH_MODELS.join(', ')}` };
+    }
+
     if (operation === 'text_to_mesh') {
         const prompt = String(p.prompt || '').trim();
         if (!prompt) return { error: 'meshy: a prompt is required for text-to-mesh' };
@@ -360,13 +366,13 @@ async function run(payload, onProgress, opts, capability) {
     // getCredential returns { apiKey, meta } — the image path destructures it
     // and these two did not, so the mesh routes sent `Bearer [object Object]`
     // and Meshy answered 401 Invalid API key with a perfectly good key saved.
+    const request = await require('../final-provider-request').approvedRequest('meshy', capability || 'model3d', opts);
+    if (request.error) return { ok: false, status: 400, error: request.error };
+
     const { apiKey } = getCredential('meshy', 'MESHY_API_KEY');
     if (!apiKey) return missingKey();
 
-    const request = buildRequest(payload);
-    if (request.error) return { ok: false, status: 400, error: request.error };
-
-    const submitted = await call('POST', request.path, apiKey, request.body);
+    const submitted = await call('POST', request.path, apiKey, request.body, request);
     if (!submitted.ok) return submitted;
 
     const taskId = (submitted.data && (submitted.data.result || submitted.data.id)) || submitted.data;
@@ -388,23 +394,7 @@ async function run(payload, onProgress, opts, capability) {
 
     // Text-to-3D phase two: texture the preview mesh. Skippable for callers who
     // only want geometry (a blocking prop, a collision proxy).
-    if (request.operation === 'text_to_mesh' && (payload || {}).refine !== false) {
-        const refine = await call('POST', request.path, apiKey, {
-            mode: 'refine',
-            preview_task_id: taskId,
-            ...(payload.texture_prompt ? { texture_prompt: String(payload.texture_prompt).slice(0, 600) } : {}),
-        });
-        // A refine failure is not fatal — the untextured preview is still a
-        // usable mesh, and losing it because texturing failed would be worse
-        // than returning it with a warning.
-        if (refine.ok) {
-            refineTaskId = (refine.data && (refine.data.result || refine.data.id)) || null;
-            if (refineTaskId) {
-                const refined = await pollTask(request.path, refineTaskId, apiKey, p => report(p, 'refine'));
-                if (refined.ok) task = refined;
-            }
-        }
-    }
+    // Texturing is another paid request and needs a separate review with the real preview task ID.
 
     const model = pickModelUrl(task.data);
     if (!model) return { ok: false, status: 502, error: 'meshy: task succeeded but returned no model URL' };
@@ -427,6 +417,7 @@ async function run(payload, onProgress, opts, capability) {
             preview_task_id: taskId,
             refine_task_id: refineTaskId,
             textured: Boolean(refineTaskId),
+            refinement_requires_review: Boolean(request.followup),
             art_style: request.body.art_style || '',
             format: model.format,
         },
@@ -464,11 +455,12 @@ async function readBalance(apiKey) {
     } catch (_) { return null; }
 }
 
-async function runImage(payload) {
+async function runImage(payload, opts) {
     const { apiKey } = getCredential('meshy');
     if (!apiKey) return missingKey();
 
-    const body = buildImageRequest(payload);
+    const request = await require('../final-provider-request').approvedRequest('meshy', 'image', opts);
+    const body = request.body;
     if (!body.prompt) return { ok: false, status: 400, error: 'meshy: prompt is required' };
 
     const path = body.reference_image_urls
@@ -479,12 +471,13 @@ async function runImage(payload) {
     // here simply means the receipt is unavailable; the generation proceeds.
     const openingBalance = await readBalance(apiKey);
 
-    const created = await call('POST', path, apiKey, body);
+    const created = await call('POST', path, apiKey, body, request);
     if (!created.ok) return created;
 
     const taskId = (created.data && (created.data.result || created.data.id)) || null;
     if (!taskId) return { ok: false, status: 502, error: 'meshy: no task id returned for text-to-image' };
 
+    if (opts?.onHandle) opts.onHandle(taskId,{capability:'image'});
     const done = await pollTask(path, taskId, apiKey);
     if (!done.ok) return done;
 
@@ -532,11 +525,12 @@ async function runImage(payload) {
 }
 
 
-async function generate(capability, payload, opts) {
+async function generate(capability,payload,opts) { return require('../final-provider-request').finishGeneration(opts,()=>generateApproved(capability,payload,opts)); }
+async function generateApproved(capability, payload, opts) {
     if (!supports(capability)) {
         return { ok: false, status: 400, error: `meshy: unsupported capability "${capability}"` };
     }
-    if (capability === 'image') return runImage(payload);
+    if (capability === 'image') return runImage(payload,opts);
     const { emit } = require('../generation-progress');
     const onProgress = (pct, phase) => emit(opts, { percent: pct, phase: String(phase || 'generating').toLowerCase().replace(/_/g, ' ') });
     return run(payload, onProgress, opts, capability);
@@ -547,6 +541,7 @@ async function generate(capability, payload, opts) {
  * loop rather than from the provider — the events are real, just client-side.
  */
 async function generateStream(capability, payload, res, callbacks = {}) {
+    return {ok:false,status:428,error:'Use the final request review before Send. Legacy Meshy streaming is blocked.'};
     if (!supports(capability)) {
         return { ok: false, error: `meshy: unsupported capability "${capability}"` };
     }
@@ -616,6 +611,16 @@ function meterMeshy(capability, payload, result) {
         if (op === 'rig' || op === 'animate' || op === 'remesh') {
             return { unit: 'call', quantity: 1, model, free_operation: true };
         }
+        // Estimate all submitted stages, without claiming a provider receipt.
+        // Text generation refines by default; image generation textures by default.
+        const costs = { 'meshy-6-lite': [5, 15], 'meshy-6': [20, 30], 'meshy-7.1': [20, 30], latest: [20, 30] };
+        const cost = costs[model];
+        if (cost) {
+            const image = op === 'image_to_mesh' || p.image_url || p.image;
+            const textured = result && result.meta && typeof result.meta.textured === 'boolean'
+                ? result.meta.textured : (image ? p.should_texture !== false : p.refine !== false);
+            return { unit: 'call', quantity: 1, model, native_charged: cost[textured ? 1 : 0], provider_confirmed: false };
+        }
         return { unit: 'call', quantity: 1, model };
     }
     return null;
@@ -662,8 +667,10 @@ const adapter = {
     modelsByCapability: Object.freeze({
         image: Object.freeze(Object.fromEntries(IMAGE_MODELS.map(id => [id, {}]))),
         model3d: Object.freeze({
-            'meshy-5': { label: 'Meshy 5 (latest)' },
-            'meshy-4': { label: 'Meshy 4' },
+            'meshy-6-lite': { label: 'Meshy 6 Lite' },
+            'meshy-6': { label: 'Meshy 6' },
+            'meshy-7.1': { label: 'Meshy 7.1' },
+            latest: { label: 'Latest (currently Meshy 7.1)' },
         }),
     }),
     /*

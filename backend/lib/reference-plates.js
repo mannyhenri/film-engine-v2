@@ -413,20 +413,18 @@ const NEGATIVE = 'blurry, low quality, distorted, multiple angles, collage, '
     + 'swatch, swatches, watermark, logo, arrows, callouts, measurement marks';
 
 /**
- * The board's look, as at most one tagged, inlined reference.
+ * The board's active look images, in their explicit board order.
  *
  * `db` is passed rather than required, because this module is used from routes
  * that already hold a connection and from tests that must not open one. No
- * board, no database, or an unreadable image all mean the plate generates
- * exactly as it did before.
+ * board or database means no references. An unreadable selected image blocks
+ * preparation so the approval can never silently omit it.
  */
 function styleReferencesFor(db, projectId) {
     if (!db || !projectId) return [];
-    try {
-        const { styleReferences } = require('./look-development');
-        const { selectReferences } = require('./reference-images');
-        return selectReferences(styleReferences(db, projectId, 1), { limit: 1 });
-    } catch (_) { return []; }
+    const { styleReferences } = require('./look-development');
+    const { selectReferences } = require('./reference-images');
+    return selectReferences(styleReferences(db, projectId), { limit: Number.MAX_SAFE_INTEGER });
 }
 
 
@@ -929,20 +927,7 @@ function supersedePlate(projectId, subject, spec, fileName, incomingPath) {
  * plate generated without the style is still worth having — but a director who
  * is told nothing will believe their look is anchored when it is not.
  */
-async function generatePlate({ projectId, kind, subject, stylePreset, provider, aspectRatio,
-    project, timeout, db,
-    view, anchorPath, promptOverride: promptEdit, tierOverride,
-    /*
-     * Exploring rather than plating.
-     *
-     * The same prompt building, the same style, the same references and the
-     * same fallback chain — only the destination and the role change. A second
-     * generator for explorations is how one of them would acquire the medium
-     * fix or the look-board attachment and the other would not, which is the
-     * exact trap `reference-plates.js` was created to close for locations and
-     * props.
-     */
-    explore, exploreToken }) {
+function buildPlateGenerationPlan({ projectId, kind, subject, stylePreset, provider, aspectRatio, project, db, view, anchorPath, promptOverride: promptEdit, tierOverride }) {
     const spec = PLATE_KINDS[kind];
     if (!spec) return { ok: false, error: `unknown plate kind '${kind}'` };
     if (!subject || !subject.id) return { ok: false, error: `${kind} not found` };
@@ -962,10 +947,9 @@ async function generatePlate({ projectId, kind, subject, stylePreset, provider, 
      * frames with it, and the look has to be re-argued in each. Fixing it here
      * fixes it once.
      *
-     * ONE image, not three. A plate has exactly one subject and the board is
-     * there for its grade and palette; two or three look plates start voting on
-     * what the object is, and the thing being established stops being the
-     * thing. The prompt says what it is for where the provider can hear it.
+     * Every active image travels with its named influence roles. The prompt
+     * keeps those roles separate from subject identity, and the final request
+     * refuses provider capacity limits rather than discarding look images.
      */
     const styleRefs = styleReferencesFor(db, projectId);
 
@@ -1012,7 +996,10 @@ async function generatePlate({ projectId, kind, subject, stylePreset, provider, 
     const viewNeedsNewCamera = !!(view && String(view).trim());
     const editCannotTurn = viewNeedsNewCamera && referenceMode !== 'condition';
 
+    if (styleRefs.length && editCannotTurn) throw Object.assign(new Error(`${provider?.id || 'This provider'} cannot condition Moodboard images while generating a new camera view. Choose an image conditioning provider or deactivate those references.`),{status:409});
+    if (styleRefs.length && !provider?.supportsReferenceImages) throw Object.assign(new Error('This provider does not support Moodboard image conditioning. Choose a supported image provider or deactivate the references.'),{status:409});
     const refs = editCannotTurn ? [] : [...(anchorRef ? [anchorRef] : []), ...styleRefs];
+    if (styleRefs.length && refs.length > (provider?.maxReferenceImages || 3)) throw Object.assign(new Error(`Moodboard references exceed provider capacity (${provider?.maxReferenceImages || 3} slots shared with subject references). Deactivate images or choose a provider with more slots.`),{status:409});
     const sentStyleRefs = editCannotTurn ? [] : styleRefs;
     const anchored = !!anchorPath && !editCannotTurn;
 
@@ -1068,12 +1055,30 @@ async function generatePlate({ projectId, kind, subject, stylePreset, provider, 
     require('./capability-payloads').withTierModel(
         basePayload, { project, tierOverride: tierOverride || null }, provider);
 
-    let result = await provider.generate('image', {
-        ...basePayload,
-        prompt: promptEdit || (buildPlatePrompt(kind, subject, stylePreset, view, anchored)
-            + ((sentStyleRefs.length && sentStyleRefs[0].tag)
-                ? `, in the light, palette and colour grade of @${sentStyleRefs[0].tag}` : '')),
-    }, {
+    const payload = { ...basePayload, prompt: (promptEdit || buildPlatePrompt(kind, subject, stylePreset, view, anchored)) + (sentStyleRefs.length ? '. ' + require('./moodboard-influence').instructions(refs) : '') };
+    return { ok: true, spec, payload, sourcePaths: [...new Set([...(anchored ? [anchorPath] : []),...sentStyleRefs.map(r=>r.file_path||r.path).filter(Boolean)])], basePayload, styleApplied, anchored, referenceMode, editCannotTurn, belowFloor, sizeIgnored };
+}
+
+async function generatePlate({ projectId, kind, subject, stylePreset, provider, aspectRatio,
+    project, timeout, db,
+    view, anchorPath, promptOverride: promptEdit, tierOverride,
+    /*
+     * Exploring rather than plating.
+     *
+     * The same prompt building, the same style, the same references and the
+     * same fallback chain — only the destination and the role change. A second
+     * generator for explorations is how one of them would acquire the medium
+     * fix or the look-board attachment and the other would not, which is the
+     * exact trap `reference-plates.js` was created to close for locations and
+     * props.
+     */
+    explore, exploreToken, finalRequest, itemIndex = 0 }) {
+    const planned = buildPlateGenerationPlan({ projectId, kind, subject, stylePreset, provider, aspectRatio, project, db, view, anchorPath, promptOverride: promptEdit, tierOverride });
+    if (!planned.ok) return planned;
+    let { styleApplied } = planned;
+    const { spec, basePayload, anchored, referenceMode, editCannotTurn, belowFloor, sizeIgnored } = planned;
+    let result = await provider.generate('image', planned.payload, {
+        ...(finalRequest ? {finalRequest} : require('./final-subject-request-plans').subjectExecutionOptions(kind,subject.id,view||'',itemIndex)),
         timeout: timeout || 300000,
         /*
          * WHAT THIS GENERATION IS, written onto the handle.
@@ -1087,22 +1092,7 @@ async function generatePlate({ projectId, kind, subject, stylePreset, provider, 
         jobMeta: { plate: { kind, subject_id: subject.id, view: view || '', explore: !!explore } },
     });
 
-    // Same refusal path as character sheets: retry once without the style
-    // rather than losing the plate entirely.
-    if (!result.ok && styleApplied && /moderation/i.test(String(result.error || ''))) {
-        // The look goes in full: its words AND its picture. Retrying with the
-        // reference still attached would re-send the thing that may have been
-        // refused, and report `style_applied: false` while the look was in fact
-        // still applied — a worse lie than dropping it.
-        delete basePayload.reference_images;
-        result = await provider.generate('image', {
-            ...basePayload,
-            // The retry keeps the EDITED prompt: reverting to the composed text
-            // here would discard what was written and report success.
-            prompt: promptEdit || buildPlatePrompt(kind, subject, null, view, anchored),
-        }, { timeout: timeout || 300000 });
-        if (result.ok) styleApplied = false;
-    }
+    // A moderation refusal requires a fresh visible review; never retry a changed look.
 
     /*
      * How this plate was made, reported rather than assumed.
@@ -1235,4 +1225,4 @@ module.exports = {
     locationFloorPixels, plateProviderFor,
     COMPASS_VIEWS, compassView, orientationEdge, planCompassSweep, plateImageSize,
     buildPlateRefinePrompt, REFINE_NEGATIVE,
-    plateFileName, PLATE_KINDS, buildPlatePrompt, generatePlate, styleReferencesFor, NEGATIVE };
+    plateFileName, PLATE_KINDS, buildPlatePrompt, buildPlateGenerationPlan, generatePlate, styleReferencesFor, NEGATIVE };

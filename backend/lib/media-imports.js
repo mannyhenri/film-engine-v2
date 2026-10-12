@@ -522,18 +522,6 @@ function ownerFor(target, input) {
     return { projectId: project.id, shotId: null, shotCode: null };
 }
 
-function archiveCurrentStoryboard(projectId, shotId, shotCode, currentPath) {
-    if (!fs.existsSync(currentPath)) return;
-    const latest = db.prepare("SELECT id, version FROM film_assets WHERE shot_id = ? AND asset_type = 'storyboard' ORDER BY version DESC LIMIT 1")
-        .get(shotId);
-    if (!latest) return;
-    const dir = path.join(path.dirname(currentPath), 'versions');
-    fs.mkdirSync(dir, { recursive: true });
-    const archived = path.join(dir, `${shotCode}_v${latest.version}.png`);
-    fs.copyFileSync(currentPath, archived);
-    db.prepare('UPDATE film_assets SET file_path = ?, file_name = ? WHERE id = ?')
-        .run(archived, path.basename(archived), latest.id);
-}
 
 function safeStem(name) {
     return path.basename(String(name || 'import'), path.extname(String(name || '')))
@@ -889,6 +877,27 @@ function importMedia(target, input) {
     const kind = resolveImportKind(spec, bytes, input && input.name);
     validateBytes(spec, mime, bytes, kind);
 
+    if (target === 'storyboard-image') {
+        const storage = require('./file-storage'), activation = require('./storyboard-activation');
+        return activation.withStoryboardMutation(db, owner.shotId, files => {
+            const prior = db.prepare("SELECT MAX(version) AS v FROM film_assets WHERE shot_id=? AND asset_type IN ('storyboard','keyframe')").get(owner.shotId);
+            const version = Number(prior.v || 0) + 1, assetId = generateId();
+            const extension = /^image\/jpe?g$/i.test(mime) ? 'jpg' : 'png';
+            const filename = `${safeStem(owner.shotCode)}_import_${assetId}_v${version}.${extension}`;
+            const filePath = storage.getFilePath(owner.projectId, 'storyboards', filename);
+            files.write(filePath, bytes, true);
+            db.prepare(`INSERT INTO film_assets
+                (id,project_id,shot_id,asset_type,file_path,file_name,format,mime_type,size_bytes,version,metadata)
+                VALUES (?,?,?,'storyboard',?,?,?,?,?,?,?)`).run(assetId,owner.projectId,owner.shotId,
+                    filePath,filename,extension,mime,bytes.length,version,
+                    JSON.stringify({kind:spec.metaKind,imported:true}));
+            activation.activateAsset(db,owner.shotId,assetId,files);
+            return {target,asset_id:assetId,project_id:owner.projectId,shot_id:owner.shotId,
+                file_name:filename,file_path:filePath,version,
+                url:getFileUrl('storyboards',owner.projectId,filename)};
+        });
+    }
+
     const imageFormat = /^image\/jpe?g$/i.test(mime) ? 'jpg' : 'png';
     const videoFormat = (/^video\/(mp4|quicktime|webm|x-matroska)$/i.exec(mime) || [, 'mp4'])[1]
         .replace('quicktime', 'mov').replace('x-matroska', 'mkv');
@@ -897,17 +906,9 @@ function importMedia(target, input) {
     // route, because a world input nothing can fetch reaches no provider.
     const subdir = (spec.subdirByKind && spec.subdirByKind[kind]) || spec.subdir;
     let filename;
-    if (target === 'storyboard-image') filename = `${owner.shotCode}.png`;
-    else filename = `${safeStem(input.name)}_${generateId().slice(0, 8)}.${storedFormat}`;
-
-    const prospective = path.join(require('./file-storage').dirFor(owner.projectId, subdir), filename);
-    if (target === 'storyboard-image') archiveCurrentStoryboard(owner.projectId, owner.shotId, owner.shotCode, prospective);
+    filename = `${safeStem(input.name)}_${generateId().slice(0, 8)}.${storedFormat}`;
     const filePath = saveFile(owner.projectId, subdir, filename, bytes);
-
-    const prior = target === 'storyboard-image'
-        ? db.prepare("SELECT MAX(version) AS version FROM film_assets WHERE shot_id = ? AND asset_type = 'storyboard'").get(owner.shotId)
-        : null;
-    const version = prior && prior.version ? prior.version + 1 : 1;
+    const version = 1;
     const assetId = generateId();
     /*
      * DECLARED, not compared. This was a chain of `target === '...'` ternaries,
@@ -939,9 +940,6 @@ function importMedia(target, input) {
         require('./orientation-plans').replaceOrientationPlan(input.locationId, assetId);
     }
 
-    if (target === 'storyboard-image') {
-        db.prepare('UPDATE film_shots SET current_frame_version = NULL WHERE id = ?').run(owner.shotId);
-    }
     return {
         target, asset_id: assetId, project_id: owner.projectId, shot_id: owner.shotId,
         file_name: filename, file_path: filePath, version,

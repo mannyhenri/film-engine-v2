@@ -28,6 +28,7 @@ function load(world) {
         const API_BASE = 'http://api'; const worldFlagOn = () => true; const esc = s => String(s == null ? '' : s);
         // v2: the 3D stage engine reads core's API_BASE through the bridge, as legacy.API_BASE.
         const legacy = { get API_BASE() { return API_BASE; } };
+        const mediaUrl = src => src.startsWith('/') ? API_BASE + src : src;
         ${src}
         return { worldBoardSrc, worldViewMode, worldModeButtonsHtml, worldOverlayMenuHtml, worldToggleBoardOnion, PV_MODES, PV_MODE_NOTES };`);
     return { api: fn(world, { info: null }, doc), frame };
@@ -41,11 +42,11 @@ test('Board is a view, with a note that says what it is', () => {
     assert.match(api.PV_MODE_NOTES.board, /STORYBOARD FRAME/);
 });
 
-test('the switch offers Shot, Board and Plan; Board picks the board', () => {
+test('the switch offers 3D view, Current shot and Plan; Current shot picks the storyboard', () => {
     const W = { blocking: { keyframe: KEY }, version: { id: 'v' }, viewMode: 'board' };
     const { api } = load(W);
     const html = api.worldModeButtonsHtml();
-    for (const label of ['Shot', 'Board', 'Plan']) assert.ok(html.includes(`>${label}</button>`), `no ${label}`);
+    for (const label of ['3D view', 'Current shot', 'Plan']) assert.ok(html.includes(`>${label}</button>`), `no ${label}`);
     assert.match(html, /worldSetViewMode\('board'\)/);
     assert.match(html, /active[^>]*\s+onclick="worldSetViewMode\('board'\)"/, 'Board is not marked active in board mode');
     assert.strictEqual(api.worldBoardSrc(), 'http://api/film/storyboards/p1/1A.png?v=4', 'the frame URL is not the server one');

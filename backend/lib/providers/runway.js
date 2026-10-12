@@ -565,18 +565,27 @@ function normalizeSeed(seed) {
 }
 
 /** Accept plain URLs or { uri, tag } entries; Runway wants the object form. */
+function selectedMediaUri(value, role) {
+    const uri = typeof value === 'string' ? value : value && (value.uri || value.url || value.image_url || value.file_path || value.src || value.image);
+    if (typeof uri !== 'string' || !uri.trim()) throw new Error(`runway: selected ${role} has no supported reference source`);
+    return uri;
+}
+function selectedList(values, role) {
+    if (values == null) return [];
+    if (!Array.isArray(values)) throw new Error(`runway: ${role} must be an array`);
+    return values;
+}
 function normalizeReferenceImages(refs) {
-    if (!Array.isArray(refs) || !refs.length) return undefined;
-    const out = [];
-    for (const ref of refs) {
-        if (typeof ref === 'string' && ref) { out.push({ uri: ref }); continue; }
-        if (ref && typeof ref === 'object') {
-            const uri = ref.uri || ref.url || ref.image_url;
-            if (!uri) continue;
-            out.push(ref.tag ? { uri, tag: ref.tag } : { uri });
-        }
-    }
+    const out = selectedList(refs, 'reference_images').map(ref => {
+        const uri = selectedMediaUri(ref, 'image');
+        return ref && ref.tag ? { uri, tag: ref.tag } : { uri };
+    });
     return out.length ? out : undefined;
+}
+function referenceImagesOf(p) {
+    const first = normalizeReferenceImages(p.reference_images), alias = normalizeReferenceImages(p.referenceImages);
+    if (first && alias && JSON.stringify(first) !== JSON.stringify(alias)) throw new Error('runway: conflicting selected reference_images and referenceImages');
+    return first || alias;
 }
 
 /**
@@ -640,16 +649,18 @@ function buildVideoToVideoRequest(p, model, policy) {
     // videoUri and model, so demanding it would refuse a keyframe-only edit.
     const prompt = p.promptText || p.motion_prompt || p.prompt;
     if (prompt) body.promptText = String(prompt).slice(0, policy.promptLimit || 1000);
+    const negatives = [...new Set([p.negative_prompt, p.video_negative_prompt].map(value => String(value || '').trim()).filter(Boolean))].join('; ');
+    if (negatives) body.promptText = body.promptText ? `${body.promptText}\n\nAvoid: ${negatives}` : `Avoid: ${negatives}`;
 
-    const given = Array.isArray(p.keyframes) ? p.keyframes : [];
-    const dropped = given.slice(policy.maxKeyframes);
-    const kept = given.slice(0, policy.maxKeyframes).map(k => ({
+    const given = selectedList(p.keyframes, 'keyframes');
+    if (given.length > policy.maxKeyframes) throw new Error(`runway: at most ${policy.maxKeyframes} timed keyframe references are supported`);
+    const kept = given.map(k => ({
         /*
          * A keyframe MAY be a data URI, and a source clip may not. Both are
          * capped at 5MB, and a still under 5MB is ordinary while a 2-30 second
          * clip never is — so the asymmetry is real rather than an oversight.
          */
-        uri: keyframeUri(k.uri, policy),
+        uri: keyframeUri(selectedMediaUri(k, 'keyframe'), policy),
         // Pinned BY TIME: an absolute `seconds` or a fractional `at`. There is
         // no first/last keyword on this endpoint, whatever the aggregator said.
         ...(Number.isFinite(k.seconds) ? { seconds: k.seconds }
@@ -680,12 +691,15 @@ function buildVideoToVideoRequest(p, model, policy) {
     return {
         url: `${baseUrl()}/video_to_video`, headers: jsonHeaders(), body, mode: 'video_to_video',
         // Never silently: over-sending is a refusal that costs a generation.
-        ...(dropped.length ? { dropped: dropped.map(k => k.uri) } : {}),
     };
 }
 
 function buildVideoRequest(payload) {
     const p = payload || {};
+    if (p.runway_recipe != null && String(p.runway_recipe).trim()) throw new Error('runway: the selected runway_recipe must resolve through its supported recipe builder');
+    if (p.references != null && (!Array.isArray(p.references) || p.references.length)) throw new Error('runway: this native builder does not support the selected references field; use its supported keyframe controls');
+    const refs = referenceImagesOf(p);
+    const audio = selectedList(p.audio_references, 'audio_references').map(ref => selectedMediaUri(ref, 'audio'));
     /*
      * The OPERATION comes from the model's own registry entry, not from
      * whether an image happens to be attached. Every entry declares its
@@ -694,16 +708,24 @@ function buildVideoRequest(payload) {
      */
     const chosen = pickModel(p.model, KNOWN_VIDEO_MODELS, DEFAULT_VIDEO_MODEL);
     const chosenPolicy = RUNWAY_VIDEO_MODELS[chosen];
+    const chosenSpec = specOf(chosen) || {};
+    if (p.output_format && (!chosenSpec.outputFormat || !(chosenSpec.outputFormat.enum || []).includes(p.output_format))) throw new Error(`runway: selected output_format ${p.output_format} is not supported by ${chosen}`);
+    if (p.duration_auto && !chosenSpec.duration?.auto) throw new Error(`runway: selected duration_auto is not supported by ${chosen}`);
+    if (p.resolution && chosenSpec.resolution && !(chosenSpec.resolution.enum || []).some(tier => String(tier).toLowerCase() === String(p.resolution).toLowerCase())) throw new Error(`runway: selected resolution ${p.resolution} is not supported by ${chosen}`);
     if (chosenPolicy && chosenPolicy.endpoint === 'video_to_video') {
+        if (p.resolution) throw new Error(`runway: selected resolution ${p.resolution} is not supported by this video-to-video endpoint`);
+        if (refs || audio.length || p.promptImage || p.init_image || p.image_url) throw new Error('runway: this video-to-video endpoint takes timed keyframes rather than selected image/audio reference fields');
+        if (p.mode && p.mode !== 'video_to_video') throw new Error('runway: selected mode does not match this video-to-video endpoint');
+        if (p.audio === true || p.generate_audio === true) throw new Error('runway: this video-to-video endpoint takes no generated audio setting');
         return buildVideoToVideoRequest(p, chosen, chosenPolicy);
     }
+    if (p.videoUri || p.video_uri) throw new Error('runway: selected videoUri needs a supported video-to-video model; this endpoint does not consume a source video');
     // The video endpoints take a single promptImage — referenceImages is a
     // text_to_image field and gen4.5 does not document it. So when the
     // consistency system supplies locked references but no storyboard keyframe,
     // the first reference becomes the first frame. That is what actually keeps a
     // character looking like themselves; dropping it (as an earlier draft did)
     // would silently lose the identity lock on any shot without a keyframe.
-    const refs = normalizeReferenceImages(p.reference_images || p.referenceImages);
 
     /*
      * A START and a DESTINATION, not just a start.
@@ -720,16 +742,27 @@ function buildVideoRequest(payload) {
      * director who selected four frames and silently got two would read it as
      * the feature not working.
      */
+    const nativeFrames = Array.isArray(p.promptImage) ? p.promptImage.map(frame => {
+        if (!frame || !['first', 'last'].includes(frame.position)) throw new Error('runway: selected promptImage keyframe position must be first or last');
+        return { uri: selectedMediaUri(frame, 'keyframe'), position: frame.position };
+    }) : [];
     const keyframes = normalizeKeyframes(p.keyframes);
-    const dropped = keyframes.length > MAX_KEYFRAMES ? keyframes.slice(MAX_KEYFRAMES) : [];
-    const kept = keyframes.slice(0, MAX_KEYFRAMES);
+    if (nativeFrames.length && keyframes.length && JSON.stringify(nativeFrames) !== JSON.stringify(keyframes)) throw new Error('runway: selected promptImage and keyframes conflict');
+    if (!keyframes.length) keyframes.push(...nativeFrames);
+    if (keyframes.length > MAX_KEYFRAMES) throw new Error(`runway: at most ${MAX_KEYFRAMES} keyframe images are supported; remove the excess selected frames`);
+    const kept = keyframes;
 
-    const singleImage = p.promptImage || p.init_image || p.image_url || (refs ? refs[0].uri : '');
-    const promptImage = kept.length > 1 ? kept
+    const endpointImages = [Array.isArray(p.promptImage) ? undefined : p.promptImage, p.init_image, p.image_url].filter(value => value != null && value !== '').map(value => selectedMediaUri(value, 'endpoint image'));
+    if (endpointImages.some(uri => uri !== endpointImages[0])) throw new Error('runway: conflicting selected promptImage, init_image or image_url references');
+    if (kept.length && endpointImages.length && kept[0].uri !== endpointImages[0]) throw new Error('runway: selected endpoint image conflicts with the first keyframe');
+    if (refs && (refs.length > 1 || kept.length || endpointImages.length)) throw new Error('runway: this video endpoint cannot carry the additional selected reference images; use supported keyframe controls');
+    const singleImage = endpointImages[0] || (refs ? refs[0].uri : '');
+    const promptImage = nativeFrames.length ? kept : kept.length > 1 ? kept
         : kept.length === 1 ? kept[0].uri
             : singleImage;
     const mode = (Array.isArray(promptImage) ? promptImage.length : promptImage)
         ? 'image_to_video' : 'text_to_video';
+    if (p.mode && p.mode !== mode) throw new Error(`runway: selected mode ${p.mode} does not match the attachment-derived ${mode} endpoint`);
 
     const model = pickModel(p.model, KNOWN_VIDEO_MODELS, DEFAULT_VIDEO_MODEL);
     const body = {
@@ -762,13 +795,29 @@ function buildVideoRequest(payload) {
     }
     // A model whose schema has no ratio field (the shape follows the picture) is sent none.
     if (specOf(model) && !spec.ratio && mode === 'image_to_video') delete body.ratio;
+    if (p.resolution && !spec.resolution) {
+        // Pixel-ratio models already carry the tier in ratio; accept only the
+        // selected tier actually represented, without adding a schema field.
+        const dimensions = /^(\d{3,}):(\d{3,})$/.exec(String(body.ratio || ''));
+        const asked = String(p.resolution).trim().toLowerCase();
+        const pTier = /^(\d+)p$/.exec(asked);
+        const edges = dimensions && [Number(dimensions[1]), Number(dimensions[2])].sort((a, b) => a - b);
+        const represented = edges && (pTier && Number(pTier[1]) === edges[0]
+            || asked === '4k' && edges[0] === 2160 && edges[1] === 3840);
+        if (!represented) throw new Error(`runway: selected resolution ${p.resolution} is not represented by the native ratio ${body.ratio || '(none)'}`);
+    }
     const generatedSound = p.video_audio_policy === 'silent' ? false : (p.audio !== undefined ? p.audio : p.generate_audio);
+    if ((p.audio === true || p.generate_audio === true) && !spec.audio) throw new Error(`runway: ${model} takes no generated audio setting`);
     if (typeof generatedSound === 'boolean' && spec.audio) body.audio = generatedSound;
+    const negatives = [...new Set([p.negative_prompt, p.video_negative_prompt].map(value => String(value || '').trim()).filter(Boolean))].join('; ');
+    if (negatives) {
+        if (spec.negativePrompt) body.negativePrompt = negatives;
+        else body.promptText = body.promptText ? `${body.promptText}\n\nAvoid: ${negatives}` : `Avoid: ${negatives}`;
+    }
     if (generatedSound !== false && (p.video_audio_policy === 'no_music' || spec.audio)) body.promptText = require('../video-audio-policy').soundPrompt(body.promptText, 1000);
     if (p.output_format && spec.outputFormat && (spec.outputFormat.enum || []).includes(p.output_format)) {
         body.outputFormat = p.output_format;
     }
-    if (p.video_negative_prompt && spec.negativePrompt) body.negativePrompt = String(p.video_negative_prompt).slice(0, 1000);
     /*
      * An inline image has a ceiling: Runway documents 5MB ENCODED for a data
      * URI. Above it the documented path is the ephemeral upload endpoint
@@ -802,13 +851,10 @@ function buildVideoRequest(payload) {
      * audio carries it; any other says so rather than dropping it in silence.
      * The uris may be local paths here: generate() hosts them before sending.
      */
-    const audio = (Array.isArray(p.audio_references) ? p.audio_references : [])
-        .map(a => (typeof a === 'string' ? a : (a && (a.uri || a.url || a.file_path)))).filter(Boolean);
-    let audioRefused = null;
     if (audio.length) {
         const maxAudio = Number(require('../video-reference').contractFor(model).maxAudio) || 0;
-        if (maxAudio) body.referenceAudio = audio.slice(0, maxAudio).map(uri => ({ type: 'audio', uri }));
-        else audioRefused = `${model} takes no audio reference; seedance2_5 does.`;
+        if (audio.length > maxAudio) throw new Error(`runway: ${model} accepts at most ${maxAudio} audio references; remove the excess selected audio`);
+        body.referenceAudio = audio.map(uri => ({ type: 'audio', uri }));
     }
 
     const seed = normalizeSeed(p.seed);
@@ -816,9 +862,6 @@ function buildVideoRequest(payload) {
 
     return {
         url: `${baseUrl()}/${mode}`, headers: jsonHeaders(), body, mode,
-        // Named so a caller can tell the director what could not be sent.
-        ...(dropped.length ? { dropped: dropped.map(k => k.uri) } : {}),
-        ...(audioRefused ? { audio_refused: audioRefused } : {}),
     };
 }
 
@@ -828,7 +871,7 @@ function buildVideoRequest(payload) {
  * up to Runway's 5MB inline ceiling. Beyond that it is refused by name:
  * Runway's own ephemeral upload is not implemented here.
  */
-async function hostReferenceAudio(body) {
+async function hostReferenceAudio(body, approvedRequest) {
     if (!Array.isArray(body.referenceAudio)) return { ok: true };
     const { hostFile, sniffMedia } = require('./muapi-upload');
     const { getCredential } = require('./credentials');
@@ -838,6 +881,7 @@ async function hostReferenceAudio(body) {
         if (muapi) {
             const h = await hostFile(ref.uri, muapi);
             if (!h.ok) return { ok: false, error: `runway: dialogue audio — ${h.error}` };
+            if(approvedRequest)require('../generation-transport').hosted(approvedRequest,ref.uri,h.url);
             ref.uri = h.url;
             continue;
         }
@@ -950,11 +994,7 @@ function checkBudget(body, opts) {
  * which produces a shot that goes nowhere.
  */
 function normalizeKeyframes(input) {
-    if (!Array.isArray(input) || !input.length) return [];
-    return input
-        .map(k => (typeof k === 'string' ? { uri: k } : k))
-        .filter(k => k && k.uri)
-        .map((k, i, all) => ({ uri: k.uri, position: i === 0 ? 'first' : (i === all.length - 1 ? 'last' : 'last') }));
+    return selectedList(input, 'keyframes').map((k, i) => ({ uri: selectedMediaUri(k, 'keyframe'), position: i === 0 ? 'first' : 'last' }));
 }
 
 /**
@@ -1019,10 +1059,31 @@ function describeVideoRequest(payload) {
 
 function buildMultiShotRequest(payload) {
     const p = payload || {};
+    if (p.mode && !['auto', 'custom'].includes(p.mode)) throw new Error('runway: selected multi-shot mode must be auto or custom');
+    for (const field of ['reference_images', 'referenceImages', 'audio_references', 'keyframes', 'references']) {
+        if (selectedList(p[field], field).length) throw new Error(`runway: multi-shot does not support selected ${field}; its image input is promptImage`);
+    }
+    for (const field of ['init_image', 'image_url', 'last_frame', 'end_image', 'videoUri', 'video_uri', 'source_video', 'video_url']) {
+        if (p[field] != null && p[field] !== '') throw new Error(`runway: multi-shot does not support selected ${field}; its image input is promptImage`);
+    }
+    for (const field of ['resolution', 'output_format']) {
+        if (p[field]) throw new Error(`runway: multi-shot does not support selected ${field}`);
+    }
+    if (p.duration_auto) throw new Error('runway: multi-shot does not support selected duration_auto');
+    if (p.seed != null) throw new Error('runway: multi-shot does not support a selected seed');
+    for (const field of ['audio', 'generate_audio']) {
+        if (p[field] != null && p[field] !== false) throw new Error(`runway: multi-shot does not support selected ${field}`);
+    }
+    for (const field of ['negative_prompt', 'video_negative_prompt']) {
+        if (p[field] != null && String(p[field]).trim()) throw new Error(`runway: multi-shot does not support selected ${field}`);
+    }
     const mode = p.mode === 'auto' ? 'auto' : 'custom';
-    const shots = Array.isArray(p.shots) ? p.shots.slice(0, 5).map(s => ({
+    const selectedShots = selectedList(p.shots, 'shots');
+    if (selectedShots.length > 5) throw new Error('Runway multi-shot accepts at most 5 selected shots');
+    if (mode === 'auto' && selectedShots.length) throw new Error('Runway multi-shot auto mode cannot send selected custom shots');
+    const shots = selectedShots.map(s => ({
         prompt: String(s.prompt || '').slice(0, 1000), duration: Math.max(1, Math.round(Number(s.duration) || 1)),
-    })) : [];
+    }));
     if (mode === 'custom' && (shots.length < 3 || shots.length > 5)) throw new Error('Runway multi-shot custom mode requires 3–5 shots');
     const duration = mode === 'custom' ? shots.reduce((n, s) => n + s.duration, 0)
         : Math.min(15, Math.max(5, Math.round(Number(p.duration) || 10)));
@@ -1030,7 +1091,7 @@ function buildMultiShotRequest(payload) {
     const body = { version: '2026-06', mode, duration, ratio: p.ratio === '1920:1080' ? '1920:1080' : '1280:720' };
     if (mode === 'custom') body.shots = shots;
     else body.prompt = String(p.prompt || '').slice(0, 2500);
-    if (p.promptImage) body.promptImage = p.promptImage;
+    if (p.promptImage) body.promptImage = selectedMediaUri(p.promptImage, 'multi-shot promptImage');
     return { url: `${baseUrl()}/recipes/multi_shot_video`, headers: jsonHeaders(), body,
         estimatedCredits: duration * (body.ratio === '1920:1080' ? 17 : 13), mode: 'multi_shot_video' };
 }
@@ -1061,7 +1122,8 @@ function buildImageRequest(payload) {
         : (p.ratio || p.aspect_ratio || p.aspectRatio || DEFAULT_IMAGE_RATIO);
     body.ratio = snapImageRatio(requested);
 
-    const refs = normalizeReferenceImages(p.reference_images || p.referenceImages);
+    const refs = referenceImagesOf(p);
+    if (refs && refs.length > adapter.maxReferenceImages) throw new Error(`runway: at most ${adapter.maxReferenceImages} reference images are supported`);
     if (refs) body.referenceImages = refs;
 
     return { url: `${baseUrl()}/text_to_image`, headers: jsonHeaders(), body, mode: 'text_to_image' };
@@ -1114,14 +1176,35 @@ async function readJson(response) {
     try { return await response.json(); } catch (_) { return null; }
 }
 
+/** Keep headers and response-body reads inside the same generation budget. */
+async function fetchTaskJson(url, init, deadline, approvedRequest) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), Math.max(1, deadline - Date.now()));
+    try {
+        const response = await (approvedRequest?require('../generation-transport').dispatch.bind(null,approvedRequest):fetch)(url, { ...init, signal: controller.signal });
+        const body = await readJson(response);
+        if (controller.signal.aborted) throw controller.signal.reason;
+        return { response, body };
+    } finally {
+        clearTimeout(timer);
+    }
+}
+const isAbort = error => error && (error.name === 'AbortError' || error.name === 'TimeoutError');
+
 /** Submit a generation task; returns the task id. */
-async function submitTask(request, key) {
-    const response = await fetch(request.url, {
-        method: 'POST',
-        headers: { ...request.headers, ...authHeader(key) },
-        body: JSON.stringify(request.body),
-    });
-    const body = await readJson(response);
+async function submitTask(request, key, deadline) {
+    let response, body;
+    try {
+        ({ response, body } = await fetchTaskJson(request.url, {
+            method: 'POST',
+            headers: { ...request.headers, ...authHeader(key) },
+            body: JSON.stringify(request.body),
+        }, deadline, request));
+    } catch (error) {
+        if (!isAbort(error)) throw error;
+        return { ok: false, status: 504, acceptanceUnknown: true,
+            error: 'runway: submission timed out; provider acceptance is unknown. Reconcile this approved request with Runway before starting another generation.' };
+    }
     if (!response.ok) {
         return { ok: false, status: response.status, error: formatError(response.status, body), retryable: isRetryable(response.status) };
     }
@@ -1143,8 +1226,13 @@ async function pollTask(taskId, key, deadline, onPoll) {
         if (Date.now() >= deadline) {
             return { ok: false, status: 504, error: `runway: task ${taskId} did not finish before the timeout` };
         }
-        const response = await fetch(url, { headers: { ...jsonHeaders(), ...authHeader(key) } });
-        const body = await readJson(response);
+        let response, body;
+        try {
+            ({ response, body } = await fetchTaskJson(url, { headers: { ...jsonHeaders(), ...authHeader(key) } }, deadline));
+        } catch (error) {
+            if (!isAbort(error)) throw error;
+            return { ok: false, status: 504, error: `runway: task ${taskId} did not finish before the timeout` };
+        }
 
         if (!response.ok) {
             if (!isRetryable(response.status)) {
@@ -1163,7 +1251,7 @@ async function pollTask(taskId, key, deadline, onPoll) {
                 return { ok: false, status: 502, error: `runway: task ${taskId} ${String((body && body.status) || 'FAILED').toLowerCase()}${reason && reason !== (body && body.status) ? ` — ${reason}` : ''}` };
             }
         }
-        await sleep(POLL_INTERVAL_MS);
+        await sleep(Math.max(0, Math.min(POLL_INTERVAL_MS, deadline - Date.now())));
     }
 }
 
@@ -1349,21 +1437,19 @@ const adapter = {
         const key = apiKey();
         if (!key) return missingKey();
 
-        const request = capability === 'video'
-            ? ((payload && payload.runway_recipe === 'multi_shot_video') ? buildMultiShotRequest(payload) : buildVideoRequest(payload))
-            : buildImageRequest(payload);
-        if (!request.body.promptText && !request.body.promptImage) {
+        const request = await require('../final-provider-request').approvedRequest('runway', capability, opts);
+        if (!request.body.promptText && !request.body.promptImage && !request.body.prompt && !request.body.shots) {
             return { ok: false, status: 400, error: 'runway: a prompt or a keyframe image is required' };
         }
-        const heard = await hostReferenceAudio(request.body);
+        const heard = await hostReferenceAudio(request.body,request);
         if (!heard.ok) return { ok: false, status: 422, error: heard.error };
 
         const timeout = require('../generation-jobs').budgetFor((opts && opts.timeout) || DEFAULT_TIMEOUT_MS);
         const deadline = Date.now() + timeout;
 
         try {
-            const submitted = await submitTask(request, key);
-            if (!submitted.ok) return { ok: false, status: submitted.status, error: submitted.error };
+            const submitted = await submitTask(request, key, deadline);
+            if (!submitted.ok) return { ...submitted, provider: 'runway' };
 
             if (opts && typeof opts.onHandle === 'function') {
                 try { opts.onHandle(submitted.id, { capability }); } catch (_) { /* never blocks a paid call */ }
@@ -1407,6 +1493,9 @@ const adapter = {
         }
     },
 };
+
+const unwrappedGenerate = adapter.generate;
+adapter.generate = function(capability,payload,opts) { return require('../final-provider-request').finishGeneration(opts,()=>unwrappedGenerate.call(this,capability,payload,opts)); };
 
 module.exports = {    buildVideoRequest,
     estimateVideoCredits, quoteVideo, checkBudget, USD_PER_CREDIT,

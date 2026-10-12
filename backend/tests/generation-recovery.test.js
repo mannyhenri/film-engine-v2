@@ -226,24 +226,23 @@ test('the settings that decide what a second costs are writable', () => {
  * directly and outside the metering wrapper. So every video ever bought recorded
  * $0, in the one report an agency uses to bill a client.
  */
-test('a handle carries the price of the thing it is a handle for', () => {
-    const src = read('lib/providers/index.js');
-    assert.ok(/adapter\.meter\(cap \|\| capability, payload, null\)/.test(src),
-        'the payload is only in scope at handle time — the meter must be worked out there, not '
-        + 'left to a collect that never sees it');
-    assert.ok(/meterPlan \? \{ meter: meterPlan \} : \{\}/.test(src));
+test('a retained meter plan prices the approved native text rather than the earlier payload', () => {
+    const { meterPlan } = require('../lib/generation-jobs');
+    const snapshot = {
+        provider: 'elevenlabs', capability: 'voice', model: 'eleven_multilingual_v2',
+        body: { text: 'The line approved in the final native request' },
+    };
+    const plan = meterPlan('elevenlabs', 'voice', { text: 'Earlier line' }, snapshot, null);
+    assert.strictEqual(plan.unit, 'character');
+    assert.strictEqual(plan.quantity, snapshot.body.text.length);
+    assert.strictEqual(plan.provider_confirmed, false);
 });
 
-test('collecting posts the spend exactly once', () => {
-    const src = read('lib/generation-jobs.js');
-    assert.ok(/recordUsage/.test(src), 'a collected generation must reach the ledger');
-    // The guard against double-billing is structural, not a flag: a job that
-    // succeeded live is settled `completed` and short-circuits before here.
-    const collectBody = src.slice(src.indexOf('async function collect'));
-    assert.ok(collectBody.indexOf("job.status === 'completed'") < collectBody.indexOf('recordUsage'),
-        'the completed short-circuit must come BEFORE the spend post, or a delivered job could be '
-        + 'billed twice by re-collecting it');
-});
+// Completed delivery can still need a failed ledger write retried. Exactly-once
+// spend is verified against the disposable database in final-generation-recovery.test.js:
+// "delivery is retained after a meter failure and ledger retry does not repeat storage",
+// "synchronous accepted usage survives ledger failure and completed-job retry", and
+// "concurrent collects poll, persist and meter the accepted job once".
 
 
 /*

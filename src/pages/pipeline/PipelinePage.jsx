@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { legacy } from '../../lib/legacy.js';
 import { usePageLoader } from '../../lib/usePageLoader.js';
 
@@ -69,6 +69,7 @@ function Live({ run }) {
             )}
             {run.steps.length === 0 && !run.warning && <div className="text-sm text-muted">Starting {run.label}…</div>}
             {run.steps.length > 0 && <><strong style={{ fontSize: 13 }}>{run.label}</strong><Steps steps={run.steps} states={run.states} /></>}
+            {run.awaitingReview && <div role="status" style={{ marginTop: 8, color: C.warn }}>Next request needs review. Completed steps are saved; nothing further is sent until the next Send.</div>}
             {run.cancelled && <div className="text-sm text-muted" style={{ marginTop: 6 }}>Cancelled.</div>}
             {run.done && <div style={{ marginTop: 8, color: failed ? C.bad : C.ok, fontSize: 13 }}>{failed ? failed + ' step(s) failed' : 'Pipeline complete →  ready to assemble / Export'}</div>}
             {run.error && <div className="text-sm" style={{ color: C.bad, marginTop: 6 }}>Error: {run.error}</div>}
@@ -101,6 +102,8 @@ export default function PipelinePage() {
             (auditD.shots || []).forEach(s => { byShot[s.shot_id] = s; });
             setShots(all); setReady(byShot); setAudit(auditD);
             setShotId(id => (all.some(s => s.id === id) ? id : (all[0]?.id || '')));
+            const persisted=await legacy.api('/projects/' + pid + '/pipeline').catch(()=>({runs:[]}));
+            for(const saved of (persisted.runs || persisted.pipelines || [])) window.__feObserveFinalRequestState?.(saved);
             // The providers each step will use (per-project config).
             try { setProviders((await legacy.api('/projects/' + pid + '/providers')).effective || {}); } catch { /* the line stays empty */ }
             legacy.setStatus(all.length + ' shot(s) in pipeline');
@@ -123,13 +126,14 @@ export default function PipelinePage() {
             legacy.setStatus('Blocked by strict consistency');
             return;
         }
-        let steps = [];
+        let steps = [], awaitingReview = false;
         const states = {};
         const draw = (patch = {}) => setRun(r => ({ ...(r && !r.blocked ? r : {}), label, steps, states: { ...states }, ...patch }));
         setRun({ label, steps: [], states: {} });
         legacy.streamSSEPost('/shots/' + shotId + '/pipeline/run/stream', { strict },
             (ev) => {
-                if (ev.type === 'readiness') {
+                if (ev.next_review || ev.status==='awaiting_review' || ev.type==='awaiting_review') { awaitingReview=true;draw({awaitingReview:true,done:false,runId:ev.run_id || ev.id || ev.next_review?.path?.split('/')[2]});legacy.setStatus('Next request needs review'); }
+                else if (ev.type === 'readiness') {
                     const bad = [...(ev.missing || []), ...(ev.warnings || [])];
                     if (!ev.ready || bad.length) draw({ warning: { ready: !!ev.ready, lines: bad } });
                 } else if (ev.type === 'status' && Array.isArray(ev.steps)) {
@@ -141,7 +145,7 @@ export default function PipelinePage() {
                 else if (ev.type === 'step_failed') { states[ev.step_id] = 'failed'; draw(); }
                 else if (ev.type === 'cancelled') draw({ cancelled: true });
             },
-            () => { draw({ done: true }); legacy.setStatus('Pipeline finished'); loadPipeline(); },
+            (result) => { if(result?.next_review || result?.status==='awaiting_review')awaitingReview=true;draw({done:!awaitingReview,awaitingReview,...(result?.run_id?{runId:result.run_id}:{})});legacy.setStatus(awaitingReview?'Next request needs review':'Pipeline finished');loadPipeline(); },
             (err) => draw({ error: err ? err.message : 'stream failed' }),
         );
     }
@@ -153,15 +157,30 @@ export default function PipelinePage() {
                 const sceneId = selected && selected.scene_id;
                 if (!sceneId) { legacy.setStatus('Pick a shot to identify its scene'); return; }
                 legacy.setStatus('Running scene pipeline…');
-                await legacy.api('/scenes/' + sceneId + '/pipeline/run', { method: 'POST', body });
+                const result=await legacy.api('/scenes/' + sceneId + '/pipeline/run', { method: 'POST', body });
+                if(result.status==='awaiting_review' || result.next_review){legacy.setStatus('Next request needs review');loadPipeline();return;}
             } else {
                 legacy.setStatus('Running project pipeline…');
-                await legacy.api('/projects/' + legacy.state.currentProject.id + '/pipeline/run', { method: 'POST', body });
+                const result=await legacy.api('/projects/' + legacy.state.currentProject.id + '/pipeline/run', { method: 'POST', body });
+                if(result.status==='awaiting_review' || result.next_review){legacy.setStatus('Next request needs review');loadPipeline();return;}
             }
             legacy.setStatus(scope + ' pipeline complete');
             loadPipeline();
         } catch (err) { legacy.setStatus('Error: ' + err.message); }
     }
+
+    useEffect(() => {
+        const resumed=event=>{
+            const result=event.detail, id=result?.run_id || result?.id;
+            if(!run?.runId || id!==run.runId)return;
+            const waiting=result.status==='awaiting_review' || Boolean(result.next_review);
+            setRun(previous=>({...previous,awaitingReview:waiting,done:result.status==='completed'||result.status==='complete'}));
+            legacy.setStatus(waiting?'Next request needs review':`Pipeline ${result.status || 'updated'}`);
+            loadPipeline();
+        };
+        window.addEventListener('fe-final-request-resumed',resumed);
+        return ()=>window.removeEventListener('fe-final-request-resumed',resumed);
+    }, [run?.runId]);
 
     const active = (shots || []).filter(s => s.status === 'generating');
     const others = (shots || []).filter(s => s.status !== 'generating');

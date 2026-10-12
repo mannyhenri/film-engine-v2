@@ -245,7 +245,13 @@ test('approving a world needs the exact version fingerprint and a person', async
     assert.equal(v.status, 'approved'); assert.equal(v.approved_by, 'Manny');
 });
 
-test('with real Blender: a .blend imports through the inspect worker and reopens unchanged', { skip: !require('../lib/set-build').resolveBlender().available }, async () => {
+test('with real Blender: a .blend imports through the inspect worker and reopens unchanged', {
+    // A normal contract run must never launch Blender, even if name filtering
+    // unexpectedly includes this test. Availability is probed only on opt-in.
+    skip: process.env.FILM_RUN_BLENDER_TESTS !== '1'
+        ? 'Set FILM_RUN_BLENDER_TESTS=1 to run the disposable native fixture'
+        : !require('../lib/set-build').resolveBlender().available,
+}, async () => {
     const { spawnSync } = require('child_process');
     const p = project();
     const blend = path.join(p.dir, 'real.blend');

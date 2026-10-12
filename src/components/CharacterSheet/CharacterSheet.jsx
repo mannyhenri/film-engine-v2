@@ -4,6 +4,7 @@ import LegacyElement from '../LegacyElement.jsx';
 import frame from './frame.markup.js';
 import { usePageLoader } from '../../lib/usePageLoader.js';
 import * as E from './engine.js';
+import {customizeExpression, selectExpressionVersion, uploadExpression, chooseExpressionReference, generateExpression} from './expressions.jsx';
 
 /*
  * The character sheet, as React: the modal's frame (frame.markup.js, its markup moved verbatim) is rendered once
@@ -15,7 +16,7 @@ import * as E from './engine.js';
  * Characters cards and core's inspector open the sheet and repaint it, and the location and prop sheet shares the
  * sheet mode (toggleSheetMode, sheetEditable) and slotUpload with it.
  */
-export const ENGINE = Object.entries(E).filter(([, v]) => typeof v === 'function');
+export const ENGINE = Object.entries({...E,customizeExpression,selectExpressionVersion,uploadExpression,chooseExpressionReference,generateExpression}).filter(([, v]) => typeof v === 'function');
 
 export default function CharacterSheet() {
     usePageLoader('openCharacterSheet', E.openCharacterSheet);

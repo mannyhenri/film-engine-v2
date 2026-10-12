@@ -171,7 +171,8 @@ function buildRequest(payload) {
     };
 }
 
-async function generate(capability, payload, opts) {
+async function generate(capability,payload,opts) { return require('../final-provider-request').finishGeneration(opts,()=>generateApproved(capability,payload,opts)); }
+async function generateApproved(capability, payload, opts) {
     if (capability !== 'world') {
         return { ok: false, status: 400, error: `worldlabs does not serve '${capability}'` };
     }
@@ -182,7 +183,7 @@ async function generate(capability, payload, opts) {
         return { ok: false, status: 401, error: 'worldlabs: no API key. Add one in Setup.' };
     }
 
-    const request = buildRequest(payload);
+    const request = await require('../final-provider-request').approvedRequest('worldlabs',capability,opts);
     if (!request.body.world_prompt) {
         return { ok: false, status: 400, error: 'worldlabs: nothing to build a world from' };
     }
@@ -190,7 +191,7 @@ async function generate(capability, payload, opts) {
     const headers = { 'Content-Type': 'application/json', 'WLT-Api-Key': apiKey };
     let op;
     try {
-        const res = await fetch(request.url, { method: 'POST', headers, body: JSON.stringify(request.body) });
+        const res = await require('../generation-transport').dispatch(request, request.url, { method: 'POST', headers, body: JSON.stringify(request.body) });
         const text = await res.text();
         try { op = JSON.parse(text); } catch (_) { op = { error: { message: text.slice(0, 300) } }; }
         if (!res.ok) return { ok: false, status: res.status, error: `worldlabs ${res.status}: ${(op.error && op.error.message) || text.slice(0, 200)}` };

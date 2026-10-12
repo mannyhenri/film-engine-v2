@@ -323,11 +323,10 @@ test('an ordinary clip plays for its real length, not the card’s guess', () =>
     assert.strictEqual(oneA.duration_ms, CLIP_MS,
         `1A holds for ${oneA.duration_ms}ms while its clip runs ${CLIP_MS}ms — playback cuts the video off`);
 
-    // A shot with only a still keeps the card's duration: there is no measured
-    // length to prefer, and a still has no opinion about how long it is held.
+    // The Production fallback holds a selected still for exactly five seconds.
     const oneB = t.entries.find(e => e.shot_code === '1B');
-    assert.strictEqual(oneB.duration_ms, CARD_MS,
-        'a still-only shot stopped using the duration its card asks for');
+    assert.strictEqual(oneB.duration_ms, 5000,
+        'a still-only shot did not hold for exactly five seconds');
 });
 
 // ── 6. The duration is actually measured, from a real file ──────────────

@@ -56,7 +56,7 @@ test('the snapshot is real and dated, and every documented image and video model
     }
 });
 
-test('every video model builds a request its own schema accepts, for each thing a shot can carry', () => {
+test('every video model builds an accepted request or rejects pictures its schema cannot carry', () => {
     for (const id of Object.keys(hf.MODELS.video)) {
         for (const shot of [
             { motion_prompt: 'she turns to the window', duration_s: 6, target_resolution: '1920x1080' },
@@ -64,17 +64,29 @@ test('every video model builds a request its own schema accepts, for each thing 
             { motion_prompt: 'she turns', init_image: IMG, last_frame: IMG, duration_s: 8, target_resolution: '3840x2160' },
             { motion_prompt: 'she turns', reference_images: [IMG, IMG], duration_s: 5 },
         ]) {
-            const req = hf.buildRequest('video', { ...shot, model: id });
+            let req;
+            try { req = hf.buildRequest('video', { ...shot, model: id }); }
+            catch (error) {
+                assert.ok(shot.init_image || shot.keyframes || shot.reference_images, `${id}: a text-only request was rejected`);
+                assert.match(error.message, /higgsfield:.*(?:keyframe|initial image|last-frame image|reference images)/, `${id}: unexpected refusal`);
+                continue;
+            }
             if (req.missing.length) continue;   // e.g. text-only model given a keyframe it cannot place: named, not sent
             checkAgainstSchema(req.endpoint, req.body);
         }
     }
 });
 
-test('every image model builds a request its own schema accepts, with and without a reference', () => {
+test('every image model builds an accepted request or rejects references its schema cannot carry', () => {
     for (const id of Object.keys(hf.MODELS.image)) {
         for (const p of [{ prompt: 'a quiet lake at dawn', width: 2048, height: 1152 }, { prompt: 'the same lake', reference_images: [IMG], width: 1024, height: 1024 }]) {
-            const req = hf.buildRequest('image', { ...p, model: id });
+            let req;
+            try { req = hf.buildRequest('image', { ...p, model: id }); }
+            catch (error) {
+                assert.ok(p.reference_images, `${id}: a text-only request was rejected`);
+                assert.match(error.message, /higgsfield:.*reference images/, `${id}: unexpected refusal`);
+                continue;
+            }
             assert.deepStrictEqual(req.missing, [], `${id}: missing ${req.missing}`);
             checkAgainstSchema(req.endpoint, req.body);
         }

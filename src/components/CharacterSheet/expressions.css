@@ -1,0 +1,11 @@
+.cs-expression-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; }
+.cs-expression-slot { min-width:0; border:1px solid var(--gl-border,#383838); padding:8px; }
+.cs-expression-slot img,.cs-expression-empty { width:100%; aspect-ratio:1; object-fit:contain; background:var(--gl-bg,#171717); }
+.cs-expression-slot img { cursor:zoom-in; }
+.cs-expression-empty { display:grid; place-items:center; color:var(--gl-muted,#999); font-size:12px; text-align:center; }
+.cs-expression-slot strong { display:block; margin-top:6px; }
+.cs-expression-slot p { font-size:12px; white-space:pre-wrap; overflow-wrap:anywhere; }
+.cs-expression-actions { display:flex; flex-wrap:wrap; gap:4px; margin:8px 0; }
+.cs-expression-slot select { width:100%; }
+.cs-expressions { margin:18px 0; }
+@media(max-width:600px) { .cs-expression-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }

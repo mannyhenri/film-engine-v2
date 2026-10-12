@@ -117,16 +117,29 @@ function credential() {
 /* ── the request ────────────────────────────────────────────────────────── */
 
 const first = (...vs) => vs.find(v => v !== undefined && v !== null && v !== '');
-const uriOf = v => (typeof v === 'string' ? v : (v && (v.uri || v.url || v.image_url || v.src || v.image))) || null;
+const uriOf = v => (typeof v === 'string' ? v : (v && (v.uri || v.url || v.image_url || v.src || v.image || v.file_path))) || null;
+function selectedUri(value, role) {
+    const uri = uriOf(value);
+    if (typeof uri !== 'string' || !uri.trim()) throw new Error(`higgsfield: selected ${role} has no supported reference source`);
+    return uri;
+}
 
 /** Keyframes in order, then references, as the payload carries them. */
 function picturesOf(p) {
-    const keys = [];
-    if (p.init_image) keys.push(uriOf(p.init_image));
-    for (const k of (p.keyframes || [])) keys.push(uriOf(k));
-    if (p.last_frame) keys.push(uriOf(p.last_frame));
-    const refs = (p.reference_images || []).map(uriOf);
-    return { keys: keys.filter(Boolean), refs: refs.filter(Boolean) };
+    for (const field of ['keyframes', 'reference_images', 'audio_references']) if (p[field] != null && !Array.isArray(p[field])) throw new Error(`higgsfield: ${field} must be an array`);
+    const frame = (primary, alias) => {
+        const selected = [p[primary], p[alias]].filter(value => value != null && value !== '').map(value => selectedUri(value, primary));
+        if (selected.length > 1 && selected[0] !== selected[1]) throw new Error(`higgsfield: conflicting selected ${primary} and ${alias} references`);
+        return selected[0];
+    };
+    const initial = frame('init_image', 'image_url'), last = frame('last_frame', 'end_image');
+    const frames = (p.keyframes || []).map(k => selectedUri(k, 'keyframe'));
+    const endpoints = [initial, last].filter(Boolean);
+    // applyVideoOptions represents the same endpoint frames in both shapes.
+    const aliases = endpoints.length && frames.length === endpoints.length && frames.every((uri, i) => uri === endpoints[i]);
+    const keys = aliases ? frames : [...(initial ? [initial] : []), ...frames, ...(last ? [last] : [])];
+    const refs = (p.reference_images || []).map(ref => selectedUri(ref, 'image'));
+    return { keys, refs };
 }
 
 function nearestAspect(allowed, p) {
@@ -201,7 +214,7 @@ function buildRequest(capability, payload) {
 
     // The workflow is what is attached.
     let kind;
-    if (capability === 'image') kind = refs.length && model.endpoints.reference ? 'reference' : 'text';
+    if (capability === 'image') kind = (keys.length || refs.length) && model.endpoints.reference ? 'reference' : 'text';
     else if (keys.length >= 2 && model.endpoints['first-last']) kind = 'first-last';
     else if (keys.length && model.endpoints.image) kind = 'image';
     else if (keys.length && model.endpoints['first-last']) kind = 'first-last';
@@ -210,6 +223,7 @@ function buildRequest(capability, payload) {
     else if (model.endpoints.reference) kind = 'reference';   // a prompt alone still reaches Kling Omni's reference endpoint
     else kind = Object.keys(model.endpoints)[0];
     if (!model.endpoints[kind]) kind = Object.keys(model.endpoints)[0];
+    if (p.workflow != null && String(p.workflow).trim() && String(p.workflow).trim() !== kind) throw new Error(`higgsfield: selected workflow ${p.workflow} does not match the attachment-derived ${kind} workflow`);
     const endpoint = model.endpoints[kind];
     const schema = CONTRACT.models[endpoint].schema;
     const props = schema.properties || {};
@@ -242,20 +256,26 @@ function buildRequest(capability, payload) {
         // Pictures by the field this endpoint names them with.
         const firstKey = keys[0], lastKey = keys.length > 1 ? keys[keys.length - 1] : null;
         if (kind === 'first-last' || kind === 'image') {
-            set('image_url', firstKey) || set('first_frame_url', firstKey);
-            if (lastKey) set('end_image_url', lastKey) || set('last_image_url', lastKey) || set('last_frame_url', lastKey);
-        }
+            const capacity = props.end_image_url || props.last_image_url || props.last_frame_url ? 2 : 1;
+            if (keys.length > capacity) throw new Error(`higgsfield: this endpoint accepts at most ${capacity} keyframe image(s); remove the excess selected keyframes`);
+            if (firstKey && !(set('image_url', firstKey) || set('first_frame_url', firstKey))) throw new Error('higgsfield: this endpoint takes no initial image');
+            if (lastKey && !(set('end_image_url', lastKey) || set('last_image_url', lastKey) || set('last_frame_url', lastKey))) throw new Error('higgsfield: this endpoint takes no last-frame image');
+        } else if (keys.length && kind !== 'reference') throw new Error('higgsfield: this endpoint takes no keyframe images');
         const pool = kind === 'reference' ? [...keys, ...refs] : refs;
         if (pool.length && props.image_urls) {
             const cap = props.image_urls.maxItems || pool.length;
-            body.image_urls = pool.slice(0, cap);
-            if (pool.length > cap) dropped.push({ field: 'image_urls', why: `${pool.length - cap} picture(s) over this model's ${cap}` });
-        } else if (pool.length && kind === 'reference' && props.image_url) set('image_url', pool[0]);
-        const audio = (p.audio_references || []).map(uriOf).filter(Boolean);
+            if (pool.length > cap) throw new Error(`higgsfield: this endpoint accepts at most ${cap} reference images; remove the excess selected images`);
+            body.image_urls = pool;
+        } else if (pool.length && kind === 'reference' && props.image_url) {
+            if (pool.length > 1) throw new Error('higgsfield: this endpoint accepts at most 1 reference image');
+            set('image_url', pool[0]);
+        } else if (pool.length) throw new Error('higgsfield: this endpoint takes no reference images');
+        const audio = (p.audio_references || []).map(ref => selectedUri(ref, 'audio'));
         if (audio.length) {
-            if (props.audio_urls) body.audio_urls = audio.slice(0, props.audio_urls.maxItems || audio.length);
-            else if (props.audio_url) set('audio_url', audio[0]);
-            else dropped.push({ field: 'audio', why: 'this model takes no audio' });
+            const cap = props.audio_urls ? props.audio_urls.maxItems || audio.length : props.audio_url ? 1 : 0;
+            if (audio.length > cap) throw new Error(`higgsfield: this endpoint accepts at most ${cap} audio references; remove the excess selected audio`);
+            if (props.audio_urls) body.audio_urls = audio;
+            else set('audio_url', audio[0]);
         }
         /*
          * SILENT BY DEFAULT, as on MuAPI: Film Engine owns the sound, and a
@@ -268,12 +288,15 @@ function buildRequest(capability, payload) {
             if (c.ok) body.sound = c.v; else if (props.sound.type === 'boolean') body.sound = !!wantsAudio;
         }
     } else {
-        if (refs.length) {
-            if (props.image_urls) body.image_urls = refs.slice(0, props.image_urls.maxItems || refs.length);
-            else if (props.image_reference_url) set('image_reference_url', refs[0]);
-            else if (props.image_url) set('image_url', refs[0]);
-            else dropped.push({ field: 'reference_images', why: 'this model takes no picture' });
+        const images = [...keys, ...refs];
+        if (images.length) {
+            const cap = props.image_urls ? props.image_urls.maxItems || images.length : props.image_reference_url || props.image_url ? 1 : 0;
+            if (images.length > cap) throw new Error(`higgsfield: this endpoint accepts at most ${cap} reference images; remove the excess selected images`);
+            if (props.image_urls) body.image_urls = images;
+            else if (props.image_reference_url) set('image_reference_url', images[0]);
+            else set('image_url', images[0]);
         }
+        if (p.audio_references && p.audio_references.length) throw new Error('higgsfield: image generation takes no audio references');
         if (props.batch_size) set('batch_size', 1);
     }
 
@@ -289,7 +312,7 @@ function buildRequest(capability, payload) {
     // Sent where the model's schema has the field; never folded into the prompt as "Avoid: …", which names each thing to the model.
     if (p.negative_prompt) {
         if (props.negative_prompt) set('negative_prompt', String(p.negative_prompt));
-        else dropped.push({ field: 'negative_prompt', why: `${modelId} has no negative field` });
+        else throw new Error(`higgsfield: selected negative_prompt is not supported by ${modelId}; remove it or select a model with a native negative field`);
     }
 
     // Options chosen on the dialog: any other field of THIS endpoint's schema.
@@ -297,6 +320,7 @@ function buildRequest(capability, payload) {
     for (const [k, v] of Object.entries(p)) if (props[k] && !OWN.has(k) && !(k in chosen)) chosen[k] = v;
     for (const [k, v] of Object.entries(chosen)) {
         if (!props[k]) { dropped.push({ field: k, why: 'not a field of ' + endpoint }); continue; }
+        if (/^(?:image|audio|first_frame|last_frame|end_image|last_image).*url/.test(k) && body[k] !== undefined && JSON.stringify(v) !== JSON.stringify(body[k])) throw new Error(`higgsfield: ${k} would replace selected references; remove the conflicting media option`);
         set(k, v);
     }
 
@@ -414,7 +438,7 @@ async function hostOne(uri, auth) {
     return { ok: true, url: up.public_url, uploaded: true };
 }
 
-async function hostBody(body, auth, opts) {
+async function hostBody(body, auth, opts, approvedRequest) {
     const fields = ['image_url', 'end_image_url', 'last_image_url', 'first_frame_url', 'last_frame_url',
         'image_reference_url', 'audio_url', 'image_urls', 'audio_urls'];
     let uploading = false;
@@ -429,6 +453,7 @@ async function hostBody(body, auth, opts) {
             }
             const h = await hostOne(v, auth);
             if (!h.ok) return { ok: false, status: 422, error: `higgsfield: ${f}: ${h.error}` };
+            if(approvedRequest && v!==h.url)require('../generation-transport').hosted(approvedRequest,v,h.url);
             out.push(h.url);
         }
         body[f] = Array.isArray(body[f]) ? out : out[0];
@@ -474,33 +499,32 @@ async function awaitResult(statusUrl, auth, deadline, opts) {
     return { ok: false, status: 504, error: 'higgsfield: timed out waiting for the result' };
 }
 
-async function generate(capability, payload, opts) {
+async function generate(capability,payload,opts) { return require('../final-provider-request').finishGeneration(opts,()=>generateApproved(capability,payload,opts)); }
+async function generateApproved(capability, payload, opts) {
     if (capability !== 'video' && capability !== 'image') return { ok: false, status: 400, error: `higgsfield: ${capability} is not served here` };
     const cred = credential();
     if (!cred.ok) return cred;
     let req;
-    try { req = buildRequest(capability, payload); }
+    try { req = await require('../final-provider-request').approvedRequest('higgsfield', capability, opts); req.missing = []; }
     catch (err) { return { ok: false, status: err.status || 400, error: err.message }; }
     if (req.missing.length) return { ok: false, status: 400, error: `higgsfield: ${req.endpoint} needs ${req.missing.join(', ')}` };
-    const hosted = await hostBody(req.body, cred.header, opts);
+    const hosted = await hostBody(req.body, cred.header, opts, req);
     if (!hosted.ok) return hosted;
 
-    // One idempotency key for the submission and its one retry, so a timeout never buys twice.
+    // One idempotency key for the approved submission. No automatic paid retry.
     const idem = crypto.randomUUID();
     let res, body;
-    for (let attempt = 0; attempt < 2; attempt++) {
+    for (let attempt = 0; attempt < 1; attempt++) {
         try {
-            res = await fetch(req.url, {
+            res = await require('../generation-transport').dispatch(req, req.url, {
                 method: 'POST',
                 headers: { Authorization: cred.header, 'Content-Type': 'application/json', 'Idempotency-Key': idem, accept: 'application/json' },
                 body: JSON.stringify(req.body),
             });
             body = await readJson(res);
         } catch (err) {
-            if (attempt === 0) continue;
             return { ok: false, status: 502, error: `higgsfield: ${err.message}` };
         }
-        if (res.status >= 500 && attempt === 0) continue;
         break;
     }
     if (!res.ok || !body || !body.request_id) return { ok: false, status: res.status || 502, error: errorOf(res.status, body) };
@@ -589,7 +613,7 @@ const higgsfieldAdapter = {
     sizeControlReason: 'Higgsfield image models take an aspect ratio and a resolution tier; the pixel size is the tier’s.',
     promptLimit: 4000,
     supportsNegativePrompt: false,
-    negativePromptReason: 'Sent only to the models whose schema has a negative_prompt field (Kling 2.5, PixVerse, Wan, Qwen); dropped with the reason otherwise.',
+    negativePromptReason: 'Sent only to the models whose schema has a negative_prompt field (Kling 2.5, PixVerse, Wan, Qwen); selected negatives are rejected otherwise.',
     supportsSeed: true,
     referenceMode: 'condition',
     maxReferenceImages: 4,

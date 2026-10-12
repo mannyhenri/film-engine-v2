@@ -9,13 +9,13 @@ export default {
     variants: ['panel', 'rail'],
     async open(_, variant) {
         const rows = [
-            { id: 'a', shot_code: '1A', location: 'DINER', scene_number: 1 },
-            { id: 'b', shot_code: '2A', location: 'STREET', scene_number: 2 },
-            { id: 'c', shot_code: '3A', location: 'ROOF', scene_number: 3 },
+            { id: 'a', name: 'DINER' },
+            { id: 'b', name: 'STREET' },
+            { id: 'c', name: 'ROOF' },
         ];
         const flags = { world_engine: '1', previs_console: variant === 'panel' ? '1' : '0' };
         const { fake } = installLegacy({ routes: { 'GET /settings': { settings: flags } } });
-        fake.WORLD.shots = rows;
+        fake.WORLD.scoutable = rows.map(r => ({name:r.name,world:{id:r.id},version:{id:'version-'+r.id,version:1}}));
         const panel = document.createElement('div');
         panel.className = 'fe-panel';
         document.body.appendChild(panel); // the app's side panel, which the page does not render itself
@@ -33,12 +33,12 @@ export default {
                 // puts it; the rest of the console paints a canvas, which the test DOM does not have.
                 const page = document.getElementById('page-previs');
                 const host = document.getElementById('worldConsole') || page.insertBefore(Object.assign(document.createElement('div'), { id: 'worldConsole' }), page.firstChild);
-                host.innerHTML = E.worldRailHtml();
+                host.innerHTML = '<div id="weRail">'+E.worldRailHtml()+'</div>';
             }
             await new Promise(r => setTimeout(r, 0));
         });
-        const sel = variant === 'panel' ? '#fePanelShots button.pv-shot[onclick^="worldRailSelect"]' : '#worldConsole button.we-shot[onclick^="worldRailSelect"]';
-        const id = (n) => n.getAttribute('onclick').match(/'([^']+)'/)[1];
+        const sel = variant === 'panel' ? '#fePanelShots .pv-set-entry' : '#worldConsole .pv-set-entry';
+        const id = n => n.dataset.setId;
         return { rows, keys: () => [...document.querySelectorAll(sel)].filter(n => !n.classList.contains('list-hidden')).map(id) };
     },
 };

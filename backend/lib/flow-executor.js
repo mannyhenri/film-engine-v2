@@ -87,7 +87,7 @@ async function runFlow(graph, ctx, opts) {
 
     const validation = validateGraph(graph);
     if (!validation.ok) {
-        recordRun(runId, graph, context, options, 'failed', 'graph is invalid');
+        if(options.resume)setRunStatus(runId,'paused','AWAITING_FINAL_REQUEST_REVIEW');else recordRun(runId, graph, context, options, 'failed', 'graph is invalid');
         return { id: runId, status: 'failed', nodes: [], errors: validation.errors };
     }
 
@@ -102,7 +102,7 @@ async function runFlow(graph, ctx, opts) {
     if (budget.wouldExceed && !options.ignoreBudget) {
         const message = `budget: this run projects $${cost.total.toFixed(2)} across ${cost.calls} generation call(s); ` +
             `$${budget.spent.toFixed(2)} of the $${budget.limit.toFixed(2)} limit is already spent`;
-        recordRun(runId, graph, context, options, 'failed', message);
+        if(options.resume)setRunStatus(runId,'paused','AWAITING_FINAL_REQUEST_REVIEW');else recordRun(runId, graph, context, options, 'failed', message);
         return {
             id: runId,
             status: 'failed',
@@ -112,19 +112,21 @@ async function runFlow(graph, ctx, opts) {
         };
     }
 
-    recordRun(runId, graph, context, options, 'running', '');
+    const resumeState=options.resume?require('./flow-review-state').loadFlowReviewState(db,runId):null;
+    if(resumeState)setRunStatus(runId,'running','');else recordRun(runId, graph, context, options, 'running', '');
 
     // How many times each node runs, given the fan-outs upstream of it.
     const multipliers = branchMultipliers(graph);
 
     // Per (node, branch) outputs. An unbranched node stores under branch ''.
-    const outputs = {};                 // nodeId -> { branchKey -> { port: value } }
+    const outputs = resumeState?.outputs || {};                 // nodeId -> { branchKey -> { port: value } }
     const branchRows = new Map();       // branchKey -> row id
-    const completed = [];
-    const skipped = [];
+    const completed = [...(resumeState?.completed||[])];
+    const skipped = [...(resumeState?.skipped||[])];
     const failed = [];
     const nodeResults = [];
     let paused = false;
+    let awaitingReview = false;
 
     const totalNodes = (graph.nodes || []).length;
 
@@ -155,6 +157,7 @@ async function runFlow(graph, ctx, opts) {
             let nodePaused = false;
 
             for (const branch of branches) {
+                if(resumeState?.completeKeys.has(`${node.id}:${branch.key}`))continue;
                 if (context.onNodeStart) context.onNodeStart(node.id, node, branch.key);
                 startNodeRun(runId, node, branch);
 
@@ -162,6 +165,13 @@ async function runFlow(graph, ctx, opts) {
                 const result = await executeNode(node, inputs, { ...context, runId, branch: branch.key, variant: branch.variant });
 
                 nodeResults.push({ id: node.id, type: node.type, branch: branch.key, ...result });
+
+                if(!result.ok && String(result.error||'').includes('FINAL_REQUEST_REVIEW_REQUIRED')) {
+                    awaitingReview=true;nodePaused=true;
+                    finishNodeRun(runId,node.id,branch,'pending',{},result);
+                    if(context.onNodeDone)context.onNodeDone(node.id,{...result,status:'awaiting_review'});
+                    break;
+                }
 
                 if (!result.ok) {
                     nodeFailed = true;
@@ -191,7 +201,7 @@ async function runFlow(graph, ctx, opts) {
             }
 
             if (nodeFailed) { failed.push(node.id); continue; }
-            if (nodePaused) { paused = true; skipped.push(node.id); continue; }
+            if (nodePaused) { paused = true; if(!awaitingReview)skipped.push(node.id); if(awaitingReview)break; continue; }
 
             if (branches.some(b => b.skipped)) skipped.push(node.id); else completed.push(node.id);
 
@@ -204,10 +214,10 @@ async function runFlow(graph, ctx, opts) {
 
     if (cancelledInDb()) return { id: runId, status: 'cancelled', nodes: nodeResults };
     const status = failed.length ? 'failed' : (paused ? 'paused' : 'complete');
-    setRunStatus(runId, status, failed.length ? `${failed.length} node(s) failed` : '');
+    setRunStatus(runId, status, awaitingReview ? 'AWAITING_FINAL_REQUEST_REVIEW' : failed.length ? `${failed.length} node(s) failed` : '');
 
     return {
-        id: runId, status, nodes: nodeResults, completed, skipped, failed,
+        id: runId, run_id:runId, status:awaitingReview?'awaiting_review':status, ...(awaitingReview?{next_review:{path:`/flow-runs/${runId}/resume`,body:{}}}:{}), nodes: nodeResults, completed, skipped, failed,
         budget: { ...budget, projected: cost.total, calls: cost.calls },
     };
 }
@@ -426,10 +436,11 @@ function getFlowRun(runId) {
     const run = db.prepare('SELECT * FROM film_flow_runs WHERE id = ?').get(runId);
     if (!run) return null;
     const nodes = db.prepare('SELECT * FROM film_flow_node_runs WHERE run_id = ? ORDER BY started_at, node_id').all(runId);
-    return { ...run, nodes };
+    const awaiting=run.status==='paused'&&run.error_message==='AWAITING_FINAL_REQUEST_REVIEW';
+    return {...run,...(awaiting?{status:'awaiting_review',next_review:{path:`/flow-runs/${runId}/resume`,body:{}}}:{}),nodes};
 }
 
 module.exports = {
     runFlow, runFlowStream, executeNode, resolveNodeInputs, cancelFlowRun, getFlowRun,
-    startNodeRun, finishNodeRun, setRunStatus,
+    startNodeRun, finishNodeRun, setRunStatus, branchesFor, projectOutputs,
 };

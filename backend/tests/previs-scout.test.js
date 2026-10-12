@@ -99,19 +99,24 @@ test('a scouted shot lands in a scene at that location, under the next free code
     assert.equal(scoutShotCode(3, ['3A', '3b']), '3C');
 });
 
-test('the page: opened with no shot, moved by the mouse, the panel follows, and a shot is made from the view', () => {
+test('the page opens a real set without a shot, follows the camera, and offers capture to a real target', () => {
     const page = fnSrc('loadPrevisPage');
     assert.ok(/worldLoadScoutable\(/.test(page), 'Previs never looks for sets to walk');
     assert.ok(/else if \(\(WORLD\.scoutable[\s\S]*worldScoutSelect\(/.test(page), 'with no shot, the set is not opened');
     assert.ok(/!!WORLD\.shotId \|\| !!WORLD\.scout/.test(fnSrc('worldGestureView')), 'the mouse cannot move a scouting camera');
     assert.ok(/worldOperateRefreshValues\(\)/.test(fnSrc('worldWalkRepaint')), 'Camera Operate does not follow the walk');
-    assert.ok(/WORLD\.scout[\s\S]*worldScoutMakeShot\(\)/.test(fnSrc('worldWalkBarHtml')), 'no way to keep a scouted view');
-    assert.ok(/scoutStartCamera\(WORLD\.geometry\)/.test(fnSrc('worldScoutSelect')), 'the scout opens wherever the bounding box says');
+    const workspace = fs.readFileSync(path.join(__dirname, '..', '..', 'src/lib/previz-workspace.js'), 'utf8');
+    assert.match(workspace, /Save draft to storyboard/);
+    assert.match(workspace, /previzCapture\(\)/);
+    assert.match(workspace, /Choose a real target shot/);
+    assert.doesNotMatch(fnSrc('worldWalkBarHtml'), /worldScoutMakeShot\(\)/);
+    assert.match(fnSrc('worldScoutSelect'), /previzWorkspace\.opened\(\)/, 'the scout must use the actual set viewpoints and navigation audit');
+    assert.doesNotMatch(fnSrc('worldScoutSelect'), /geometry\?budget=/, 'walking must not wait for dense collider JSON');
     const make = fnSrc('worldScoutMakeShot');
-    assert.ok(/api\('\/shots', \{ method: 'POST'/.test(make), 'no shot is created');
-    assert.ok(/\/shots\/\$\{shot\.id\}\/world`, \{ method: 'POST'/.test(make), 'the shot is not pinned to the set it was chosen in');
-    assert.ok(/\/shots\/\$\{shot\.id\}\/previs`, \{ method: 'PUT'[\s\S]*camera:/.test(make), 'the walked camera is not saved on the shot');
-    assert.ok(/No scene is set at[\s\S]*INT\./.test(make), 'with no scene, the refusal does not say what heading to write');
+    assert.match(make, /previzWorkspace\.previzCreateTarget\(\)/, 'legacy entry must use the same explicit scene/target selection');
+    assert.match(workspace, /Add scene in screenplay/);
+    assert.match(workspace, /world_version_id:\s*scope\.versionId/);
+    assert.match(workspace, /camera:\{\.\.\.blocking\.camera,focalMm:creation\.lens/);
     assert.ok(/WORLD\.scout = null/.test(fnSrc('worldRailSelect')), 'choosing a shot does not leave scouting');
 });
 

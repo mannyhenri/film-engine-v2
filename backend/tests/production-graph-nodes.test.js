@@ -1,7 +1,7 @@
 /**
  * PGN-022 — the production graph's eight features, together, through a
  * SPAWNED server, on one project that has everything at once: a running job,
- * a stale frame, a held shot and a collapsed sequence.
+ * a stale frame, a held shot and a collapsed scene.
  *
  * Each feature has its own test file; this one exists because each was built
  * and proven alone, and the page meets them together. Set-based three ways:
@@ -81,7 +81,7 @@ asset('storyboard', { shot: S.C, file: path.join(sdir, '1C.png') });
 asset('storyboard', { shot: S.D, file: path.join(sdir, '2A.png') });
 // A clip on 1A: a video version.
 asset('video_raw', { shot: S.A, file: path.join(vdir, '1A.mp4') });
-// A sequence over 1A and 1B (to be collapsed), and a second one borrowing its last frame (a link).
+// A sequence over 1A and 1B (inside the scene to be collapsed), and a second one borrowing its last frame (a link).
 db.prepare("INSERT INTO film_sequences (id, project_id, name, shot_ids) VALUES (?, ?, 'Walk', ?)").run(SEQ, P, JSON.stringify([S.A, S.B]));
 db.prepare("INSERT INTO film_sequences (id, project_id, name, shot_ids, start_frame_ref) VALUES (?, ?, 'Out', ?, ?)")
     .run(SEQ2, P, JSON.stringify([S.D]), JSON.stringify({ sequence_id: SEQ, mode: 'shot_image' }));
@@ -100,7 +100,7 @@ db.prepare(`INSERT INTO film_generation_jobs (id, project_id, shot_id, provider,
 const graph = async () => { const r = await api(`/film/projects/${P}/production-graph`); assert.equal(r.status, 200, JSON.stringify(r.data)); return r.data; };
 const node = (g, key) => g.nodes.find(n => n.key === key);
 
-// Hold 1B and collapse the Walk sequence through the real routes, once.
+// Hold 1B and collapse the Diner scene through the real routes, once.
 let held = false, collapsed = false;
 async function setUp() {
     if (!held) {
@@ -108,7 +108,7 @@ async function setUp() {
         assert.equal(r.status, 200, JSON.stringify(r.data)); held = true;
     }
     if (!collapsed) {
-        const r = await api(`/film/projects/${P}/production-graph/groups/${encodeURIComponent('seq:' + SEQ)}`, { method: 'PUT', body: { collapsed: true } });
+        const r = await api(`/film/projects/${P}/production-graph/groups/${encodeURIComponent('scene:' + SC)}`, { method: 'PUT', body: { collapsed: true } });
         assert.equal(r.status, 200, JSON.stringify(r.data)); collapsed = true;
     }
 }
@@ -153,16 +153,16 @@ test('the running job is on its node, in its group\'s summary, and in the queue'
     assert.ok(JSON.stringify(q.data).includes(S.C), 'the queue does not list the running job');
 });
 
-test('the collapsed sequence is one card with its summary, and collapsing moved no node', async () => {
+test('the collapsed scene is one card with all its shots and sequences, and collapsing moved no node', async () => {
     const before = db.prepare('SELECT node_key, x, y FROM production_node_layout WHERE project_id = ? ORDER BY node_key').all(P);
     await setUp();
     const g = await graph();
-    const gr = g.groups.find(x => x.key === 'seq:' + SEQ);
-    assert.ok(gr && gr.collapsed, 'the sequence is not collapsed');
-    for (const k of [`seq:${SEQ}`, `shot:${S.A}`, `shot:${S.B}`]) assert.ok(gr.members.includes(k), `${k} is not inside the collapsed card`);
+    const gr = g.groups.find(x => x.key === 'scene:' + SC);
+    assert.ok(gr && gr.collapsed, 'the scene is not collapsed');
+    for (const k of [`seq:${SEQ}`, `shot:${S.A}`, `shot:${S.B}`, `shot:${S.C}`, `sound:${CUE}`]) assert.ok(gr.members.includes(k), `${k} is not inside the collapsed card`);
     assert.ok(!gr.members.includes(`shot:${S.D}`), 'a shot of another group is inside the card');
     for (const f of ['length_ms', 'shots_done', 'shots_total', 'behind', 'running']) assert.ok(f in gr.summary, `no ${f} on the card`);
-    assert.equal(gr.summary.shots_total, 2);
+    assert.equal(gr.summary.shots_total, 3);
     assert.ok(gr.summary.behind >= 1, 'the stale 1A inside the collapsed group is not counted as behind');
     assert.deepEqual(db.prepare('SELECT node_key, x, y FROM production_node_layout WHERE project_id = ? ORDER BY node_key').all(P), before,
         'collapsing wrote to the node layout');
@@ -269,15 +269,15 @@ function fnSource(name) {
     for (let j = SPA.indexOf('{', i); j < SPA.length; j++) { if (SPA[j] === '{') depth++; else if (SPA[j] === '}' && --depth === 0) return SPA.slice(m.index, j + 1); }
     return null;
 }
-// A collapsed sequence at the far left, its members hidden, one scene group to its right.
+// A collapsed scene at the far left, its shots/sequence hidden, a second scene to its right.
 const PAGE_GRAPH = {
     nodes: [
         { key: 'shot:a', type: 'shot', shot_code: '1A', x: 40, y: 40, w: 200, h: 180, frames: [] },
         { key: 'shot:c', type: 'shot', shot_code: '1C', x: 600, y: 40, w: 200, h: 180, frames: [] },
     ],
     groups: [
-        { key: 'seq:q', label: 'SC 1 · WALK', collapsed: true, x: 20, y: 8, w: 240, h: 132, members: ['shot:a', 'seq:q'] },
-        { key: 'scene:s', label: 'SC 1', collapsed: false, x: 580, y: 8, w: 300, h: 252, members: ['shot:c'] },
+        { key: 'scene:s1', scene_id: 's1', label: 'SC 1', collapsed: true, x: 20, y: 8, w: 240, h: 132, members: ['shot:a', 'seq:q'] },
+        { key: 'scene:s2', scene_id: 's2', label: 'SC 2', collapsed: false, x: 580, y: 8, w: 300, h: 252, members: ['shot:c'] },
     ],
 };
 const pageFns = (extra = '') => new Function('PG', `
@@ -300,7 +300,7 @@ test('the minimap draws a collapsed card', () => {
 test('the side panel says a shot is inside a collapsed card, and clicking it pans to the card', () => {
     const { pgCollapsedOf } = pageFns()({ graph: PAGE_GRAPH });
     assert.ok(pgCollapsedOf, 'no pgCollapsedOf: nothing can say which card a hidden shot is in');
-    assert.equal(pgCollapsedOf('shot:a').key, 'seq:q');
+    assert.equal(pgCollapsedOf('shot:a').key, 'scene:s1');
     assert.equal(pgCollapsedOf('shot:c'), null);
     const side = fnSource('pgRenderSide');
     assert.ok(side, 'no pgRenderSide: the outline moved');

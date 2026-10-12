@@ -431,16 +431,7 @@ function buildMusicRequest(payload) {
 const RETRY_STATUS = new Set([429, 500, 502, 503, 504]);
 const RETRY_DELAY_MS = 1200;
 
-async function callElevenLabs(request, apiKey, opts) {
-    const first = await callElevenLabsOnce(request, apiKey, opts);
-    if (first.ok || !RETRY_STATUS.has(first.status)) return first;
-
-    await new Promise(r => setTimeout(r, RETRY_DELAY_MS));
-    const second = await callElevenLabsOnce(request, apiKey, opts);
-    if (second.ok) return second;
-    // Named, so a genuine outage does not read as one flaky call.
-    return { ...second, error: `${second.error} (retried once after ${first.status})` };
-}
+async function callElevenLabs(request, apiKey, opts) { return callElevenLabsOnce(request,apiKey,opts); }
 
 /**
  * STEM SEPARATION (MUS-011): the one ElevenLabs music endpoint that takes a
@@ -478,26 +469,18 @@ function buildStemSeparationRequest(payload) {
     };
 }
 
-/** The multipart call, with the same retry-once rule as every other ElevenLabs request: 5xx and 429 only. */
-async function callElevenLabsMultipart(request, apiKey, opts) {
-    const o = opts || {};
-    const delay = o.retryDelayMs === undefined ? RETRY_DELAY_MS : o.retryDelayMs;
-    const first = await callMultipartOnce(request, apiKey, o);
-    if (first.ok || !RETRY_STATUS.has(first.status)) return first;
-    await new Promise(r => setTimeout(r, delay));
-    const second = await callMultipartOnce(request, apiKey, o);
-    if (second.ok) return second;
-    return { ...second, error: `${second.error} (retried once after ${first.status})` };
-}
+/** The approved multipart call. An uncertain response requires review; it is never automatically submitted again. */
+async function callElevenLabsMultipart(request, apiKey, opts) { return callMultipartOnce(request,apiKey,opts); }
 
 async function callMultipartOnce(request, apiKey, opts) {
+    if(!require('../final-provider-request').isApprovedRequest(request))return {ok:false,status:428,error:'The exact approved final ElevenLabs request is required.'};
     const controller = new AbortController();
     const timeout = (opts && opts.timeout) || 600000;
     const timer = setTimeout(() => controller.abort(), timeout);
     try {
         // No Content-Type: fetch writes the multipart boundary itself, and a
         // hand-set header without it is a body the server cannot split.
-        const response = await fetch(request.url, {
+        const response = await require('../generation-transport').dispatch(request, request.url, {
             method: 'POST',
             headers: { 'Accept': 'application/zip', 'xi-api-key': apiKey },
             body: request.form,
@@ -524,12 +507,13 @@ async function callMultipartOnce(request, apiKey, opts) {
 }
 
 async function callElevenLabsOnce(request, apiKey, opts) {
+    if(!require('../final-provider-request').isApprovedRequest(request))return {ok:false,status:428,error:'The exact approved final ElevenLabs request is required.'};
     const controller = new AbortController();
     const timeout = (opts && opts.timeout) || 300000;
     const timer = setTimeout(() => controller.abort(), timeout);
 
     try {
-        const response = await fetch(request.url, {
+        const response = await require('../generation-transport').dispatch(request, request.url, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -702,18 +686,8 @@ const adapter = {
         const { apiKey } = getCredential('elevenlabs');
         if (!apiKey) return missingKey();
 
-        if (capability === 'music' && payload && payload.workflow === 'music_separate') {
-            let sepRequest;
-            try { sepRequest = buildStemSeparationRequest(payload); }
-            catch (e) { return { ok: false, status: 400, error: e.message }; }
-            return callElevenLabsMultipart(sepRequest, apiKey, opts);
-        }
-
-        let request;
-        if (capability === 'voice') request = buildVoiceRequest(payload || {});
-        else if (capability === 'sfx') request = buildSfxRequest(payload || {});
-        else if (capability === 'ambient') request = buildAmbientRequest(payload || {});
-        else request = buildMusicRequest(payload || {});
+        const request = await require('../final-provider-request').approvedRequest('elevenlabs',capability,opts);
+        if(request.form)return callElevenLabsMultipart(request,apiKey,opts);
 
         /*
          * /music carries the description in `prompt`; the other two use `text`.
@@ -729,6 +703,7 @@ const adapter = {
     },
 
     async generateStream(capability, payload, res, callbacks) {
+        return {ok:false,status:428,error:'Use final request review before Send; legacy ElevenLabs streaming is blocked.'};
         // ElevenLabs streams audio bytes, but Film Engine's current voice SSE
         // route emits progress events per dialogue line. Generate the audio and
         // let the route relay normalized progress/status events.
@@ -827,6 +802,9 @@ async function listVoices(opts) {
         return { ok: false, error: err.message, voices: [] };
     }
 }
+
+const unwrappedGenerate = adapter.generate;
+adapter.generate = function(capability,payload,opts) { return require('../final-provider-request').finishGeneration(opts,()=>unwrappedGenerate.call(this,capability,payload,opts)); };
 
 module.exports = {    wrapPcmAsWav, normalizeOutputFormat, SFX_MIN_SECONDS, SFX_MAX_SECONDS,
     adapter,

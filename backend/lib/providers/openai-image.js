@@ -12,6 +12,8 @@
 
 const { getCredential } = require('./credentials');
 const fs = require('fs');
+const path = require('path');
+const { fileURLToPath } = require('url');
 
 const DEFAULT_BASE_URL = 'https://api.openai.com/v1';
 const DEFAULT_IMAGE_MODEL = 'gpt-image-1';
@@ -42,6 +44,34 @@ function normalizeError(status, body) {
 async function parseErrorResponse(response) {
     const text = await response.text();
     try { return JSON.parse(text); } catch (_) { return text; }
+}
+
+/** Resolve selected references locally; a URL cannot prove immutable bytes. */
+function imageReference(ref, index) {
+    const source = typeof ref === 'string' ? ref : ref && (ref.uri || ref.url || ref.image_url || ref.src || ref.file_path);
+    const fail = why => { throw new Error(`openai: reference image ${index + 1} ${why}`); };
+    if (typeof source !== 'string' || !source.trim()) return fail('has no supported source');
+    const inline = /^data:([^;,]+);base64,([A-Za-z0-9+/]+={0,2})$/i.exec(source);
+    if (inline) {
+        const bytes = Buffer.from(inline[2], 'base64');
+        if (!bytes.length) return fail('has no image bytes');
+        const extension = inline[1].toLowerCase() === 'image/jpeg' ? 'jpg' : inline[1].split('/')[1] || 'png';
+        return { bytes, mime: inline[1], filename: `reference-${index + 1}.${extension}` };
+    }
+    let filePath = source;
+    if (/^file:/i.test(source)) {
+        try { filePath = fileURLToPath(source); } catch (_) { return fail('has an invalid file URI'); }
+    } else if (/^[a-z][a-z0-9+.-]*:/i.test(source)) return fail('needs immutable local bytes before review');
+    try {
+        if (!fs.statSync(filePath).isFile()) return fail('is not a local file');
+        const bytes = fs.readFileSync(filePath);
+        if (!bytes.length) return fail('has no image bytes');
+        const mime = ({ '.webp': 'image/webp', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg' })[path.extname(filePath).toLowerCase()] || 'image/png';
+        return { bytes, mime, filename: path.basename(filePath) || 'reference.png', filePath };
+    } catch (error) {
+        if (error.message.startsWith('openai: reference image')) throw error;
+        return fail('cannot be read as a local file');
+    }
 }
 
 /** Map a canonical image payload (gridlight-shaped) to an OpenAI Images request. */
@@ -77,33 +107,28 @@ function buildImageRequest(payload) {
     const quality = VALID_QUALITY.includes(p.quality) ? p.quality : 'high';
     const model = p.openai_model || (String(p.model || '').startsWith('gpt-image') ? p.model : DEFAULT_IMAGE_MODEL);
 
-    const refs = Array.isArray(p.reference_images) ? p.reference_images : [];
-    const localRefs = refs
-        .map(ref => ref && ref.file_path)
-        .filter(filePath => filePath && fs.existsSync(filePath))
-        .slice(0, 8);
+    if (p.reference_images != null && !Array.isArray(p.reference_images)) throw new Error('openai: reference_images must be an array');
+    const refs = p.reference_images || [];
+    if (refs.length > adapter.maxReferenceImages) throw new Error(`openai: at most ${adapter.maxReferenceImages} reference images are supported; remove the excess references`);
+    const images = refs.map(imageReference);
 
-    if (localRefs.length > 0) {
+    if (images.length > 0) {
         const form = new FormData();
         form.append('model', model);
         form.append('prompt', prompt);
         form.append('size', size);
         form.append('quality', quality);
         form.append('n', '1');
-        for (const filePath of localRefs) {
-            const bytes = fs.readFileSync(filePath);
-            const mime = filePath.toLowerCase().endsWith('.webp') ? 'image/webp'
-                : filePath.toLowerCase().endsWith('.jpg') || filePath.toLowerCase().endsWith('.jpeg') ? 'image/jpeg'
-                    : 'image/png';
-            form.append('image[]', new Blob([bytes], { type: mime }), filePath.split(/[\\/]/).pop() || 'reference.png');
+        for (const image of images) {
+            form.append('image[]', new Blob([image.bytes], { type: image.mime }), image.filename);
         }
         return {
             url: `${baseUrl}/images/edits`,
             form,
             model,
             size,
-            referenceCount: localRefs.length,
-            referencePaths: localRefs,
+            referenceCount: images.length,
+            referencePaths: images.map(image => image.filePath),
         };
     }
 
@@ -297,7 +322,7 @@ async function callOpenAI(request, apiKey, opts) {
     const timer = setTimeout(() => controller.abort(), timeout);
 
     try {
-        const response = await fetch(request.url, {
+        const response = await require('../generation-transport').dispatch(request, request.url, {
             method: 'POST',
             headers: {
                 'Authorization': `Bearer ${apiKey}`,
@@ -468,6 +493,7 @@ const adapter = {
         if (!apiKey) return missingKey();
 
         if (capability === 'llm') {
+            return {ok:false,status:428,error:'Exact final request review is not supported for OpenAI language requests yet; generation is blocked.'};
             const request = buildLLMRequest(payload || {});
             if (!request.body.input.some(m => m.role === 'user' && m.content)) {
                 return { ok: false, status: 400, error: 'openai: question is required' };
@@ -475,13 +501,14 @@ const adapter = {
             return callOpenAILLM(request, apiKey, opts);
         }
 
-        const request = buildImageRequest(payload || {});
+        const request = await require('../final-provider-request').approvedRequest('openai', capability, opts);
         const promptText = request.form ? request.form.get('prompt') : (request.body && request.body.prompt);
         if (!promptText) return { ok: false, status: 400, error: 'openai: prompt is required' };
         return callOpenAI(request, apiKey, opts);
     },
 
     async generateStream(capability, payload, res, callbacks) {
+        return {ok:false,status:428,error:'Exact final request review is not supported for streaming language requests yet; generation is blocked.'};
         if (capability !== 'llm') {
             return { ok: false, error: `openai: unsupported streaming capability '${capability}'` };
         }
@@ -495,5 +522,8 @@ const adapter = {
         return streamOpenAILLM(request, apiKey, res, callbacks);
     },
 };
+
+const unwrappedGenerate = adapter.generate;
+adapter.generate = function(capability,payload,opts) { return require('../final-provider-request').finishGeneration(opts,()=>unwrappedGenerate.call(this,capability,payload,opts)); };
 
 module.exports = { adapter, buildImageRequest, buildLLMRequest, extractResponseText, VALID_SIZES, VALID_QUALITY };

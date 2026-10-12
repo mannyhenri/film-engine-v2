@@ -1,5 +1,5 @@
 {
-  "about": "This page is React (src/pages/moodboard/MoodBoardPage.jsx). tools/split-map.js stops generating it, drops the legacy functions below, and fails if anything left still calls them. The upload helper, plate thumbnails and the plate viewer stay in core (shared) and are reached through src/lib/legacy.js.",
+  "about": "This page is React (src/pages/moodboard/MoodBoardPage.jsx). tools/split-map.js stops generating it, drops the legacy functions below, and fails if anything left still calls them. The upload size check, plate thumbnails and the plate viewer stay in core (shared) and are reached through src/lib/legacy.js.",
   "loader": "loadMoodBoardPage",
   "replaces": ["loadMoodBoardPage", "moodSpecValues", "uploadMoodBoardImage", "moodBoardAdd", "moodBoardDelete", "moodBoardCompose", "MOOD_SPECS"],
   "modals": []

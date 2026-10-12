@@ -585,9 +585,10 @@ function wantsDialogueAudio(src) {
     return v === true || v === 1 || v === '1' || v === 'true';
 }
 
-async function generateVideo(req, res, shotId) {
+function buildVideoGenerationPlan(shotId, body = {}) {
+    const req = { body };
     const ctx = loadShotContext(shotId);
-    if (!ctx) return json(res, 404, { error: 'Shot not found' });
+    if (!ctx) throw Object.assign(new Error('Shot not found'), { status: 404 });
     ctx.useDialogueAudio = wantsDialogueAudio(req.body);
 
     const { shot, scene, sceneCard, project } = ctx;
@@ -614,7 +615,7 @@ async function generateVideo(req, res, shotId) {
      * choice the director believes was honoured and would not be.
      */
     if (chosenOptions.refused.length) {
-        return json(res, 400, { error: `Not sent: ${chosenOptions.refused.join('; ')}`, refused: chosenOptions.refused });
+        throw Object.assign(new Error(`Not sent: ${chosenOptions.refused.join('; ')}`), { status: 400, refused: chosenOptions.refused });
     }
     applyChosen(payload, videoProvider, chosenOptions);
     /*
@@ -628,7 +629,6 @@ async function generateVideo(req, res, shotId) {
         payload.prompt = override.slice(0, 16000);
         payload.motion_prompt = payload.prompt;
     }
-    const startedAt = Date.now();
     const videoRefs = Array.isArray(payload.video_references) ? payload.video_references : [];
     const estimate = require('../lib/video-cost').estimateVideoCost({
         model: chosen.model || payload.model,
@@ -638,6 +638,17 @@ async function generateVideo(req, res, shotId) {
             : (chosen.durationSeconds || payload.duration_s),
         imageReferences: videoRefs.filter(r => (r.sourceType || 'image') === 'image').length,
     });
+
+    return { ctx, shot, scene, sceneCard, project, videoProvider, payload, chosenOptions, chosen, estimate, consistencyContext, override, videoRefs };
+}
+
+async function generateVideo(req, res, shotId) {
+    if (req.body?.production_draft) return generateProductionDraftVideo(req, res, shotId);
+    let plan;
+    try { plan = buildVideoGenerationPlan(shotId, req.body || {}); }
+    catch (err) { return json(res, err.status || 400, { error: err.message, refused: err.refused }); }
+    const { ctx, shot, scene, sceneCard, project, videoProvider, payload, chosenOptions, chosen, estimate, consistencyContext, override, videoRefs } = plan;
+    const startedAt = Date.now();
 
     const jobId = generateId();
     db.prepare(
@@ -692,6 +703,7 @@ async function generateVideo(req, res, shotId) {
         // the seed rather than reconstructing them.
         db.prepare('UPDATE film_assets SET metadata = ? WHERE id = ?')
             .run(JSON.stringify({ prompt: payload.prompt, seed: payload.seed === undefined ? null : payload.seed,
+                final_request_review_id: require('../lib/production-draft-request').resultReviewId(result),
                 edited_prompt: !!override,
                 ...(Object.keys(chosenOptions.values).length || chosenOptions.lastFrameShot
                     ? { options: { ...chosenOptions.values,
@@ -743,6 +755,7 @@ async function generateVideo(req, res, shotId) {
 // -- SSE Streaming Video Generation --------------------------------------
 
 async function generateVideoStream(req, res, shotId) {
+    if (req.body?.production_draft) return generateProductionDraftVideo(req, res, shotId, true);
     const ctx = loadShotContext(shotId);
     if (!ctx) return json(res, 404, { error: 'Shot not found' });
     ctx.useDialogueAudio = wantsDialogueAudio(req.body);
@@ -800,6 +813,8 @@ async function generateVideoStream(req, res, shotId) {
                     assetId, scene.project_id, shotId, filename, clipVersion,
                     videoProvider.id, resultModel(data, payload), resultJobId(data), JSON.stringify(consistencyContext.input_refs || [])
                 );
+                const reviewId = require('../lib/production-draft-request').resultReviewId(data);
+                if (reviewId) db.prepare('UPDATE film_assets SET metadata=? WHERE id=?').run(JSON.stringify({final_request_review_id:reviewId}),assetId);
                 recordConsistencyCheck(shot, scene, { id: scene.project_id }, {
                     context: consistencyContext,
                     output_asset_id: assetId,
@@ -842,7 +857,28 @@ async function generateVideoStream(req, res, shotId) {
 
 // -- Batch Video Generation ----------------------------------------------
 
-async function batchVideoStream(req, res, projectId, query) {
+async function generateProductionDraftVideo(req, res, shotId, stream = false) {
+    const drafts = require('../lib/production-draft-request');
+    try {
+        const plan = await drafts.plannedDraft(db, shotId, req.body, 'video');
+        const approvals = require('../lib/final-request-review');
+        await approvals.preflightApprovals({ path: `/shots/${shotId}/video/generate${stream ? '/stream' : ''}`, body: req.body });
+        const delivery = drafts.deliveryOf(plan, 'video');
+        const result = await approvals.runWithApprovals(req.body.final_request_approvals, () => plan.generator.generate('video', plan.payload,
+            { timeout: 300000, jobMeta: { ...plan.provenance, production_delivery: delivery } }));
+        if (!result.ok) return json(res, result.pending ? 202 : result.status || 502, { error: result.error, job_id: result.job_id, pending: result.pending || false });
+        const filename = `production_${shotId}_${generateId()}.mp4`;
+        const filePath = await persistProviderMedia(plan.owner.project_id, 'video', filename, result.data || result, { serveDir: 'videos', keepAudio: true });
+        const filed = drafts.fileProductionDraftVideo(db, { delivery, result, filePath, provider: result.provider, model: result.provider_model, jobId: result.job_id });
+        if (!stream) return json(res, 200, { ...filed, status: 'complete' });
+        res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', Connection: 'keep-alive' });
+        res.end(`data: ${JSON.stringify({ type: 'result', ...filed })}\n\ndata: ${JSON.stringify({ type: 'done' })}\n\n`);
+    } catch (err) { return json(res, err.status || 502, { error: err.message }); }
+}
+
+async function batchVideoStream(req, res, projectId, query, cap) {
+    const previewOnly = !!cap?.preview;
+    const preparedItems = [];
     const project = db.prepare('SELECT * FROM film_projects WHERE id = ?').get(projectId);
     if (!project) return json(res, 404, { error: 'Project not found' });
     const videoProvider = resolve('video',
@@ -882,6 +918,7 @@ async function batchVideoStream(req, res, projectId, query) {
         ctx.overrides = { seed: consistencyContext.locked_seed };
         const payload = buildCapabilityPayload('video', ctx).payload;
 
+        if(previewOnly) { const normalized=await videoProvider.generate('video',payload,{previewRequest:true}); if(!normalized?.preview)throw new Error(normalized?.error||'Video provider did not stop at preview'); preparedItems.push({provider:videoProvider.id,capability:'video',payload:normalized.payload,provenance:{project_id:projectId,shot_id:shot.shot_id}}); continue; }
         try {
             const result = await videoProvider.generate('video', payload, { timeout: 300000 });
             if (!result.ok) throw new Error(result.error);
@@ -902,6 +939,8 @@ async function batchVideoStream(req, res, projectId, query) {
                 assetId, projectId, shot.shot_id, filePath, filename, clipVersion,
                 videoProvider.id, resultModel(result, payload), resultJobId(result), JSON.stringify(consistencyContext.input_refs || [])
             );
+            const reviewId = require('../lib/production-draft-request').resultReviewId(result);
+            if (reviewId) db.prepare('UPDATE film_assets SET metadata=? WHERE id=?').run(JSON.stringify({final_request_review_id:reviewId}),assetId);
             recordConsistencyCheck(
                 { ...shot, id: shot.shot_id },
                 { ...shot, id: shot.scene_id, project_id: projectId, location: shot.location },
@@ -917,6 +956,7 @@ async function batchVideoStream(req, res, projectId, query) {
         }
     }
 
+    if(previewOnly) return {items:preparedItems};
     sendEvent({ type: 'result', project_id: projectId, shots_completed: completed, shots_failed: failed, held });
     sendEvent({ type: 'done' });
     res.end();
@@ -1196,4 +1236,11 @@ async function stitchVideo(req, res, shotId) {
     }
 }
 
-module.exports = { handleVideoGen, applyTier, videoPinFor };
+async function realBatchVideoRequests(projectId, body) {
+ let status=200,sent;const fake={writableEnded:false,writeHead(code){status=code;},on(){},write(){},end(b){try{sent=JSON.parse(b);}catch(_){} }};
+ const result=await batchVideoStream({body:body||{}},fake,projectId,{}, {preview:true});
+ if(result?.items?.length)return result;
+ throw Object.assign(new Error(sent?.error||'No eligible video requests'),{status:status>=400?status:409});
+}
+
+module.exports = { handleVideoGen, applyTier, videoPinFor, buildVideoGenerationPlan, realBatchVideoRequests };

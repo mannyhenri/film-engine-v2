@@ -28,7 +28,18 @@ process.env.FILM_DATA_DIR = process.env.FILM_DATA_DIR
 const { db, generateId } = require('../db/database');
 require('../db/schema').ensureSchema();
 const providers = require('../lib/providers');
-const { handleStoryboard } = require('../routes/storyboard');
+const { handleStoryboard, realRecomposeRequest } = require('../routes/storyboard');
+const finalAdapter = require('../lib/final-provider-request');
+const reviewApi = require('../lib/final-request-review');
+const originalResolve = finalAdapter.resolveFinalRequest, originalVersion = finalAdapter.adapterVersion;
+// A test adapter resolves an explicit frozen request; production adapters remain untouched.
+finalAdapter.adapterVersion = id => id === 'capture' ? 'fixture-capture-1' : originalVersion(id);
+finalAdapter.resolveFinalRequest = async (provider, capability, payload) => provider !== 'capture'
+    ? originalResolve(provider, capability, payload)
+    : { provider, capability, method: 'POST', endpoint: 'https://mock.invalid/capture', model: 'capture-1',
+        adapterVersion: 'fixture-capture-1', body: JSON.parse(JSON.stringify(payload)),
+        references: (payload.reference_images || []).map((ref, index) => ({index, data:ref.uri, role:ref.tag || 'reference'})) };
+test.after(() => { finalAdapter.resolveFinalRequest = originalResolve; finalAdapter.adapterVersion = originalVersion; });
 
 const PNG = Buffer.from(
     'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
@@ -45,14 +56,35 @@ providers.register({
     maxReferenceImages: 5,
     promptLimit: 4000,
     supports(cap) { return cap === 'image'; },
-    async generate(capability, payload) {
-        CAPTURED.push(payload);
-        return { ok: true, data: PNG, model: 'capture-1' };
+    async generate(capability, payload, opts) {
+        const claim = await reviewApi.store().claim(opts.finalRequest, 'capture', capability);
+        assert.ok(!claim.replay, 'an approved request was replayed');
+        return finalAdapter.finishGeneration(opts, async () => {
+            CAPTURED.push(claim.snapshot.body);
+            return { ok: true, data: PNG, model: 'capture-1' };
+        });
     },
 });
 
-function call(method, urlPath, body) {
-    return new Promise(resolve => {
+async function call(method, urlPath, body) {
+    let approvals = [];
+    const match = /^\/film\/shots\/([^/]+)\/storyboard\/recompose$/.exec(urlPath);
+    if (method === 'POST' && match) {
+        try {
+            const result = await realRecomposeRequest(match[1], body || {});
+            if (!result.preview) throw new Error(result.error);
+            const plan = result.preview;
+            const shot = db.prepare('SELECT scene_id FROM film_shots WHERE id=?').get(match[1]);
+            const project = db.prepare('SELECT project_id FROM film_scenes WHERE id=?').get(shot.scene_id);
+            const review = await reviewApi.store().preview({provider:plan.provider, capability:'image', payload:plan.payload,
+                provenance:{project_id:project.project_id,shot_id:match[1],source_paths:plan.payload.reference_images.map(r=>r.file_path).filter(Boolean)}});
+            approvals = [reviewApi.store().approve(review.id,{fingerprint:review.fingerprint,human_confirmed:true,cost_unknown_ack:true})];
+        } catch (error) {
+            // Source validation failures must still exercise the real route without spending.
+            if (!/version|location|plate|background|source|lost|overwritten|not found/i.test(error.message)) throw error;
+        }
+    }
+    return reviewApi.runWithApprovals(approvals, () => new Promise(resolve => {
         const [p, qs] = urlPath.split('?');
         const parts = p.split('/').filter(Boolean);
         const query = {};
@@ -72,7 +104,7 @@ function call(method, urlPath, body) {
         });
         Promise.resolve(handleStoryboard({ method, body: body || {} }, res, parts, query))
             .catch(err => resolve({ status: 500, body: { error: err.message } }));
-    });
+    }));
 }
 
 /** A shot with two kept versions, and a location with two views. */

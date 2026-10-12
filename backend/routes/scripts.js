@@ -51,6 +51,22 @@ function handleScripts(req, res, urlParts, query) {
         return;
     }
 
+    // Independent review metadata, including forced screenplay headings.
+    if (sub === 'script' && versionOrKeyword === 'cards') {
+        const { readCards, writeCard } = require('../lib/screenplay-cards');
+        try {
+            let result;
+            if (req.method === 'GET') result = readCards(db, projectId, query.version);
+            else if (req.method === 'PUT') result = writeCard(db, projectId, req.body || {});
+            else { res.writeHead(405); return res.end(); }
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            return res.end(JSON.stringify(result));
+        } catch (err) {
+            res.writeHead(err.status || 500, { 'Content-Type': 'application/json' });
+            return res.end(JSON.stringify({ error: err.message }));
+        }
+    }
+
     // FILM-121: GET /film/projects/:id/screenplay/suggestions
     if (req.method === 'GET' && sub === 'screenplay' && versionOrKeyword === 'suggestions') {
         return getScreenplaySuggestions(req, res, projectId);

@@ -6,6 +6,7 @@
  * the code that runs (tools/tests/engine-verbatim.test.js). Do not reformat it; change it as code, with its tests.
  * Core is reached through the bridge below by the same names (tools/tests/engine-bridge.test.js).
  */
+import { previzWorkspace } from '../../lib/previz-workspace.js';
 import { legacy, setLegacy } from '../../lib/legacy.js';
 
 // Core's functions, each called through the bridge by its own name. One destructuring statement on purpose:
@@ -86,7 +87,8 @@ const { AI_PATH, WALK, WORLD, state } = Object.fromEntries(['AI_PATH', 'WALK', '
         if (WORLD.scout && (WORLD.scoutable || []).some(w => w.world.id === WORLD.scout.worldId)) {
             return worldScoutSelect(WORLD.scout.worldId);
         }
-        const pick = WORLD.shotId && shots.some(s => s.id === WORLD.shotId) ? WORLD.shotId : (shots[0] && shots[0].id);
+        const pick = WORLD.shotId && shots.some(s => s.id === WORLD.shotId) ? WORLD.shotId : null;
+        if ((WORLD.scoutable || []).length) return worldScoutSelect(WORLD.scoutable[0].world.id);
         if (pick) await worldRailSelect(pick);
         // No shot yet, but a location has a set (a phone scan, a Blender
         // build): open it to walk, rather than a console with nothing in it.
@@ -643,6 +645,7 @@ const { AI_PATH, WALK, WORLD, state } = Object.fromEntries(['AI_PATH', 'WALK', '
 
     /** FREE. The categories and the facts, from the engine. */
     async function worldExploreBrief() {
+        if (WORLD.scout) return previzWorkspace.explore('brief');
         const out = document.getElementById('weExploreOut');
         const shotId = WORLD.shotId;
         if (!shotId) { if (out) out.innerHTML = '<p class="we-hint">Open a shot first.</p>'; return; }
@@ -671,6 +674,7 @@ const { AI_PATH, WALK, WORLD, state } = Object.fromEntries(['AI_PATH', 'WALK', '
 
     /** The ROUTE decides which can be shot. The page filters nothing. */
     async function worldExploreAccept() {
+        if (WORLD.scout) return previzWorkspace.explore('accept');
         const shotId = WORLD.shotId;
         const out = document.getElementById('weExploreOut');
         if (!shotId) return;
@@ -704,6 +708,7 @@ const { AI_PATH, WALK, WORLD, state } = Object.fromEntries(['AI_PATH', 'WALK', '
      * design asks for and what makes trying six angles cheap.
      */
     async function worldExploreLoad(key) {
+        if (WORLD.scout) return previzWorkspace.loadExplore(key);
         const got = EXPLORE.accepted.find(a => a.key === key);
         const out = document.getElementById('weExploreOut');
         if (!got) { if (out) out.innerHTML = '<p class="we-hint">That camera has not been checked yet.</p>'; return; }
@@ -743,6 +748,7 @@ const { AI_PATH, WALK, WORLD, state } = Object.fromEntries(['AI_PATH', 'WALK', '
 
     /** The comparison is the ENGINE's, never the page's arithmetic. */
     async function worldExploreCompare() {
+        if (WORLD.scout) return previzWorkspace.explore('compare');
         const [ka, kb] = EXPLORE.picks;
         const a = EXPLORE.accepted.find(x => x.key === ka);
         const b = EXPLORE.accepted.find(x => x.key === kb);
@@ -807,21 +813,7 @@ const { AI_PATH, WALK, WORLD, state } = Object.fromEntries(['AI_PATH', 'WALK', '
 
     /* ── Left rail: the project's shots ──────────────────────────────────── */
     function worldRailHtml() {
-        const shots = WORLD.shots || [];
-        const rows = shots.map(sh => `
-                <button class="we-shot${sh.id === WORLD.shotId ? ' active' : ''}"
-                        onclick="worldRailSelect('${sh.id}')">
-                  <span class="we-shot-id">${esc(sh.shot_code || '')}</span>
-                  <span class="we-shot-name">${esc(sh.location || sh.description || '')}</span>
-                </button>`).join('');
-        return `
-            <div class="we-panel we-rail-panel" data-region="left-rail">
-              <div class="we-label">SHOTS</div>
-              ${shots.length ? `<div class="we-shots">${rows}</div>`
-                : '<p class="we-hint">No shots in this project yet — break the screenplay down first.</p>'}
-              ${shots.length ? `<div class="we-rail-foot">${shots.length} SHOT(S)${
-                  WORLD.world ? ' · ONE WORLD' : ''}</div>` : ''}
-            </div>`;
+        return previzWorkspace.railHtml();
     }
 
     /** The project's shots, once. */
@@ -1207,6 +1199,7 @@ const { AI_PATH, WALK, WORLD, state } = Object.fromEntries(['AI_PATH', 'WALK', '
     }
 
     async function worldLightSet(change) {
+        if (WORLD.scout) return previzWorkspace.light(change);
         const shotId = WORLD.shotId, selection = WORLD.selectionRevision;
         if (!WORLD.shotId) return;
         const lit = (WORLD.blocking && WORLD.blocking.lighting) || {};
@@ -1222,10 +1215,10 @@ const { AI_PATH, WALK, WORLD, state } = Object.fromEntries(['AI_PATH', 'WALK', '
                 body: JSON.stringify({ lighting: next }) });
         } catch (err) { return setStatus('Lighting not saved: ' + err.message, true); }
         if (WORLD.shotId === shotId && WORLD.selectionRevision === selection) await worldRefreshBlocking(shotId, selection);
-        worldMeshRenderOnce();
+        worldMeshRequestRender();
     }
 
-    function worldLightShow() { WORLD.showLights = WORLD.showLights === false; worldConsoleRender(); worldMeshRenderOnce(); worldPaintFrame(); }
+    function worldLightShow() { WORLD.showLights = WORLD.showLights === false; worldConsoleRender(); worldMeshRequestRender(); worldPaintFrame(); }
 
     function worldOperateHtml() {
         /*
@@ -1270,6 +1263,11 @@ const { AI_PATH, WALK, WORLD, state } = Object.fromEntries(['AI_PATH', 'WALK', '
 
     /** A nudge is a PROPOSAL, validated like every other camera change. */
     async function worldNudge(field, amount) {
+        if (WORLD.scout) {
+            const axis = { dollyM: ['distance', -1], truckM: ['side', 1], pedestalM: ['height', 1], panDeg: ['pan', 1], tiltDeg: ['tilt', 1], rollDeg: ['roll', 1] }[field];
+            if (axis) { worldOperateApply(axis[0], amount * axis[1]); previzWorkspace.changed(); }
+            return;
+        }
         const shotId = WORLD.shotId, selection = WORLD.selectionRevision;
         if (!WORLD.shotId) return;
         const axis = OPERATE_AXES.find(a => a.field === field);
@@ -1508,7 +1506,7 @@ const { AI_PATH, WALK, WORLD, state } = Object.fromEntries(['AI_PATH', 'WALK', '
     const PV_TABS = Object.freeze([
         { id: 'camera',  label: 'Camera' },
         { id: 'light',   label: 'Light' },
-        { id: 'direct',  label: 'Direct' },
+        { id: 'direct',  label: 'Shot brief' },
         { id: 'explore', label: 'Explore' },
         { id: 'scene',   label: 'Scene' },
     ]);
@@ -1763,10 +1761,10 @@ const { AI_PATH, WALK, WORLD, state } = Object.fromEntries(['AI_PATH', 'WALK', '
         return `
         <div class="pv-console${WORLD.timelineOpen ? ' pv-timeline-open' : ''}">
           <header class="pv-topbar">
-            ${worldShotPickerHtml(shots)}
+            ${previzWorkspace.titleHtml()}
             <div class="pv-view-switch"><div class="pv-seg">${worldModeButtonsHtml()}</div>${worldLookAroundButtonHtml()}
               <button class="pv-btn pv-quiet" onclick="worldToggleOverlayMenu()">Overlays${pvIcon('chevron-down', 16)}</button></div>
-            <div class="pv-top-actions">${worldDecisionSummaryHtml()}${worldMoreMenuHtml()}</div>
+            <div class="pv-top-actions">${previzWorkspace.pickerHtml()}${worldMoreMenuHtml()}</div>
           </header>
           <div class="pv-grid">
             <div class="pv-stage">
@@ -1791,6 +1789,7 @@ const { AI_PATH, WALK, WORLD, state } = Object.fromEntries(['AI_PATH', 'WALK', '
                 <div class="we-ov-menu pv-ov-menu" id="weOverlayMenu" style="display:none;">${worldOverlayMenuHtml()}</div>
               </div>
               <div class="pv-move">${worldMoveDockHtml()}</div>
+              ${previzWorkspace.footerHtml()}
             </div>
             <aside class="pv-side pv-inspector">
               <div class="pv-tabs">${tabs}</div>
@@ -1820,7 +1819,7 @@ const { AI_PATH, WALK, WORLD, state } = Object.fromEntries(['AI_PATH', 'WALK', '
                       <button class="we-btn" onclick="worldScoreComplexity()">Score this shot — free</button>
                     </div>
                   </div>`)}
-                ${worldRegionOn('direct-the-shot') ? pane('direct', worldDirectPanelHtml()) : ''}
+                ${worldRegionOn('direct-the-shot') ? pane('direct', previzWorkspace.briefHtml()) : ''}
                 ${worldRegionOn('explore-shot') ? pane('explore', worldExplorePanelHtml()) : ''}
                 ${pane('scene', `
                   ${worldBlockingHtml()}
@@ -1872,12 +1871,12 @@ const { AI_PATH, WALK, WORLD, state } = Object.fromEntries(['AI_PATH', 'WALK', '
      * has no frame yet. Previs shows it as its own view, and over the set.
      */
     function worldBoardSrc() {
-        const k = WORLD.blocking && WORLD.blocking.keyframe;
-        return k && k.src ? legacy.API_BASE + k.src : null;
+        const k = WORLD.scout ? WORLD.targetFrame : WORLD.blocking && WORLD.blocking.keyframe;
+        return k && k.src ? mediaUrl(k.src) : null;
     }
 
     const SPLAT = { mod: null, loading: null, info: null, infoFor: null, canvas: null, renderer: null,
-        scene: null, camera: null, mesh: null, meshUrl: null, pano: null, panoUrl: null, running: false,
+        scene: null, camera: null, mesh: null, meshUrl: null, pano: null, panoUrl: null, running: false, infoLoading: null,
         error: null, look: { yaw: 0, pitch: 0 } };
 
     function worldViewMode() {
@@ -1903,9 +1902,9 @@ const { AI_PATH, WALK, WORLD, state } = Object.fromEntries(['AI_PATH', 'WALK', '
         if (!WORLD.version) shotOff = ' disabled title="This shot is not in a 3D set yet: build or scan the location, or pin the shot to a world"';
         const boardOff = worldBoardSrc() ? '' : ' disabled title="This shot has no storyboard frame yet"';
         return `<button class="pv-seg-btn${vm !== 'plan' && vm !== 'board' ? ' active' : ''}"${shotOff}
-                    onclick="worldSetViewMode('look')" title="The 3D previz set, from the shot's camera">Shot</button>
+                    onclick="worldSetViewMode('look')" title="The 3D previz set, from the shot's camera">3D view</button>
                 <button class="pv-seg-btn${vm === 'board' ? ' active' : ''}"${boardOff}
-                    onclick="worldSetViewMode('board')" title="The shot's storyboard frame">Board</button>
+                    onclick="worldSetViewMode('board')" title="The shot's storyboard frame">Current shot</button>
                 <button class="pv-seg-btn${vm === 'plan' ? ' active' : ''}"
                     onclick="worldSetViewMode('plan')">Plan</button>`;
     }
@@ -1919,20 +1918,56 @@ const { AI_PATH, WALK, WORLD, state } = Object.fromEntries(['AI_PATH', 'WALK', '
     }
 
     async function worldSetViewMode(id) {
+        const selection = WORLD.selectionRevision, versionId = WORLD.version?.id;
+        const request = WORLD.viewModeRevision = (WORLD.viewModeRevision || 0) + 1;
+        if (['plan', 'geo', 'depth'].includes(id)) await worldEnsureGeometry();
+        if (request !== WORLD.viewModeRevision || selection !== WORLD.selectionRevision || versionId !== WORLD.version?.id) return;
         WORLD.viewMode = id;
         SPLAT.look = { yaw: 0, pitch: 0 };
         worldConsoleRender();
+    }
+
+    /** Dense collider data is needed for explicit geometry views, not walking a textured set. */
+    async function worldEnsureGeometry() {
+        const versionId = WORLD.version?.id, selection = WORLD.selectionRevision;
+        if (!versionId || (WORLD.geometryFor === versionId && WORLD.geometry && WORLD.geometry.representation !== 'bounds-only')) return WORLD.geometry;
+        if (WORLD.geometryLoading?.versionId === versionId && WORLD.geometryLoading.selection === selection) return WORLD.geometryLoading.promise;
+        const promise = api(`/world-versions/${versionId}/geometry?budget=250000`).then(geometry => {
+            if (selection !== WORLD.selectionRevision || WORLD.version?.id !== versionId) return null;
+            WORLD.geometry = geometry; WORLD.geometryFor = versionId;
+            return geometry;
+        }).catch(err => {
+            if (selection === WORLD.selectionRevision && WORLD.version?.id === versionId) setStatus('Geometry view: ' + err.message, true);
+            return null;
+        }).finally(() => {
+            if (WORLD.geometryLoading?.promise === promise) WORLD.geometryLoading = null;
+        });
+        WORLD.geometryLoading = {versionId, selection, promise};
+        return promise;
     }
 
     /** What this version can draw — asked once per version, free. */
     async function worldSplatInfo() {
         const vid = WORLD.version && WORLD.version.id;
         if (!vid) return null;
+        const source = previzWorkspace.source;
+        if (source?.world_version_id === vid && source.mesh) {
+            SPLAT.infoLoading = null;
+            SPLAT.infoFor = vid;
+            SPLAT.info = {world_version_id:vid, mesh:source.mesh, enabled:true, splats:[], panorama:null,
+                scale_factor: Number(WORLD.version.scale_factor) || 1};
+            return SPLAT.info;
+        }
         if (SPLAT.infoFor === vid && SPLAT.info) return SPLAT.info;
-        SPLAT.infoFor = vid;
-        try { SPLAT.info = await api(`/world-versions/${vid}/splats`); }
-        catch (_) { SPLAT.info = { enabled: false, splats: [], panorama: null, scale_factor: 1 }; }
-        return SPLAT.info;
+        if (SPLAT.infoLoading?.version === vid) return SPLAT.infoLoading.promise;
+        SPLAT.infoFor = vid; SPLAT.info = null;
+        const promise = api(`/world-versions/${vid}/splats`).catch(() => ({ world_version_id: vid, enabled: false, splats: [], panorama: null, scale_factor: 1 })).then(info => {
+            if (WORLD.version?.id !== vid || SPLAT.infoFor !== vid || SPLAT.infoLoading?.promise !== promise) return null;
+            SPLAT.info = info;
+            return info;
+        });
+        SPLAT.infoLoading = { version: vid, promise };
+        return promise;
     }
 
     /*
@@ -2009,12 +2044,13 @@ const { AI_PATH, WALK, WORLD, state } = Object.fromEntries(['AI_PATH', 'WALK', '
 
     /** Show the Look or 360° view in the frame, or put it away. */
     async function worldSplatSync() {
-        const vm = worldViewMode();
+        const vm = worldViewMode(), versionId = WORLD.version?.id;
         const frame = document.getElementById('weFrame');
         if (vm !== 'look' && vm !== 'pano') worldMeshStop();
         if (!frame || (vm !== 'look' && vm !== 'pano')) return worldSplatStop();
         const info = await worldSplatInfo();
-        if (info && info.mesh) { worldSplatStop(); return worldMeshSync(vm, info); }
+        if (WORLD.version?.id !== versionId || worldViewMode() !== vm || document.getElementById('weFrame') !== frame) return;
+        if (info && info.mesh) { worldSplatStop(); return worldMeshSync(vm, info, versionId); }
         worldMeshStop();
         const note = document.getElementById('pvModeNote');
         if (!info || !info.enabled || (vm === 'look' && !info.splats.length)
@@ -2035,6 +2071,7 @@ const { AI_PATH, WALK, WORLD, state } = Object.fromEntries(['AI_PATH', 'WALK', '
             if (note) note.textContent = 'The splat renderer did not load: ' + err.message;
             return;
         }
+        if (WORLD.version?.id !== versionId || worldViewMode() !== vm || document.getElementById('weFrame') !== frame) return;
         const { THREE, SparkRenderer, SplatMesh } = mod;
         if (!SPLAT.renderer) {
             SPLAT.renderer = new THREE.WebGLRenderer({ canvas, antialias: false, preserveDrawingBuffer: true });
@@ -2129,7 +2166,7 @@ const { AI_PATH, WALK, WORLD, state } = Object.fromEntries(['AI_PATH', 'WALK', '
      * different three, and a GL context belongs to one renderer. Same pose as
      * the painter (worldCameraPose), so what you frame here is the shot.
      */
-    const MESHLOOK = { canvas: null, renderer: null, scene: null, camera: null, url: null, root: null, error: null };
+    const MESHLOOK = { canvas: null, renderer: null, scene: null, camera: null, url: null, root: null, error: null, versionId: null, loadingVersion: null, loadRevision: 0, worldSha256: null, loadController:null, renderFrame:null, width:null, height:null };
 
     /**
      * Blender exports its lights in physical units (a sun of strength 3 is
@@ -2154,6 +2191,28 @@ const { AI_PATH, WALK, WORLD, state } = Object.fromEntries(['AI_PATH', 'WALK', '
 
     function worldMeshStop() { if (MESHLOOK.canvas) MESHLOOK.canvas.style.display = 'none'; }
 
+    function worldMeshRelease() {
+        if (MESHLOOK.renderFrame != null) { window.cancelAnimationFrame(MESHLOOK.renderFrame); MESHLOOK.renderFrame = null; }
+        MESHLOOK.loadController?.abort(); MESHLOOK.loadController = null;
+        MESHLOOK.loadRevision++;
+        if (MESHLOOK.root) previzWorkspace.disposeModel(MESHLOOK.root);
+        MESHLOOK.root = null; MESHLOOK.url = null; MESHLOOK.loadingVersion = null;
+        MESHLOOK.versionId = null; MESHLOOK.worldSha256 = null;
+        const staged = MESHLOOK.scene?.getObjectByName('staged');
+        if (staged) MESHLOOK.scene.remove(staged);
+        for (const model of Object.values(STAGE.gltf || {})) Promise.resolve(model).then(root => previzWorkspace.disposeModel(root)).catch(() => {});
+        STAGE.gltf = {}; STAGE.lookSig = null;
+        worldMeshStop();
+    }
+
+    function worldMeshRequestRender() {
+        if (MESHLOOK.renderFrame != null) return;
+        MESHLOOK.renderFrame = window.requestAnimationFrame(() => {
+            MESHLOOK.renderFrame = null;
+            worldMeshRenderOnce();
+        });
+    }
+
     function worldMeshCanvas() {
         if (!MESHLOOK.canvas) {
             const c = document.createElement('canvas');
@@ -2168,7 +2227,7 @@ const { AI_PATH, WALK, WORLD, state } = Object.fromEntries(['AI_PATH', 'WALK', '
                 if (worldViewMode() === 'pano') {
                     SPLAT.look.yaw -= dx * 0.25;
                     SPLAT.look.pitch = Math.max(-80, Math.min(80, SPLAT.look.pitch + dy * 0.2));
-                    worldMeshRenderOnce();
+                    worldMeshRequestRender();
                 }
             });
             c.addEventListener('pointerup', () => { drag = null; });
@@ -2177,11 +2236,11 @@ const { AI_PATH, WALK, WORLD, state } = Object.fromEntries(['AI_PATH', 'WALK', '
         return MESHLOOK.canvas;
     }
 
-    async function worldMeshSync(vm, info) {
+    async function worldMeshSync(vm, info, versionId = WORLD.version?.id) {
         const frame = document.getElementById('weFrame');
         const note = document.getElementById('pvModeNote');
         const T = window.THREE;
-        if (!frame) return;
+        if (!frame || WORLD.version?.id !== versionId || info.world_version_id !== versionId) return;
         if (!T || !T.GLTFLoader) { if (note) note.textContent = 'The 3D renderer is not loaded on this page.'; return; }
         const canvas = worldMeshCanvas();
         if (canvas.parentElement !== frame) frame.insertBefore(canvas, frame.firstChild);
@@ -2190,6 +2249,8 @@ const { AI_PATH, WALK, WORLD, state } = Object.fromEntries(['AI_PATH', 'WALK', '
             MESHLOOK.renderer = new T.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true });
             MESHLOOK.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
             if (T.sRGBEncoding !== undefined) MESHLOOK.renderer.outputEncoding = T.sRGBEncoding;
+            MESHLOOK.renderer.toneMapping = T.ACESFilmicToneMapping;
+            MESHLOOK.renderer.toneMappingExposure = 1;
             MESHLOOK.scene = new T.Scene();
             MESHLOOK.scene.background = new T.Color(0x14161a);
             // A soft sky and one sun, so a scene exported without lights still
@@ -2213,16 +2274,25 @@ const { AI_PATH, WALK, WORLD, state } = Object.fromEntries(['AI_PATH', 'WALK', '
             MESHLOOK.scene.add(MESHLOOK.work);
         }
         const box = frame.getBoundingClientRect();
-        MESHLOOK.renderer.setSize(Math.max(2, Math.round(box.width)), Math.max(2, Math.round(box.height)), false);
-        MESHLOOK.camera.aspect = Math.max(0.1, box.width / Math.max(1, box.height));
-        if (MESHLOOK.url !== info.mesh.url) {
-            if (MESHLOOK.root) MESHLOOK.scene.remove(MESHLOOK.root);
-            MESHLOOK.root = null;
+        const width = Math.max(2, Math.round(box.width)), height = Math.max(2, Math.round(box.height));
+        if (MESHLOOK.width !== width || MESHLOOK.height !== height) {
+            MESHLOOK.renderer.setSize(width, height, false);
+            MESHLOOK.width = width; MESHLOOK.height = height;
+        }
+        // Use the actual raster dimensions so browser capture and native projection agree.
+        MESHLOOK.camera.aspect = canvas.width / canvas.height;
+        if (MESHLOOK.url !== info.mesh.url || MESHLOOK.loadingVersion !== versionId || MESHLOOK.expectedSha256 !== info.mesh.sha256) {
+            MESHLOOK.loadController?.abort();
+            if (MESHLOOK.root) previzWorkspace.disposeModel(MESHLOOK.root);
+            MESHLOOK.root = null; MESHLOOK.versionId = null; MESHLOOK.worldSha256 = null; MESHLOOK.loadingVersion = versionId;
+            const loadRevision = ++MESHLOOK.loadRevision;
             MESHLOOK.url = info.mesh.url;
+            MESHLOOK.expectedSha256 = info.mesh.sha256;
+            MESHLOOK.loadController = new AbortController();
             if (note) note.textContent = 'Loading the scene…';
-            new T.GLTFLoader().load(mediaUrl(info.mesh.url), gltf => {
-                if (MESHLOOK.url !== info.mesh.url) return;
-                MESHLOOK.root = gltf.scene;
+            previzWorkspace.loadModel(T,mediaUrl(info.mesh.url), {worldVersionId:versionId, expectedSha256:info.mesh.sha256, signal:MESHLOOK.loadController.signal}).then(root => {
+                if (MESHLOOK.loadRevision !== loadRevision || WORLD.version?.id !== versionId || MESHLOOK.url !== info.mesh.url) return previzWorkspace.disposeModel(root);
+                MESHLOOK.root = root; MESHLOOK.versionId = versionId; MESHLOOK.worldSha256 = root.userData.previz_asset_sha256; MESHLOOK.error = null;
                 // The same scale the painter applies on read (1 for a scene in metres).
                 MESHLOOK.root.scale.setScalar(info.scale_factor || 1);
                 MESHLOOK.scene.add(MESHLOOK.root);
@@ -2230,22 +2300,25 @@ const { AI_PATH, WALK, WORLD, state } = Object.fromEntries(['AI_PATH', 'WALK', '
                 STAGE.lookSig = null; stageSyncLook();
                 const n = document.getElementById('pvModeNote');
                 if (n) n.textContent = MESH_MODE_NOTES[worldViewMode()] || '';
-                worldMeshRenderOnce();
-            }, undefined, err => {
+                worldMeshRequestRender();
+            }).catch(err => {
+                if (MESHLOOK.loadRevision !== loadRevision || WORLD.version?.id !== versionId) return;
+                MESHLOOK.error = (err && err.message) || String(err);
                 const n = document.getElementById('pvModeNote');
                 if (n) n.textContent = 'The scene did not load: ' + ((err && err.message) || err);
             });
         } else if (note) note.textContent = MESH_MODE_NOTES[vm] || '';
         stageSyncLook();
-        worldMeshRenderOnce();
+        worldMeshRequestRender();
     }
 
     const MESH_MODE_NOTES = Object.freeze({
-        look: 'SCENE — BUILT IN BLENDER, IN METRES · THE SHOT REACHES THE FRAME AS WORDS, WITH THE LOCATION PLATE',
+        look: '3D SET PREVIEW · SAVE THIS CAMERA VIEW AS A NEW STORYBOARD VERSION',
         pano: '360° — DRAG TO LOOK AROUND FROM THE CAMERA · NOT THE SHOT',
     });
 
     function worldMeshRenderOnce() {
+        if (MESHLOOK.renderFrame != null) { window.cancelAnimationFrame(MESHLOOK.renderFrame); MESHLOOK.renderFrame = null; }
         if (!MESHLOOK.renderer || !document.getElementById('pvGLMesh')) return;
         const p = worldCameraPose();
         if (!p) return;
@@ -2370,8 +2443,8 @@ const { AI_PATH, WALK, WORLD, state } = Object.fromEntries(['AI_PATH', 'WALK', '
 
     function worldWalkRepaint() {
         WALK.moved = true;
+        previzWorkspace.changed();
         worldPaintFrame();
-        worldMeshRenderOnce();
         worldSplatRenderOnce();
         const bar = document.getElementById('weWalkBar');
         if (bar) bar.innerHTML = worldWalkBarHtml();
@@ -2451,6 +2524,9 @@ const { AI_PATH, WALK, WORLD, state } = Object.fromEntries(['AI_PATH', 'WALK', '
         const yaw = c.rotation[0] * Math.PI / 180;
         const fwd = [-Math.sin(yaw), -Math.cos(yaw)];
         const right = [Math.cos(yaw), -Math.sin(yaw)];
+        if (WORLD.scout && !upM && previzWorkspace.step(c, fwd[0] * fwdM + right[0] * rightM, fwd[1] * fwdM + right[1] * rightM, k)) {
+            previzWorkspace.changed(); return worldWalkRepaint();
+        }
         c.position[0] += (fwd[0] * fwdM + right[0] * rightM) / k;
         c.position[2] += (fwd[1] * fwdM + right[1] * rightM) / k;
         c.position[1] += upM / k;
@@ -2481,7 +2557,7 @@ const { AI_PATH, WALK, WORLD, state } = Object.fromEntries(['AI_PATH', 'WALK', '
         const at = c && k ? c.position.map(n => (n * k).toFixed(2)).join(' / ') + ' m' : '';
         if (WORLD.scout) {
             return `<span class="we-live">SCOUTING ${esc(WORLD.scout.name)} · W/S A/D R/F · arrows or drag to turn · Shift faster${at ? ' · ' + esc(at) : ''}</span>
-            <button class="pv-btn pv-primary" onclick="worldScoutMakeShot()">Make a shot from this camera</button>`;
+            <span class="pv-dim">Browser materials and work lights are approximate.</span>`;
         }
         return `<span class="we-live">WALK · W/S A/D R/F · arrows or drag to turn · Shift faster${at ? ' · ' + esc(at) : ''}</span>
             <button class="pv-btn pv-primary" onclick="worldWalkKeep()"${WALK.moved ? '' : ' disabled'}>Use this camera</button>
@@ -2494,6 +2570,7 @@ const { AI_PATH, WALK, WORLD, state } = Object.fromEntries(['AI_PATH', 'WALK', '
      * the camera from the saved blocking and validates it against the geometry.
      */
     async function worldWalkKeep() {
+        if (WORLD.scout) { WALK.moved = false; previzWorkspace.changed(); worldConsoleRender(); return; }
         const shotId = WORLD.shotId, selection = WORLD.selectionRevision;
         const c = worldWalkCamera();
         if (!c || !WALK.from || !WORLD.shotId) return;
@@ -2569,34 +2646,35 @@ const { AI_PATH, WALK, WORLD, state } = Object.fromEntries(['AI_PATH', 'WALK', '
     async function worldScoutSelect(worldId) {
         const s = (WORLD.scoutable || []).find(x => x.world.id === worldId);
         if (!s) return;
+        // A refresh of the selected set is not another camera selection.
+        if (WORLD.scout?.worldId === worldId && WORLD.scout.versionId === s.version.id && WORLD.version?.id === s.version.id) {
+            WORLD.world = s.world; WORLD.version = s.version;
+            if (!WORLD.scoutLoading && previzWorkspace.source?.world_version_id !== s.version.id) await previzWorkspace.opened({preserve:true});
+            return worldConsoleRender();
+        }
         const selection = WORLD.selectionRevision = (WORLD.selectionRevision || 0) + 1;
+        worldMeshRelease();
+        WORLD.scoutLoading = selection;
+        previzWorkspace.sourceGeneration++;
+        previzWorkspace.changed();
+        previzWorkspace.source = null; previzWorkspace.room = null;
+        if (!previzWorkspace.creation?.shot && !previzWorkspace.creation?.sending) previzWorkspace.creation = null;
         WORLD.shotId = null;
         WORLD.pin = null;
         WORLD.scout = { worldId, versionId: s.version.id, locationId: s.world.location_id || null, name: s.name };
         WORLD.world = s.world;
         WORLD.version = s.version;
         WORLD.blocking = { blocking: { camera: null, subjects: [] }, decisions: [], scout: true };
-        if (WORLD.geometryFor !== s.version.id) {
-            WORLD.geometry = null;
-            WORLD.geometryFor = s.version.id;
-            try {
-                const geometry = await api(`/world-versions/${s.version.id}/geometry?budget=250000`);
-                if (selection !== WORLD.selectionRevision) return;
-                WORLD.geometry = geometry;
-            }
-            catch (_) { if (selection !== WORLD.selectionRevision) return; WORLD.geometry = null; }
-        }
         WALK.on = true; WALK.moved = false;
         WALK.from = { position: [0, 0, 0], rotation: [0, 0, 0], saved: false };
-        const start = scoutStartCamera(WORLD.geometry);
-        if (start) {
-            // /geometry is already in metres; the stored camera is divided by the scale.
-            const k = Number(s.version.scale_factor) > 0 ? Number(s.version.scale_factor) : 1;
-            WORLD.blocking.blocking.camera = { position: start.position.map(n => n / k), rotation: start.rotation };
-        }
-        worldWalkCamera();
+        WORLD.geometry = null; WORLD.geometryFor = null;
+        await previzWorkspace.opened();
+        if (selection !== WORLD.selectionRevision) return;
+        if (['plan', 'geo', 'depth'].includes(worldViewMode())) await worldEnsureGeometry();
+        if (selection !== WORLD.selectionRevision) return;
+        WORLD.scoutLoading = null;
         worldConsoleRender();
-        setStatus(`Scouting ${s.name}: walk it with W/S/A/D or the mouse; "Make a shot from this camera" keeps a view.`);
+        if (previzWorkspace.source) setStatus(`Walk ${s.name} with W/S/A/D or the mouse. Choose a target shot, then review and save a draft.`);
     }
 
     /** The next free shot code in a scene: 1A, 1B, ... */
@@ -2621,34 +2699,7 @@ const { AI_PATH, WALK, WORLD, state } = Object.fromEntries(['AI_PATH', 'WALK', '
     }
 
     async function worldScoutMakeShot() {
-        const sc = WORLD.scout;
-        const c = worldWalkCamera();
-        if (!sc || !c || !state.currentProject) return;
-        let scenes = [];
-        try { scenes = ((await api(`/projects/${state.currentProject.id}/scenes`)) || {}).scenes || []; } catch (_) { scenes = []; }
-        const scene = scoutSceneFor(scenes, sc.name);
-        if (!scene) {
-            return setStatus(`No scene is set at ${sc.name} yet. Write one in the screenplay (a heading such as `
-                + `"INT. ${String(sc.name).toUpperCase()} - DAY"), and this camera can become its shot. You can keep walking meanwhile.`, true);
-        }
-        const taken = (WORLD.shots || []).filter(x => x.scene_id === scene.id).map(x => x.shot_code);
-        const code = scoutShotCode(scene.scene_number, taken);
-        try {
-            const made = await api('/shots', { method: 'POST', body: JSON.stringify({
-                scene_id: scene.id,
-                cards: [{ shot_code: code, description: `Chosen by walking the ${sc.name} set in Previs.` }],
-            }) });
-            const shot = made && made.shots && made.shots[0];
-            if (!shot) throw new Error('the shot was not created');
-            await api(`/shots/${shot.id}/world`, { method: 'POST', body: JSON.stringify({ world_version_id: sc.versionId }) });
-            await api(`/shots/${shot.id}/previs`, { method: 'PUT', body: JSON.stringify({
-                camera: { position: c.position.slice(), rotation: (c.rotation || [0, 0, 0]).slice(), focalMm: WORLD.lens || 35 },
-            }) });
-            WORLD.scout = null; WALK.on = false; WALK.from = null; WALK.moved = false;
-            await worldLoadShots(state.currentProject.id);
-            await worldRailSelect(shot.id);
-            setStatus(`Shot ${code} made from this camera, in scene ${scene.scene_number} at ${sc.name}. Apply it to the card when you are happy with it.`);
-        } catch (err) { setStatus('Could not make the shot: ' + err.message, true); }
+        return previzWorkspace.previzCreateTarget();
     }
 
     /*
@@ -2992,6 +3043,7 @@ const { AI_PATH, WALK, WORLD, state } = Object.fromEntries(['AI_PATH', 'WALK', '
 
     /** Save the whole list, a moment after the last change, touching nothing else. */
     function stageSave() {
+        if (WORLD.scout) { stageSyncLook(); previzWorkspace.changed(); return; }
         clearTimeout(STAGE.timer);
         stageSyncLook();
         STAGE.timer = setTimeout(async () => {
@@ -3005,7 +3057,7 @@ const { AI_PATH, WALK, WORLD, state } = Object.fromEntries(['AI_PATH', 'WALK', '
                 // The lighting rig is placed on the framing subject: re-read it, repaint without a re-render.
                 try {
                     const g = await api(`/shots/${WORLD.shotId}/previs`);
-                    if (g && g.lighting) { WORLD.blocking.lighting = g.lighting; worldPaintFrame(); worldMeshRenderOnce(); }
+                    if (g && g.lighting) { WORLD.blocking.lighting = g.lighting; worldPaintFrame(); worldMeshRequestRender(); }
                 } catch (_) { /* the rig catches up on the next load */ }
             } catch (err) { setStatus('Staging not saved: ' + err.message, true); }
         }, 350);
@@ -3129,7 +3181,7 @@ const { AI_PATH, WALK, WORLD, state } = Object.fromEntries(['AI_PATH', 'WALK', '
 
     async function setEditRebuild() {
         if (!SETEDIT.build || SETEDIT.busy) return;
-        const shotId = WORLD.shotId, selection = WORLD.selectionRevision, projectId = state.currentProject.id, scoutId = WORLD.scout && WORLD.scout.worldId, buildId = SETEDIT.build.id;
+        const shotId = WORLD.scout ? null : WORLD.shotId, selection = WORLD.selectionRevision, projectId = state.currentProject.id, scoutId = WORLD.scout && WORLD.scout.worldId, buildId = SETEDIT.build.id;
         SETEDIT.busy = true; stageRenderBar();
         setStatus('Rebuilding the set in Blender — about half a minute, free…', true);
         try {
@@ -3266,6 +3318,7 @@ const { AI_PATH, WALK, WORLD, state } = Object.fromEntries(['AI_PATH', 'WALK', '
             holder.position.set(su.position[0] * f, (su.position[1] || 0) * f, su.position[2] * f);
             holder.rotation.y = stageYaw(su);
             holder.userData.si = si;
+            holder.userData.previz_asset_sha256 = obj.userData.previz_asset_sha256;
             group.add(holder);
             stageLookPose();
         };
@@ -3278,14 +3331,14 @@ const { AI_PATH, WALK, WORLD, state } = Object.fromEntries(['AI_PATH', 'WALK', '
                 return;
             }
             const url = mediaUrl(m.library ? `/film/previs-library/${m.library}/file` : `/film/models/${m.asset_id}/file`);
-            if (!STAGE.gltf[url]) STAGE.gltf[url] = new Promise((res, rej) => new T.GLTFLoader().load(url, g => res(g.scene), undefined, rej));
+            if (!STAGE.gltf[url]) STAGE.gltf[url] = previzWorkspace.loadModel(T, url, {batch:false});
             STAGE.gltf[url].then(scene => {
                 if (STAGE.lookSig !== sig) return;
                 place(scene.clone(true), su, si);
-                worldMeshRenderOnce();
-            }).catch(() => { /* a model that will not load is simply not drawn */ });
+                worldMeshRequestRender();
+            }).catch(() => { delete STAGE.gltf[url]; /* capture refuses a subject that is not drawn */ });
         });
-        worldMeshRenderOnce();
+        worldMeshRequestRender();
     }
 
     /* ── A SUBJECT THAT MOVES, AND THE FLOORS OF A HOUSE ─────────────────────
@@ -3387,7 +3440,7 @@ const { AI_PATH, WALK, WORLD, state } = Object.fromEntries(['AI_PATH', 'WALK', '
         path = path.filter(k => Math.abs(k.t - t) > 20).concat([key]).sort((a, b) => a.t - b.t);
         su.path = path;
         STAGE.pending = null; STAGE.keySel = path.indexOf(key);
-        stageSave(); stageRenderBar(); worldPaintFrame(); stageLookPose(); worldMeshRenderOnce();
+        stageSave(); stageRenderBar(); worldPaintFrame(); stageLookPose(); worldMeshRequestRender();
         setStatus(`${su.name || 'Subject'}: key ${STAGE.keySel + 1} of ${path.length} at ${(t / 1000).toFixed(2)}s — scrub, drag her, and add the next`);
     }
 
@@ -3397,7 +3450,7 @@ const { AI_PATH, WALK, WORLD, state } = Object.fromEntries(['AI_PATH', 'WALK', '
         su.path.splice(STAGE.keySel, 1);
         if (!su.path.length) delete su.path;
         STAGE.keySel = null;
-        stageSave(); stageRenderBar(); worldPaintFrame(); stageLookPose(); worldMeshRenderOnce();
+        stageSave(); stageRenderBar(); worldPaintFrame(); stageLookPose(); worldMeshRequestRender();
     }
 
     function stageClearPath() {
@@ -3407,7 +3460,7 @@ const { AI_PATH, WALK, WORLD, state } = Object.fromEntries(['AI_PATH', 'WALK', '
         const shown = stageShownSubject(su, i);
         su.position = shown.position.slice(); su.rotationDeg = (shown.rotationDeg || [0, 0, 0]).slice();
         delete su.path; STAGE.keySel = null; STAGE.pending = null;
-        stageSave(); stageRenderBar(); worldPaintFrame(); stageLookPose(); worldMeshRenderOnce();
+        stageSave(); stageRenderBar(); worldPaintFrame(); stageLookPose(); worldMeshRequestRender();
     }
 
     /**
@@ -3417,11 +3470,15 @@ const { AI_PATH, WALK, WORLD, state } = Object.fromEntries(['AI_PATH', 'WALK', '
      */
     async function stageFollow() {
         const i = STAGE.sel, su = stageSubjects()[i];
-        if (!su || !WORLD.shotId) return;
+        if (!su || (!WORLD.scout && !WORLD.shotId)) return;
         if (!stageHasPath(su) || su.path.length < 2) return setStatus('Give her a path first: two keys at least', true);
         const num = (id, d) => { const v = Number((document.getElementById(id) || {}).value); return Number.isFinite(v) && v > 0 ? v : d; };
         if ((WORLD.keys || []).length && !confirm('Replace this shot\'s camera keys with a follow?')) return;
         try {
+            if (WORLD.scout) {
+                await previzWorkspace.follow(su,num('pvFollowDist',2.5),num('pvFollowHeight',1.6));
+                return setStatus('The workspace camera follows the local subject path.');
+            }
             const out = await api(`/shots/${WORLD.shotId}/previs/timeline`, { method: 'PUT',
                 body: JSON.stringify({ follow: { subject: i, distance_m: num('pvFollowDist', 2.5), height_m: num('pvFollowHeight', 1.6) } }) });
             if (out && out.blocking) {
@@ -3829,32 +3886,13 @@ const { AI_PATH, WALK, WORLD, state } = Object.fromEntries(['AI_PATH', 'WALK', '
         }
         const shots = WORLD.shots || [];
         const scout = WORLD.scoutable || [];
-        const sig = shots.map(s => s.id).join(',') + '|' + WORLD.shotId + '|'
+        const sig = previzWorkspace.revision + '|' + previzWorkspace.railRevision + '|' + previzWorkspace.source?.world_sha256 + '|' + (previzWorkspace.source?.rooms?.length || 0) + '|' + shots.map(s => s.id).join(',') + '|' + WORLD.shotId + '|'
             + scout.map(x => x.world.id).join(',') + '|' + (WORLD.scout ? WORLD.scout.worldId : '')
             + '|' + !!WORLD.showArchived + '|' + (WORLD.archived || []).map(w => w.id).join(',');
         if (box.dataset.sig === sig) return;
         box.dataset.sig = sig;
-        box.innerHTML = `${scout.length ? `
-            <div class="nav-group-label"><span>Locations · walk the set</span><span class="nav-group-count">${scout.length}</span></div>
-            <div class="fe-panel-shotlist">${scout.map(x => `
-              <button class="pv-shot${WORLD.scout && WORLD.scout.worldId === x.world.id ? ' active' : ''}" onclick="worldScoutSelect('${x.world.id}')"
-                      title="Walk this location's set with a free camera; make a shot from any view">
-                <span class="pv-shot-id">SET</span>
-                <span class="pv-shot-loc">${esc(x.name)} · v${esc(String(x.version.version || 1))}</span>
-              </button>`).join('')}
-            </div>` : ''}
-            <div class="nav-group-label"><button class="btn btn-secondary btn-sm" onclick="worldToggleArchived()">${WORLD.showArchived ? 'Hide archived sets' : 'Archived sets'}</button></div>
-            ${WORLD.showArchived ? `<div class="fe-panel-shotlist">${(WORLD.archived || []).length ? WORLD.archived.map(w => `
-                <div class="pv-shot"><span class="pv-shot-loc">${esc(w.name)}</span>
-                <button class="btn btn-secondary btn-sm" onclick="worldRestoreArchived('${w.id}')">Restore</button></div>`).join('')
-                : '<p class="text-sm text-muted">No archived sets.</p>'}</div>` : ''}
-            <div class="nav-group-label"><span>Shots</span><span class="nav-group-count">${shots.length}</span></div>
-            <div class="fe-panel-shotlist">${shots.length ? shots.map(sh => `
-              <button class="pv-shot${sh.id === WORLD.shotId ? ' active' : ''}" onclick="worldRailSelect('${sh.id}')">
-                <span class="pv-shot-id">${esc(sh.shot_code || '')}</span>
-                <span class="pv-shot-loc">${esc(sh.location || sh.description || '')}</span>
-              </button>`).join('') : '<p class="pv-dim" style="padding:6px 10px;">No shots yet — break the screenplay down first.</p>'}
-            </div>`;
+        box.innerHTML = previzWorkspace.railHtml();
+
     }
 
     /* ── Camera movement (phase 4) ────────────────────────────────────────
@@ -4064,7 +4102,7 @@ const { AI_PATH, WALK, WORLD, state } = Object.fromEntries(['AI_PATH', 'WALK', '
         stageLookPose();
         WORLD.previewT = worldPoseAtT(WORLD.t) ? WORLD.t : null;
         worldPaintFrame();
-        if (typeof worldMeshRenderOnce === 'function') worldMeshRenderOnce();
+        if (typeof worldMeshRenderOnce === 'function') worldMeshRequestRender();
         if (typeof worldSplatRenderOnce === 'function') worldSplatRenderOnce();
         worldDrawPath();
         const heads = document.querySelectorAll('.we-playhead');
@@ -4140,6 +4178,7 @@ const { AI_PATH, WALK, WORLD, state } = Object.fromEntries(['AI_PATH', 'WALK', '
      * and the video payload already read.
      */
     async function worldTimelineSave() {
+        if (WORLD.scout) { previzWorkspace.changed(); return; }
         if (!WORLD.shotId) return;
         try {
             // The timeline route replaces the move and nothing else. The whole
@@ -4492,8 +4531,9 @@ const { AI_PATH, WALK, WORLD, state } = Object.fromEntries(['AI_PATH', 'WALK', '
         const c = document.getElementById('weFrameCanvas');
         if (!c) return;
         const box = c.parentElement.getBoundingClientRect();
-        c.width = Math.max(1, Math.round(box.width));
-        c.height = Math.max(1, Math.round(box.height));
+        const width = Math.max(1, Math.round(box.width)), height = Math.max(1, Math.round(box.height));
+        if (c.width !== width) c.width = width;
+        if (c.height !== height) c.height = height;
         const ctx = c.getContext('2d');
         ctx.clearRect(0, 0, c.width, c.height);
         const viewMode = worldViewMode();
@@ -5020,6 +5060,9 @@ const { AI_PATH, WALK, WORLD, state } = Object.fromEntries(['AI_PATH', 'WALK', '
         if (!worldEngineOn()) return;
         const selection = selectionToken == null
             ? (WORLD.selectionRevision = (WORLD.selectionRevision || 0) + 1) : selectionToken;
+        worldMeshRelease();
+        previzWorkspace.sourceGeneration++;
+        previzWorkspace.source = null;
         WORLD.shotId = shotId || null;
         WORLD.world = null;
         WORLD.version = null;
@@ -5033,10 +5076,10 @@ const { AI_PATH, WALK, WORLD, state } = Object.fromEntries(['AI_PATH', 'WALK', '
             const pin = await api(`/shots/${shotId}/world`);
             if (!current()) return;
             if (pin && pin.world_version_id) {
-                const [w, vs, geometry] = await Promise.all([
+                const [w, vs, source] = await Promise.all([
                     api(`/worlds/${pin.world_id}`).catch(() => null),
                     api(`/worlds/${pin.world_id}/versions`).catch(() => null),
-                    api(`/world-versions/${pin.world_version_id}/geometry?budget=250000`).catch(() => null),
+                    api(`/previz-workspace/world/${pin.world_version_id}`).catch(() => null),
                 ]);
                 if (!current()) return;
                 WORLD.pin = pin;
@@ -5044,8 +5087,10 @@ const { AI_PATH, WALK, WORLD, state } = Object.fromEntries(['AI_PATH', 'WALK', '
                 WORLD.version = ((vs && vs.versions) || []).find(v => v.id === pin.world_version_id) || pin;
                 WORLD.version.newer_version = pin.newer_version;
                 WORLD.version.newer_version_id = pin.newer_version_id;
-                WORLD.geometry = geometry;
+                previzWorkspace.source = source;
+                WORLD.geometry = source?.geometry || null;
                 WORLD.geometryFor = pin.world_version_id;
+                if (['plan', 'geo', 'depth'].includes(worldViewMode())) await worldEnsureGeometry();
             }
         } catch (_) { /* A failed read leaves this shot empty, never on another shot's set. */ }
         if (current()) worldConsoleRender();
@@ -5488,6 +5533,7 @@ export {
     worldModeButtonsHtml,
     worldLookAroundButtonHtml,
     worldSetViewMode,
+    worldEnsureGeometry,
     worldSplatInfo,
     worldSplatModule,
     worldCameraPose,
@@ -5499,6 +5545,8 @@ export {
     MESHLOOK,
     meshLookLights,
     worldMeshStop,
+    worldMeshRelease,
+    worldMeshRequestRender,
     worldMeshCanvas,
     worldMeshSync,
     MESH_MODE_NOTES,

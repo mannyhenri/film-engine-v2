@@ -37,11 +37,7 @@
     // The brand library, beside it and for the same reason: a kit accumulates
     // across films rather than belonging to one.
     { id:'brand',     label:'Brand', icon:'M3 3h8l4 4v8H3V3Zm8 0v4h4' },
-    // The glossary had exactly one way in: the "Search anything" pill, which
-    // was not a search — it opened this. Removing the pill without replacing
-    // the entrance would have left the glossary in the build and unreachable,
-    // since the old sidebar that also links it is display:none in this layout.
-    { id:'glossary',  label:'Terms', icon:'M4 3h8a1 1 0 011 1v10a1 1 0 01-1 1H4V3Zm2.4 3.4h4.2M6.4 9h3' }
+    { id:'askai', label:'Ask AI', icon:'M3 3h12v9H8l-4 3v-3H3V3Zm3 3h6M6 9h4' }
   ];
 
   var phaseOf = {};
@@ -145,8 +141,19 @@
       b.dataset.rail = r.id;
       b.innerHTML = svg(r.icon) + '<span class="l">' + r.label + '</span>';
       b.onclick = function () {
-        if (r.id === 'guide') { if (window.openProductionGuide) window.openProductionGuide(); return; }
-        if (r.id === 'glossary') { if (window.showModal) window.showModal('glossaryModal'); return; }
+        if (r.id === 'guide') {
+          if (window.openProductionGuide) window.openProductionGuide();
+          var guide = document.querySelector('#productionGuideModal .guide-toolbar');
+          if (guide && !guide.querySelector('[data-guide-glossary]')) {
+            var terms = document.createElement('button');
+            terms.className = 'guide-tab'; terms.dataset.guideGlossary = 'true';
+            terms.textContent = 'Terminology glossary';
+            terms.onclick = function () { if (window.showModal) window.showModal('glossaryModal'); };
+            guide.appendChild(terms);
+          }
+          return;
+        }
+        if (r.id === 'askai') { if (window.__filmOpenAskAI) window.__filmOpenAskAI({currentTarget:b}); return; }
         var t = navBtn(r.id);
         if (t) t.click(); else if (window.navigateTo) window.navigateTo(r.id);
       };

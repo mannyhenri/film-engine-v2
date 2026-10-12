@@ -77,7 +77,12 @@ function recordEditableSource(db, versionId, blendPath, insp, projectId) {
  const stored = saveFile(projectId, 'worlds', `world_${versionId}.blend`, bytes);
  const source = {
   blend:{ path:stored, sha256:sha(bytes), bytes:bytes.length, original_name:path.basename(blendPath) },
-  linked_assets:[...(insp.libraries || []).map(l => ({ path:l.path, kind:'library', exists:l.exists !== false })), ...(insp.images || []).map(i => ({ path:i.path, kind:'image', exists:i.exists !== false }))],
+  linked_assets:[...(insp.libraries || []).map(l => ({ ...l, kind:'library' })), ...(insp.images || []).map(i => ({ ...i, kind:'image' }))].map(a => {
+   const resolved = a.resolved_path || path.resolve(path.dirname(blendPath), a.path.replace(/^\/\//, ''));
+   const readable = !a.packed && fs.existsSync(resolved);
+   return { path:a.path, resolved_path:resolved, kind:a.kind, source:a.source || null, packed:!!a.packed,
+    exists:a.packed || (a.exists !== false && readable), sha256:readable ? sha(fs.readFileSync(resolved)) : null };
+  }),
   units:insp.units || null, axes:insp.axes || null, renderer:insp.renderer || null, addons:insp.addons || [],
   transforms_hash:transformsHash(insp.objects), objects:(insp.objects || []).length,
  };

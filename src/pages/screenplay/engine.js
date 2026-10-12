@@ -521,6 +521,7 @@ const { AI_PATH, TYPEWRITER, state } = Object.fromEntries(['AI_PATH', 'TYPEWRITE
                 currentFountainContent = data.fountain_content;
                 currentScriptVersion = parseInt(ver); // FILM-104: Track version for auto-save
                 renderFountainToEditor(data.fountain_content);
+                if (currentViewMode === 'cards') renderIndexCards();
                 updateEditorStats();
                 updateSaveStatus('saved');
                 // FILM-129: Load revision info
@@ -544,6 +545,7 @@ const { AI_PATH, TYPEWRITER, state } = Object.fromEntries(['AI_PATH', 'TYPEWRITE
                 currentFountainContent = data.fountain_content;
                 currentScriptVersion = data.version; // FILM-104: Track version for auto-save
                 renderFountainToEditor(data.fountain_content);
+                if (currentViewMode === 'cards') renderIndexCards();
                 updateEditorStats(data.page_count, data.scene_count);
                 updateSaveStatus('saved');
                 setStatus(`Loaded v${data.version} — ${data.scene_count} scenes`);
@@ -1941,7 +1943,8 @@ const { AI_PATH, TYPEWRITER, state } = Object.fromEntries(['AI_PATH', 'TYPEWRITE
             // FILM-111: Ctrl/Cmd + Shift + A for AI chat
             if ((event.key === 'a' || event.key === 'A') && event.shiftKey) {
                 event.preventDefault();
-                toggleAIChat();
+                if (window.__filmOpenAIWorkspace) window.__filmOpenAIWorkspace();
+                else toggleAIChat();
                 return;
             }
 
@@ -2880,6 +2883,28 @@ const { AI_PATH, TYPEWRITER, state } = Object.fromEntries(['AI_PATH', 'TYPEWRITE
     let indexCardsData = [];
 
     let draggedCardIndex = null;
+    let screenplayCardsResponse = null;
+    let screenplayCardsRequest = 0;
+    let editingReviewCard = null;
+
+    function paintReviewCards() {
+        const grid = document.getElementById('indexCardsGrid');
+        const data = screenplayCardsResponse;
+        if (!data) return;
+        document.getElementById('indexCardsCoverage').textContent =
+            `${data.coverage.summarized}/${data.coverage.total} summaries · ${data.coverage.stale} need review`;
+        const scenes = parseSceneBlocks();
+        indexCardsData = scenes;
+        grid.innerHTML = data.cards.map((card, i) => `
+            <div class="index-card" data-index="${i}" onclick="openIndexCard(${i})" ondblclick="jumpToSceneFromCard(${i})">
+                <div class="index-card-header"><span class="index-card-number">Sc ${esc(card.number)}</span>
+                    ${card.stale ? '<span>Summary needs review</span>' : ''}</div>
+                <div class="index-card-heading">${esc(card.heading)}</div>
+                <div class="index-card-preview">${esc(card.summary || 'No summary yet.')}</div>
+                ${card.notes ? `<div class="index-card-preview"><strong>Your notes</strong><br>${esc(card.notes)}</div>` : ''}
+            </div>`).join('') || '<p>No scenes in this saved screenplay.</p>';
+        if (data.archived.length) grid.insertAdjacentHTML('beforeend', `<details><summary>${data.archived.length} retained cards from other scene revisions</summary>${data.archived.map(c=>`<p><strong>${esc(c.heading)}</strong></p><p>${esc(c.summary)}</p><p>${esc(c.notes)}</p>`).join('')}</details>`);
+    }
 
     /*
      * Four ways to look at the same screenplay.
@@ -2914,57 +2939,22 @@ const { AI_PATH, TYPEWRITER, state } = Object.fromEntries(['AI_PATH', 'TYPEWRITE
         if (show) show();
     }
 
-    function renderIndexCards() {
-        const editor = document.getElementById('screenplayEditor');
+    async function renderIndexCards() {
         const grid = document.getElementById('indexCardsGrid');
-        if (!editor || !grid) return;
-
-        // Parse scenes from editor
-        const scenes = parseSceneBlocks();
-        indexCardsData = scenes;
-
-        if (scenes.length === 0) {
-            grid.innerHTML = '<div class="empty-state"><h3>No scenes found</h3><p>Add scene headings (INT./EXT.) to your screenplay.</p></div>';
-            return;
+        if (!grid || !state.currentProject) return;
+        const request = ++screenplayCardsRequest;
+        screenplayCardsResponse = null;
+        const projectId = state.currentProject.id, version = currentScriptVersion;
+        if (editorDirty) { grid.innerHTML = '<p>Save screenplay edits in the Editor before reviewing cards.</p>'; return; }
+        grid.innerHTML = '<p>Loading scene summaries…</p>';
+        try {
+            const data = await api(`/projects/${projectId}/script/cards?version=${encodeURIComponent(version || '')}`);
+            if (request !== screenplayCardsRequest || state.currentProject?.id !== projectId || currentScriptVersion !== version) return;
+            screenplayCardsResponse = data;
+            paintReviewCards();
+        } catch (err) {
+            if (request === screenplayCardsRequest) grid.innerHTML = `<p role="alert">Cards unavailable: ${esc(err.message)}. The backend must load the scene-card update.</p>`;
         }
-
-        grid.innerHTML = scenes.map((scene, i) => {
-            // Match scene status from state.scenes if available
-            let status = 'pending';
-            if (state.scenes) {
-                const match = state.scenes.find(s =>
-                    s.location && scene.location &&
-                    s.location.toUpperCase() === scene.location.toUpperCase()
-                );
-                if (match) status = match.status || 'pending';
-            }
-
-            const charNames = scene.characters.slice(0, 3).join(', ');
-            const charMore = scene.characters.length > 3 ? ` +${scene.characters.length - 3}` : '';
-
-            return `
-                <div class="index-card"
-                     data-index="${i}"
-                     draggable="true"
-                     ondragstart="onCardDragStart(event, ${i})"
-                     ondragover="onCardDragOver(event)"
-                     ondragleave="onCardDragLeave(event)"
-                     ondrop="onCardDrop(event, ${i})"
-                     onclick="openIndexCard(${i})"
-                     ondblclick="jumpToSceneFromCard(${i})">
-                    <div class="index-card-header">
-                        <span class="index-card-number">Sc ${scene.num}</span>
-                        <span class="index-card-status ${status}" title="${status}"></span>
-                    </div>
-                    <div class="index-card-heading">${esc(scene.heading)}</div>
-                    <div class="index-card-preview">${esc(scene.preview)}</div>
-                    <div class="index-card-meta">
-                        ${charNames ? `<span class="index-card-meta-item">👤 ${esc(charNames)}${charMore}</span>` : ''}
-                        <span class="index-card-meta-item">📄 ~${scene.pageLength.toFixed(1)} pg</span>
-                    </div>
-                </div>
-            `;
-        }).join('');
     }
 
     /* ── the gutter: shot numbers and page eighths beside the script ──────
@@ -3300,34 +3290,19 @@ const { AI_PATH, TYPEWRITER, state } = Object.fromEntries(['AI_PATH', 'TYPEWRITE
 
     /* ── index cards you can actually work in ───────────────────────────── */
 
-    /**
-     * Open one card.
-     *
-     * The heading and the synopsis are written back into the SCREENPLAY, never
-     * into a store of their own: the cards are a view of the script, and a card
-     * holding its own text would be a second document that disagrees with the
-     * one being shot.
-     */
+    /** Open an independently saved summary and notes; the heading is read-only. */
     function openIndexCard(i) {
-        const scene = (indexCardsData || [])[i];
-        if (!scene) return;
+        const card = screenplayCardsResponse?.cards[i];
+        if (!card) return;
+        editingReviewCard = { ...card, projectId: state.currentProject.id,
+            version: screenplayCardsResponse.version, script_hash: screenplayCardsResponse.script_hash };
         document.getElementById('sceneCardIndex').value = String(i);
-        document.getElementById('sceneCardTitle').textContent = `Scene ${scene.num}`;
-        // Read from the DOM rather than the parsed card: the parse keeps the
-        // scene-number badge in its heading string, and this field is written
-        // straight back into the screenplay.
-        const block = sceneHeadingBlocks()[i];
-        document.getElementById('sceneCardHeading').value = block ? blockText(block) : (scene.heading || '');
-        /*
-         * The ACTION, read from the screenplay — never `scene.preview`.
-         *
-         * The card's preview is truncated for display. Loading it into a field
-         * that is written straight back replaces the scene's full action with
-         * an abbreviation of itself, silently, on save. Found by round-tripping
-         * a real scene in a browser: the first paragraph came back ending
-         * "...parked at the kerb, nos...".
-         */
-        document.getElementById('sceneCardSynopsis').value = sceneActionText(i);
+        document.getElementById('sceneCardTitle').textContent = `Scene ${card.number}`;
+        document.getElementById('sceneCardHeading').textContent = card.heading;
+        document.getElementById('sceneCardSynopsis').value = card.summary;
+        document.getElementById('sceneCardNotes').value = card.notes;
+        document.getElementById('sceneCardSave').disabled = false;
+        document.getElementById('sceneCardError').textContent = card.stale ? 'Scene text changed. Review the summary before saving.' : '';
         showModal('sceneCardModal');
     }
 
@@ -3431,93 +3406,91 @@ const { AI_PATH, TYPEWRITER, state } = Object.fromEntries(['AI_PATH', 'TYPEWRITE
         if (message) setStatus(message);
     }
 
-    function saveIndexCard() {
-        const i = Number(document.getElementById('sceneCardIndex').value);
-        const scene = (indexCardsData || [])[i];
-        const block = sceneHeadingBlocks()[i];
-        if (!scene || !block) return;
-
-        const heading = document.getElementById('sceneCardHeading').value.trim();
-        const synopsis = document.getElementById('sceneCardSynopsis').value.trim();
-        if (heading) setBlockText(block, heading.toUpperCase());
-
-        // Replace the action up to the NEXT heading, rather than the first
-        // paragraph only: a scene's action is however many paragraphs it has,
-        // and rewriting one would leave the rest describing the old version.
-        let node = nextEditorBlock(block);
-        const existing = [];
-        while (node && node.dataset && node.dataset.elementType !== 'scene-heading') {
-            if (node.dataset.elementType === 'action') existing.push(node);
-            node = nextEditorBlock(node);
-        }
-        /*
-         * Paragraphs in, paragraphs out.
-         *
-         * The field holds the scene's action separated by blank lines, so it is
-         * written back as that many blocks rather than one — collapsing a
-         * four-paragraph scene into a single block loses every beat break the
-         * writer put there, and the editor would render it as one wall.
-         */
-        const paras = synopsis.split(/\n\s*\n/).map(t => t.trim()).filter(Boolean);
-        let anchorEl = block;
-        paras.forEach(text => {
-            const reuse = existing.shift();
-            if (reuse) { setBlockText(reuse, text); anchorEl = reuse; }
-            else { const el = spBlock('action', text); anchorEl.after(el); anchorEl = el; }
-        });
-        existing.forEach(n => n.remove());
-
-        closeModal('sceneCardModal');
-        afterCardEdit(`Scene ${scene.num} updated`);
+    async function saveIndexCard() {
+        const card = editingReviewCard;
+        if (!card || card.projectId !== state.currentProject?.id) return;
+        const request = screenplayCardsRequest, version = currentScriptVersion;
+        const current = () => editingReviewCard === card && request === screenplayCardsRequest
+            && card.projectId === state.currentProject?.id && version === currentScriptVersion;
+        const button = document.getElementById('sceneCardSave');
+        button.disabled = true;
+        try {
+            const body = { id: card.id, version: card.version, script_hash: card.script_hash, revision: card.revision,
+                notes: document.getElementById('sceneCardNotes').value };
+            const summary = document.getElementById('sceneCardSynopsis').value;
+            // A notes-only edit must not declare a stale summary current.
+            if (summary !== card.summary || !card.stale) body.summary = summary;
+            const data = await api(`/projects/${card.projectId}/script/cards`, { method: 'PUT', body: JSON.stringify(body), refresh: false });
+            if (!current()) return;
+            screenplayCardsResponse = data;
+            editingReviewCard = null;
+            closeModal('sceneCardModal');
+            paintReviewCards();
+            setStatus('Scene summary and notes saved');
+        } catch (err) {
+            if (!current()) return;
+            document.getElementById('sceneCardError').textContent = err.message + ' Close and reopen cards to load the current version.';
+        } finally { if (editingReviewCard === card || !editingReviewCard) button.disabled = false; }
     }
 
-    function deleteIndexCard() {
-        const i = Number(document.getElementById('sceneCardIndex').value);
-        const block = sceneHeadingBlocks()[i];
-        const scene = (indexCardsData || [])[i];
-        if (!block) return;
-        /*
-         * Names what it does NOT do.
-         *
-         * Deleting a scene from the screenplay leaves the shots already broken
-         * down from it on the shot list — they are separate rows with their own
-         * generated frames, which cost money. Saying so is the difference
-         * between an informed edit and discovering the orphans later.
-         */
-        if (!confirm(`Delete scene ${scene ? scene.num : ''} and everything in it?\n\n`
-            + 'This edits the screenplay. Shots already broken down from this scene are NOT '
-            + 'deleted \u2014 they stay on the shot list until you remove them there.')) return;
-
-        let node = nextEditorBlock(block);
-        const doomed = [block];
-        while (node && node.dataset && node.dataset.elementType !== 'scene-heading') {
-            doomed.push(node);
-            node = nextEditorBlock(node);
-        }
-        doomed.forEach(n => n.remove());
-        closeModal('sceneCardModal');
-        afterCardEdit('Scene deleted from the screenplay');
-    }
+    function deleteIndexCard() { setStatus('Change screenplay scenes in the Editor; review cards only save summaries and notes.'); }
 
     /** A new scene, added at the end — where a writer adds the next one. */
-    function addIndexCard() {
-        document.getElementById('newSceneHeading').value = '';
-        document.getElementById('newSceneSynopsis').value = '';
-        showModal('newSceneCardModal');
+    function addIndexCard() { setStatus('Change screenplay scenes in the Editor; review cards only save summaries and notes.'); }
+
+    function createIndexCard() { setStatus('Change screenplay scenes in the Editor; review cards only save summaries and notes.'); }
+
+    function reviewCardsPrintHTML(data, title) {
+        // Fixed four-slot sheets; overflowing text is continued at the same
+        // readable size rather than clipped or silently shrunk.
+        return `<!doctype html><html><head><meta charset="utf-8"><title>${esc(title)} — Scene cards</title>
+        <style>
+          @page { size: landscape; margin: 12mm; }
+          * { box-sizing: border-box; }
+          body { margin:0; color:#111; background:#fff; font:12pt/1.35 Arial,sans-serif; }
+          .tools { padding:12px; }
+          .sheet { width:250mm; height:180mm; display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); grid-template-rows:repeat(2,minmax(0,1fr)); gap:6mm; break-after:page; margin:0 auto 10mm; }
+          .sheet:last-child { break-after:auto; }
+          .card { border:1px solid #555; padding:5mm; overflow:hidden; overflow-wrap:anywhere; }
+          h2 { font-size:12pt; margin:0 0 3mm; }
+          .label { font-size:10pt; margin-bottom:2mm; }
+          .prose { white-space:pre-wrap; margin:0; }
+          @media print { .tools { display:none; } .sheet { margin:0; } }
+        </style></head><body><div class="tools"><button onclick="window.print()">Print / Save PDF</button> Four cards per page · ${esc(title)} · v${data.version}</div>
+        <main id="sheets"></main>
+        <script>
+        const cards=${JSON.stringify(data.cards.map(c=>({number:c.number,heading:c.heading,summary:c.summary,notes:c.notes,stale:c.stale}))).replace(/</g,'\\u003c')};
+        let sheet;
+        function slot(card, continuation) {
+          if(!sheet || sheet.children.length===4) {sheet=document.createElement('section');sheet.className='sheet';document.getElementById('sheets').append(sheet);}
+          const el=document.createElement('article');el.className='card';sheet.append(el);
+          const label=document.createElement('div');label.className='label';label.textContent='Scene '+card.number+(continuation?' · continued':'')+(card.stale?' · summary needs review':'');el.append(label);
+          const heading=document.createElement('h2');heading.textContent=card.heading;el.append(heading);
+          const prose=document.createElement('p');prose.className='prose';el.append(prose);return {el,prose};
+        }
+        for(const card of cards) {
+          const text=(card.summary || 'No summary yet.')+(card.notes?'\\n\\nYour notes\\n'+card.notes:'');
+          let remaining=text, continuation=false;
+          while(remaining) {
+            const {el,prose}=slot(card,continuation);
+            prose.textContent=remaining;
+            if(el.scrollHeight<=el.clientHeight+1) break;
+            let low=0,high=remaining.length;
+            while(low<high) {const mid=Math.ceil((low+high)/2);prose.textContent=remaining.slice(0,mid);if(el.scrollHeight<=el.clientHeight+1)low=mid;else high=mid-1;}
+            if(low===0) { el.style.overflow='visible'; throw new Error('Heading too long for a card. Use a larger paper layout.'); }
+            const space=remaining.lastIndexOf(' ',low); const cut=space>low/2?space:low;
+            prose.textContent=remaining.slice(0,cut); remaining=remaining.slice(cut); continuation=true;
+          }
+        }
+        document.documentElement.dataset.cardsReady='true';
+        <\/script></body></html>`;
     }
-
-    function createIndexCard() {
-        const editor = document.getElementById('screenplayEditor');
-        if (!editor) return;
-        const heading = document.getElementById('newSceneHeading').value.trim();
-        if (!heading) { setStatus('A scene needs a heading'); return; }
-        const synopsis = document.getElementById('newSceneSynopsis').value.trim();
-
-        editor.appendChild(spBlock('scene-heading', heading.toUpperCase()));
-        if (synopsis) editor.appendChild(spBlock('action', synopsis));
-
-        closeModal('newSceneCardModal');
-        afterCardEdit('Scene added');
+    function printIndexCards() {
+        if (!screenplayCardsResponse) { setStatus('Load scene cards before printing'); return; }
+        const win = window.open('', '_blank');
+        if (!win) { setStatus('Allow pop-ups to open printable cards'); return; }
+        win.document.write(reviewCardsPrintHTML(screenplayCardsResponse, state.currentProject?.title || 'Screenplay'));
+        win.document.close();
     }
 
     function parseSceneBlocks() {
@@ -3600,29 +3573,9 @@ const { AI_PATH, TYPEWRITER, state } = Object.fromEntries(['AI_PATH', 'TYPEWRITE
         event.currentTarget.classList.remove('drop-target');
     }
 
-    function onCardDrop(event, targetIndex) {
+    function onCardDrop(event) {
         event.preventDefault();
-        event.currentTarget.classList.remove('drop-target');
-
-        const sourceIndex = draggedCardIndex;
-        if (sourceIndex === null || sourceIndex === targetIndex) {
-            draggedCardIndex = null;
-            return;
-        }
-
-        // Show confirmation
-        const sourceScene = indexCardsData[sourceIndex];
-        const targetScene = indexCardsData[targetIndex];
-        const direction = sourceIndex < targetIndex ? 'after' : 'before';
-
-        const confirmMsg = `Move Scene ${sourceScene.num} (${sourceScene.heading.slice(0,25)}...)\n${direction} Scene ${targetScene.num}?`;
-
-        if (confirm(confirmMsg)) {
-            reorderScenes(sourceIndex, targetIndex);
-        }
-
-        draggedCardIndex = null;
-        document.querySelectorAll('.index-card.dragging').forEach(el => el.classList.remove('dragging'));
+        setStatus('Reorder scenes in the screenplay Editor. Review cards follow the script.');
     }
 
     // Scene navigator sidebar drag-drop
@@ -3712,6 +3665,7 @@ const { AI_PATH, TYPEWRITER, state } = Object.fromEntries(['AI_PATH', 'TYPEWRITE
     }
 
     function jumpToSceneFromCard(index) {
+        closeModal('sceneCardModal');
         setViewMode('editor');
 
         const editor = document.getElementById('screenplayEditor');
@@ -4994,6 +4948,7 @@ const { AI_PATH, TYPEWRITER, state } = Object.fromEntries(['AI_PATH', 'TYPEWRITE
 
     // FILM-111: AI Chat Panel functions
     function toggleAIChat() {
+        if (window.__filmOpenAIWorkspace) return window.__filmOpenAIWorkspace();
         const panel = document.getElementById('aiChatPanel');
         const btn = document.getElementById('aiChatToggle');
         if (panel) {
@@ -7151,6 +7106,7 @@ export {
     spBlock,
     afterCardEdit,
     saveIndexCard,
+    printIndexCards,
     deleteIndexCard,
     addIndexCard,
     createIndexCard,

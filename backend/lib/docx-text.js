@@ -89,7 +89,7 @@ function listEntryOffsets(buf, predicate) {
 }
 
 /** Read and decompress one entry, given its local-header offset. */
-function readEntry(buf, localOffset) {
+function readEntry(buf, localOffset, remainingInflatedBytes) {
     if (localOffset < 0 || localOffset + 30 > buf.length) return null;
     if (buf.readUInt32LE(localOffset) !== SIG_LOCAL) return null;
 
@@ -107,12 +107,25 @@ function readEntry(buf, localOffset) {
         : buf.length;
     const data = buf.subarray(dataStart, dataEnd);
 
-    if (method === 0) return data;                       // stored
+    const bounded = remainingInflatedBytes !== undefined;
+    const inflatedLimit = bounded
+        ? Math.min(MAX_INFLATED_BYTES, remainingInflatedBytes)
+        : MAX_INFLATED_BYTES;
+    const limitError = () => new Error('DOCX inflated content exceeds the bounded extraction limit.');
+
+    if (method === 0) {
+        if (bounded && data.length > inflatedLimit) throw limitError();
+        return data;                                    // stored
+    }
     if (method !== 8) return null;                       // only deflate is used by .docx
+    if (bounded && inflatedLimit <= 0) throw limitError();
 
     try {
-        return zlib.inflateRawSync(data, { maxOutputLength: MAX_INFLATED_BYTES });
-    } catch (_) {
+        return zlib.inflateRawSync(data, { maxOutputLength: inflatedLimit });
+    } catch (error) {
+        // A bounded supplemental part must fail the extraction rather than be
+        // silently skipped and reported as a complete document.
+        if (bounded && error.code === 'ERR_BUFFER_TOO_LARGE') throw limitError();
         return null;
     }
 }
@@ -141,7 +154,7 @@ function safeCodePoint(code) {
  * converter reads prose paragraph by paragraph, so losing those boundaries
  * would turn a scene into one unbroken block.
  */
-function xmlToText(xml) {
+function xmlToText(xml, maxTextCharacters) {
     let s = String(xml);
 
     // Drop tracked-change deletions before extracting runs, so removed text
@@ -163,10 +176,18 @@ function xmlToText(xml) {
 
     // Keep only the text runs, then drop every remaining tag.
     const pieces = [];
+    let characters = 0;
     const runRe = /<w:t\b[^>]*>([\s\S]*?)<\/w:t>|(\n|\t)/g;
     let m;
     while ((m = runRe.exec(s)) !== null) {
-        pieces.push(m[1] !== undefined ? m[1] : m[2]);
+        const piece = m[1] !== undefined ? m[1] : m[2];
+        characters += piece.length;
+        // Limit the text runs before joining them. This also bounds the
+        // intermediate entity-encoded text before whitespace normalization.
+        if (maxTextCharacters !== undefined && characters > maxTextCharacters) {
+            throw new Error('DOCX text exceeds the bounded extraction limit.');
+        }
+        pieces.push(piece);
     }
 
     let text = decodeEntities(pieces.join(''));
@@ -185,9 +206,12 @@ function xmlToText(xml) {
 
 /**
  * Extract plain text from a .docx buffer.
+ * Optional limits bound aggregate inflated XML bytes and text materialized
+ * during member extraction. Without limits, existing converter behavior is
+ * retained. Text limits include intermediate entity-encoded runs/whitespace.
  * @returns {{ ok: boolean, text?: string, error?: string, paragraphs?: number, characters?: number }}
  */
-function extractDocxText(buffer) {
+function extractDocxText(buffer, { maxInflatedBytes, maxTextCharacters } = {}) {
     if (!Buffer.isBuffer(buffer) || buffer.length === 0) {
         return { ok: false, error: 'Empty or unreadable file.' };
     }
@@ -213,16 +237,29 @@ function extractDocxText(buffer) {
 
     const pieces = [];
     const filesRead = [];
+    let inflatedBytes = 0;
+    let textCharacters = 0;
     for (const entry of entries) {
-        const xml = readEntry(buffer, entry.offset);
+        let xml, text;
+        try {
+            xml = readEntry(buffer, entry.offset, maxInflatedBytes === undefined
+                ? undefined : maxInflatedBytes - inflatedBytes);
+            if (xml) {
+                inflatedBytes += xml.length;
+                text = xmlToText(xml.toString('utf8'), maxTextCharacters === undefined
+                    ? undefined : maxTextCharacters - textCharacters - (pieces.length ? 2 : 0));
+            }
+        } catch (error) {
+            return { ok: false, error: error.message };
+        }
         if (!xml) {
             if (entry.name === DOCUMENT_PATH) {
                 return { ok: false, error: 'The document body could not be decompressed. The file may be corrupt or password-protected.' };
             }
             continue;
         }
-        const text = xmlToText(xml.toString('utf8'));
         if (text) {
+            textCharacters += text.length + (pieces.length ? 2 : 0);
             pieces.push(text);
             filesRead.push(entry.name);
         }

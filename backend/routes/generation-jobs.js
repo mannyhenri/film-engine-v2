@@ -28,10 +28,13 @@ async function handleGenerationJobs(req, res, parts) {
         // Settled as failed by THIS engine, and possibly still sitting finished
         // at the provider. Collecting one is free; re-buying it is not.
         const stuck = jobs.recoverable(projectId);
+        const receipts = jobs.retainedReceipts(projectId);
         return json(res, 200, {
             project_id: projectId,
             pending: open,
             count: open.length,
+            ...(receipts.length ? { recoverable_receipts:receipts,
+                receipt_note:'These accepted requests retained their approved receipt when job recording failed. Pass the review_id as generation_collect job_id to recover the original output.' } : {}),
             ...(stuck.length ? {
                 recoverable: stuck.map(j => ({
                     id: j.id, provider: j.provider, capability: j.capability,
@@ -41,7 +44,7 @@ async function handleGenerationJobs(req, res, parts) {
                     + 'the finished result — a failure on this side does not un-render or refund a '
                     + 'generation. generation_collect re-polls them and is free.',
             } : {}),
-            note: open.length
+            note: open.length || receipts.length
                 ? 'These generations were accepted by their provider and have not been delivered here yet. '
                   + 'Collecting is free — the work is already paid for.'
                 : 'Nothing is outstanding.',

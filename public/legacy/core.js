@@ -1026,6 +1026,9 @@
     }
 
     async function api(path, opts = {}) {
+        window.__feFinalReviewBase = () => API();
+        if (window.__fePrepareFinalRequest) opts = await window.__fePrepareFinalRequest(path, opts);
+        if (opts.__manual_handoff) return opts.__manual_handoff;
         const url = API() + path;
         // Released in the finally below, so a FAILED generation frees the
         // control too — a spinner that never resolves is worse than none.
@@ -1038,6 +1041,7 @@
             const mutated = /^(POST|PUT|PATCH|DELETE)$/.test(String(opts.method || 'GET').toUpperCase());
             if (res.status === 204) { if (mutated && opts.refresh !== false) refreshAfterWrite(); return {}; }
             const data = await res.json();
+            window.__feObserveFinalRequestState?.(data);
             if (!res.ok) { const e = new Error(data.error || `HTTP ${res.status}`); e.data = data; e.status = res.status; throw e; }
             // A write that succeeded is on the screen by the time you look up.
             // `refresh: false` is for the few paths that repaint themselves and
@@ -2550,6 +2554,8 @@
     // POST-based SSE (EventSource is GET-only). Streams `data: {json}\n\n` events.
     async function streamSSEPost(path, body, onEvent, onDone, onError) {
         try {
+            window.__feFinalReviewBase = () => API();
+            if (window.__fePrepareFinalRequest) { const approved = await window.__fePrepareFinalRequest(path, {method:"POST",body:JSON.stringify(body || {})}); if (approved.__manual_handoff) { onDone?.({type:"done",...approved.__manual_handoff}); return; } body = JSON.parse(approved.body); }
             const res = await fetch(API() + path, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -2574,6 +2580,7 @@
                     const line = chunk.split('\n').find(l => l.startsWith('data:'));
                     if (!line) continue;
                     let data; try { data = JSON.parse(line.slice(5).trim()); } catch { continue; }
+                    window.__feObserveFinalRequestState?.(data);
                     if (data.type === 'done' || data.done) onDone?.(data);
                     else onEvent?.(data);
                 }
@@ -3127,11 +3134,11 @@
         const marks = MARKUP.cache[shotId] || [];
         const noted = marks.filter(m => String(m.text || '').trim()).length;
         if (!marks.length) return '';
-        if (!annotationFeedbackOn()) return `${marks.length} note(s), not applied`;
-        if (!noted) return `${marks.length} mark(s) — none carry a note, so none apply`;
+        if (!annotationFeedbackOn()) return `${marks.length} mark(s) in reference; text notes off`;
+        if (!noted) return `${marks.length} mark(s) in reference; no text directions`;
         return noted === marks.length
-            ? `${noted} mark(s) steering this shot`
-            : `${noted} of ${marks.length} steering this shot`;
+            ? `${marks.length} mark(s) in reference; ${noted} text direction(s)`
+            : `${marks.length} mark(s) in reference; ${noted} text direction(s)`;
     }
 
     /**
@@ -3516,7 +3523,6 @@
 
             + `<button class="btn btn-sm btn-secondary" onclick="refineFrame('${f.shot_id}')">Refine</button>`
             + `<button class="btn btn-sm btn-secondary" onclick="regenerateStoryboard('${f.shot_id}')">Regen</button>`
-            + `<button class="btn btn-sm btn-secondary" onclick="exploreAngles('${f.shot_id}')" title="Four separate images, one camera each. Pick one and it becomes the frame.">4 angles</button>`
             + `<button class="btn btn-sm btn-secondary" onclick="directShot('${f.shot_id}')" title="Who and what is in this shot, and where the camera is">Direct</button>`;
         document.getElementById('frameViewerCaption').innerHTML =
             `${f.description ? '<p style="line-height:1.5;">' + esc(f.description) + '</p>' : ''}

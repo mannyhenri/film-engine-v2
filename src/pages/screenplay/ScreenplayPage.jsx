@@ -200,7 +200,7 @@ export default function ScreenplayPage() {
                         {' '}
                         <div className="toolbar-divider"></div>
                         {' '}
-                        <button className="toolbar-btn" id="aiChatToggle" onClick={(event) => E.toggleAIChat()} data-tooltip="Open AI writing assistant for brainstorming and rewriting (Ctrl+Shift+A)">
+                        <button className="toolbar-btn" id="aiChatToggle" onClick={(event) => window.__filmOpenAIWorkspace ? window.__filmOpenAIWorkspace(event) : E.toggleAIChat()} data-tooltip="Open AI writing assistant for brainstorming and rewriting (Ctrl+Shift+A)">
                             AI Chat
                         </button>
                         {' '}
@@ -358,12 +358,13 @@ export default function ScreenplayPage() {
                         {' '}
                         <div className="index-cards-toolbar">
                             {' '}
-                            <button className="btn btn-sm" onClick={(event) => E.addIndexCard()}>
-                                + Scene
+                            <button className="btn btn-sm" onClick={() => E.printIndexCards()}>
+                                Print / Save PDF
                             </button>
                             {' '}
+                            <span id="indexCardsCoverage" className="text-muted text-sm"></span>
                             <span className="text-muted text-sm">
-                                Click a card to edit it · drag to reorder · double-click to jump to it in the script
+                                Click to edit summary and notes · double-click to view the scene · change scenes in the Editor
                             </span>
                             {' '}
                         </div>

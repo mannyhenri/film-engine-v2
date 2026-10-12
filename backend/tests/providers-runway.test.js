@@ -200,9 +200,8 @@ describe('runway request contract', () => {
         assert.match(withRefsOnly.url, /\/image_to_video$/);
         assert.equal(withRefsOnly.body.promptImage, 'https://x/ref.png');
 
-        // An actual storyboard keyframe always wins over a reference.
-        const withBoth = runway.buildVideoRequest({ prompt: 'p', init_image: 'https://x/key.png', reference_images: ['https://x/ref.png'] });
-        assert.equal(withBoth.body.promptImage, 'https://x/key.png');
+        // A distinct selected reference must not disappear behind the storyboard frame.
+        assert.throws(() => runway.buildVideoRequest({ prompt: 'p', init_image: 'https://x/key.png', reference_images: ['https://x/ref.png'] }), /selected reference images/);
 
         // referenceImages is a text_to_image field; it must not leak onto video.
         assert.equal(withRefsOnly.body.referenceImages, undefined);

@@ -101,9 +101,9 @@ test('on, tiers come smallest first with the version scale, and a missing panora
 
 const ON = { world_engine: true, previs_console: true, cinematography_ai: true, camera_explore: true, reference_match: true };
 
-test('the redesigned view switch keeps Shot and Plan primary, with 360 and technical views secondary', () => {
+test('the redesigned view switch keeps 3D view, Current shot and Plan primary, with technical views secondary', () => {
     const html = renderConsole(ON);
-    for (const label of ['Shot', 'Plan']) assert.ok(html.includes(`>${label}</button>`), `no ${label} view button`);
+    for (const label of ['3D view', 'Current shot', 'Plan']) assert.ok(html.includes(`>${label}</button>`), `no ${label} view button`);
     assert.match(html, />Look around</, '360° is not exposed as Look around');
     assert.match(html, />Geometry</, 'Geometry is not available in Overlays');
     assert.match(html, />Depth</, 'Depth is not available in Overlays');

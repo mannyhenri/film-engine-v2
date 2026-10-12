@@ -7,6 +7,7 @@
  * Core is reached through the bridge below by the same names (tools/tests/engine-bridge.test.js).
  */
 import { legacy } from '../../lib/legacy.js';
+import { configureExpressions, expressionSlotsHtml } from './expressions.jsx';
 
 // Core's functions, each called through the bridge by its own name. One destructuring statement on purpose:
 // a line reading `const esc = …` would be the first definition a backend test finds when it searches the page.
@@ -109,6 +110,7 @@ const { state } = Object.fromEntries(['state'].map(n => [n, live(n)]));
 
     let SHEET = { id: null, character: null, gallery: [], costumes: [],
         filter: 'all', palette: [] };
+    configureExpressions(() => SHEET, () => renderCharacterSheet());
 
     /**
      * Run something that spends, with a spinner on the button.
@@ -223,16 +225,22 @@ const { state } = Object.fromEntries(['state'].map(n => [n, live(n)]));
 
     async function renderCharacterSheet() {
         const body = document.getElementById('csBody');
+        const sheet = SHEET, id = sheet.id, epoch = sheet.loadRequest = (sheet.loadRequest || 0) + 1;
         try {
-            const [ch, gal, pal] = await Promise.all([
-                api(`/characters/${SHEET.id}`),
-                api(`/characters/${SHEET.id}/gallery`).catch(() => ({ items: [] })),
-                api(`/characters/${SHEET.id}/palette`).catch(() => ({ palette: [] })),
+            const [ch, gal, pal, expressions] = await Promise.all([
+                api(`/characters/${id}`),
+                api(`/characters/${id}/gallery`).catch(() => ({ items: [] })),
+                api(`/characters/${id}/palette`).catch(() => ({ palette: [] })),
+                api(`/characters/${id}/expressions`).catch(error => ({slots:[],error:error.message})),
             ]);
+            if (SHEET !== sheet || SHEET.id !== id || epoch !== SHEET.loadRequest) return;
             SHEET.character = ch.character || ch;
             SHEET.gallery = gal.items || [];
             SHEET.palette = pal.palette || [];
+            SHEET.expressions = expressions.slots || [];
+            SHEET.expressionError = expressions.error || null;
         } catch (err) {
+            if (SHEET !== sheet || SHEET.id !== id || epoch !== SHEET.loadRequest) return;
             // A renderer that paints a placeholder must have a path that
             // replaces it, or a failure reads as the character being gone.
             body.innerHTML = `<div class="empty-state" style="padding:40px;"><h3>Could not load this character</h3>
@@ -344,20 +352,21 @@ const { state } = Object.fromEntries(['state'].map(n => [n, live(n)]));
           </div>
 
           <div class="cs-col-r">
+            ${expressionSlotsHtml(c.id, SHEET.expressions, SHEET.expressionError)}
             
             <div class="cs-details">
-              <div class="cs-label"><span>Appearance</span>
+              <div class="cs-label"><span>Character Description / Appearance</span>
                 <span class="rule"></span>
                 <span class="note">${(c.appearance_prompt || '').length} chars · prompt source</span></div>
-              <div class="cs-prose">${esc(c.appearance_prompt || 'No appearance written. This is the text every plate is generated from.')}</div>
+              <div class="cs-prose">${esc(c.appearance_prompt || c.description || 'No character description written.')}</div>
+              ${c.description && c.appearance_prompt && c.description !== c.appearance_prompt ? `<details><summary>Biography / story notes</summary><div class="cs-prose small">${esc(c.description)}</div></details>` : ''}
             </div>
             <!-- Side by side, as the reference sets them under one rule. Stacked
                  full width is what made this column run long and pushed the
                  reference strip below the fold. -->
             <div class="cs-two-up">
               <div>
-                <div class="cs-label"><span>Description</span><span class="rule"></span></div>
-                <div class="cs-prose small">${esc(c.description || '—')}</div>
+                <button class="btn btn-sm" onclick="closeModal('characterSheetModal'); editCharacter('${c.id}')">Edit description / appearance</button>
               </div>
               <div>
                 <div class="cs-label"><span>Personality</span><span class="rule"></span></div>
@@ -694,6 +703,7 @@ const { state } = Object.fromEntries(['state'].map(n => [n, live(n)]));
      */
     async function generateOfficialViews(view) {
         if (!SHEET.id) return;
+        const charId = SHEET.id;
         const c = SHEET.character || {};
         const wanted = view ? [view] : CS_VIEWS.map(v => v.id);
         const label = view ? (CS_VIEWS.find(v => v.id === view) || {}).label || view : 'all four views';
@@ -701,7 +711,7 @@ const { state } = Object.fromEntries(['state'].map(n => [n, live(n)]));
         return confirmPaidImage({
             title: `Generate ${label}`,
             capability: 'image',
-            previewUrl: `/characters/${SHEET.id}/refsheet/preview${
+            previewUrl: `/characters/${charId}/refsheet/preview${
                 view ? `?view=${encodeURIComponent(view)}` : ''}`,
             note: `${wanted.length} image generation${wanted.length === 1 ? '' : 's'} for ${
                 c.name || 'this character'}. Each replaces the current plate for its view, and `
@@ -710,9 +720,13 @@ const { state } = Object.fromEntries(['state'].map(n => [n, live(n)]));
                 let made = 0;
                 for (const v of wanted) {
                     try {
-                        await api(`/characters/${SHEET.id}/refsheet/generate`, {
+                        const result = await api(`/characters/${charId}/refsheet/generate`, {
                             method: 'POST', body: JSON.stringify({ ...choices, views: [v] }),
                         });
+                        if (result.manual_handoff) {
+                            setStatus(result.result ? 'ChatGPT image imported as a new version' : 'ChatGPT handoff saved — generate manually, then import the image');
+                            break;
+                        }
                         made++;
                         setStatus(`Generated ${made} of ${wanted.length}…`);
                     } catch (err) {
@@ -723,7 +737,7 @@ const { state } = Object.fromEntries(['state'].map(n => [n, live(n)]));
                     }
                 }
                 if (made === wanted.length) setStatus(`${made} view(s) generated.`);
-                if (typeof openCharacterSheet === 'function') await openCharacterSheet(SHEET.id);
+                if (SHEET.id === charId && typeof openCharacterSheet === 'function') await openCharacterSheet(charId);
             }),
         });
     }
@@ -862,10 +876,10 @@ const { state } = Object.fromEntries(['state'].map(n => [n, live(n)]));
             send: async choices => {
                 setStatus('Generating character reference image...', true);
                 try {
-                    await api('/characters/' + charId + '/refsheet/generate', {
+                    const result = await api('/characters/' + charId + '/refsheet/generate', {
                         method: 'POST', body: JSON.stringify({ views: ['front'], ...choices }),
                     });
-                    setStatus('Character image generated');
+                    setStatus(result.manual_handoff ? (result.result ? 'ChatGPT image imported as a new version' : 'ChatGPT handoff saved — generate manually, then import the image') : 'Character image generated');
                     loadCharacters();
                 } catch (err) { setStatus('Error generating image: ' + err.message); }
             },

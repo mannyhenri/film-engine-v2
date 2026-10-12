@@ -70,6 +70,9 @@ for (const file of MODULES) {
  */
 const acorn = require('acorn');
 let BRIDGED_TOTAL = 0;
+const NEW_INTERNALS = {
+    'src/pages/screenplay/engine.js': ['screenplayCardsResponse', 'screenplayCardsRequest', 'editingReviewCard', 'paintReviewCards', 'reviewCardsPrintHTML'],
+};
 const LEGACY_GLOBALS = (() => {
     const src = fs.readFileSync(path.join(ROOT, 'src/lib/legacy.js'), 'utf8');
     const list = src.slice(src.indexOf('export const LEGACY_GLOBALS = ['), src.indexOf('];', src.indexOf('export const LEGACY_GLOBALS = [')));
@@ -92,7 +95,9 @@ for (const file of MODULES) {
         // An engine may need no bridge at all (the Edits engine is one constant); the scan is proven across modules below.
         BRIDGED_TOTAL += bridged.length;
         assert.deepStrictEqual(bridged.filter(n => !LEGACY_GLOBALS.has(n)), [], 'bridged, and not on LEGACY_GLOBALS');
-        assert.deepStrictEqual(plain, [], 'top-level declarations that are neither moved code nor the bridge');
+        const additions = NEW_INTERNALS[file] || [];
+        assert.deepStrictEqual(plain.filter(n => !additions.includes(n)), [], 'top-level declarations that are neither moved code nor explicitly owned additions');
+        assert.deepStrictEqual(additions.filter(n => !plain.includes(n)), [], 'declared private additions must exist and stay private');
     });
 }
 

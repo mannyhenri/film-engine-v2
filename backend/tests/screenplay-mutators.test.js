@@ -211,69 +211,18 @@ test('the scene-number badge is display, and never becomes part of the heading',
         assert.ok(/scene-number-gutter/.test(bodyOf(fn)),
             `${fn} does not exclude the badge — it would read or overwrite it`);
     }
-    // The card editor must go through them rather than touching textContent.
     const save = bodyOf('saveIndexCard');
-    assert.ok(/setBlockText\s*\(/.test(save),
-        'saveIndexCard writes the heading directly, so the scene number would be written into the script');
-    assert.ok(!/block\.textContent\s*=/.test(save),
-        'saveIndexCard still assigns textContent, which destroys the badge and swallows the number');
+    assert.ok(!/setBlockText|onEditorInput|afterCardEdit/.test(save),
+        'review card edits must not write into screenplay blocks');
     const open_ = bodyOf('openIndexCard');
-    assert.ok(/blockText\s*\(/.test(open_),
-        'openIndexCard reads the parsed heading, which carries the scene number');
+    assert.ok(/card.summary/.test(open_), 'card editor must load independent summary metadata');
 });
 
-test('editing a scene card cannot shorten the scene', () => {
-    /*
-     * This one is written from damage, not from theory.
-     *
-     * The card editor loaded `scene.preview` — a TRUNCATED display string —
-     * into the synopsis field and wrote it straight back on save. Opening a
-     * real scene and pressing Save replaced its first action paragraph with an
-     * abbreviation of itself ("...parked at the kerb, nos...") and DELETED the
-     * four paragraphs after it, because the writer replaced the first action
-     * block and removed the rest.
-     *
-     * It was destructive rather than recoverable because the editor autosaves
-     * over the CURRENT script version rather than creating one: there was no
-     * v5 to roll back to, only a v4 that had already been overwritten.
-     *
-     * Two invariants, both bound to the specific function so a mutation to
-     * either fails:
-     *   - what is loaded into the field is the scene's real action;
-     *   - what is written back is as many paragraphs as it holds.
-     */
-    // Comments stripped FIRST. The comment explaining this fix names
-    // `scene.preview` — the very thing being refused — so a check that reads
-    // the raw body fails against the corrected code and passes against a
-    // version with the comment deleted. Exactly backwards, and this codebase
-    // has paid for it before.
-    const bodyOf = name => {
-        const i = SPA.indexOf(`function ${name}(`);
-        if (i < 0) return '';
-        let depth = 0, j = SPA.indexOf('{', i), end = j;
-        for (; j < SPA.length; j++) {
-            if (SPA[j] === '{') depth++;
-            else if (SPA[j] === '}') { depth--; if (!depth) { end = j; break; } }
-        }
-        return SPA.slice(i, end)
-            .replace(/\/\*[\s\S]*?\*\//g, '')
-            .replace(/\/\/.*$/gm, '');
-    };
-
-    const open_ = bodyOf('openIndexCard');
-    assert.ok(open_, 'openIndexCard is gone');
-    assert.ok(!/scene\.preview/.test(open_),
-        'openIndexCard loads the truncated preview into a field that is written back to the script');
-    assert.ok(/sceneActionText\s*\(/.test(open_),
-        'openIndexCard does not read the real action out of the screenplay');
-
-    const reader = bodyOf('sceneActionText');
-    assert.ok(/scene-heading/.test(reader) && /action/.test(reader),
-        'sceneActionText does not walk the scene to its next heading');
-
-    const save = bodyOf('saveIndexCard');
-    assert.ok(/split\(/.test(save),
-        'saveIndexCard writes the field as ONE block: a four-paragraph scene would come back as one');
-    assert.ok(/forEach|for\s*\(/.test(save),
-        'saveIndexCard does not write back more than one paragraph');
+test('review cards have no screenplay action editor', () => {
+    for (const name of ['createIndexCard', 'deleteIndexCard', 'addIndexCard']) {
+        const match = SPA.match(new RegExp('function ' + name + '\\(\\) \\{([^}]+)\\}'));
+        assert.ok(match && !/screenplayEditor|afterCardEdit|triggerAutoSave/.test(match[1]));
+    }
+    assert.ok(!SPA.includes('draggable="true"\n                     ondragstart="onCardDragStart'));
+    assert.ok(SPA.includes('Summary and notes are saved separately.'));
 });

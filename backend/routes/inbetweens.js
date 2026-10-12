@@ -98,7 +98,10 @@ function present(l) {
     const key = (k, at) => ({ shot_id: k && k.shot ? k.shot.id : null, shot_code: k && k.shot ? k.shot.shot_code : null,
         at_ms: at, url: k && k.frame ? require('../lib/file-storage').getFileUrl('storyboards', row.project_id, k.frame.file_name) : null,
         has_frame: !!(k && k.frame) });
+    const latest=frameAssets(row).filter(a=>a.meta.chain_step_started).sort((a,b)=>b.meta.chain_step_started-a.meta.chain_step_started)[0];
+    const nextReview=latest?.meta.next_review;
     return {
+        ...(nextReview?{status:'awaiting_review',next_review:nextReview}:{}),
         id: span.id, project_id: span.project_id, gap_ms: span.gap_ms,
         from: key(from, 0), to: key(to, span.gap_ms),
         frames: span.frames, ranges: span.ranges, lanes: span_.LANES,
@@ -207,6 +210,22 @@ function generatePlan(l, q) {
     };
 }
 
+function buildFrameCall(l,b={}) {
+ const plan=generatePlan(l,b);if(!plan.ready)throw Object.assign(new Error(plan.blockers.join(' ')||'No frame ready'),{status:409});
+ const f=plan.frames[0],previous=f.index===0?l.from.frame.file_path:l.span.frames[f.index-1].image_path;
+ if(!previous)throw Object.assign(new Error('The previous frame has no picture yet'),{status:409});
+ const {toDataUri}=require('../lib/reference-images'),decorate=require('../lib/annotated-reference').annotatedReferenceForShot;
+ const project=db.prepare('SELECT * FROM film_projects WHERE id=?').get(l.row.project_id);
+ const payload={prompt:f.instruction,negative_prompt:'different location, different person, different wardrobe, different lighting, copied composition of the second picture',reference_images:[{uri:toDataUri(decorate(db,l.row.from_shot_id,previous).path),name:'before'},{uri:toDataUri(decorate(db,l.row.to_shot_id,l.to.frame.file_path).path),name:l.span.to_code}],aspect_ratio:project.aspect_ratio};
+ return {plan,f,payload,project,shot:l.from.shot,sourcePaths:[previous,l.to.frame.file_path],sourceShotIds:[l.row.from_shot_id,l.row.to_shot_id]};
+}
+async function realFrameRequest(id,b={}) {
+ const l=load(id);if(!l)throw Object.assign(new Error('In-betweens not found'),{status:404});
+ const built=buildFrameCall(l,b),result=await require('./storyboard').callImageGen(built.payload.prompt,built.payload.negative_prompt,undefined,built.payload,require('../lib/provider-config').spendContext(built.project,built.shot,null,require('../lib/generation-override').imageOverride(b)),null,{previewRequest:true});
+ if(!result.preview)throw new Error('Inbetween image provider did not stop at preview');
+ return {supported:true,staged:built.plan.frames.length>1,items:[{provider:result.preview.provider,capability:'image',payload:result.preview.payload,provenance:{project_id:built.project.id,shot_id:built.shot.id,inbetween_id:id,frame_index:built.f.index,source_paths:built.sourcePaths,source_shot_ids:built.sourceShotIds}}]};
+}
+
 async function generate(req, res, id) {
     const l = load(id);
     if (!l) return json(res, 404, { error: 'In-betweens not found' });
@@ -223,16 +242,11 @@ async function generate(req, res, id) {
     const made = [];
     let previous = plan.frames[0].index === 0 ? l.from.frame.file_path : span.frames[plan.frames[0].index - 1].image_path;
     if (!previous) return json(res, 409, { error: 'NOT_READY', message: `The frame before ${secs(span.frames[plan.frames[0].index].at_ms)} s has no picture yet; make it first.` });
-    for (const f of plan.frames) {
+    for (const f of plan.frames.slice(0,1)) {
         try {
-            const payload = {
-                prompt: f.instruction,
-                negative_prompt: 'different location, different person, different wardrobe, different lighting, copied composition of the second picture',
-                reference_images: [{ uri: null, path: previous, name: 'before' }, { uri: null, path: l.to.frame.file_path, name: span.to_code }],
-                aspect_ratio: project.aspect_ratio,
-            };
+            const payload = buildFrameCall(load(id),b).payload;
             const { buffer, provider, model } = await callImageGen(payload.prompt, payload.negative_prompt, undefined, payload,
-                spendContext(project, shot, null, imageOverride(b)));
+                spendContext(project, shot, null, imageOverride(b)),null,{jobMeta:{inbetween_id:span.id,frame_index:f.index}});
             const stamp = Date.now().toString(36);
             const fileName = `${span.from_code}-${span.to_code}.ib${String(f.index + 1).padStart(2, '0')}.${stamp}.png`;
             const filePath = path.join(dir, fileName);
@@ -244,7 +258,7 @@ async function generate(req, res, id) {
                 .run(assetId, project.id, shot.id, filePath, fileName, buffer.length, provider || null, JSON.stringify({
                     kind: 'inbetween_frame', inbetween_id: span.id, at_ms: fr.at_ms, frame_index: f.index,
                     direction: fr.direction || '', instruction: f.instruction, provider_model: model || null,
-                    from_shot_id: span.from_shot_id, to_shot_id: span.to_shot_id }));
+                    from_shot_id: span.from_shot_id, to_shot_id: span.to_shot_id,chain_step_started:Date.now(),next_review:plan.frames.length>1?{path:`/inbetweens/${id}/generate`,body:Object.fromEntries(Object.entries({...b,from_index:plan.frames[1].index,only:false}).filter(([key])=>key!=='final_request_approvals'))}:null }));
             made.push({ index: f.index, at_ms: fr.at_ms, asset_id: assetId });
             previous = filePath;
             // A new take is the one used: pick it for the frame.
@@ -257,6 +271,7 @@ async function generate(req, res, id) {
                 ...present(load(id)), generated: made, not_attempted: notAttempted, hint: 'Nothing after the refused frame was attempted or charged.' });
         }
     }
+    if(plan.frames.length>1) { const next=plan.frames[1].index;const nextBody={...b,from_index:next,only:false};delete nextBody.final_request_approvals;return json(res,200,{...present(load(id)),generated:made,status:'awaiting_review',remaining_indices:plan.frames.slice(1).map(f=>f.index),next_review:{path:`/inbetweens/${id}/generate`,body:nextBody}}); }
     return json(res, 200, { ...present(load(id)), generated: made });
 }
 
@@ -332,9 +347,9 @@ function videoPlan(l, body) {
     const shape = b.shape === 'legs' || b.shape === 'one' ? b.shape : (canOne ? 'one' : 'legs');
     if (shape === 'one' && !canOne) blockers.push(`${provider ? provider.id : 'This generator'} cannot take every picture in one clip. Use legs.`);
     if (shape === 'legs' && maxKeys < 2) blockers.push(`${provider ? provider.id : 'This generator'} takes one picture per clip, so a leg cannot end on the next frame. Pick a generator that takes a first and last frame.`);
-    const points = [{ at_ms: 0, label: span.from_code, path: l.from.frame && l.from.frame.file_path },
-        ...span.frames.map(f => ({ at_ms: f.at_ms, label: `${secs(f.at_ms)} s`, path: f.image_path })),
-        { at_ms: span.gap_ms, label: span.to_code, path: l.to.frame && l.to.frame.file_path }];
+    const points = [{ at_ms: 0, label: span.from_code, path: l.from.frame ? require('../lib/annotated-reference').annotatedReferenceForShot(db, l.row.from_shot_id, l.from.frame.file_path).path : null },
+        ...span.frames.map(f => ({ at_ms: f.at_ms, label: `${secs(f.at_ms)} s`, path: f.image_path ? require('../lib/annotated-reference').annotatedReferenceForShot(db, l.row.from_shot_id, f.image_path).path : null })),
+        { at_ms: span.gap_ms, label: span.to_code, path: l.to.frame ? require('../lib/annotated-reference').annotatedReferenceForShot(db, l.row.to_shot_id, l.to.frame.file_path).path : null }];
     const base = String(b.prompt || '').trim() || null;
     const calls = shape === 'one'
         ? [{ from: span.from_code, to: span.to_code, from_ms: 0, to_ms: span.gap_ms, duration_s: span.gap_ms / 1000,
@@ -357,29 +372,39 @@ function videoPlan(l, body) {
     };
 }
 
+function buildVideoCalls(l, b = {}) {
+    const plan = videoPlan(l, b);
+    if (!plan.ready) throw Object.assign(new Error(plan.blockers.join(' ')), { status: 409 });
+    const provider = videoProvider(l.span.project_id, b);
+    const { toDataUri } = require('../lib/reference-images');
+    const { sequenceFrame } = require('./sequences');
+    const project = db.prepare('SELECT * FROM film_projects WHERE id = ?').get(l.row.project_id);
+    const frame = sequenceFrame(project, provider);
+    const pts = plan._points;
+    return { plan, provider, project, calls: plan.calls.map((c, i) => ({ ...c, payload: {
+        ...(plan.shape === 'one'
+            ? { workflow: 'omni-reference', prompt: c.prompt, reference_images: pts.map(p => ({ uri: toDataUri(p.path), role: 'inbetween' })), duration_s: c.duration_s }
+            : { prompt: c.prompt, keyframes: [{ uri: toDataUri(pts[i].path), position: 'first' }, { uri: toDataUri(pts[i + 1].path), position: 'last' }], duration_s: c.duration_s }),
+        ...frame, ...(project.target_fps ? { target_fps: project.target_fps } : {})
+    } })) };
+}
+
 async function makeVideo(req, res, id) {
     const l = load(id);
     if (!l) return json(res, 404, { error: 'In-betweens not found' });
     const b = req.body || {};
     const plan = videoPlan(l, b);
     if (!plan.ready) { const { _points, ...p } = plan; return json(res, 409, { error: 'NOT_READY', message: plan.blockers.join(' '), plan: p }); }
-    const provider = videoProvider(l.span.project_id, b);
-    const { toDataUri } = require('../lib/reference-images');
+    const prepared = buildVideoCalls(l, b);
+    const { provider, project } = prepared;
     const { persistProviderMedia } = require('../lib/provider-media');
-    const { sequenceFrame } = require('./sequences');
-    const project = db.prepare('SELECT * FROM film_projects WHERE id = ?').get(l.row.project_id);
-    const frame = sequenceFrame(project, provider);
-    const pts = plan._points;
     const clips = [];
     const fileDir = require('../lib/file-storage').ensureDir(project.id, 'video');
     const stem = `${l.span.from_code}-${l.span.to_code}_inbetweens_${Date.now().toString(36)}`;
     for (const [i, c] of plan.calls.entries()) {
-        const payload = plan.shape === 'one'
-            ? { workflow: 'omni-reference', prompt: c.prompt, reference_images: pts.map(p => ({ uri: toDataUri(p.path), role: 'inbetween' })), duration_s: c.duration_s }
-            : { prompt: c.prompt, keyframes: [{ uri: toDataUri(pts[i].path), position: 'first' }, { uri: toDataUri(pts[i + 1].path), position: 'last' }], duration_s: c.duration_s };
-        const result = await provider.generate('video', { ...payload, ...frame,
-            ...(project.target_fps ? { target_fps: project.target_fps } : {}) },
-            { timeout: 600000, jobMeta: { inbetween_id: l.span.id, from: c.from, to: c.to } });
+        const payload = prepared.calls[i].payload;
+        const result = await provider.generate('video', payload,
+            { timeout: 600000, jobMeta: { inbetween_id: l.span.id, item_index:i, from: c.from, to: c.to } });
         if (!result || !result.ok) {
             return json(res, clips.length ? 207 : 502, { error: 'STOPPED', message: `${c.from} → ${c.to} was refused: ${(result && result.error) || 'no answer'}`,
                 made: clips.map(x => x.label), not_attempted: plan.calls.slice(i + 1).map(x => `${x.from} → ${x.to}`) });
@@ -453,4 +478,4 @@ async function handleInbetweens(req, res, parts, query) {
     return json(res, 405, { error: 'Method not allowed' });
 }
 
-module.exports = { handleInbetweens, load, generatePlan, videoPlan };
+module.exports = { handleInbetweens, load, generatePlan, videoPlan, buildVideoCalls, buildFrameCall, realFrameRequest };

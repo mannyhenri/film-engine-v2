@@ -76,7 +76,13 @@ test('upscaleImage uploads, submits, polls, downloads, saves and returns the res
     };
 
     try {
-        const result = await upscale.upscaleImage({ image: uri(source), resolution: '2K' });
+        require('../db/schema').ensureSchema();
+        const reviewStore = require('../lib/final-request-review').store();
+        const input = { image: uri(source), resolution: '2K' };
+        const review = await reviewStore.preview({provider:'muapi-upscale',capability:'image-upscale',payload:input});
+        const finalRequest = reviewStore.approve(review.id,{fingerprint:review.fingerprint,human_confirmed:true,cost_unknown_ack:true});
+        const result = await upscale.upscaleImage(input,{finalRequest});
+        assert.equal(reviewStore.get(review.id).state,'completed');
         assert.equal(result.ok, true, JSON.stringify(result));
         assert.equal(result.provider, 'MuAPI');
         assert.equal(result.model, 'Topaz Precision — High Fidelity V3');
@@ -109,3 +115,11 @@ test('the MCP surface needs only the picture and 2K/4K target', () => {
     assert.match(tool.description, /SPENDS/i);
     assert.match(tool.description, /High Fidelity V3/);
 });
+
+test('resume uses an existing provider handle without reupload or paid resubmission', async () => {
+ const realFetch=global.fetch, sent=[], output=png(2400,1600);
+ global.fetch=async(url,init)=>{sent.push({url:String(url),method:init?.method||'GET'});if(String(url).includes('/predictions/existing-upscale/result'))return {ok:true,status:200,json:async()=>({status:'completed',outputs:['https://fixture.test/result.png']})};if(String(url)==='https://fixture.test/result.png')return {ok:true,status:200,headers:{get:()=> 'image/png'},arrayBuffer:async()=>output.buffer.slice(output.byteOffset,output.byteOffset+output.length)};throw new Error('Unexpected upload or paid submit');};
+ try{let stamped=0;const result=await upscale.upscaleImage({image:uri(png(1200,800)),resolution:'2K'},{requestId:'existing-upscale',onSubmitted:()=>stamped++});assert.equal(result.ok,true);assert.equal(stamped,0);assert.equal(sent.length,2);assert.ok(sent.every(r=>r.method==='GET'));assert.equal(result.request_id,'existing-upscale');}finally{global.fetch=realFetch;}
+});
+
+test.after(()=>{try{require('../db/database').db.close();}catch(_){}fs.rmSync(process.env.FILM_DATA_DIR,{recursive:true,force:true});});

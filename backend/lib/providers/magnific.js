@@ -133,7 +133,9 @@ const CONTENT_TYPES = { '.mp4': 'video/mp4', '.m4v': 'video/mp4', '.mov': 'video
 
 /** Put the clip on Magnific through its own upload step; returns the URL to hand the upscaler. */
 async function uploadClip(file, key) {
-    const contentType = CONTENT_TYPES[path.extname(file).toLowerCase()] || 'video/mp4';
+    const frozen=require('./muapi-upload').parseDataUri(file);
+    if(!frozen)return {ok:false,status:428,error:'Upload requires the approved frozen video bytes'};
+    const contentType=frozen.mime;
     let res, data;
     try {
         res = await fetch(`${BASE_URL}/v1/ai/uploads/request-url`, {
@@ -146,7 +148,7 @@ async function uploadClip(file, key) {
     try {
         // The signed PUT goes straight to storage: the returned headers are part
         // of the signature, and the API key is NOT sent there.
-        const put = await fetch(f.upload_url, { method: 'PUT', headers: { ...(f.headers || { 'Content-Type': contentType }) }, body: fs.readFileSync(file) });
+        const put = await fetch(f.upload_url, { method: 'PUT', headers: { ...(f.headers || { 'Content-Type': contentType }) }, body: frozen.bytes });
         if (!put.ok) return { ok: false, status: put.status, error: `magnific: the upload URL refused the clip (HTTP ${put.status})` };
     } catch (err) { return { ok: false, status: 502, error: `magnific: uploading the clip failed — ${err.message}` }; }
     return { ok: true, url: f.asset_url || f.file_id, file_id: f.file_id || null };
@@ -180,23 +182,21 @@ async function awaitResult(endpoint, taskId, key, deadline, opts) {
     return { ok: false, status: 504, error: 'magnific: timed out waiting for the clip' };
 }
 
-async function generate(capability, payload, opts) {
+async function generate(capability,payload,opts) { return require('../final-provider-request').finishGeneration(opts,()=>generateApproved(capability,payload,opts)); }
+async function generateApproved(capability, payload, opts) {
     if (capability !== 'post') return { ok: false, status: 400, error: `magnific: ${capability} is not served here` };
     const { apiKey } = getCredential('magnific');
     if (!apiKey) return { ok: false, status: 401, error: 'magnific: no API key configured' };
-    const p = { ...(payload || {}) };
-    if (!p.video_url) {
-        if (!p.source_video || !fs.existsSync(p.source_video)) return { ok: false, status: 400, error: 'magnific: there is no clip on disk to upscale' };
-        const { emit } = require('../generation-progress');
-        emit(opts, { phase: 'uploading' });
-        const up = await uploadClip(p.source_video, apiKey);
-        if (!up.ok) return up;
-        p.video_url = up.url;
+    const req=await require('../final-provider-request').approvedRequest('magnific',capability,opts);
+    if(req.body.video.startsWith('data:')) {
+        const up=await uploadClip(req.body.video,apiKey);
+        if(!up.ok)return up;
+        require('../generation-transport').hosted(req,req.body.video,up.url);
+        req.body.video=up.url;
     }
-    const req = buildVideoRequest(p);
     let res, body;
     try {
-        res = await fetch(req.url, { method: 'POST', headers: headers(apiKey), body: JSON.stringify(req.body) });
+        res = await require('../generation-transport').dispatch(req, req.url, { method: 'POST', headers: headers(apiKey), body: JSON.stringify(req.body) });
         body = await readJson(res);
     } catch (err) { return { ok: false, status: 502, error: `magnific: ${err.message}` }; }
     const task = taskOf(body);

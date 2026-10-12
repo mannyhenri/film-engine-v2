@@ -11,8 +11,8 @@
  * PUT also takes `joins` (one { type, prompt } per adjacent pair — a cut makes
  * nothing, every other join makes one clip) and `start_frame_ref` /
  * `end_frame_ref` (a frame borrowed from another sequence, resolved at generate
- * time to its selected version). A shot belongs to ONE sequence: adding it to a
- * second is refused with SHOT_IN_SEQUENCE unless `move: true`.
+ * time to its selected version). Shots can participate in several sequence
+ * versions. Only an explicit `move: true` removes their other memberships.
  *
  * The plan is FREE and separate from the generate, on the same reasoning as the
  * run plan and the prompt preview: this is the one control that can spend
@@ -127,7 +127,7 @@ function shotsOf(row) {
             shot_code: shot.shot_code,
             description: shotDirection(card, budget),
             duration_ms: Number(shot.duration_ms) || Number(card.duration_ms) || 5000,
-            keyframe: chosen ? chosen.file_path : null,
+            keyframe: chosen ? require('../lib/annotated-reference').annotatedReferenceForShot(db, shot.id, chosen.file_path).path : null,
         };
     });
 }
@@ -294,12 +294,10 @@ function keyframeCeiling(projectId, req) {
 }
 
 /*
- * A SHOT BELONGS TO ONE SEQUENCE.
- *
- * Another sequence may BORROW its frame through a linked frame, but membership
- * is single, or the same moment plays twice in the cut. A write that would put
- * a shot in a second sequence is refused and names where it already is; `move`
- * takes it out of the other one in the same transaction.
+ * Membership can be shared across sequence versions. Narrative playback uses
+ * the selected clip's coverage; free canvas membership does not duplicate it.
+ * Explicit `move` remains available and releases the other memberships in the
+ * same transaction as its destination write.
  */
 function membershipConflicts(projectId, ids, exceptId) {
     if (!ids.length) return [];
@@ -320,16 +318,6 @@ function releaseFromOthers(conflicts) {
         db.prepare("UPDATE film_sequences SET shot_ids = ?, updated_at = datetime('now') WHERE id = ?")
             .run(JSON.stringify(kept), c.sequence_id);
     }
-}
-
-function conflictReply(res, conflicts) {
-    return json(res, 409, {
-        error: 'SHOT_IN_SEQUENCE',
-        message: 'A shot belongs to one sequence. '
-            + conflicts.map(c => `${c.shot_ids.length} shot(s) are already in ${c.name || 'another sequence'}`).join('; ')
-            + '. Send move: true to move them here, or link the frame instead.',
-        conflicts,
-    });
 }
 
 /** How adjacent shots join, validated. Unknown types are refused, not coerced. */
@@ -410,9 +398,19 @@ function selectSequenceVideo(req, res, id) {
                     .run(row.selected_video_asset_id);
             }
             if (assetId) {
-                const asset = db.prepare(`SELECT id, project_id, shot_id, asset_type FROM film_assets WHERE id = ?`).get(assetId);
+                const asset = db.prepare(`SELECT id, project_id, shot_id, asset_type, metadata FROM film_assets WHERE id = ?`).get(assetId);
                 if (!asset || asset.project_id !== row.project_id || !/^video_/.test(asset.asset_type)) {
                     throw Object.assign(new Error('that is not a video in this project'), { status: 400 });
+                }
+                let origin;try{origin=JSON.parse(asset.metadata||'{}');}catch(_){origin={};}
+                if (origin.original_shot_ids && (origin.sequence_id !== id
+                    || JSON.stringify(origin.original_shot_ids) !== JSON.stringify(members)
+                    || asset.shot_id !== origin.original_shot_ids[0])) {
+                    throw Object.assign(new Error('This version was generated for different sequence membership. Its original shots and asset target are preserved.'),{status:409});
+                }
+                if(origin.original_shot_ids) {
+                    const narrative=db.prepare(`SELECT sh.id FROM film_shots sh JOIN film_scenes s ON s.id=sh.scene_id WHERE s.project_id=? ORDER BY ${require('../lib/running-order').ORDER_BY_SQL}`).all(row.project_id).map(shot=>shot.id).filter(shotId=>members.includes(shotId));
+                    if(JSON.stringify(narrative)!==JSON.stringify(members))throw Object.assign(new Error('This version has a different shot order from the narrative cut. Its original order is preserved in history.'),{status:409});
                 }
                 const lead = asset.shot_id && members.includes(asset.shot_id) ? asset.shot_id : members[0];
                 if (!lead) throw Object.assign(new Error('this sequence has no shots for its clip to play across'), { status: 409 });
@@ -449,14 +447,14 @@ function createSequence(req, res, projectId) {
     if (checked.error) return json(res, 400, { error: checked.error });
     const ids = checked.ids;
     const conflicts = membershipConflicts(projectId, ids, null);
-    if (conflicts.length && body.move !== true) return conflictReply(res, conflicts);
-    if (conflicts.length) releaseFromOthers(conflicts);
-
     const id = generateId();
-    db.prepare(`INSERT INTO film_sequences (id, project_id, name, shot_ids, description)
-                VALUES (?, ?, ?, ?, ?)`)
-        .run(id, projectId, String(body.name || '').slice(0, 200),
-            JSON.stringify(ids), String(body.description || '').slice(0, 2000));
+    db.transaction(() => {
+        if (conflicts.length && body.move === true) releaseFromOthers(conflicts);
+        db.prepare(`INSERT INTO film_sequences (id, project_id, name, shot_ids, description)
+                    VALUES (?, ?, ?, ?, ?)`)
+            .run(id, projectId, String(body.name || '').slice(0, 200),
+                JSON.stringify(ids), String(body.description || '').slice(0, 2000));
+    })();
     return json(res, 201, { sequence: db.prepare('SELECT * FROM film_sequences WHERE id = ?').get(id) });
 }
 
@@ -472,7 +470,6 @@ function updateSequence(req, res, id) {
         ? validShotIds(row.project_id, body.shot_ids, { allowEmpty: true }) : null;
     if (checked && checked.error) return json(res, 400, { error: checked.error });
     const conflicts = checked ? membershipConflicts(row.project_id, checked.ids, id) : [];
-    if (conflicts.length && body.move !== true) return conflictReply(res, conflicts);
     const shotCount = checked ? checked.ids.length : parseIds(row).length;
 
     // Joins follow the shots: a list that no longer fits them is trimmed, never
@@ -499,7 +496,7 @@ function updateSequence(req, res, id) {
             ? String(body.description).slice(0, 2000) : row.description,
     };
     db.transaction(() => {
-        if (conflicts.length) releaseFromOthers(conflicts);
+        if (conflicts.length && body.move === true) releaseFromOthers(conflicts);
         db.prepare(`UPDATE film_sequences SET name = ?, shot_ids = ?, description = ?, joins_json = ?,
                     start_frame_ref = ?, end_frame_ref = ?, updated_at = datetime('now') WHERE id = ?`)
             .run(next.name, next.shot_ids, next.description, JSON.stringify(joins),
@@ -644,11 +641,16 @@ function stationPath(projectId, shotCode, index) {
  * point. Stops at the first refusal and names what it did not attempt.
  */
 async function runInbetweens(req, res, id, opts) {
-    const o = opts || {};
+    const o = {...(opts||{})};
+    const previewOnly=!!o.preview;
+    const preparedItems=[];
+    let madeCount=0,nextReview=null,lastAsset=null;
     const row = db.prepare('SELECT * FROM film_sequences WHERE id = ?').get(id);
     if (!row) return json(res, 404, { error: 'Sequence not found' });
 
     const body = (req && req.body) || {};
+    if(body.shot_id&&!o.shotId)o.shotId=body.shot_id;
+    if(body.from_index!==undefined&&!Number.isFinite(o.fromIndex))o.fromIndex=Number(body.from_index);
     const strip = stripFor(row, { cadenceSeconds: Number(body.cadence_s) || undefined, req });
     const { generateRefinedFrame, registerStoryboardAsset } = require('./storyboard');
     const fs_ = require('fs');
@@ -676,9 +678,12 @@ async function runInbetweens(req, res, id, opts) {
             existing: strip.have[shot.id] || {},
             fromIndex: (o.shotId === shot.id && Number.isFinite(o.fromIndex)) ? o.fromIndex : undefined,
             refine: async ({ instruction, reference, station }) => {
+                const decorated=require('../lib/annotated-reference').annotatedReferenceForShot(db,shot.id,reference).path;
+                const ref={uri:require('../lib/reference-images').toDataUri(decorated),file_path:reference,name:shot.shot_code};
+                if(previewOnly){const result=await generateRefinedFrame({project,shot:dbShot,reference:ref,instruction,preview:true,overrides:require('../lib/generation-override').imageOverride(body)});if(!result.preview)throw new Error('Station provider did not stop at preview');preparedItems.push({provider:result.preview.provider,capability:'image',payload:result.preview.payload,provenance:{project_id:project.id,shot_id:shot.id,sequence_id:id,station_index:station.index,source_paths:[reference],source_shot_ids:[shot.id]}});throw new Error('FINAL_PREVIEW_CAPTURED');}
+                if(madeCount){const nextBody={...body,shot_id:shot.id,from_index:station.index};delete nextBody.final_request_approvals;nextReview={path:`/sequences/${id}/inbetweens`,body:nextBody};throw new Error('AWAITING_FINAL_REQUEST_REVIEW');}
                 const { buffer, provider, model } = await generateRefinedFrame({
-                    project, shot: dbShot, reference: { uri: null, path: reference, name: shot.shot_code },
-                    instruction,
+                    project,shot:dbShot,reference:ref,instruction,overrides:require('../lib/generation-override').imageOverride(body),
                 });
                 const file = stationPath(project.id, shot.shot_code, station.index);
                 fs_.writeFileSync(file, buffer);
@@ -694,12 +699,14 @@ async function runInbetweens(req, res, id, opts) {
                         t: station.t,
                         at_ms: station.at_ms,
                         refined_from: station.refined_from,
-                        transform: station.transform,
+                        transform: station.transform,chain_step_started:Date.now(),next_review:null,
                     });
+                madeCount++;lastAsset=asset.id;
                 return { asset_id: asset.id, image_path: file };
             },
         });
         results.push({ shot_id: shot.id, shot_code: shot.shot_code, ...out });
+        if(previewOnly&&preparedItems.length)return {items:preparedItems,staged:true};
         if (out.stopped_at !== null) break;   // one refusal is the whole run's answer
     }
 
@@ -707,7 +714,11 @@ async function runInbetweens(req, res, id, opts) {
     const after = stripFor(row, { cadenceSeconds: Number(body.cadence_s) || undefined, req });
     const stations = stationList(after.expanded);
     const stopped = results.find(r => r.stopped_at !== null && r.stopped_at !== undefined);
-    return json(res, stopped ? 409 : 200, {
+    const awaiting=!!nextReview||!!stopped&&String(stopped.error||'').includes('FINAL_REQUEST_REVIEW_REQUIRED');
+    if(awaiting&&!nextReview){const nextBody={...body,shot_id:stopped.shot_id,from_index:stopped.stopped_at};delete nextBody.final_request_approvals;nextReview={path:`/sequences/${id}/inbetweens`,body:nextBody};}
+    if(lastAsset&&nextReview)db.prepare("UPDATE film_assets SET metadata=json_set(metadata,'$.next_review',json(?)) WHERE id=?").run(JSON.stringify(nextReview),lastAsset);
+    return json(res, awaiting?200:stopped ? 409 : 200, {
+        ...(awaiting?{status:'awaiting_review',next_review:nextReview}:{}),
         sequence_id: id,
         strips: results,
         ...(stopped ? {
@@ -728,6 +739,8 @@ async function runInbetweens(req, res, id, opts) {
  * how a director reads the strip before correcting it, which is the whole
  * point of having one.
  */
+function pendingStationReview(id) {const rows=db.prepare("SELECT metadata FROM film_assets WHERE json_valid(metadata) AND json_extract(metadata,'$.sequence_id')=? AND json_extract(metadata,'$.chain_step_started') IS NOT NULL ORDER BY json_extract(metadata,'$.chain_step_started') DESC LIMIT 1").all(id);const next=rows.length?JSON.parse(rows[0].metadata).next_review:null;return next?{status:'awaiting_review',next_review:next}:{};}
+
 function listStations(res, id, query) {
     const row = db.prepare('SELECT * FROM film_sequences WHERE id = ?').get(id);
     if (!row) return json(res, 404, { error: 'Sequence not found' });
@@ -738,6 +751,7 @@ function listStations(res, id, query) {
     const strip = stripFor(row, { cadenceSeconds: Number(q.cadence_s) || undefined, shape });
     const stations = stationList(strip.expanded);
     return json(res, 200, {
+        ...pendingStationReview(id),
         sequence_id: id,
         shape,
         cadence_s: (strip.expanded.strips.find(st => st.cadence_s) || {}).cadence_s
@@ -1037,32 +1051,38 @@ function planRoute(res, id, query) {
     });
 }
 
-async function generateNativeSequence(req, res, id) {
+async function generateNativeSequence(req, res, id, opts) {
+    if (req.body?.production_draft) return generateProductionDraftSequence(req, res, id, opts);
     const row = db.prepare('SELECT * FROM film_sequences WHERE id = ?').get(id);
     if (!row) return json(res, 404, { error: 'Sequence not found' });
     const shots = shotsOf(row);
     const provider = resolve('video', seqConfig(row.project_id, req));
-    if (provider && provider.id === 'gridlight') return generateGridlightProduction(req, res, row, shots, provider);
+    if (provider && provider.id === 'gridlight') { if(opts?.preview) throw Object.assign(new Error('Gridlight sequence review is unsupported'), {status:409}); return generateGridlightProduction(req, res, row, shots, provider); }
     if (shots.length < 3 || shots.length > 5) return json(res, 409, { error: 'Native multi-shot requires 3–5 shots' });
     if (shots.some(s => !s.keyframe)) return json(res, 409, { error: 'Every native multi-shot sequence needs an approved frame' });
     if (!provider || provider.id !== 'runway') return json(res, 409, { error: 'Native multi-shot requires the Runway provider or the Gridlight gateway' });
     const { toDataUri } = require('../lib/reference-images');
     const payload = {
         runway_recipe: 'multi_shot_video', mode: 'custom', ratio: (req.body && req.body.ratio) || '1280:720',
+        audio: false, generate_audio: false,
         promptImage: toDataUri(shots[0].keyframe),
         shots: shots.map(s => ({ prompt: `${s.shot_code}: ${s.description || row.description || 'Continue the story.'}`,
             duration: Math.max(1, Math.round((s.duration_ms || 3000) / 1000)) })),
     };
-    const result = await provider.generate('video', payload, { timeout: 600000 });
-    if (!result.ok) return json(res, 502, { error: result.error });
-    const fileName = sequenceFileName(id, shots[0].shot_code, 'multi-shot');
-    const saved = await persistProviderMedia(row.project_id, 'video', fileName, result.data, { serveDir: 'videos' });
-    const assetId = generateId();
-    db.prepare(`INSERT INTO film_assets
-        (id, project_id, shot_id, asset_type, file_path, file_name, format, version, metadata, provider, provider_model, provider_job_id)
-        VALUES (?, ?, ?, 'video_raw', ?, ?, 'mp4', 1, ?, 'runway', ?, ?)`)
-        .run(assetId, row.project_id, shots[0].id, typeof saved === 'string' ? saved : saved.path, fileName,
-            JSON.stringify({ sequence_id: id, kind: 'native_multi_shot' }), result.provider_model || 'multi_shot_video', result.provider_job_id || null);
+    if(opts?.preview) {const normalized=await provider.generate('video',payload,{previewRequest:true});if(!normalized?.preview)throw new Error(normalized?.error||'Provider did not stop at preview');return {items:[{provider:provider.id,capability:'video',payload:normalized.payload,provenance:{project_id:row.project_id,sequence_id:id,source_shot_ids:parseIds(row),source_paths:shots.map(s=>s.keyframe).filter(Boolean)}}]};}
+    const drafts = require('../lib/production-draft-request');
+    const owner = require('../lib/production-recipes').nodeOwner(db,row.project_id,`seq:${id}`);
+    const delivery = { kind:'sequence_video',project_id:row.project_id,node_key:owner.node_key,sequence_id:id,
+        source_shot_ids:parseIds(row),baseline:drafts.selectionBaseline(db,owner),asset_kind:'native_multi_shot' };
+    const result = await provider.generate('video', payload, { timeout: 600000,
+        jobMeta:{ project_id:row.project_id,sequence_id:id,source_shot_ids:parseIds(row),source_paths:shots.map(s=>s.keyframe),production_delivery:delivery } });
+    if (!result.ok) return json(res, result.pending ? 202 : result.status || 502,
+        { error:result.error,job_id:result.job_id,pending:result.pending || false });
+    const fileName = sequenceFileName(id, shots[0].shot_code, 'multi-shot', result.job_id || require('../lib/production-draft-request').resultReviewId(result) || generateId());
+    const saved = await persistProviderMedia(row.project_id, 'video', fileName, result.data, { serveDir: 'videos', keepAudio: true });
+    const filed = drafts.fileProductionDraftSequence(db,{ delivery,result,filePath:typeof saved === 'string' ? saved : saved.path,
+        provider:result.provider,model:result.provider_model,jobId:result.job_id });
+    const assetId = filed.asset_id;
 
     // The multi-shot recipe is a generation too, and is the LESS deterministic
     // of the two paths — so it is the one whose outcomes are most worth having.
@@ -1077,8 +1097,7 @@ async function generateNativeSequence(req, res, id) {
             sceneCard: nativeCard, assetId,
         });
     } catch (_) { /* never fail a clip that already cost money */ }
-    db.prepare("UPDATE film_sequences SET output_asset_id = ?, status = 'complete', updated_at = datetime('now') WHERE id = ?").run(assetId, id);
-    return json(res, 200, { sequence_id: id, asset_id: assetId, url: getFileUrl('video', row.project_id, fileName), mode: 'native_multi_shot' });
+    return json(res, 200, { ...filed,mode:'native_multi_shot' });
 }
 
 /**
@@ -1187,10 +1206,17 @@ function sequenceFrame(project, provider) {
     }
 }
 
-async function generateSequence(req, res, id) {
+async function generateSequence(req, res, id, opts) {
+    if (req.body?.production_draft) return generateProductionDraftSequence(req, res, id, opts);
+    const previewOnly = !!opts?.preview;
+    const preparedItems = [];
     const row = db.prepare('SELECT * FROM film_sequences WHERE id = ?').get(id);
     if (!row) return json(res, 404, { error: 'Sequence not found' });
 
+    const draftRequests = require('../lib/production-draft-request');
+    const sequenceOwner = require('../lib/production-recipes').nodeOwner(db,row.project_id,`seq:${id}`);
+    const sequenceBaseline = draftRequests.selectionBaseline(db,sequenceOwner);
+    const originalShotIds = parseIds(row);
     const ceiling = keyframeCeiling(row.project_id, req);
     const runway = ceiling.provider === 'runway' ? require('../lib/providers/runway') : null;
     const model = runway ? (process.env.RUNWAY_VIDEO_MODEL || 'gen4.5') : null;
@@ -1254,7 +1280,7 @@ async function generateSequence(req, res, id) {
     const videoFrame = sequenceFrame(project, provider);
     const results = [];
 
-    db.prepare("UPDATE film_sequences SET status = 'generating', updated_at = datetime('now') WHERE id = ?").run(id);
+    if(!previewOnly) db.prepare("UPDATE film_sequences SET status = 'generating', updated_at = datetime('now') WHERE id = ?").run(id);
 
     const requestedIndex = req.body && req.body.segment_index;
     const selected = requestedIndex === undefined ? plan.segments
@@ -1310,7 +1336,7 @@ async function generateSequence(req, res, id) {
             .map(k => ({ uri: toDataUri(k.uri), position: k.position }))
             .filter(k => k.uri);
         const refs = stationRefs(segment);
-        const result = await provider.generate('video', {
+        const payload = {
             prompt: segment.prompt,
             keyframes,
             ...(refs && refs.length ? { reference_images: refs } : {}),
@@ -1329,7 +1355,9 @@ async function generateSequence(req, res, id) {
              */
             ...videoFrame,
             ...(project && project.target_fps ? { target_fps: project.target_fps } : {}),
-        }, {
+        };
+        if(previewOnly) {const normalized=await provider.generate('video',payload,{previewRequest:true});if(!normalized?.preview)throw new Error(normalized?.error||'Provider did not stop at preview');preparedItems.push({provider:provider.id,capability:'video',payload:normalized.payload,provenance:{project_id:row.project_id,sequence_id:id,item_index:preparedItems.length,source_shot_ids:parseIds(row),source_paths:[...segment.keyframes.map(k=>k.uri),...(strip_?strip_.expanded.stations.map(st=>st.keyframe):[])].filter(Boolean)}});continue;}
+        const result = await provider.generate('video', payload, {
             timeout: 600000,
             /*
              * What this generation IS, written onto its job handle before a
@@ -1338,30 +1366,37 @@ async function generateSequence(req, res, id) {
              * for.
              */
             jobMeta: { sequence_id: id, from: segment.from, to: segment.to,
-                       from_shot_id: segment.from_shot_id },
+                       from_shot_id: segment.from_shot_id,sequence_baseline:sequenceBaseline,source_shot_ids:originalShotIds },
         });
 
         if (!result.ok) {
-            results.push({ from: segment.from, to: segment.to, ok: false, error: result.error });
+            results.push({ from: segment.from, to: segment.to, ok: false,error:result.error,job_id:result.job_id,pending:result.pending || false });
             // A provider that has started refusing will refuse the rest; stop
             // rather than buying the same failure N times.
             break;
         }
 
-        const fileName = sequenceFileName(id, segment.from, segment.to);
+        const reviewId = require('../lib/production-draft-request').resultReviewId(result);
+        const fileName = sequenceFileName(id, segment.from, segment.to, result.job_id || reviewId || generateId());
         /*
          * `result`, not `result.data`. An adapter that answers with a CDN URL
          * and no buffer -- which is every MuAPI one -- handed `undefined` here
          * and threw on a clip that had already been paid for.
          */
         const saved = await persistProviderMedia(row.project_id, 'video', fileName, result,
-            { serveDir: 'videos' });
+            { serveDir: 'videos', keepAudio: true });
         const assetId = fileSequenceClip({
             projectId: row.project_id, sequenceId: id,
             from: segment.from, to: segment.to, shotId: segment.from_shot_id,
             fileName,
+            jobId: result.job_id, reviewId,
+            baseline:sequenceBaseline,sourceShotIds:originalShotIds,
             filePath: typeof saved === 'string' ? saved : (saved && saved.path) || '',
         });
+        const historical = !!JSON.parse(db.prepare('SELECT metadata FROM film_assets WHERE id=?').get(assetId).metadata).historical;
+        if (result.job_id) db.prepare("UPDATE film_generation_jobs SET asset_id=?,delivered_json=? WHERE id=?")
+            .run(assetId,JSON.stringify({ ok:true,job_id:result.job_id,asset_id:assetId,sequence_id:id,historical,
+                final_request_review_id:reviewId,file_path:typeof saved === 'string' ? saved : saved.path,url:getFileUrl('video',row.project_id,fileName) }),result.job_id);
         /*
          * RECORD THE ATTEMPT. `recordVideoAttempt` was called by
          * routes/video-gen.js and by nothing else, so film_video_attempts held
@@ -1392,7 +1427,7 @@ async function generateSequence(req, res, id) {
         } catch (_) { /* never fail a clip that already cost money */ }
 
         results.push({
-            from: segment.from, to: segment.to, ok: true, asset_id: assetId,
+            from: segment.from, to: segment.to, ok: true, asset_id: assetId,historical,final_request_review_id:reviewId,
             // The tier that was actually BILLED, reported by the adapter that
             // billed it — never the one this route asked for. Those were the
             // same number right up until they were not.
@@ -1402,12 +1437,14 @@ async function generateSequence(req, res, id) {
         });
     }
 
+    if(previewOnly) return {items:preparedItems};
     const failed = results.filter(r => !r.ok);
-    db.prepare("UPDATE film_sequences SET status = ?, updated_at = datetime('now') WHERE id = ?")
+    const selectionUnchanged = draftRequests.selectionUnchanged(db,sequenceOwner,sequenceBaseline);
+    if (selectionUnchanged) db.prepare("UPDATE film_sequences SET status = ?, updated_at = datetime('now') WHERE id = ?")
         .run(failed.length ? 'failed' : 'complete', id);
     // What the borrowed frames were when this was made, so a changed source
     // version reads as stale on the graph rather than silently ignored.
-    if (input_ && input_.links && results.some(r => r.ok)) {
+    if (selectionUnchanged && input_ && input_.links && results.some(r => r.ok)) {
         db.prepare('UPDATE film_sequences SET link_fingerprint = ? WHERE id = ?').run(input_.links.fingerprint || null, id);
     }
 
@@ -1464,7 +1501,8 @@ function clipsOf(row) {
             `SELECT id, file_path, file_name FROM film_assets
               WHERE project_id = ? AND json_extract(metadata, '$.sequence_id') = ?
                 AND json_extract(metadata, '$.from') = ?
-              ORDER BY created_at DESC LIMIT 1`).get(row.project_id, id, from.shot_code);
+                AND COALESCE(json_extract(metadata,'$.historical'),0)=0
+              ORDER BY version DESC,created_at DESC,rowid DESC LIMIT 1`).get(row.project_id, id, from.shot_code);
         if (clip) out.push({ ...clip, from: from.shot_code, to: to.shot_code });
         if (shots.length === 1) break;
         if (i === shots.length - 2) break;
@@ -1644,7 +1682,7 @@ async function handleSequences(req, res, urlParts, query) {
             if (req.method === 'GET') {
                 const row = db.prepare('SELECT * FROM film_sequences WHERE id = ?').get(id);
                 if (!row) return json(res, 404, { error: 'Sequence not found' });
-                return json(res, 200, { sequence: { ...row, shot_ids: parseIds(row) }, shots: shotsOf(row) });
+                return json(res, 200, { ...pendingStationReview(id), sequence: { ...row, shot_ids: parseIds(row) }, shots: shotsOf(row) });
             }
             if (req.method === 'PUT') return updateSequence(req, res, id);
             if (req.method === 'DELETE') {
@@ -1660,4 +1698,32 @@ async function handleSequences(req, res, urlParts, query) {
     return false;
 }
 
-module.exports = { handleSequences, shotsOf, sequenceFileName, sequenceFrame, seqConfig };
+async function realStationRequests(id,body,shotId,fromIndex){let status=200,sent;const fake={writeHead(code){status=code;},end(b){try{sent=JSON.parse(b);}catch(_){} }};const result=await runInbetweens({body:body||{}},fake,id,{preview:true,shotId,fromIndex:fromIndex===undefined?undefined:Number(fromIndex)});if(result?.items?.length)return {supported:true,...result};throw Object.assign(new Error(sent?.error||'No sequence station is ready'),{status:status>=400?status:409});}
+
+async function realSequenceRequests(id, body, native = false) {
+ let status=200,sent; const fake={writeHead(code){status=code;},end(b){try{sent=JSON.parse(b);}catch(_){}},setHeader(){}};
+ const result=await (native?generateNativeSequence:generateSequence)({body:body||{}},fake,id,{preview:true});
+ if(result?.items?.length)return result;
+ throw Object.assign(new Error(sent?.error||'Sequence has no generation items'),{status:status>=400?status:409});
+}
+
+async function generateProductionDraftSequence(req, res, id, opts = {}) {
+ const drafts = require('../lib/production-draft-request');
+ try {
+  const plan = await drafts.plannedDraft(db, id, req.body, 'video', 'sequence');
+  if (opts.preview) return { items: [{ provider: plan.provider, capability: 'video', payload: plan.payload, provenance: plan.provenance }] };
+  const approvals = require('../lib/final-request-review');
+  // Both existing sequence endpoints use this same one-request draft contract.
+  await approvals.preflightApprovals({ path: `/sequences/${id}/generate-native`, body: req.body });
+  const delivery = drafts.deliveryOf(plan, 'video');
+  const result = await approvals.runWithApprovals(req.body.final_request_approvals, () => plan.generator.generate('video', plan.payload,
+   { timeout: 600000, jobMeta: { ...plan.provenance, production_delivery: delivery } }));
+  if (!result.ok) return json(res, result.pending ? 202 : result.status || 502, { error: result.error, job_id: result.job_id, pending: result.pending || false });
+  const filename = `production_sequence_${id}_${generateId()}.mp4`;
+  const filePath = await persistProviderMedia(plan.owner.project_id, 'video', filename, result.data || result, { serveDir: 'videos', keepAudio: true });
+  const filed = drafts.fileProductionDraftSequence(db, { delivery, result, filePath, provider: result.provider, model: result.provider_model, jobId: result.job_id });
+  return json(res, 200, { ...filed, status: 'complete' });
+ } catch (error) { if (opts.preview) throw error; return json(res, error.status || 502, { error: error.message }); }
+}
+
+module.exports = { realStationRequests, realSequenceRequests, handleSequences, shotsOf, sequenceFileName, sequenceFrame, seqConfig };

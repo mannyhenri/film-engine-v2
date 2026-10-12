@@ -169,7 +169,7 @@ function fileCollectedFrame({ shotId, sourcePath, provider, providerModel, jobId
     });
     try {
         logToRenderLedger(shot.id, { model: providerModel, provider, seed, prompt,
-            negative_prompt: negativePrompt, output_path: imgPath, mode: 'creative' });
+            negative_prompt: negativePrompt, output_path: imgPath, mode: directionMode === 'upscale' ? 'upscale' : 'creative' });
     } catch (_) { /* the ledger never fails a delivery */ }
     db.prepare('UPDATE film_shots SET status = ? WHERE id = ?').run('complete', shot.id);
     return { ok: true, asset_id: asset.id, shot_id: shot.id, shot_code: shot.shot_code,
@@ -177,34 +177,8 @@ function fileCollectedFrame({ shotId, sourcePath, provider, providerModel, jobId
 }
 
 function archiveExistingFrame(projectId, shotId, shotCode) {
-    try {
-        const current = storyboardImagePath(projectId, shotCode);
-        if (!fs.existsSync(current)) return null;
-        /*
-         * The live file holds the version the POINTER names, not the highest.
-         * Archiving under the highest was right until selection became a
-         * pointer; after it, selecting v3 and then going back to v5 copied v3's
-         * picture over v5's own kept file, and v5 was gone. The version on the
-         * board is archived, and only when its row still names the live file
-         * (or its own file is missing): a version that already has its own
-         * picture is never written over, because the live file is a copy of it.
-         */
-        const onBoard = currentFrameVersion(shotId);
-        const row = onBoard == null ? null : db.prepare(
-            `SELECT id, version, file_path FROM film_assets WHERE shot_id = ? AND asset_type = 'storyboard'
-              AND version = ? ORDER BY created_at DESC LIMIT 1`).get(shotId, onBoard);
-        if (!row) return null;
-        const namesLive = row.file_path && path.resolve(row.file_path) === path.resolve(current);
-        if (!namesLive && row.file_path && fs.existsSync(row.file_path)) return row.file_path;
-        const dest = storyboardVersionPath(projectId, shotCode, row.version);
-        fs.mkdirSync(path.dirname(dest), { recursive: true });
-        fs.copyFileSync(current, dest);
-        // The row now points at the copy, so the ledger and the disk agree
-        // about which picture that version WAS.
-        db.prepare('UPDATE film_assets SET file_path = ?, file_name = ? WHERE id = ?')
-            .run(dest, path.basename(dest), row.id);
-        return dest;
-    } catch (_) { return null; }
+    const activation = require('../lib/storyboard-activation');
+    return activation.preserveLive(db, shotId);
 }
 
 /**
@@ -288,7 +262,7 @@ async function callImageGen(prompt, negativePrompt, seed, options, projectConfig
         ...withProjectResolution(options, projectConfig),
         prompt,
         negative_prompt: negativePrompt,
-        seed: seed || null,
+        seed: seed ?? options?.seed ?? null,
     });
 
     // Walk the credentialed image providers rather than betting the shot on
@@ -306,8 +280,12 @@ async function callImageGen(prompt, negativePrompt, seed, options, projectConfig
     // A preview stops at the provider's door (lib/providers previewRequest):
     // nothing was generated, and what would have been sent comes back.
     if (result && result.ok && result.preview) {
-        return { preview: { provider: result.provider, payload: result.payload, request: result.request,
-            chain: result._chain || [] } };
+        const config={...(projectConfig||{}),image:result.provider};
+        const chosen=require('../lib/providers').resolve('image',config);
+        if(!chosen||chosen.id!==result.provider)throw new Error('Preview provider changed while resolving final options');
+        const normalized=await chosen.generate('image',result.payload,{previewRequest:true});
+        if(!normalized?.preview)throw new Error(normalized?.error||'Image provider did not stop at preview');
+        return {preview:{provider:result.provider,payload:normalized.payload,request:normalized.request,chain:result._chain||[]}};
     }
 
     if (!result || !result.ok) {
@@ -359,6 +337,7 @@ async function callImageGen(prompt, negativePrompt, seed, options, projectConfig
             : (fitted.reason ? { conformed: false, got: fitted.got || null, reason: fitted.reason } : null),
         provider: result.provider || 'unknown',
         model: result.provider_model || requestBody.model,
+        final_request_review_id: require('../lib/production-draft-request').resultReviewId(result),
     };
 }
 
@@ -373,7 +352,7 @@ async function callImageGenStream(prompt, negativePrompt, seed, options, onProgr
         ...withProjectResolution(options, projectConfig),
         prompt,
         negative_prompt: negativePrompt,
-        seed: seed || null,
+        seed: seed ?? options?.seed ?? null,
     });
     payload.stream = true;
 
@@ -385,12 +364,12 @@ async function callImageGenStream(prompt, negativePrompt, seed, options, onProgr
     // being that selecting Runway or OpenAI for `image` must actually reach
     // them, where before this whole function posted to Gridlight regardless.
     if (provider.id !== 'gridlight') {
-        const { buffer, model } = await callImageGen(prompt, negativePrompt, seed, options,
+        const { buffer, model, final_request_review_id } = await callImageGen(prompt, negativePrompt, seed, options,
             projectConfig, payloadFactory);
         if (onProgress) onProgress({ type: 'progress', step: 1, total_steps: 1 });
         return {
             buffer,
-            metadata: { provider: provider.id, provider_model: model, seed: payload.seed },
+            metadata: { provider: provider.id, provider_model: model, seed: payload.seed, final_request_review_id },
         };
     }
 
@@ -401,6 +380,7 @@ async function callImageGenStream(prompt, negativePrompt, seed, options, onProgr
 
     // Endpoint comes from the adapter's own capability map rather than being
     // spelled out here, so there is one definition of where `image` lives.
+    throw Object.assign(new Error('Final editable request review is required before direct Gridlight submission'), { status: 409, code: 'FINAL_REQUEST_REVIEW_REQUIRED' });
     const response = await fetch(`${GRIDLIGHT_URL}${gridlightEndpointFor('image')}`, {
         method: 'POST',
         headers,
@@ -626,6 +606,7 @@ function registerStoryboardAsset(projectId, shotId, filePath, fileName, options)
      * did not know, which is different from a value of none.
      */
     const metadata = {};
+    for(const key of ['sequence_id','shot_id','station_index','t','at_ms','transform','next_review','chain_step_started'])if(opts[key]!==undefined)metadata[key]=opts[key];
     if (opts.restored_from !== undefined) metadata.restored_from = opts.restored_from;
     if (opts.refined_from !== undefined) metadata.refined_from = opts.refined_from;
     if (opts.instruction !== undefined) metadata.instruction = opts.instruction;
@@ -674,6 +655,7 @@ function registerStoryboardAsset(projectId, shotId, filePath, fileName, options)
     if (opts.flow_from) metadata.flow_from = opts.flow_from;
     if (opts.provider) metadata.provider = opts.provider;
     if (opts.provider_model) metadata.provider_model = opts.provider_model;
+    if (opts.final_request_review_id) metadata.final_request_review_id = opts.final_request_review_id;
 
     db.prepare(`
         INSERT INTO film_assets (id, project_id, shot_id, asset_type, file_path, file_name,
@@ -1038,6 +1020,9 @@ function getStoryboard(req, res, projectId, query) {
             lighting: sceneCard.lighting || {},
             status: shot.status,
             asset_version: asset ? asset.version : null,
+            asset_id: asset ? asset.id : null,
+            image_pixels: hasImage ? require('../lib/asset-pixel-dimensions').imagePixels(imgPath) : null,
+            image_upscaled: hasImage && require('../lib/asset-pixel-dimensions').imageWasUpscaled(asset),
             // Restoring moves FORWARD — v3 comes back as v6, so v4 and v5 are
             // not destroyed to undo one choice. That is right, and it makes the
             // version number stop describing the picture: the card said "v6"
@@ -1074,7 +1059,9 @@ function getStoryboard(req, res, projectId, query) {
 
 // ── FILM-017: Generate Storyboard (Sync) ───────────────────────────
 
-async function generateStoryboard(req, res, projectId, query) {
+async function generateStoryboard(req, res, projectId, query, cap) {
+    const previewOnly = !!cap?.preview;
+    const preparedItems = [];
     const project = db.prepare('SELECT id, title, style_preset, provider_config, aspect_ratio, annotation_feedback, anchor_shot_id, board_locked_at FROM film_projects WHERE id = ?').get(projectId);
     const _lock = boardLocked(project, req.body || {});
     if (_lock) return json(res, 423, _lock);
@@ -1118,7 +1105,7 @@ async function generateStoryboard(req, res, projectId, query) {
     // nothing, because every card's props array was empty.
     const props = db.prepare('SELECT * FROM film_props WHERE project_id = ?').all(projectId);
 
-    ensureStoryboardDir(projectId);
+    if(!previewOnly) ensureStoryboardDir(projectId);
 
     /*
      * A GET stream has no body, so the per-run model choice arrives in the
@@ -1145,7 +1132,7 @@ async function generateStoryboard(req, res, projectId, query) {
         // New scene — generate a new base seed
         if (shot.scene_id !== currentSceneId) {
             currentSceneId = shot.scene_id;
-            baseSeed = body.seed || crypto.randomInt(0, 2 ** 31);
+            baseSeed = body.seed ?? crypto.randomInt(0, 2 ** 31);
             shotIndexInScene = 0;
         }
 
@@ -1214,7 +1201,7 @@ async function generateStoryboard(req, res, projectId, query) {
            references and consistency are still applied by this route below. */
 
         // Update shot status
-        db.prepare('UPDATE film_shots SET status = ? WHERE id = ?').run('generating', shot.shot_id);
+        if(!previewOnly) db.prepare('UPDATE film_shots SET status = ? WHERE id = ?').run('generating', shot.shot_id);
 
         try {
             const imagePayload = applyConsistencyToImagePayload({
@@ -1249,7 +1236,15 @@ async function generateStoryboard(req, res, projectId, query) {
                     ip_adapter_weight: styleParams.ip_adapter_weight,
                 },
             }, adapter);
-            const { buffer: imageBuffer, provider: usedProvider, model: usedModel } =
+            if(previewOnly) {
+                const { preview } = await callImageGen(imagePayload.prompt,imagePayload.negative_prompt,imagePayload.seed,imagePayload,
+                    spendContext(project,shot,null,imageOverride(body)),payloadFactory,{previewRequest:true});
+                if(!preview) throw new Error('Could not prepare final board request');
+                preparedItems.push({provider:preview.provider,capability:'image',payload:preview.payload,provenance:{project_id:projectId,shot_id:shot.shot_id,source_paths:shotRefs.map(r=>r.file_path||r.path).filter(Boolean),...(body.seed==null?{default_seed:true}:{})}});
+                shotIndexInScene++;
+                continue;
+            }
+            const { buffer: imageBuffer, provider: usedProvider, model: usedModel, final_request_review_id: reviewId } =
                 await callImageGen(imagePayload.prompt, imagePayload.negative_prompt, imagePayload.seed,
                     imagePayload, spendContext(project, shot, null, imageOverride(body)), payloadFactory,
                     frameJobMeta(shot.shot_id, imagePayload));
@@ -1265,6 +1260,7 @@ async function generateStoryboard(req, res, projectId, query) {
                 input_refs: consistencyContext.input_refs,
                 provider: usedProvider,
                 provider_model: usedModel,
+                final_request_review_id: reviewId,
                 // Whole-board generation builds every frame from its card, so
                 // the mode is always 'action'. Recorded rather than left off:
                 // absent has to keep meaning "made before this was tracked".
@@ -1303,6 +1299,7 @@ async function generateStoryboard(req, res, projectId, query) {
             shotsCompleted++;
 
         } catch (err) {
+            if(previewOnly) throw err;
             db.prepare('UPDATE film_shots SET status = ? WHERE id = ?').run('failed', shot.shot_id);
             results.push({
                 shot_id: shot.shot_id,
@@ -1328,6 +1325,7 @@ async function generateStoryboard(req, res, projectId, query) {
         }
     }
 
+    if(previewOnly) return {items:preparedItems};
     json(res, 200, {
         project_id: projectId,
         shots_completed: shotsCompleted,
@@ -1342,7 +1340,9 @@ async function generateStoryboard(req, res, projectId, query) {
 
 // ── FILM-017: Generate Storyboard (SSE Stream) ─────────────────────
 
-async function generateStoryboardStream(req, res, projectId, query) {
+async function generateStoryboardStream(req, res, projectId, query, cap) {
+    const previewOnly = !!cap?.preview;
+    const preparedItems = [];
     /*
      * A GET stream has no body, so the per-run model choice arrives in the
      * query. Read into the same shape the POST path uses, or the picker would
@@ -1369,7 +1369,7 @@ async function generateStoryboardStream(req, res, projectId, query) {
     // nothing, because every card's props array was empty.
     const props = db.prepare('SELECT * FROM film_props WHERE project_id = ?').all(projectId);
 
-    ensureStoryboardDir(projectId);
+    if(!previewOnly) ensureStoryboardDir(projectId);
 
     // SSE headers
     res.writeHead(200, {
@@ -1414,7 +1414,7 @@ async function generateStoryboardStream(req, res, projectId, query) {
 
         if (shot.scene_id !== currentSceneId) {
             currentSceneId = shot.scene_id;
-            baseSeed = body.seed || crypto.randomInt(0, 2 ** 31);
+            baseSeed = body.seed ?? crypto.randomInt(0, 2 ** 31);
             shotIndexInScene = 0;
 
             sendEvent({
@@ -1495,7 +1495,7 @@ async function generateStoryboardStream(req, res, projectId, query) {
                     consistency_refs: consistencyContext.input_refs,
                 });
 
-        db.prepare('UPDATE film_shots SET status = ? WHERE id = ?').run('generating', shot.shot_id);
+        if(!previewOnly) db.prepare('UPDATE film_shots SET status = ? WHERE id = ?').run('generating', shot.shot_id);
 
         try {
             const imagePayload = applyConsistencyToImagePayload({
@@ -1530,6 +1530,14 @@ async function generateStoryboardStream(req, res, projectId, query) {
                     ip_adapter_weight: styleParams.ip_adapter_weight,
                 },
             }, adapter);
+            if(previewOnly) {
+                const { preview } = await callImageGen(imagePayload.prompt,imagePayload.negative_prompt,imagePayload.seed,imagePayload,
+                    spendContext(project,shot,null,imageOverride(body)),payloadFactory,{previewRequest:true});
+                if(!preview) throw new Error('Could not prepare final board request');
+                preparedItems.push({provider:preview.provider,capability:'image',payload:preview.payload,provenance:{project_id:projectId,shot_id:shot.shot_id,source_paths:shotRefs.map(r=>r.file_path||r.path).filter(Boolean),...(body.seed==null?{default_seed:true}:{})}});
+                shotIndexInScene++;
+                continue;
+            }
             const { buffer: imageBuffer, metadata } = await callImageGenStream(
                 imagePayload.prompt, imagePayload.negative_prompt, imagePayload.seed,
                 imagePayload,
@@ -1557,6 +1565,7 @@ async function generateStoryboardStream(req, res, projectId, query) {
                 input_refs: consistencyContext.input_refs,
                 provider: metadata && metadata.provider,
                 provider_model: metadata && metadata.provider_model,
+                final_request_review_id: metadata && metadata.final_request_review_id,
                 direction_mode: 'action',
             });
             recordConsistencyCheck(
@@ -1595,6 +1604,7 @@ async function generateStoryboardStream(req, res, projectId, query) {
             shotsCompleted++;
 
         } catch (err) {
+            if(previewOnly) throw err;
             db.prepare('UPDATE film_shots SET status = ? WHERE id = ?').run('failed', shot.shot_id);
 
             sendEvent({
@@ -1633,6 +1643,7 @@ async function generateStoryboardStream(req, res, projectId, query) {
         }
     }
 
+    if(previewOnly) return {items:preparedItems};
     sendEvent({
         type: 'result',
         project_id: projectId,
@@ -1756,7 +1767,9 @@ function listShotFrames(req, res, shotId) {
                 : meta.restored_from ? `restored from v${meta.restored_from}`
                 : meta.refined_from ? `refine (${meta.refined_from})`
                 : meta.instruction ? 'refine'
-                : meta.kind === 'storyboard_import' ? 'imported'
+                : meta.kind === 'previz_draft' ? 'Previz draft · browser preview'
+                : meta.kind === 'previz_blender' ? 'Blender render · Cycles CPU'
+                : meta.kind === 'storyboard_import' ? (meta.external_tool ? `imported from ${meta.external_tool}` : 'imported')
                 : 'generated',
             // A borrowed frame is a different thing from a generated one: it
             // was made from another shot's card, so the card and the picture
@@ -1775,6 +1788,7 @@ function listShotFrames(req, res, shotId) {
     return json(res, 200, {
         shot_id: shotId, shot_code: shot.shot_code, versions,
         current_version: currentVersion,
+        activation: require('../lib/storyboard-activation').activationEvidence(db, shotId),
         restorable_count: versions.filter(v => v.restorable).length,
         note: 'Every attempt is kept. Restoring one copies it back to the live frame as a NEW '
             + 'version — nothing is deleted and nothing is rewound, so the attempt you are '
@@ -1831,67 +1845,25 @@ function restoreShotFrame(req, res, shotId, version) {
           WHERE shot_id = ? AND asset_type = 'storyboard' AND version = ?`).get(shotId, wanted);
     if (!row) return json(res, 404, { error: `This shot has no version ${wanted}` });
 
-    /*
-     * Moving a pointer, not making a version.
-     *
-     * This used to copy the chosen attempt to a NEW highest version — v3
-     * selected became v6 — so that nothing was ever destroyed. Nothing was, and
-     * the count became a lie: five generations and one selection read as six
-     * attempts, and "which am I on" stopped having an answer. Versions are the
-     * GENERATIONS; which one is on the board is a pointer, and moving it
-     * creates nothing.
-     *
-     * The live file is still written, because every consumer — the board, the
-     * viewer, previs, the video pass — reads {code}.png. What is NOT written is
-     * a row.
-     */
-    const live = storyboardImagePath(scene.project_id, shot.shot_code);
-
-    /*
-     * A row still naming the LIVE file is an attempt whose own picture was
-     * never kept aside — the file at that path is now some later attempt. It
-     * exists, so a bare existsSync says yes and the copy would silently write
-     * the current picture onto itself and report success. `listShotFrames`
-     * already calls these `overwritten` and refuses to offer Restore; the route
-     * has to agree, or the API accepts what the UI knows is impossible.
-     */
-    const namesLiveFile = row.file_path
-        && path.resolve(row.file_path) === path.resolve(live);
-    const src = (!namesLiveFile && row.file_path && fs.existsSync(row.file_path))
-        ? row.file_path : null;
-    // Pressing the version already on the board is a no-op, not an error —
-    // including a fresh generation, whose row always names the live file.
-    // A version whose own file is gone is still refused below, on the board or not.
-    if (currentFrameVersion(shotId) === wanted && (src || (namesLiveFile && fs.existsSync(live)))) {
-        return json(res, 200, {
-            shot_id: shotId, version: wanted, changed: false,
-            note: 'That version is already the frame on the board.',
-        });
-    }
-    if (!src) {
-        return json(res, 409, {
-            error: namesLiveFile
-                ? `Version ${wanted}'s own picture was never kept — that row names the live file, `
-                  + 'which now holds a later attempt.'
-                : `The file for version ${wanted} is no longer on disk.`,
-            hint: 'The row survives, so the attempt is recorded — but the picture cannot be shown.',
-        });
-    }
-
+    // Reconcile even a same-selected pointer/live mismatch. The coordinator
+    // archives the live-file owner and rolls back files when SQL fails.
+    let activationResult;
     try {
-        /*
-         * Before pointing elsewhere, make sure the picture currently on the
-         * board is stored under its own version. A freshly generated frame
-         * lives only at {code}.png until something archives it, so switching
-         * away without this would lose the newest attempt — the one thing this
-         * list exists to prevent.
-         */
-        archiveExistingFrame(scene.project_id, shotId, shot.shot_code);
-        fs.copyFileSync(src, live);
-        db.prepare('UPDATE film_shots SET current_frame_version = ? WHERE id = ?').run(wanted, shotId);
+        const activation = require('../lib/storyboard-activation');
+        activationResult = activation.withStoryboardMutation(db, shotId, files =>
+            activation.activateAsset(db, shotId, row.id, files, {
+                ...(req.body?.expected_live_sha256 !== undefined
+                    ? { expectedLiveSha256: req.body.expected_live_sha256 } : {}),
+                ...(req.body?.expected_selected_asset_id !== undefined
+                    ? { expectedSelectedAssetId: req.body.expected_selected_asset_id } : {}),
+            }));
     } catch (err) {
-        return json(res, 500, { error: 'Could not restore that version: ' + err.message });
+        return json(res, err.status || 500, { error: 'Could not restore that version: ' + err.message });
     }
+    if (!activationResult.changed) return json(res, 200, {
+        shot_id: shotId, version: wanted, changed: false,
+        note: 'That version is already the frame on the board.',
+    });
 
     return json(res, 200, {
         shot_id: shotId,
@@ -2086,6 +2058,29 @@ async function realBoardRequest(shotId, body) {
     } catch (err) {
         return { error: err.message, status: 502 };
     }
+}
+
+async function realRefineRequest(shotId, body) {
+    let status = 200, sent;
+    const fake = { headersSent: false, writeHead(code) { status = code; }, setHeader() {}, end(b) { try { sent = JSON.parse(b); } catch (_) {} } };
+    try {
+        const result = await refineShot({ body: body || {}, headers: {} }, fake, shotId, { preview: true });
+        return result && result.preview ? result : { error: sent && sent.error || 'Refine preview refused', status };
+    } catch (err) { return { error: err.message, status: err.status || 409 }; }
+}
+
+async function realRecomposeRequest(shotId, body) {
+    let status = 200, sent;
+    const fake = { headersSent: false, writeHead(code) { status = code; }, setHeader() {}, end(b) { try { sent = JSON.parse(b); } catch (_) {} } };
+    try { const result = await recomposeShot({ body: body || {}, headers: {} }, fake, shotId, { preview: true }); return result && result.preview ? result : { error: sent && sent.error || 'Recompose preview refused', status }; }
+    catch (err) { return { error: err.message, status: err.status || 409 }; }
+}
+
+async function realBatchBoardRequests(projectId, body, stream = false) {
+ let status=200,sent;const fake={writableEnded:false,writeHead(code){status=code;},setHeader(){},on(){},write(){},end(b){try{sent=JSON.parse(b);}catch(_){} }};
+ const result=await (stream?generateStoryboardStream:generateStoryboard)({body:body||{},headers:{}},fake,projectId,{}, {preview:true});
+ if(result?.items?.length)return result;
+ throw Object.assign(new Error(sent?.error||'No eligible board requests'),{status:status>=400?status:409});
 }
 
 /** The prompt a wire request carries, wherever its provider puts it. */
@@ -2907,7 +2902,8 @@ function recomposePreview(req, res, shotId, query) {
 }
 
 /** POST /film/shots/:id/storyboard/recompose — costs credits. */
-async function recomposeShot(req, res, shotId) {
+async function recomposeShot(req, res, shotId, opts) {
+    const previewOnly = !!(opts && opts.preview);
     const body = req.body || {};
     const bg = resolveRecomposeBackground(shotId, body);
     if (bg.error) return json(res, bg.status || 400, { error: bg.error });
@@ -2934,9 +2930,9 @@ async function recomposeShot(req, res, shotId) {
     }
 
     const built = buildRecomposePayload({ instruction: body.instruction });
-    db.prepare('UPDATE film_shots SET status = ? WHERE id = ?').run('generating', shotId);
+    if (!previewOnly) db.prepare('UPDATE film_shots SET status = ? WHERE id = ?').run('generating', shotId);
     try {
-        ensureStoryboardDir(project.id);
+        if (!previewOnly) ensureStoryboardDir(project.id);
         const payload = {
             // An edited prompt replaces the composed one whole; the negative
             // stays, because it is what refuses "original background" in one
@@ -2945,12 +2941,14 @@ async function recomposeShot(req, res, shotId) {
             negative_prompt: built.negative_prompt,
             // ORDER IS THE CONTRACT: subject first, place second.
             reference_images: [
-                { name: bg.shot.shot_code, kind: 'frame', tag: 'performance', uri: subjectUri, weight: 0.9 },
-                { name: bg.location.name, kind: 'location', tag: 'place', uri: placeUri, weight: 0.6 },
+                { name: bg.shot.shot_code, kind: 'frame', tag: 'performance', uri: subjectUri, file_path:src.path, weight: 0.9 },
+                { name: bg.location.name, kind: 'location', tag: 'place', uri: placeUri, file_path:bg.plate.file_path, weight: 0.6 },
             ],
             aspect_ratio: project.aspect_ratio,
         };
-        const { buffer, provider, model } = await callImageGen(
+        if (previewOnly) return await callImageGen(payload.prompt, payload.negative_prompt, undefined, payload,
+            spendContext(project, bg.shot, null, imageOverride(body)), null, { previewRequest: true });
+        const { buffer, provider, model, final_request_review_id: reviewId } = await callImageGen(
             payload.prompt, payload.negative_prompt, undefined, payload,
             spendContext(project, bg.shot, null, imageOverride(body)), null,
             frameJobMeta(shotId, payload));
@@ -2961,6 +2959,7 @@ async function recomposeShot(req, res, shotId) {
 
         const asset = registerStoryboardAsset(project.id, shotId, imgPath, `${bg.shot.shot_code}.png`, {
             provider, provider_model: model,
+            final_request_review_id: reviewId,
             recomposed_from: `${bg.shot.shot_code} v${src.version}`,
             recomposed_background: bg.view || 'default view',
             /*
@@ -3035,7 +3034,7 @@ async function recomposeShot(req, res, shotId) {
  * picture at its own moment and must never touch `{code}.png`, or generating a
  * strip would destroy the approved keyframe it was refined from.
  */
-async function generateRefinedFrame({ project, shot, reference, instruction, anchorRef }) {
+async function generateRefinedFrame({ project, shot, reference, instruction, anchorRef, preview, overrides }) {
     const built = buildRefinePayload(instruction, !!anchorRef);
     const payload = {
         prompt: built.prompt,
@@ -3043,13 +3042,15 @@ async function generateRefinedFrame({ project, shot, reference, instruction, anc
         reference_images: anchorRef ? [reference, anchorRef] : [reference],
         aspect_ratio: project.aspect_ratio,
     };
-    const { buffer, provider, model } = await callImageGen(
+    if(preview)return await callImageGen(payload.prompt,payload.negative_prompt,undefined,payload,spendContext(project,shot,null,overrides||null),null,{previewRequest:true});
+    const { buffer, provider, model, final_request_review_id } = await callImageGen(
         payload.prompt, payload.negative_prompt, undefined, payload,
-        spendContext(project, shot, null, null));
-    return { buffer, provider, model, prompt: payload.prompt };
+        spendContext(project, shot, null, overrides||null));
+    return { buffer, provider, model, final_request_review_id, prompt: payload.prompt };
 }
 
-async function refineShot(req, res, shotId) {
+async function refineShot(req, res, shotId, opts) {
+    const previewOnly = !!(opts && opts.preview);
     const shot = db.prepare('SELECT * FROM film_shots WHERE id = ?').get(shotId);
     if (!shot) return json(res, 404, { error: 'Shot not found' });
     const scene = db.prepare('SELECT * FROM film_scenes WHERE id = ?').get(shot.scene_id);
@@ -3119,6 +3120,7 @@ async function refineShot(req, res, shotId) {
     const { toDataUri } = require('../lib/reference-images');
     let uri;
     try {
+        source = require('../lib/annotated-reference').annotatedReferenceForShot(db, shotId, source).path;
         uri = toDataUri(source);
     } catch (err) {
         return json(res, 500, { error: `Could not read the frame: ${err.message}` });
@@ -3184,16 +3186,20 @@ async function refineShot(req, res, shotId) {
     const prompt = promptEdit_ || built_.prompt;
     const negative_prompt = built_.negative_prompt;
 
-    db.prepare('UPDATE film_shots SET status = ? WHERE id = ?').run('generating', shotId);
+    if (!previewOnly) db.prepare('UPDATE film_shots SET status = ? WHERE id = ?').run('generating', shotId);
     try {
-        ensureStoryboardDir(project.id);
+        if (!previewOnly) ensureStoryboardDir(project.id);
         const payload = {
             prompt,
             negative_prompt,
             reference_images: anchorRef ? [reference, anchorRef] : [reference],
             aspect_ratio: project.aspect_ratio,
         };
-        const { buffer, provider, model } = await callImageGen(
+        if (previewOnly) {
+            return await callImageGen(payload.prompt, payload.negative_prompt, undefined, payload,
+                spendContext(project, shot, null, imageOverride(body)), null, { previewRequest: true });
+        }
+        const { buffer, provider, model, final_request_review_id: reviewId } = await callImageGen(
             payload.prompt, payload.negative_prompt, undefined, payload,
             spendContext(project, shot, null, imageOverride(body)), null,
             frameJobMeta(shotId, payload));
@@ -3209,6 +3215,7 @@ async function refineShot(req, res, shotId) {
         const asset = registerStoryboardAsset(project.id, shotId, imgPath, `${shot.shot_code}.png`,
             {
                 provider, provider_model: model,
+                final_request_review_id: reviewId,
                 refined_from: fromVersion === null ? 'current' : `v${fromVersion}`,
                 instruction,
                 anchor_shot_code: anchorRef ? anchorRef.name : null,
@@ -3238,6 +3245,7 @@ async function refineShot(req, res, shotId) {
  * the card). Internal state never rides in on a request body.
  */
 async function regenerateShot(req, res, shotId, opts) {
+    if (req.body?.production_draft) return regenerateProductionDraft(req, res, shotId, opts);
     const cap = opts || {};
     const shot = db.prepare('SELECT * FROM film_shots WHERE id = ?').get(shotId);
     if (!shot) {
@@ -3339,7 +3347,7 @@ async function regenerateShot(req, res, shotId, opts) {
             anchorState.anchor,
             { limit: lead && lead.maxReferenceImages, shotId: shot.id,
               locationView: card.location_view || '', keepPlates: keepPlatesFor(body, card), diagnostics: [] });
-    } catch (_) { shotRefs = []; }
+    } catch (error) { if (error.code === 'MOODBOARD_REFERENCE_UNSENDABLE') throw error; shotRefs = []; }
     const { anchorAttached, anchorTag } = anchorIn(shotRefs, canTag);
 
     // Camera mode keeps a scene, so there has to BE one. Locking a scene you
@@ -3358,6 +3366,8 @@ async function regenerateShot(req, res, shotId, opts) {
     // Build or use override prompt
     let prompt, negative_prompt;
     let generationCtx = null;
+
+    if (body.prompt_override && body.expression_references?.length) return json(res,409,{error:'Apply expression selection through a composed storyboard request, then edit its final reviewed prompt.'});
 
     if (body.prompt_override) {
         prompt = body.prompt_override;
@@ -3387,6 +3397,7 @@ async function regenerateShot(req, res, shotId, opts) {
         // deliberate ignore_staged override generates from the committed card
         // and leaves the director's Previs experiment untouched.
         generationCtx = loadShotContext(shotId, { keepPlates: keepPlatesFor(body, sceneCard) });
+        generationCtx.expressionReferences = body.expression_references;
         const application = generationCtx.previsApplication;
         // The locked previz workflow (GRD-4665): no board until the exact world and camera are approved.
         const lockedRefusal = !cap.preview && require('../lib/world-previz').boardRefusal(db, shotId);
@@ -3424,13 +3435,13 @@ async function regenerateShot(req, res, shotId, opts) {
 
     // Four angles must not share a locked seed, or they come back as one picture.
     const seed = cap.capture ? crypto.randomInt(0, 2 ** 31)
-        : (body.seed || consistencyContext.locked_seed || crypto.randomInt(0, 2 ** 31));
+        : (body.seed ?? consistencyContext.locked_seed ?? crypto.randomInt(0, 2 ** 31));
 
     // Update status — not for an exploration, which leaves the shot as it was.
     if (!cap.capture && !cap.preview) db.prepare('UPDATE film_shots SET status = ? WHERE id = ?').run('generating', shotId);
 
     try {
-        ensureStoryboardDir(project.id);
+        if (!cap.preview) ensureStoryboardDir(project.id);
 
         // The tagged, inlined plates gathered above. This path used to rely on
         // the consistency context's references, which carry a `file_path` — a
@@ -3492,7 +3503,7 @@ async function regenerateShot(req, res, shotId, opts) {
                 direction_mode: directionMode, anchor_attached: anchorAttached,
                 prompt_override: !!body.prompt_override };
         }
-        const { buffer: imageBuffer, provider: usedProvider, model: usedModel } =
+        const { buffer: imageBuffer, provider: usedProvider, model: usedModel, final_request_review_id: reviewId } =
             await callImageGen(imagePayload.prompt, imagePayload.negative_prompt, imagePayload.seed,
                 imagePayload, spendContext(project, shot, null, qualityOverride), payloadFactory,
                 // An exploration candidate is NOT a board frame: a handle the host
@@ -3501,6 +3512,7 @@ async function regenerateShot(req, res, shotId, opts) {
 
         if (cap.capture) {
             return { ok: true, buffer: imageBuffer, provider: usedProvider, model: usedModel,
+                final_request_review_id: reviewId,
                 prompt: imagePayload.prompt, negative_prompt: imagePayload.negative_prompt,
                 seed: imagePayload.seed, project, shot };
         }
@@ -3514,6 +3526,7 @@ async function regenerateShot(req, res, shotId, opts) {
             input_refs: consistencyContext.input_refs,
             provider: usedProvider,
             provider_model: usedModel,
+            final_request_review_id: reviewId,
             direction_mode: directionMode,
             // activeAnchorFor returns { shot, reason, asset } — the code lives on
             // .shot, not on the wrapper. Reading the wrapper recorded null for
@@ -3567,6 +3580,29 @@ async function regenerateShot(req, res, shotId, opts) {
             shot_id: shotId,
             shot_code: shot.shot_code,
         });
+    }
+}
+
+/** Explicit canvas recipes bypass composition; every changed recipe creates a new version. */
+async function regenerateProductionDraft(req, res, shotId, opts = {}) {
+    const drafts = require('../lib/production-draft-request');
+    try {
+        const plan = await drafts.plannedDraft(db, shotId, req.body, 'image');
+        if (opts.preview) return { preview: { provider: plan.provider, payload: plan.payload }, references: plan.payload.reference_images };
+        const project = db.prepare('SELECT * FROM film_projects WHERE id=?').get(plan.owner.project_id);
+        const locked = boardLocked(project, req.body); if (locked) return json(res, 423, locked);
+        const approvals = require('../lib/final-request-review');
+        await approvals.preflightApprovals({ path: `/shots/${shotId}/storyboard/regenerate`, body: req.body });
+        const delivery = drafts.deliveryOf(plan, 'image');
+        const result = await approvals.runWithApprovals(req.body.final_request_approvals, () => plan.generator.generate('image', plan.payload,
+            { timeout: 300000, jobMeta: { ...plan.provenance, production_delivery: delivery } }));
+        if (!result.ok) return json(res, result.pending ? 202 : result.status || 502, { error: result.error, job_id: result.job_id, pending: result.pending || false });
+        const bytes = await imageResultToBuffer(result.data);
+        const filed = drafts.fileProductionDraftFrame(db, { delivery, result, bytes, provider: result.provider, model: result.provider_model, jobId: result.job_id });
+        return json(res, 200, { ...filed, status: 'complete', prompt: plan.payload.prompt });
+    } catch (err) {
+        if (opts.preview) throw err;
+        return json(res, err.status || 502, { error: err.message });
     }
 }
 
@@ -3705,6 +3741,7 @@ async function exploreAngles(req, res, shotId) {
                 got.provider || null, got.model || null, JSON.stringify({
                     kind: 'angle_candidate', token, slot: a.slot, label: a.label, direction: a.direction,
                     prompt: got.prompt, seed: got.seed,
+                    final_request_review_id: got.final_request_review_id || undefined,
                 }));
         run.slots[a.slot] = 'ready';
         return { file, dims };
@@ -3925,7 +3962,7 @@ function selectReferenceImage(sceneCard, matchedChars, matchedLocation, projectI
 }
 
 module.exports = {
-    buildRecomposePayload, handleStoryboard, matchProps,
+    buildRecomposePayload, handleStoryboard, matchProps, realBoardRequest, realRefineRequest, realRecomposeRequest, realBatchBoardRequests,
     // The shared refine request, so a strip station and the refine button
     // cannot come to ask for different things.
     generateRefinedFrame, registerStoryboardAsset, ensureStoryboardDir, storyboardImagePath,

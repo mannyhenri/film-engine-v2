@@ -27,18 +27,18 @@ their shared declarations together into one engine; the rest stays core or becom
 |---|---|
 | component:SceneDrift + page:scenes + page:storyboard | 1 |
 | component:VideoPipeline + page:budget + page:playback + page:productiongraph | 1 |
+| lib:previz-workspace + page:music + page:playback + page:previs + page:productiongraph | 1 |
+| lib:previz-workspace + page:previs + page:storyboard | 1 |
 | page:dashboard + page:productiongraph + page:storyboard | 1 |
 | page:edits + page:music | 1 |
 | page:edits + page:music + page:musicws | 1 |
 | page:edits + page:settings | 1 |
 | page:exportpage + page:projects | 1 |
 | page:exportpage + page:videoshots | 1 |
-| page:music + page:pipeline + page:previs + page:videoshots | 1 |
-| page:music + page:playback + page:previs + page:productiongraph | 1 |
+| page:music + page:pipeline + page:previs + page:storyboard + page:videoshots | 1 |
 | page:music + page:previs + page:videoshots | 1 |
 | page:playback + page:previs | 1 |
 | page:previs + page:screenplay | 1 |
-| page:previs + page:storyboard | 1 |
 | page:projects + page:settings | 1 |
 | page:screenplay + page:settings | 1 |
 
@@ -54,14 +54,14 @@ their shared declarations together into one engine; the rest stays core or becom
 | `DRIFT` | component:SceneDrift, page:scenes, page:storyboard |
 | `fmtBytes` | page:edits, page:settings |
 | `importBundle` | page:exportpage, page:projects |
-| `mediaUrl` | page:music, page:playback, page:previs, page:productiongraph |
+| `mediaUrl` | lib:previz-workspace, page:music, page:playback, page:previs, page:productiongraph |
 | `MW` | page:edits, page:music, page:musicws |
 | `mwTime` | page:edits, page:music |
 | `openFrameViewer` | page:dashboard, page:productiongraph, page:storyboard |
 | `pb` | page:playback, page:previs |
-| `streamSSEPost` | page:music, page:pipeline, page:previs, page:videoshots |
+| `streamSSEPost` | page:music, page:pipeline, page:previs, page:storyboard, page:videoshots |
 | `usd` | component:VideoPipeline, page:budget, page:playback, page:productiongraph |
-| `WORLD` | page:previs, page:storyboard |
+| `WORLD` | lib:previz-workspace, page:previs, page:storyboard |
 
 ## (e) One owner, held in core
 

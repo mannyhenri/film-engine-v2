@@ -50,7 +50,7 @@ function fail(res, err) {
     if (err && ['WORLD_IN_USE', 'WORLD_ARCHIVED'].includes(err.code)) return json(res, 409, { error: msg, code: err.code });
     if (err && err.code === 'NO_COLLIDER') return json(res, 409, { error: msg, code: 'NO_COLLIDER' });
     if (/not found/i.test(msg)) return json(res, 404, { error: msg });
-    return json(res, 400, { error: msg });
+    return json(res, err?.status || 400, { error: msg });
 }
 
 function versionPayload(v) {
@@ -257,6 +257,21 @@ function captureInputs(db, versionId, body) {
             : plan.why || null,
         captures_excluded: plan.excluded,
     };
+}
+
+async function buildWorldGenerationPlan(versionId, body = {}) {
+    const version = worlds.getVersion(db, versionId);
+    if (!version) throw Object.assign(new Error('world version not found'), { status: 404 });
+    const world = worlds.getWorld(db, version.world_id);
+    if (world.locked_at) throw Object.assign(new Error('world is locked'), { code: 'WORLD_LOCKED', status: 423 });
+    const payload = { prompt: body.prompt, ...captureInputs(db, versionId, body), is_pano: body.is_pano, model: version.model || require('../lib/providers/worldlabs').DEFAULT_MODEL };
+    const config = require('../lib/provider-config').providerConfigFor(world.project_id);
+    const chosen = require('../lib/generation-override').generationOverride('world', body);
+    const provider = require('../lib/providers').resolveGenerator('world', chosen ? { ...config, ...chosen } : config);
+    const preview = await provider.generate('world', payload, { previewRequest: true });
+    if (!preview?.preview) throw Object.assign(new Error(preview?.error || 'World provider cannot resolve final request'), { status: 409 });
+    const sources = [...(payload.images || []), ...(payload.video ? [payload.video] : [])].map(x => x.file_path || x.path).filter(Boolean);
+    return { provider, payload: preview.payload, world, version, provenance: { project_id: world.project_id, world_version_id: versionId, source_paths: sources } };
 }
 
 function exportAssets(db_, shotId, version) {
@@ -502,19 +517,13 @@ async function handleWorlds(req, res, urlParts, query) {
 
         if (tail === 'generate' && req.method === 'POST') {
             try {
-                const out = await worlds.generateVersion(db, versionId, {
-                    prompt: body.prompt,
-                    ...captureInputs(db, versionId, body),
-                    /*
-                     * Whether a single image is a 360 panorama. Marble's own
-                     * docs call a panorama the most accurate spatial
-                     * representation, and until this was carried through, every
-                     * world was built on 'auto' because nothing could say
-                     * otherwise. Undefined still means auto; the adapter
-                     * refuses anything outside the recorded domain.
-                     */
-                    is_pano: body.is_pano,
-                }, { includeSplats: body.include_splats === true });
+                const plan = await buildWorldGenerationPlan(versionId, body);
+                const approved = await require('../lib/final-request-review').authorizeGeneration({ provider: plan.provider.id, capability: 'world', payload: plan.payload, provenance: plan.provenance, approvals: body.final_request_approvals });
+                if (!approved.ok) return json(res, approved.status || 428, approved);
+                // Existing persistence remains in generateVersion; the injected runner
+                // uses the already normalized request and exact approved token.
+                const runner = { id: plan.provider.id, generate: (_capability, _request, opts) => plan.provider.generate('world', plan.payload, { ...opts, finalRequest: approved.finalRequest }) };
+                const out = await worlds.generateVersion(db, versionId, plan.payload, { includeSplats: body.include_splats === true, provider: runner });
                 return json(res, out.pending ? 202 : 200, out);
             } catch (err) { return fail(res, err); }
         }
@@ -896,4 +905,4 @@ const SHOT_TAILS = Object.freeze([
     'match-reference', 'complexity', 'world-export',
 ]);
 
-module.exports = { handleWorlds, SHOT_TAILS };
+module.exports = { handleWorlds, SHOT_TAILS, buildWorldGenerationPlan };

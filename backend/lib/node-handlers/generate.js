@@ -38,6 +38,13 @@ function firstValue(portValue) {
  * Wired text is shot direction by default, preserving the scene and camera.
  * Complete replacement requires the explicit prompt_mode: replace setting.
  */
+function wiredMedia(value,kind) {
+ const bytes=Buffer.isBuffer(value)?value:null;
+ const mime=kind==='video'?(bytes?.subarray(0,4).equals(Buffer.from([0x1a,0x45,0xdf,0xa3]))?'video/webm':'video/mp4'):(bytes?.subarray(0,3).toString()==='ID3'?'audio/mpeg':'audio/wav');
+ const selected=bytes?`data:${mime};base64,${bytes.toString('base64')}`:typeof value==='string'?value:value.path||value.file_path||value.url||value.video_url||value.audio_url||(value.base64?`data:${value.mime_type||mime};base64,${value.base64}`:null);
+ return selected?{...(typeof value==='object'&&!bytes?value:{}),id:value.assetId||value.asset_id||value.id||null,file_path:selected,file_name:value.file_name||'inline-media',mime_type:value.mime_type||mime}:null;
+}
+
 function contextFromInputs(ctx, inputs, node) {
     const merged = { ...ctx, overrides: { ...(ctx.overrides || {}), ...((node.config || {}).overrides || {}) } };
     const config = node.config || {};
@@ -50,13 +57,16 @@ function contextFromInputs(ctx, inputs, node) {
     }
 
     const image = firstValue(inputs.image);
-    if (image) merged.initImage = image.base64 || image.path || image;
+    if (image) {
+        const selected=Buffer.isBuffer(image)?`data:image/png;base64,${image.toString('base64')}`:image.base64||image.path||image.url||(Array.isArray(image.images)?image.images[0]:image);
+        merged.initImage=typeof selected==='string'&&!selected.startsWith('data:')&&!selected.startsWith('http')&&!require('fs').existsSync(selected)&&/^[A-Za-z0-9+/=]+$/.test(selected)?`data:image/png;base64,${selected}`:selected;
+    }
 
     const video = firstValue(inputs.video);
-    if (video) merged.videoAsset = video.assetId ? { id: video.assetId, file_path: video.path, file_name: video.file_name } : merged.videoAsset;
+    if (video) merged.videoAsset = wiredMedia(video,'video') || merged.videoAsset;
 
     const audio = firstValue(inputs.audio);
-    if (audio) merged.audioAsset = audio.assetId ? { id: audio.assetId, file_path: audio.path, file_name: audio.file_name } : merged.audioAsset;
+    if (audio) merged.audioAsset = wiredMedia(audio,'audio') || merged.audioAsset;
 
     const subject = firstValue(inputs.subject);
     if (subject && subject.consistency) merged.consistency = subject.consistency;
@@ -138,11 +148,27 @@ async function executeGenerator(node, inputs, ctx) {
         return { ok: true, skipped: true, message: `no ${capability} work for this node`, outputs: {} };
     }
 
+    if (ctx.finalRequestPreview === true) {
+        const previewRequests=[];
+        for(const [index,payload] of requests.entries()) {
+            const normalized=await provider.generate(capability,payload,{previewRequest:true});
+            if(!normalized?.preview)return {ok:false,error:normalized?.error||'Provider did not stop at final preview'};
+            const sources=[];const findSource=value=>{if(Array.isArray(value))return value.forEach(findSource);if(value&&typeof value==='object'){for(const [key,item] of Object.entries(value)){if(['path','file_path'].includes(key)&&typeof item==='string'&&require('fs').existsSync(item))sources.push(item);else findSource(item);}}};findSource(inputs);findSource(merged.references);findSource(ctx.keyframeAsset);
+            previewRequests.push({provider:provider.id,capability,payload:normalized.payload,provenance:{project_id:ctx.project?.id,shot_id:ctx.shot?.id,node_id:node.id,item_index:index,source_paths:[...new Set(sources)]}});
+        }
+        return {ok:true,previewRequests,outputs:{}};
+    }
+
     const results = [];
     for (const request of requests) {
         let result;
         try {
-            result = await provider.generate(capability, request, { timeout: 300000 });
+            const approvalContext=require('../final-request-review').getExecutionContext();
+            const token=(approvalContext.approvals||[]).find(candidate=>{
+                const review=require('../final-request-review').store().get(candidate.id),p=review.editable.provenance||{};
+                return p.node_id===node.id && (p.branch_key||'')===(ctx.branch||'') && p.item_index===results.length && (!p.shot_id||p.shot_id===ctx.shot?.id);
+            });
+            result = await provider.generate(capability, request, { timeout: 300000, ...(token?{finalRequest:token}:{}) });
 
             /*
              * A flows `gen.video` node is a generation like any other, and was

@@ -74,7 +74,7 @@ function build(names, call, preamble) {
     for (let i = 0; i < 60; i++) {
         const src = [...need].map(n => declSource(n) || fn(n)).filter(Boolean).join('\n');
         try {
-            return new Function(`${preamble || ''}\n${src}\nreturn (${call});`)();
+            return new Function(`const previzWorkspace = {railHtml:()=>'', pickerHtml:()=>'', titleHtml:()=>'', footerHtml:()=>'', briefHtml:()=>''};\n${preamble || ''}\n${src}\nreturn (${call});`)();
         } catch (err) {
             const m = /(\w+) is not defined/.exec(err.message);
             if (m && declSource(m[1]) && !need.has(m[1])) { need.add(m[1]); continue; }

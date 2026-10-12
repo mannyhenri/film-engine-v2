@@ -50,6 +50,9 @@ function endpointFor(capability) {
 }
 
 async function streamGridlightLLM(endpoint, payload, res, callbacks) {
+    const blocked = { ok: false, status: 428, finalData: null, error: 'Exact final request review is not supported for legacy Gridlight LLM streaming; generation is blocked before any provider request.' };
+    if (callbacks && typeof callbacks.onError === 'function') callbacks.onError({ error: blocked.error, status: blocked.status });
+    return blocked;
     const cb = callbacks || {};
     const headers = { 'Content-Type': 'application/json' };
     if (GRIDLIGHT_API_KEY) headers['Authorization'] = `Bearer ${GRIDLIGHT_API_KEY}`;

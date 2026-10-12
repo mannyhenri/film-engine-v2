@@ -15,6 +15,13 @@ import bpy, json, math, os, sys
 from mathutils import Vector, Matrix
 
 job = json.load(open(sys.argv[sys.argv.index('--') + 1]))
+if job.get('native_snapshot'):
+    sys.dont_write_bytecode = True
+    from importlib.machinery import SourceFileLoader
+    native = SourceFileLoader('film_blender_snapshot', os.path.join(os.path.dirname(__file__), 'blender-snapshot.py')).load_module()
+    native.render_snapshot(job)
+    raise SystemExit(0)
+
 OUT = job['out_dir']
 FRAMES_DIR = os.path.join(OUT, 'frames')
 os.makedirs(FRAMES_DIR, exist_ok=True)

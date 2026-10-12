@@ -6,7 +6,7 @@ function selectedFrame(db, shotId) {
     return db.prepare(`SELECT * FROM film_assets WHERE shot_id = ?
         AND asset_type IN ('keyframe', 'storyboard')
         AND (NOT json_valid(metadata) OR json_extract(metadata, '$.station_index') IS NULL)
-        ${pinned ? 'AND version = ?' : ''}
+        ${pinned ? 'AND version = ?' : "AND (NOT json_valid(COALESCE(metadata, '')) OR COALESCE(json_extract(metadata, '$.historical'), 0) != 1)"}
         ORDER BY version DESC, created_at DESC, id DESC LIMIT 1`)
         .get(...(pinned ? [shotId, shot.current_frame_version] : [shotId])) || null;
 }

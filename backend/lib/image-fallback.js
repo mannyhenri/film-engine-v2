@@ -255,89 +255,45 @@ async function runImageFallbackChain(chain, payloadOrFactory, opts) {
         return { ok: false, error: 'no credentialed image provider is available', _chain: [] };
     }
     const factory = typeof payloadOrFactory === 'function' ? payloadOrFactory : null;
+    const review = require('./final-request-review');
+    const tokens = opts?.finalRequest ? [opts.finalRequest] : review.getExecutionContext().approvals;
+    const config = opts?.projectConfig || opts?.config || {};
+    let selected = adapters[0];
+    for (const token of tokens) {
+        const approved = review.store().get(token.id);
+        if (approved.snapshot.capability !== 'image') continue;
+        const context = approved.editable.provenance || {};
+        if(config.__shot_id && context.shot_id!==config.__shot_id)continue;
+        if(config.__project_id && context.project_id!==config.__project_id)continue;
+        // Compose the original route inputs, even when this item was edited to
+        // another provider. Its prompt ceiling/defaults belong to the base digest.
+        const baseProvider=context.base_provider;
+        const candidate=baseProvider && (adapters.find(a=>a.id===baseProvider) || providers.get(baseProvider));
+        if(candidate){selected=candidate;break;}
+    }
+    let prepared = factory ? await factory(selected) : payloadOrFactory;
 
-    const attempts = [];
-    let last = null;
-
-    for (const adapter of adapters) {
-        const payload = factory ? factory(adapter) : payloadOrFactory;
-        const limit = Number(adapter && adapter.promptLimit) || 0;
-        const chars = String((payload && payload.prompt) || '').length;
-
-        // Only the flat path can overrun: a factory is expected to build to fit.
-        if (limit && chars > limit) {
-            attempts.push({ provider: adapter.id, ok: false, skipped: true,
-                error: `skipped: prompt is ${chars} characters against this provider's `
-                    + `${limit}-character limit, and a prebuilt prompt cannot be rebudgeted `
-                    + 'without cutting it mid-clause' });
-            continue;
-        }
-
-        /*
-         * A CHOSEN MODEL STAYS WITH THE VENDOR IT WAS CHOSEN FOR. Walked onto
-         * another vendor it would be stripped below and replaced by the house
-         * model — a different picture from the one asked for — so that vendor
-         * is skipped, and the refusal that started the walk is what comes back.
-         */
-        if (payload && payload.__model_explicit && payload.__model_for && payload.__model_for !== adapter.id) {
-            attempts.push({ provider: adapter.id, ok: false, skipped: true,
-                error: `skipped: the model chosen for this generation belongs to ${payload.__model_for}` });
-            continue;
-        }
-        /*
-         * A MODEL BELONGS TO ONE PROVIDER.
-         *
-         * The chain deliberately walks past a provider that declines, which
-         * means the adapter changes mid-flight while the payload does not.
-         * Carrying "gemini-3-pro-image" onward to OpenAI is a rejected request
-         * — and it would be rejected for a reason that looks nothing like the
-         * refusal that started the walk, so the fallback would appear broken
-         * rather than the model name being wrong. Strip a model that is not
-         * this adapter's; the tier names the right one below.
-         */
-        if (payload && payload.model
-            && ((payload.__model_for && payload.__model_for !== adapter.id)
-                || (imageModelIds(adapter) && !imageModelIds(adapter).includes(payload.model)))) {
-            delete payload.model;
-            delete payload.__model_for;
-        }
-        // The house model, named for THIS vendor of it (lib/image-standard.js),
-        // unless a model was chosen for it.
-        const house = require('./image-standard').standardModelFor(adapter && adapter.id);
-        if (house && payload && !payload.__model_explicit) payload.model = house;
-
-        const result = await adapter.generate('image', payload, opts || {});
-        attempts.push({ provider: adapter.id, ok: !!result.ok, error: result.ok ? null : result.error });
-
-        if (result.ok) {
-            return { ...result, provider: result.provider || adapter.id, _chain: attempts };
-        }
-        last = result;
-
-        // Our own bad request will fail identically everywhere — stop.
-        if (!isRefusal(result.error)) break;
+    const house = require('./image-standard').standardModelFor(selected.id);
+    if(house && prepared && !prepared.__model_explicit) prepared.model=house;
+    if(prepared && !prepared.model) { const pinned=providers.pinnedModelFor('image',config,selected);if(pinned)prepared.model=pinned; }
+    require('./generation-options').applyChosen('image',config,selected.id,prepared);
+    if (config.__project_id) prepared = require('./moodboard-influence').includeInPayload(require('../db/database').db,config.__project_id,prepared,selected);
+    prepared = require('./final-provider-request').normalizeInheritedInputs(selected.id,'image',prepared);
+    if (opts?.previewRequest) {
+        const build = require('./dry-run').builderFor(selected.id,'image');
+        return {ok:true,preview:true,provider:selected.id,payload:prepared,request:build?build(prepared):null};
     }
 
-    /*
-     * A FAILURE SAYS WHICH PROVIDER RAN AND WHY IT WAS CHOSEN.
-     *
-     * Without this the message is the upstream one — "google:
-     * API_KEY_INVALID" — which blames a credential when the real fault may be
-     * that nothing pinned a provider and a built-in ordering picked a company
-     * the director never named. The two need different fixes and read
-     * identically.
-     */
-    const failed = { ...(last || { ok: false, error: 'image generation failed' }), _chain: attempts };
-    const r = chain && chain.resolution;
-    if (r && !r.explicit) {
-        failed.resolution = r;
-        failed.error = `${failed.error || 'image generation failed'} — resolved provider: ${r.id} `
-            + '(FALLBACK: this project pins no image provider, so it was chosen for you). '
-            + 'Set one in Provider Settings, or set an account default.';
-    } else if (r) {
-        failed.resolution = r;
-    }
-    return failed;
+    const authorization = await review.authorizeGeneration({provider:selected.id, capability:'image', payload:prepared,
+        provenance:{project_id:config.__project_id,shot_id:config.__shot_id},opts:opts||{}});
+    if (!authorization.ok) return authorization;
+    // A refusal is shown to the user. A second provider requires a new review.
+    const executor=providers.get(authorization.snapshot.provider);
+    if(!executor || !executor.supports?.('image'))return {ok:false,status:409,error:'The approved image provider is unavailable. Review another provider before Send.'};
+    const result=await require('./final-image-execution').executeApprovedImage(executor,authorization,config,opts||{});
+    return {...result,provider:result.provider||executor.id,_chain:[{provider:executor.id,ok:!!result.ok,error:result.ok?null:result.error}]};
+
+
 }
 
 async function generateImageWithFallback(payloadOrFactory, projectConfig, opts) {
@@ -353,7 +309,7 @@ async function generateImageWithFallback(payloadOrFactory, projectConfig, opts) 
             _chain: [],
         };
     }
-    return runImageFallbackChain(chain, payloadOrFactory, opts);
+    return runImageFallbackChain(chain, payloadOrFactory, {...opts,projectConfig});
 }
 
 module.exports = {    orderForFloor,

@@ -28,15 +28,15 @@ beforeEach(()=>{
  vi.spyOn(window,'confirm').mockReturnValue(true);
 });
 afterAll(()=>db.close());
-const openWorkbench=async()=>{fireEvent.click(screen.getByText('Writing style'));await screen.findByText(/Coverage/);};
+const openWorkbench=async()=>{fireEvent.click(screen.getByText('My Voice'));await screen.findByText(/Coverage/);};
 
 it('Learn my style sits in the Screenplay toolbar and opens the workbench',async()=>{
  const bar=document.createElement('div');bar.innerHTML='<button id="aiChatToggle">AI Chat</button>';document.body.appendChild(bar);
  render(<WritingStyleWorkbench />);
  const learn=await waitFor(()=>{const b=bar.querySelector('button.learn-my-style');if(!b)throw Error('not yet');return b;});
- expect(learn.textContent).toBe('Learn my style');
+ expect(learn.textContent).toBe('My Voice');
  fireEvent.click(learn);
- expect(await screen.findByRole('dialog',{name:'Writing style workbench'})).toBeTruthy();
+ expect(await screen.findByRole('dialog',{name:'Film My Voice workbench'})).toBeTruthy();
 });
 
 it('offers the five prompts by name and shows coverage with every gap',async()=>{

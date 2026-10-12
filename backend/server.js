@@ -71,10 +71,13 @@ const { ensureSchema } = require('./db/schema');
 const { handleProjects, handleProjectSettingsPreset } = require('./routes/projects');
 const { handleScripts, handleComments } = require('./routes/scripts');
 const { handleStoryStructure } = require('./routes/story-structure');
+const { handleAIWorkspace, handleApplicationAIWorkspace } = require('./routes/ai-workspace');
+const { handleAIConnections } = require('./routes/ai-connections');
 const { handleStoryDevelopment } = require('./routes/story-development');
 const { handleSubjectGallery } = require('./routes/subject-gallery');
 const { handleVoiceCasting } = require('./routes/voice-casting');
 const { handleAgentPresence } = require('./routes/agent-presence');
+const { handleProductionDepth } = require('./routes/production-depth');
 const { handleScenes } = require('./routes/scenes');
 const { handleShots } = require('./routes/shots');
 const { handleAppSettings } = require('./routes/app-settings');
@@ -98,6 +101,9 @@ const { handleMusicSessions } = require('./routes/music-sessions');
 const { handleAnnotations } = require('./routes/annotations');
 const { handleScreenplayAI } = require('./routes/screenplay-ai');
 const { handleWritingStyle } = require('./routes/writing-style');
+const { handleStoryboardUpscale } = require('./routes/storyboard-upscale');
+const { handlePrevizWorkspace } = require('./routes/previz-workspace');
+const { handleFinalRequestReview } = require('./routes/final-request-review');
 const { handleStyleProfile } = require('./routes/style-profile');
 const { handleStyleDrafting } = require('./routes/style-drafting');
 const { handleStylePilot } = require('./routes/style-pilot');
@@ -120,6 +126,7 @@ const { handleCallSheets } = require('./routes/call-sheets');
 const { handleTextConvert } = require('./routes/text-convert');
 const { handleNLEExport } = require('./routes/nle-export');
 const { handleStoryboard } = require('./routes/storyboard');
+const { handleStoryboardPrint } = require('./routes/storyboard-print');
 const { handleVoice } = require('./routes/voice');
 const { handleVideoGen } = require('./routes/video-gen');
 const { handleLipsync } = require('./routes/lipsync');
@@ -154,6 +161,12 @@ const { handlePrevis } = require('./routes/previs');
 // ==== CODEX:END ====
 
 const PORT = process.env.PORT || 3100;
+const {createAIRouteAuth} = require('./lib/ai-route-auth');
+const aiRouteAuth = createAIRouteAuth({port: PORT, capability: process.env.FILM_AI_CAPABILITY,
+    developmentBootstrap: !process.env.FILM_AI_CAPABILITY && process.env.NODE_ENV !== 'production',
+    ...(process.env.FILM_AI_DEV_ORIGINS ? {devOrigins: process.env.FILM_AI_DEV_ORIGINS.split(',')} : {})});
+// Keep the app capability in memory, outside subsequent provider subprocess environments.
+delete process.env.FILM_AI_CAPABILITY;
 
 // ── Rate Limiter ────────────────────────────────────────────────────
 // Sliding-window rate limiter keyed by client IP.
@@ -332,25 +345,29 @@ const server = http.createServer(async (req, res) => {
     res.setHeader('X-XSS-Protection', '1; mode=block');
     res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
 
-    // CORS — restrict to configured origins (default: allow all for local dev)
-    const allowedOrigins = process.env.CORS_ALLOWED_ORIGINS || '*';
-    const origin = req.headers.origin || '';
-    if (allowedOrigins === '*') {
-        res.setHeader('Access-Control-Allow-Origin', '*');
+    if (aiRouteAuth.handles(pathname)) {
+        if (!aiRouteAuth.handle(req, res, pathname)) return;
     } else {
-        const origins = allowedOrigins.split(',').map(o => o.trim());
-        if (origins.includes(origin)) {
-            res.setHeader('Access-Control-Allow-Origin', origin);
-            res.setHeader('Vary', 'Origin');
+        // CORS — restrict to configured origins (default: allow all for local dev)
+        const allowedOrigins = process.env.CORS_ALLOWED_ORIGINS || '*';
+        const origin = req.headers.origin || '';
+        if (allowedOrigins === '*') {
+            res.setHeader('Access-Control-Allow-Origin', '*');
+        } else {
+            const origins = allowedOrigins.split(',').map(o => o.trim());
+            if (origins.includes(origin)) {
+                res.setHeader('Access-Control-Allow-Origin', origin);
+                res.setHeader('Vary', 'Origin');
+            }
         }
-    }
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+        res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+        res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 
-    if (req.method === 'OPTIONS') {
-        res.writeHead(204);
-        res.end();
-        return;
+        if (req.method === 'OPTIONS') {
+            res.writeHead(204);
+            res.end();
+            return;
+        }
     }
 
     // Rate limiting
@@ -366,7 +383,7 @@ const server = http.createServer(async (req, res) => {
     // Health check
     if (pathname === '/api/health' || pathname === '/') {
         res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ status: 'ok', service: 'film-engine', version: require('./package.json').version }));
+        res.end(JSON.stringify({ status: 'ok', service: 'film-engine', version: require('./package.json').version, backend_id: require('./lib/backend-identity').backendId, capabilities: {ai_connections:1,application_ai_workspace:1,ai_route_auth:1} }));
         return;
     }
 
@@ -413,6 +430,7 @@ const server = http.createServer(async (req, res) => {
         const maxSize = bodyLimit.limitForPath(parts);
         try {
             req.body = await readBody(req, maxSize, res);
+            require('./lib/final-request-review').enterExecutionContext(req.body?.final_request_approvals, req.body);
         } catch (err) {
             // A 413 has already been written and the socket closed; writing
             // again throws and replaces a clear refusal with a stack trace.
@@ -440,6 +458,15 @@ const server = http.createServer(async (req, res) => {
      * covers every route, present and future, with nothing to remember, and it
      * costs nothing at all on the ordinary path where the field is absent.
      */
+    if (req.body?.final_request_approvals && parts[1] !== 'final-request-review') {
+        try {
+            await require('./lib/final-request-review').preflightApprovals({ path: pathname, body: req.body });
+        } catch (err) {
+            res.writeHead(err.status || 409, { 'Content-Type': 'application/json' });
+            return res.end(JSON.stringify({ error: err.message, code: 'FINAL_REQUEST_APPROVAL_INVALID', existing_review: err.existing_review, request_id: err.request_id }));
+        }
+    }
+
     if (req.body && req.body[approvalGuard.FIELD]) {
         const verdict = approvalGuard.checkApproval(req.body, approvalGuard.subjectOf(parts));
         if (!verdict.ok) {
@@ -503,7 +530,7 @@ const server = http.createServer(async (req, res) => {
         if ((parts[1] === 'projects' && parts[3] === 'production-graph')
             || (parts[1] === 'shots' && parts[3] === 'video' && parts[4] === 'select')
             || (parts[1] === 'music-cues' && parts[3] === 'select')) {
-            const handled = require('./routes/production-graph').handleProductionGraph(req, res, parts, query);
+            const handled = await require('./routes/production-graph').handleProductionGraph(req, res, parts, query);
             if (handled !== false) return handled;
         }
 
@@ -655,6 +682,10 @@ const server = http.createServer(async (req, res) => {
             return await handleBreakdown(req, res, parts);
         }
 
+        if (parts[1] === 'previz-workspace') return await handlePrevizWorkspace(req, res, parts);
+        if (parts[1] === 'final-request-review') return await handleFinalRequestReview(req, res, parts);
+        if (parts[1] === 'shots' && parts[2] && parts[3] === 'storyboard-upscale') return await handleStoryboardUpscale(req, res, parts, query);
+
         if (parts[1] === 'projects' && parts[2] && parts[3] === 'writing-style') return await handleWritingStyle(req, res, parts);
         if (parts[1] === 'projects' && parts[2] && parts[3] === 'style-profile') return await handleStyleProfile(req, res, parts);
         if (parts[1] === 'projects' && parts[2] && parts[3] === 'style-drafting') return await handleStyleDrafting(req, res, parts);
@@ -687,6 +718,10 @@ const server = http.createServer(async (req, res) => {
             return await handleScripts(req, res, parts, query);
         }
 
+        if (parts[1] === 'projects' && parts[2] && parts[3] === 'production-depth') {
+            return await handleProductionDepth(req, res, parts);
+        }
+
         // Route: /film/projects/:id/script[s] and /film/projects/:id/outline
         //
         // `outline` is here rather than beside the project routes because it IS
@@ -699,6 +734,10 @@ const server = http.createServer(async (req, res) => {
             && (parts[3] === 'script' || parts[3] === 'scripts' || parts[3] === 'outline')) {
             return await handleScripts(req, res, parts, query);
         }
+
+        if (parts[1] === 'ai-connections') return await handleAIConnections(req, res, parts);
+        if (parts[1] === 'ai-workspace') return await handleApplicationAIWorkspace(req, res, parts);
+        if (parts[1] === 'projects' && parts[2] && parts[3] === 'ai-workspace') return await handleAIWorkspace(req, res, parts, query);
 
         // Route: /film/projects/:id/scenes
         // Route: /film/agent — is an agent host attached, and what would it
@@ -966,6 +1005,9 @@ const server = http.createServer(async (req, res) => {
         }
 
         // Route: /film/projects/:id/storyboard[/generate[/stream]]
+        if (parts[1] === 'projects' && parts[2] && parts[3] === 'storyboard' && parts[4] === 'print') {
+            return await handleStoryboardPrint(req, res, parts, query);
+        }
         if (parts[1] === 'projects' && parts[2] && parts[3] === 'storyboard') {
             return await handleStoryboard(req, res, parts, query);
         }
@@ -1548,7 +1590,7 @@ function start() {
         .startsWith(require('fs').realpathSync(require('os').tmpdir())) || (process.env.FILM_DATA_DIR || '').startsWith(require('os').tmpdir());
     if (!tmpData) require('./lib/backup-folder').startBackupSchedule(require('./db/database').db);
 
-    server.listen(PORT, () => {
+    server.listen(PORT, process.env.FILM_BACKEND_HOST || undefined, () => {
         console.log(`  Film Engine API ready on http://localhost:${PORT}`);
         console.log('  Routes: /film/projects, /film/shots, /film/scenes, /film/characters,');
         console.log('          /film/locations, /film/props, /film/notes, /film/assets,');

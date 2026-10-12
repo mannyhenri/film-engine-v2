@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { render, screen, fireEvent, act } from '@testing-library/react';
+import { render, screen, fireEvent, act, waitFor } from '@testing-library/react';
 import { installLegacy } from '../../test/setup.js';
 import MoodBoardPage, { MOOD_KINDS } from './MoodBoardPage.jsx';
 
@@ -74,14 +74,17 @@ describe('Mood Board', () => {
         expect(shown).toContain('Settings written: lens');
     });
 
-    it('remove deletes the entry; an upload goes through the shared helper with the note', async () => {
-        const { calls } = await openPage({ 'DELETE /mood-board/e1': { ok: true } });
+    it('remove deletes the entry; upload keeps its note, influence roles and shared size check', async () => {
+        const { calls } = await openPage({ 'DELETE /mood-board/e1': { ok: true }, 'POST /projects/p1/mood-board/import': {ok:true} });
         await act(async () => { fireEvent.click(screen.getAllByRole('button', { name: 'Remove' })[0]); });
         expect(calls.find(c => c.method === 'DELETE').path).toBe('/mood-board/e1');
         fireEvent.change(byId('moodNote'), { target: { value: 'grade' } });
         const input = document.querySelector('[data-import-target="mood-board-image"]');
-        fireEvent.change(input, { target: { files: [] } });
-        expect(window.uploadReferenceImage).toHaveBeenCalledWith(expect.anything(), 'mood-board-image', '/projects/p1/mood-board/import', { note: 'grade' }, 'loadMoodBoardPage');
+        const file = new File(['fixture'], 'still.png', {type:'image/png'});
+        fireEvent.change(input, { target: { files: [file] } });
+        await waitFor(() => expect(calls.some(c => c.path.endsWith('/import'))).toBe(true));
+        expect(window.checkUploadSize).toHaveBeenCalledWith(file, '/projects/p1/mood-board/import');
+        expect(calls.find(c => c.path.endsWith('/import')).body).toMatchObject({note:'grade',influence_roles:['style'],influence_note:'',name:'still.png'});
     });
 
     it('an empty board says so, across the whole grid row', async () => {

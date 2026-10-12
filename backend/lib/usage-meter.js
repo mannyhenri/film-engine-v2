@@ -116,12 +116,17 @@ function record(adapter, capability, payload, result, ctx, opts, latencyMs) {
     try {
         if (!result || result.ok !== true) return;          // refusals cost nothing
 
-        const usage = typeof adapter.meter === 'function'
+        let usage = typeof adapter.meter === 'function'
             ? adapter.meter(capability, payload, result)
             : null;
+        if(opts?.finalRequest?.id){
+            const review=require('./final-request-review').store().get(opts.finalRequest.id);
+            usage=require('./generation-jobs').meterPlan(adapter.id,capability,review.editable.payload,review.snapshot,result);
+        }
         if (!usage || !(Number(usage.quantity) > 0)) return;
 
         const attribution = { ...(ctx || {}), ...meterHints(opts), ...meterHints(payload) };
+        if (opts && opts.__meter && opts.__meter.sourceRef) attribution.sourceRef = opts.__meter.sourceRef;
 
         recordUsage({
             provider: adapter.id,
@@ -132,6 +137,7 @@ function record(adapter, capability, payload, result, ctx, opts, latencyMs) {
             parts: usage.parts || null,
             estimated: !!usage.estimated,
             estimate_basis: usage.estimate_basis || '',
+            native_charged:usage.native_charged,provider_confirmed:usage.provider_confirmed,
             latencyMs,
             ...attribution,
         });
@@ -191,7 +197,14 @@ function recordUsage(entry) {
     const billable = priced.amount_usd > 0;
     let costEntryId = null;
 
+    let previous = null;
     const write = db.transaction(() => {
+        // A successful native response and a later delivery retry describe the
+        // same purchase. The transaction also serializes other DB connections.
+        if (/^(final-review:|generation-job:)/.test(entry.sourceRef || '')) {
+            previous = db.prepare('SELECT id,cost_entry_id FROM film_usage_events WHERE source_ref=?').get(entry.sourceRef);
+            if (previous) return;
+        }
         if (billable && projectId) {
             costEntryId = generateId();
             db.prepare(`
@@ -229,7 +242,8 @@ function recordUsage(entry) {
         );
     });
 
-    write();
+    write.immediate();
+    if (previous) return { ...previous, already: true };
     return { id: usageId, cost_entry_id: costEntryId, ...priced };
 }
 

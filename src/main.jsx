@@ -1,3 +1,4 @@
+import './components/CharacterSheet/expressions.css';
 import { createRoot } from 'react-dom/client';
 import { flushSync } from 'react-dom';
 import './styles/base.css';
@@ -5,6 +6,9 @@ import './styles/redesign.css';
 import './styles/desktop.css';
 import './styles/list-controls.css';
 import './styles/branding.css';
+import './styles/storyboard-workflow.css';
+import './styles/resolution-badges.css';
+import './styles/previz-workspace.css';
 import { installPageLoader } from './lib/pages.js';
 import { restoreRoute } from './lib/remember-route.js';
 import App from './App.jsx';

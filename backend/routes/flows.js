@@ -305,7 +305,7 @@ async function runFlowStreamRoute(req, res, flowId) {
     if (resolved.error) return json(res, 404, { error: resolved.error });
 
     return runFlowStream({ nodes: stored.nodes, edges: stored.edges }, resolved.ctx, {
-        flowId, params: body, ignoreBudget: !!body.ignore_budget,
+        flowId, params: {...body,flow_fingerprint:stored.fingerprint}, ignoreBudget: !!body.ignore_budget,
     }, res);
 }
 
@@ -328,7 +328,7 @@ async function runFlowRoute(req, res, flowId) {
     try {
         const run = await runFlow({ nodes: stored.nodes, edges: stored.edges }, ctx, {
             flowId,
-            params: body,
+            params: {...body,flow_fingerprint:stored.fingerprint},
             ignoreBudget: !!body.ignore_budget,
         });
         // A budget refusal is not a malformed request — 402 says "this would
@@ -462,6 +462,19 @@ function formRoute(req, res, flowId, query) {
     return json(res, 200, { flow_id: flow.id, flow_name: flow.name, ...require('../lib/flow-form').formOf(db, flow, projectId) });
 }
 
+async function resumeReviewedFlow(req,res,id) {
+ const state=require('../lib/flow-review-state').loadFlowReviewState(db,id);
+ if(state.run.status!=='paused'||state.run.error_message!=='AWAITING_FINAL_REQUEST_REVIEW')return json(res,409,{error:'This run is not waiting for a final request review'});
+ const stored=loadGraph(state.run.flow_id),params=JSON.parse(state.run.params||'{}');
+ if(!stored||stored.fingerprint!==(params.flow_fingerprint||state.run.graph_fingerprint))return json(res,409,{error:'Flow changed after this run started. Nothing was resubmitted.'});
+ const resolved=runContext({shot_id:state.run.shot_id,project_id:state.run.project_id,vars:params.vars||{}});
+ if(resolved.error)return json(res,409,{error:resolved.error});
+ const claimed=db.prepare("UPDATE film_flow_runs SET status='running' WHERE id=? AND status='paused' AND error_message='AWAITING_FINAL_REQUEST_REVIEW'").run(id);
+ if(!claimed.changes)return json(res,409,{error:'Run is already resuming'});
+ const result=await runFlow(state.graph,resolved.ctx,{runId:id,flowId:state.run.flow_id,resume:true,ignoreBudget:!!params.ignore_budget,params});
+ return json(res,200,result);
+}
+
 /** FOG-002: an apply and its runs, status derived from the runs. Free. */
 function getApplyRoute(req, res, applyId) {
     const a = require('../lib/flow-apply').readApply(db, applyId);
@@ -534,6 +547,7 @@ function handleFlows(req, res, urlParts, query) {
         const runId = urlParts[2];
         if (!UUID_RE.test(runId)) return json(res, 400, { error: 'Invalid run ID' });
 
+        if(urlParts[3]==='resume'&&req.method==='POST')return resumeReviewedFlow(req,res,runId);
         if (!urlParts[3] && req.method === 'GET') return getRun(req, res, runId);
         if (urlParts[3] === 'cancel' && req.method === 'POST') return cancelRun(req, res, runId);
         if (urlParts[3] === 'branches' && req.method === 'GET') return getBranches(req, res, runId);

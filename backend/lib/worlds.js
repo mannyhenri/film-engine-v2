@@ -220,7 +220,12 @@ function importVersion(db, worldId, input) {
     refuseIfLocked(db, worldId, 'adding a version');
     const source = IMPORT_SOURCES[o.source || 'blender'] ? (o.source || 'blender') : null;
     if (!source) throw new Error(`Unknown import source '${o.source}'. Known: ${Object.keys(IMPORT_SOURCES).join(', ')}`);
-    const bytes = o.glb;
+    let bytes = o.glb;
+    let importEvidence = null;
+    if (Buffer.isBuffer(bytes) && bytes.length > require('./world-assets').MAX_ASSET_BYTES) {
+        const adapted = require('./glb-storage').deduplicateBuffers(bytes);
+        bytes = adapted.bytes; importEvidence = adapted.evidence;
+    }
     if (!Buffer.isBuffer(bytes) || bytes.length < 20 || bytes.toString('ascii', 0, 4) !== 'glTF') {
         throw new Error('That is not a GLB. Export the scene from Blender as glTF Binary (.glb).');
     }
@@ -244,7 +249,9 @@ function importVersion(db, worldId, input) {
             String(o.reason || `Built in ${IMPORT_SOURCES[source].label}`), source,
             metres ? 1 : null, metres ? 'glb_metres' : null,
             JSON.stringify(geo.bounds), String(o.caption || '') || null);
-        assetsLib.storeLocalAsset(db, id, world.project_id, 'collider', bytes);
+        const collider = assetsLib.storeLocalAsset(db, id, world.project_id, 'collider', bytes);
+        if (importEvidence) db.prepare('UPDATE film_world_assets SET metadata_json = ? WHERE id = ?')
+            .run(JSON.stringify({ imported:true, import_evidence:importEvidence }), collider.id);
         if (Buffer.isBuffer(o.panorama) && o.panorama.length) {
             assetsLib.storeLocalAsset(db, id, world.project_id, 'panorama', o.panorama);
         }
@@ -282,6 +289,14 @@ function worldGeometry(db, versionId, opts) {
     const v = getVersion(db, versionId);
     if (!v) throw new Error('world version not found');
     const o = opts || {};
+    const budget = Math.max(50, Math.min(250000, Number(o.budget) || 2500));
+    const file = db.prepare(`SELECT a.file_path FROM film_world_assets w
+        JOIN film_assets a ON a.id=w.asset_id WHERE w.world_version_id=? AND w.kind='collider'`).get(versionId)?.file_path;
+    const signature = file ? geometryFileIdentity(file) : '';
+    const key = JSON.stringify([versionId, signature, budget, v.scale_factor, scaleLib.describeScale(v)]);
+    let cache = geometryReadCache.get(db);
+    if (!cache) geometryReadCache.set(db, cache = new Map());
+    if (cache.has(key)) return structuredClone(cache.get(key));
     const geo = rawGeometry(db, versionId);
 
     /*
@@ -299,17 +314,27 @@ function worldGeometry(db, versionId, opts) {
      * it. The default is unchanged, which is what keeps the stage exactly as
      * fast as it was.
      */
-    const budget = Math.max(50, Math.min(250000, Number(o.budget) || 2500));
     const drawn = require('./glb-parser').decimate(geo, budget);
+    // The triangle budget must also bound the JSON vertex payload. decimate
+    // deliberately retains the full bounds, but unused vertices are not needed
+    // by the painter. Reindexing changes storage only, never a kept triangle.
+    const indices = new Map(), vertices = [];
+    const triangles = drawn.triangles.map(t => t.map(index => {
+        if (!indices.has(index)) {
+            indices.set(index, vertices.length);
+            vertices.push(drawn.vertices[index]);
+        }
+        return indices.get(index);
+    }));
 
     const f = Number(v.scale_factor);
     const usable = Number.isFinite(f) && f > 0 ? f : null;
     const apply = (t) => (usable ? t.map(n => n * usable) : t.slice());
 
-    return {
+    const result = {
         world_version_id: versionId,
-        vertices: usable ? drawn.vertices.map(p => p.map(n => n * usable)) : drawn.vertices,
-        triangles: drawn.triangles,
+        vertices: usable ? vertices.map(p => p.map(n => n * usable)) : vertices,
+        triangles,
         bounds: { min: apply(drawn.bounds.min), max: apply(drawn.bounds.max) },
         size: apply(drawn.size),
         // NULL, never 1 — see world-scale.js.
@@ -318,6 +343,19 @@ function worldGeometry(db, versionId, opts) {
         triangles_total: geo.triangles.length,
         triangles_dropped: drawn.dropped,
     };
+    // Never retain the multi-million-vertex authoritative parse. Small stage
+    // responses are useful on repaint; large one-off plate responses are not.
+    if (vertices.length <= 30000) {
+        for (const cachedKey of cache.keys()) if (JSON.parse(cachedKey)[0] === versionId) cache.delete(cachedKey);
+        cache.set(key, structuredClone(result));
+        while (cache.size > 4) cache.delete(cache.keys().next().value);
+    }
+    return result;
+}
+const geometryReadCache = new WeakMap();
+function geometryFileIdentity(file) {
+    const fs = require('fs'), p = fs.realpathSync(file), s = fs.statSync(p, { bigint: true });
+    return [p, s.dev, s.ino, s.size, s.mtimeNs, s.ctimeNs].join(':');
 }
 
 // ── pinning ─────────────────────────────────────────────────────────────────

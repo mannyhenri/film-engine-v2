@@ -2,6 +2,9 @@ import { useLayoutEffect } from 'react';
 import { usePageLoader } from '../../lib/usePageLoader.js';
 import * as E from './engine.js';
 import Lists from './lists.jsx';
+import './production-lineage.css';
+import StoryboardPrint from '../../components/StoryboardPrint/StoryboardPrint.jsx';
+import DepthWorkbench from '../../components/DepthWorkbench/DepthWorkbench.jsx';
 
 /*
  * The Production graph, as React: the page's frame is rendered once, and the engine (engine.js, moved verbatim
@@ -31,6 +34,7 @@ export default function ProductionGraphPage() {
         const prior = {};
         for (const [name, fn] of ENGINE) { prior[name] = window[name]; window[name] = fn; }
         return () => {
+            E.pgDispose();
             for (const [name] of ENGINE) { if (prior[name] === undefined) delete window[name]; else window[name] = prior[name]; }
         };
     }, []);
@@ -43,7 +47,11 @@ export default function ProductionGraphPage() {
                 <span className="pg-legend" id="pgLegend"></span>
                 <div className="pg-chips" id="pgScenes"></div>
                 <div style={{ flexGrow: 1 }}></div>
+                <StoryboardPrint className="pg-hbtn" />
+                <DepthWorkbench />
                 <button className="pg-hbtn" title="Re-place the nodes you haven't moved" onClick={() => E.pgTidy()}>Tidy layout</button>
+                <button className="pg-hbtn" id="pgArrange" title="Stack all scenes and their workflows vertically. Previous manual placements can be restored with Undo." onClick={() => E.pgArrange()}>Arrange vertically</button>
+                <button className="pg-hbtn" id="pgUndoArrange" hidden onClick={() => E.pgArrange(true)}>Undo arrangement</button>
                 <button className="pg-hbtn" id="pgLockBtn" title="Nothing that replaces a frame runs while the board is locked" onClick={() => E.pgToggleLock()}>Lock board</button>
                 <button className="pg-hbtn" id="pgRunChangedBtn" title="Redo only what is behind, in order, after one confirmation" onClick={() => E.pgRunChanged()}>Run what changed</button>
                 <button className="pg-hbtn primary" id="pgRunBtn" onClick={() => E.pgRunPending()}>Run pending</button>
@@ -56,11 +64,12 @@ export default function ProductionGraphPage() {
                         <button className="pg-zbtn" aria-label="Zoom out" onClick={() => E.pgZoomBy(1 / 1.15)}>&minus;</button>
                         <span className="pg-zoom" id="pgZoom">90%</span>
                         <button className="pg-zbtn" aria-label="Zoom in" onClick={() => E.pgZoomBy(1.15)}>+</button>
-                        <button className="pg-sbtn" style={{ height: 24 }} onClick={() => E.pgFit()}>Fit</button>
+                        <button className="pg-sbtn" style={{ height: 24 }} title="Focus the selected shot or sequence work area" onClick={() => E.pgFocusWorkspace()}>Focus</button>
+                        <button className="pg-sbtn" style={{ height: 24 }} title="Fit all scenes and versions" onClick={() => E.pgFit()}>Fit</button>
                         <span style={{ width: 1, height: 16, background: '#2c2c34', margin: '0 2px' }}></span>
                         <span className="pg-legend">
                             <span><i style={{ background: '#c07ce0' }}></i>image</span><span><i style={{ background: '#e2c15a' }}></i>video</span>
-                            <span><i style={{ background: '#57c98a' }}></i>audio</span><span><i style={{ background: '#8a8aff' }}></i>scene</span>
+                            <span><i style={{ background: '#57c98a' }}></i>audio</span><span><i style={{ background: '#8a8aff' }}></i>Sound</span>
                             <span><i style={{ background: '#56c8d8' }}></i>plates</span>
                         </span>
                     </div>

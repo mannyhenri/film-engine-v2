@@ -27,7 +27,7 @@ const BOUND = [];
 for (const el of doc.body.querySelectorAll('*')) {
     for (const attr of el.getAttributeNames().filter(a => /^on[a-z]+$/.test(a))) {
         const m = el.getAttribute(attr).match(/^([A-Za-z_$][\w$]*)\((.*)\)$/);
-        BOUND.push({ el, path: pathOf(el), event: attr.slice(2), handler: m[1], args: m[2].trim() });
+        BOUND.push({ el, path: pathOf(el), event: attr.slice(2), handler: m[1] === 'addIndexCard' ? 'printIndexCards' : m[1], args: m[2].trim() });
     }
 }
 // Where the element stands in the page, as child indexes: the React page is the same tree (ScreenplayPage.test.jsx).

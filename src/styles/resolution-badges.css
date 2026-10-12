@@ -1,0 +1,18 @@
+.resolution-badge {
+    display: inline-flex;
+    align-items: center;
+    flex: none;
+    padding: 3px 7px;
+    border: 1px solid #b18ada;
+    border-radius: 5px;
+    background: #352645;
+    color: #e2c6ff;
+    font: 600 11px/1.2 ui-monospace, SFMono-Regular, monospace;
+    letter-spacing: .04em;
+    white-space: nowrap;
+}
+.resolution-badge[hidden] { display: none; }
+.shot-resolution-header { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.shot-resolution-header .resolution-badge { margin-left: auto; }
+.pg-resolution-badge { position: absolute; right: 52px; top: 18px; }
+.pg-dhead:has(.pg-resolution-badge) .pg-dtitle { padding-right: 84px; }

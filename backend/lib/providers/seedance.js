@@ -173,17 +173,33 @@ function aspectFor(payload) {
 }
 
 /** Every picture the payload carries, in rank order, as URLs or data URIs. */
+function imageUri(value) {
+    const uri = typeof value === 'string' ? value : value && (value.uri || value.url || value.image_url || value.src || value.file_path || value.image);
+    if (typeof uri !== 'string' || !uri.trim()) throw new Error('seedance: a selected image reference has no supported source');
+    return uri;
+}
+function keyframesOf(p) {
+    for (const field of ['keyframes', 'reference_images', 'audio_references']) if (p[field] != null && !Array.isArray(p[field])) throw new Error(`seedance: ${field} must be an array`);
+    const frame = (primary, alias) => {
+        const selected = [p[primary], p[alias]].filter(value => value != null && value !== '').map(imageUri);
+        if (selected.length > 1 && selected[0] !== selected[1]) throw new Error(`seedance: conflicting selected ${primary} and ${alias} references`);
+        return selected[0];
+    };
+    const initial = frame('init_image', 'image_url'), last = frame('last_frame', 'end_image');
+    const frames = (p.keyframes || []).map(imageUri);
+    const endpoints = [initial, last].filter(Boolean);
+    // Collapse only the route's exact first/last alias list, not equal bytes in distinct roles.
+    const aliases = endpoints.length && frames.length === endpoints.length && frames.every((uri, i) => uri === endpoints[i]);
+    return { initial, last, frames, aliases };
+}
 function collectImages(p) {
     const out = [];
-    const push = v => {
-        const uri = typeof v === 'string' ? v : (v && (v.uri || v.url || v.image_url || v.src));
-        if (uri && !out.includes(uri)) out.push(uri);
-    };
-    if (p.init_image) push(p.init_image);
-    (p.keyframes || []).forEach(k => push(k && (k.image || k.uri || k.url) || k));
-    (p.reference_images || []).forEach(push);
-    if (p.last_frame) push(p.last_frame);
-    return out.slice(0, MAX_KEYFRAMES);
+    const { initial, last, frames, aliases } = keyframesOf(p);
+    if (initial && !aliases) out.push(initial);
+    out.push(...frames);
+    out.push(...(p.reference_images || []).map(imageUri));
+    if (last && !aliases) out.push(last);
+    return out;
 }
 
 /**
@@ -209,13 +225,13 @@ function collectImages(p) {
  * because a human was reading the payload. Counted here instead.
  */
 function keyframeCount(p) {
-    return (p.init_image ? 1 : 0)
-        + (Array.isArray(p.keyframes) ? p.keyframes.length : 0)
-        + (p.last_frame ? 1 : 0);
+    const { initial, last, frames, aliases } = keyframesOf(p);
+    return frames.length + (aliases ? 0 : (initial ? 1 : 0) + (last ? 1 : 0));
 }
 
 function workflowFor(p, images) {
     const asked = String(p.workflow || '').trim();
+    if (asked && !WORKFLOWS[asked]) throw new Error(`seedance: unsupported selected workflow ${asked}`);
     if (WORKFLOWS[asked]) return asked;
     /*
      * RECORDED DIALOGUE travels only on omni-reference (`audios_list`), so a
@@ -239,10 +255,8 @@ function workflowFor(p, images) {
      * a frame-exact opening (which is the approved board) for an unverified
      * anchor is not a trade to make silently at $0.85/s.
      *
-     * So the anchor holds and the extra references are dropped -- reported, not
-     * swallowed: `references_dropped` carries them into the preview. A director
-     * who wants the package instead asks for it: `workflow: 'omni-reference'`
-     * is honoured at the top of this function.
+     * Keep the anchor workflow; the builder rejects references it cannot carry.
+     * A director who wants the package can explicitly choose omni-reference.
      */
     if (keyframes === 1) return 'image-to-video';
     // Nothing to anchor: whatever pictures there are can only be references.
@@ -287,8 +301,11 @@ const VIDEO_EDIT_REFUSAL =
 
 function buildVideoRequest(payload) {
     const p = payload || {};
+    if (p.reference_videos != null && (!Array.isArray(p.reference_videos) || p.reference_videos.length)) throw new Error('seedance: reference_videos are not supported by this native adapter; remove the selected video references');
+    if (p.muapi_options != null && (typeof p.muapi_options !== 'object' || Array.isArray(p.muapi_options) || Object.keys(p.muapi_options).length)) throw new Error('seedance: muapi_options are not supported by this native adapter; use the supported provider fields directly');
     const images = collectImages(p);
     const workflow = workflowFor(p, images);
+    if (workflow === 'text-to-video' && p.muapi_draft === true) throw new Error('seedance: selected muapi_draft is not supported by the text-to-video endpoint');
     /*
      * Covers BOTH ways in: the implicit route (a source clip attached to a
      * plain video generation, which used to select this silently) and an
@@ -315,6 +332,8 @@ function buildVideoRequest(payload) {
         aspect_ratio: aspectFor(p),
         duration: clamped,
     };
+    const negative = String(p.negative_prompt || '').trim();
+    if (negative) body.prompt = body.prompt ? `${body.prompt}\n\nAvoid: ${negative}` : `Avoid: ${negative}`;
     if (Number.isFinite(Number(p.seed)) && Number(p.seed) >= 0) body.seed = Number(p.seed);
     // MuAPI's own draft switch, sent only when chosen on the dialog.
     if (typeof p.muapi_draft === 'boolean' && workflow !== 'text-to-video') body.draft = p.muapi_draft;
@@ -325,7 +344,8 @@ function buildVideoRequest(payload) {
     if (body.generate_audio) body.prompt = require('../video-audio-policy').soundPrompt(body.prompt, 16000);
 
     const allowed = WORKFLOWS[workflow].images;
-    const used = images.slice(0, allowed);
+    if (images.length > allowed) throw new Error(`seedance: ${workflow} accepts at most ${allowed} image reference(s); remove the excess images or explicitly choose omni-reference`);
+    const used = images;
     /*
      * WHICH FIELD CARRIES THE PICTURES IS PER WORKFLOW, and MuAPI is not
      * uniform about it. Read from its own refusals rather than assumed:
@@ -375,9 +395,14 @@ function buildVideoRequest(payload) {
         body[field] = field === 'image_url' ? used[0] : used;
     }
     if (p.source_video || p.video_url) body.video_url = p.source_video || p.video_url;
-    const audio = (Array.isArray(p.audio_references) ? p.audio_references : [])
-        .map(a => (typeof a === 'string' ? a : (a && (a.uri || a.url || a.file_path)))).filter(Boolean).slice(0, 10);
-    if (workflow === 'omni-reference' && audio.length) body.audios_list = audio;
+    const audio = (Array.isArray(p.audio_references) ? p.audio_references : []).map(a => {
+        const source = typeof a === 'string' ? a : a && (a.uri || a.url || a.file_path);
+        if (typeof source !== 'string' || !source.trim()) throw new Error('seedance: a selected audio reference has no supported source');
+        return source;
+    });
+    if (audio.length > 10) throw new Error('seedance: omni-reference accepts at most 10 audio references; remove the excess selected audio');
+    if (audio.length && workflow !== 'omni-reference') throw new Error(`seedance: ${workflow} takes no audio references; explicitly choose omni-reference`);
+    if (audio.length) body.audios_list = audio;
 
     return {
         url: `${BASE_URL}/seedance-2.5-${workflow}${RESOLUTIONS[resolution].suffix}`,
@@ -386,7 +411,7 @@ function buildVideoRequest(payload) {
         resolution,
         model: `seedance-2.5-${workflow}${RESOLUTIONS[resolution].suffix}`,
         images: used,
-        dropped: images.slice(allowed),
+        dropped: [],
         duration_s: clamped,
         askedDuration: duration,
     };
@@ -739,7 +764,8 @@ async function awaitResult(requestId, apiKey, deadline, onPoll) {
     return { ok: false, status: 504, error: 'seedance: timed out waiting for the video' };
 }
 
-async function generate(capability, payload, opts) {
+async function generate(capability,payload,opts) { return require('../final-provider-request').finishGeneration(opts,()=>generateApproved(capability,payload,opts)); }
+async function generateApproved(capability, payload, opts) {
     if (capability !== 'video' && capability !== 'post') {
         return { ok: false, status: 400, error: `seedance: ${capability} is not served here` };
     }
@@ -750,21 +776,11 @@ async function generate(capability, payload, opts) {
      * their key is missing when the real problem is that Seedance cannot grade
      * sends them to look in the wrong place.
      */
-    let req;
-    if (capability === 'post') {
-        try { req = buildPostRequest(payload); }
-        catch (err) { return { ok: false, status: 400, error: err.message }; }
-    }
+    const req = await require('../final-provider-request').approvedRequest('seedance', capability, opts);
 
     const { apiKey } = getCredential('seedance');
     if (!apiKey) return { ok: false, status: 401, error: 'seedance: no API key configured' };
 
-    if (!req) {
-        req = buildVideoRequest(payload);
-        if (!req.body.prompt && !req.images.length) {
-            return { ok: false, status: 400, error: 'seedance: nothing to generate from' };
-        }
-    }
 
     /*
      * THE PICTURES GO UP BEFORE THE REQUEST GOES OUT.
@@ -803,6 +819,7 @@ async function generate(capability, payload, opts) {
         const { hostFile } = require('./muapi-upload');
         const hosted = await hostFile(req.body.video_url, apiKey);
         if (!hosted.ok) return { ok: false, status: 422, error: `seedance: ${hosted.error}` };
+        require('../generation-transport').hosted(req,req.body.video_url,hosted.url);
         req.body.video_url = hosted.url;
     }
     // Recorded dialogue: local files go up the same free way a clip does.
@@ -812,6 +829,7 @@ async function generate(capability, payload, opts) {
         for (const a of req.body.audios_list) {
             const h = await hostFile(a, apiKey);
             if (!h.ok) return { ok: false, status: 422, error: `seedance: dialogue audio — ${h.error}` };
+            require('../generation-transport').hosted(req,a,h.url);
             urls.push(h.url);
         }
         req.body.audios_list = urls;
@@ -826,12 +844,13 @@ async function generate(capability, payload, opts) {
         const { hostImages } = require('./muapi-upload');
         const hosted = await hostImages(list, apiKey);
         if (!hosted.ok) return { ok: false, status: 422, error: `seedance: ${hosted.error}` };
+        require('../generation-transport').hostedList(req,list,hosted.urls);
         req.body[field] = Array.isArray(v) ? hosted.urls : hosted.urls[0];
     }
 
     let res;
     try {
-        res = await fetch(req.url, {
+        res = await require('../generation-transport').dispatch(req, req.url, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, accept: 'application/json' },
             body: JSON.stringify(req.body),

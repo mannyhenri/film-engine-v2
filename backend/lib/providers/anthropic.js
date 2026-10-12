@@ -309,6 +309,7 @@ const adapter = {
     supports,
 
     async generate(capability, payload, opts = {}) {
+        return {ok:false,status:428,error:'Exact final request review is not supported for Anthropic yet; generation is blocked.'};
         if (!supports(capability)) {
             return { ok: false, status: 400, error: `anthropic: unsupported capability '${capability}'` };
         }
@@ -323,6 +324,7 @@ const adapter = {
     },
 
     async generateStream(capability, payload, res, callbacks) {
+        return {ok:false,status:428,error:'Exact final request review is not supported for Anthropic yet; generation is blocked.'};
         if (!supports(capability)) {
             return { ok: false, finalData: null, error: `anthropic: unsupported capability '${capability}'` };
         }
