@@ -6,7 +6,7 @@ During this verification, an edit of **unverified origin** added `output_paths` 
 
 ## 1. What each participant reported
 
-- **Claude:** drove every round. All code on the branch is Claude's.
+- **Claude:** drove every round and wrote all the branch's code except one unassigned change (below).
 - **codex:** reviewed every round and made no file edits in either confer (confirmed by codex). Its only blocker was its own tool calls stalling, which resolved: it later ran `manual-generation` and `manual-route-gate` itself, 16 pass and 0 fail. It raised these review points, and each was answered on the branch:
   - route coverage;
   - character explore (subject-gallery);
@@ -33,21 +33,34 @@ Both participants worked in one repo, so the shared contracts are the frontend�
 | h | Env and settings: `FILM_DATA_DIR`, `CORS_ALLOWED_ORIGINS`, `FILM_ENGINE_PUBLIC_URL`, `gridlight_enabled` | `backend/lib/data-paths.js` and `db/database.js`; `server.js`; `lib/frame-handles.js`; `routes/app-settings.js` | `final-request-review.js` `mediaRoots` (data root); `docs/manual-generation.md`; `lib/video-edit.js` (no public link for manual vendors); `lib/providers/index.js` `localGatewayEnabled` | yes | route and Gridlight end-to-end tests |
 | i | Backend internals: cleanup install and the direct path for kept providers | `backend/db/schema.js` `ensureSchema` → `lib/manual-generation.js` `installReviewStopCleanup` (every job table; output columns incl. `output_paths`; manual-vendor reviews only); `lib/final-request-review.js` `authorizeWithStore` returns `{bypass}` only for a registered, non-manual provider with no review builder | `lib/providers/index.js` wrapper, sync (`approval.bypass === true` → own payload) and stream (`approval.bypass !== true` guards `finalRequest`); `lib/image-fallback.js` (`authorization.bypass` → adapter); `routes/threed.js` passes `finalRequest: undefined`, re-authorized by the wrapper; `worlds.js` and `storyboard-upscale.js` only use manual vendors, so never a bypass | yes | `manual-generation.test.js`: trigger over every registry capability, `output_paths` cases, kept direct path, bypass closed to unregistered ids and manual vendors; Gridlight end-to-end in `manual-route-gate.test.js` |
 
-## 3. Tests (run on `8940328`)
+## 3. Tests
 
-| Command | Result |
-|---|---|
-| `cd backend && node --test tests/manual-generation.test.js tests/manual-route-gate.test.js` | 18 tests, 18 pass, 0 fail; "routes 31: generation 17 reached review; not manual 14"; batch reviews: music 14, voice 7 |
-| `cd backend && node --test tests/*.test.js` | 5460 tests, 5151 pass, 302 fail. Against the pre-change baseline (341 fail): new failures `[]`, and 40 baseline failures now pass |
-| `npx vitest run` | 2 failed, 1237 passed, 1 skipped. Both failures (`App.boot`, `PilotPanel`) also fail on `main` |
-| `node --test tools/tests/*.test.js` | 239 pass, 0 fail |
-| `npm run smoke` | 49/52 pages clean, 0 console errors. The same 3 failures (screenplay editor, switch project, subject sheets) occur on `main` |
+Every result below was run on **`5fd2b9e`** (the head when the suites ran; later commits change only this report and tests named in the revise round). The baseline is **`main` @ `8ab7121`**, before any of this work.
+
+| Command | Result on `5fd2b9e` | Baseline `8ab7121` |
+|---|---|---|
+| `cd backend && node --test tests/manual-generation.test.js tests/manual-route-gate.test.js` | 18 tests: 18 pass, 0 fail. "routes 31: generation 17 reached review; not manual 14"; batch reviews: music 14, voice 7 | (files did not exist) |
+| `cd backend && node --test tests/*.test.js` | 5460 tests = 5151 pass + 302 fail + 7 skipped (0 cancelled, 0 todo). New failures against the baseline: none. 40 baseline failures now pass | 5567 tests = 5219 pass + 341 fail + 7 skipped |
+| `npx vitest run` | 1240 tests = 1237 pass + 2 fail + 1 skipped. The 2 (`App.boot`, `PilotPanel`) also fail on `main` | same 2 fail |
+| `node --test tools/tests/*.test.js` | 240 tests: 239 pass, 0 fail (1 skipped) | 0 fail |
+| `npm run smoke` | 49/52 pages clean, 0 console errors. 3 FAIL: screenplay editor, switch project, subject sheets | the same 3 FAIL on `main` |
+
+The backend suite shrank from 5567 to 5460 tests because 122 tests that only proved sending to manual vendors were retired (and new tests were added).
+
+Independent run by codex (its own tools): `npx vitest run src/components/FinalRequestReview/ManualBridge.test.jsx src/components/FinalRequestReview/ManualGeneration.test.jsx src/components/FinalRequestReview/FinalRequestReview.test.jsx src/pages/settings/ManualProviders.test.jsx` → 4 files, 182 tests pass (77 + 24 + 60 + 21). Earlier: the two backend manual-generation files → 16 pass, 0 fail.
 
 ### Streamed reviews, end to end
 
 The backend side: the music batch stream announces a review for every scene (14 for the demo's 7 scenes; `manual-route-gate.test.js`). The frontend side: `ManualGeneration.test.jsx` sends 14 distinct ids through the stream observer, each repeated across two typed events. Each review is fetched once and shown in order through the queued dialog with its own prompt. Its assets offer Download original, which fetches `/film/final-request-review/<that id>/references/1/original` from the configured backend base, and each Close cancels that id exactly once.
 
 The download base is `window.__feFinalReviewBase()`, which the app's `api()` sets on every call. `http://localhost:3100/film` is only the fallback when it is unset, the same rule as `reviewApi`. The caller keeps reading its own stream (`request-bridge.js` returns stream paths untouched to `streamSSEPost`).
+
+### Revise-round hardening (from the critique)
+
+- **One marker reader (C4):** `src/components/FinalRequestReview/review-marker.js` `reviewIdsIn()` reads the marker string anywhere and a structured `review.id` / `review_id`. Both the bridge (`request-bridge.js`) and the stream observer (`FinalRequestReview.jsx`) use it. `ReviewMarker.test.jsx` pins every format and fails if either file grows its own pattern. The backend keeps its own `isReviewStop` for batch routes.
+- **Generated-code guard (C5):** `LegacyBridgeContract.test.jsx` reads `public/legacy/core.js`. It fails if `api()` or `streamSSEPost` stops returning the `__manual_handoff` passthrough before fetching. Without that, a route already completed through the fallback would be posted twice.
+- **CORS (C6):** if `CORS_ALLOWED_ORIGINS` is set, it must include the renderer's origin (`http://localhost:5173` in dev). Otherwise every API call fails, Download original included.
+- **Typed stream events (C7):** the observer only reads typed stream events (`data.type` is a string), so job listings carrying old markers open nothing. Events from today's streaming routes are typed. With `reviewIdsIn`, it now also reads a structured id inside such an event.
 
 ## 4. Blockers never resolved
 

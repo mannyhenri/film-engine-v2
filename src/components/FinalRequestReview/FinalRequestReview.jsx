@@ -5,6 +5,7 @@ import { reviewApi, cancelledReview, prepareFinalRequest } from './request-bridg
 import './final-request-review.css';
 import {handoffEligible,useDesktopAvailability,copyHandoff,ImageHandoffResult} from './ImageHandoff.jsx';
 import ExpressionPicker from './ExpressionPicker.jsx';
+import { reviewIdsIn } from './review-marker.js';
 
 const json = value => JSON.stringify(value, null, 2);
 const clone = value => JSON.parse(JSON.stringify(value));
@@ -227,9 +228,9 @@ export default function FinalRequestReview() {
    // once. Only stream events (a typed object), never a listing that happens to
    // carry an old job's error, and only a review still awaiting its hand-over.
    if(data&&typeof data==='object'&&!Array.isArray(data)&&typeof data.type==='string'){
-    for(const m of JSON.stringify(data).matchAll(/FINAL_REQUEST_REVIEW_REQUIRED:([A-Za-z0-9_-]+)/g)){
-     if(announced.has(m[1]))continue;announced.add(m[1]);
-     reviewApi(`/final-request-review/${m[1]}`).then(r=>r?.state==='preview'?show(r):null).catch(()=>{});
+    for(const id of reviewIdsIn(data)){
+     if(announced.has(id))continue;announced.add(id);
+     reviewApi(`/final-request-review/${id}`).then(r=>r?.state==='preview'?show(r):null).catch(()=>{});
     }
    }
    const result=[data,data?.result,data?.run,data?.job,...(Array.isArray(data?.runs)?data.runs:[]),...(Array.isArray(data?.jobs)?data.jobs:[])].find(item=>item?.next_review);

@@ -1,4 +1,5 @@
 import { projectEpoch } from '../../lib/project-epoch.js';
+import { reviewIdsIn } from './review-marker.js';
 // All review traffic bypasses generation helpers; this never submits a provider job.
 export async function reviewApi(path, body, method = body === undefined ? 'GET' : 'POST') {
  const base = typeof window.__feFinalReviewBase === 'function' ? window.__feFinalReviewBase() : 'http://localhost:3100/film';
@@ -8,8 +9,7 @@ export async function reviewApi(path, body, method = body === undefined ? 'GET' 
  return data;
 }
 export function reviewRequired(data) {
- const text = typeof data === 'string' ? data : JSON.stringify(data || {});
- return text.match(/FINAL_REQUEST_REVIEW_REQUIRED:([A-Za-z0-9_-]+)/)?.[1] || null;
+ return reviewIdsIn(data)[0] || null;
 }
 export function cancelledReview() { const error = new Error('Closed: the prompt was prepared and nothing was sent'); error.code = 'FINAL_REQUEST_CANCELLED'; return error; }
 
@@ -64,8 +64,7 @@ async function routeReview(path,opts,body,openReview,request,epoch) {
  const text = await response.text();
  let data; try { data=JSON.parse(text); } catch { data={output:text}; }
  // The review id arrives in the error string, or as a structured field on a 428.
- const structured=response.status===428?[data?.review?.id,data?.review_id].filter(id=>typeof id==='string'):[];
- const ids=[...new Set([...[...text.matchAll(/FINAL_REQUEST_REVIEW_REQUIRED:([A-Za-z0-9_-]+)/g)].map(m=>m[1]),...structured])];
+ const ids=[...new Set([...reviewIdsIn(text),...(response.status===428?reviewIdsIn(data):[])])];
  if (!ids.length) {
   if (!response.ok) throw Object.assign(new Error(data.error || `HTTP ${response.status}`),{data,status:response.status});
   return {...opts,__manual_handoff:data};
