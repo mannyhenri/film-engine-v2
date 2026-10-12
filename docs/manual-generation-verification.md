@@ -35,14 +35,15 @@ Both participants worked in one repo, so the shared contracts are the frontendâ†
 
 ## 3. Tests
 
-Every result below was run on **`5fd2b9e`** (the head when the suites ran; later commits change only this report and tests named in the revise round). The baseline is **`main` @ `8ab7121`**, before any of this work.
+Every result below was run on **`c2f1810`**, the final head. The baseline is **`main` @ `8ab7121`**, before any of this work.
 
-| Command | Result on `5fd2b9e` | Baseline `8ab7121` |
+| Command | Result on `c2f1810` | Baseline `8ab7121` |
 |---|---|---|
-| `cd backend && node --test tests/manual-generation.test.js tests/manual-route-gate.test.js` | 18 tests: 18 pass, 0 fail. "routes 31: generation 17 reached review; not manual 14"; batch reviews: music 14, voice 7 | (files did not exist) |
+| `cd backend && node --test tests/manual-generation.test.js tests/manual-route-gate.test.js` | 18 tests: 18 pass, 0 fail | (files did not exist) |
 | `cd backend && node --test tests/*.test.js` | 5460 tests = 5151 pass + 302 fail + 7 skipped (0 cancelled, 0 todo). New failures against the baseline: none. 40 baseline failures now pass | 5567 tests = 5219 pass + 341 fail + 7 skipped |
-| `npx vitest run` | 1240 tests = 1237 pass + 2 fail + 1 skipped. The 2 (`App.boot`, `PilotPanel`) also fail on `main` | same 2 fail |
-| `node --test tools/tests/*.test.js` | 240 tests: 239 pass, 0 fail (1 skipped) | 0 fail |
+| `npx vitest run` on the six manual-generation UI files (ManualBridge, ManualGeneration, FinalRequestReview, ManualProviders, ReviewMarker, LegacyBridgeContract) | 6 files, 194 tests pass | (files did not exist) |
+| `npx vitest run` | 1252 tests = 1249 pass + 2 fail + 1 skipped. The 2 (`App.boot`, `PilotPanel`) also fail on `main` | same 2 fail |
+| `node --test tools/tests/*.test.js` | 240 tests = 239 pass + 0 fail + 1 skipped | 0 fail |
 | `npm run smoke` | 49/52 pages clean, 0 console errors. 3 FAIL: screenplay editor, switch project, subject sheets | the same 3 FAIL on `main` |
 
 The backend suite shrank from 5567 to 5460 tests because 122 tests that only proved sending to manual vendors were retired (and new tests were added).
