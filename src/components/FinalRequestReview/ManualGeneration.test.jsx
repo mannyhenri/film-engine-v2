@@ -76,6 +76,7 @@ describe('manual generation: the final screen hands over prompt and assets',()=>
   window.__feFinalReviewBase=()=>'/film';
   const ids=Array.from({length:14},(_,i)=>'stream-'+i);
   const transport=vi.fn(async url=>{const u=String(url),id=u.split('/final-request-review/')[1].split('/')[0];
+   if(u.endsWith('/original'))return {ok:true,blob:async()=>new Blob(['orig'])};
    return {ok:true,json:async()=>u.endsWith('/cancel')?{state:'cancelled'}:{...review('elevenlabs','music'),id,snapshot:{...review('elevenlabs','music').snapshot,body:{prompt:'prompt '+id}}}};});
   vi.stubGlobal('fetch',transport);
   render(<FinalRequestReview/>);
@@ -85,6 +86,11 @@ describe('manual generation: the final screen hands over prompt and assets',()=>
   for(let i=0;i<ids.length;i++){
    await waitFor(()=>expect(screen.getByRole('dialog').dataset.review).toBe(ids[i]));
    seen.push(screen.getByLabelText('Prompt to copy').textContent);
+   // Its assets are downloadable from the configured backend base, for this review.
+   expect(screen.getAllByRole('button',{name:/Download original/})).toHaveLength(2);
+   URL.createObjectURL=vi.fn(()=>'blob:x');URL.revokeObjectURL=vi.fn();
+   fireEvent.click(screen.getByRole('button',{name:'Download original of asset 1'}));
+   await waitFor(()=>expect(transport.mock.calls.some(([u])=>String(u)===`/film/final-request-review/${ids[i]}/references/1/original`)).toBe(true));
    fireEvent.click(screen.getByRole('button',{name:'Close'}));
    await waitFor(()=>expect(transport.mock.calls.some(([u])=>String(u).endsWith(`/final-request-review/${ids[i]}/cancel`))).toBe(true));
   }

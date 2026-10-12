@@ -45,7 +45,9 @@ Both participants worked in one repo, so the shared contracts are the frontendâ†
 
 ### Streamed reviews, end to end
 
-The backend side: the music batch stream announces a review for every scene (14 for the demo's 7 scenes; `manual-route-gate.test.js`). The frontend side: `ManualGeneration.test.jsx` sends 14 distinct ids through the stream observer, each repeated across two typed events. Each review is fetched once and shown in order through the queued dialog with its own prompt, and each Close cancels that id exactly once. The caller keeps reading its own stream (`request-bridge.js` returns stream paths untouched to `streamSSEPost`).
+The backend side: the music batch stream announces a review for every scene (14 for the demo's 7 scenes; `manual-route-gate.test.js`). The frontend side: `ManualGeneration.test.jsx` sends 14 distinct ids through the stream observer, each repeated across two typed events. Each review is fetched once and shown in order through the queued dialog with its own prompt. Its assets offer Download original, which fetches `/film/final-request-review/<that id>/references/1/original` from the configured backend base, and each Close cancels that id exactly once.
+
+The download base is `window.__feFinalReviewBase()`, which the app's `api()` sets on every call. `http://localhost:3100/film` is only the fallback when it is unset, the same rule as `reviewApi`. The caller keeps reading its own stream (`request-bridge.js` returns stream paths untouched to `streamSSEPost`).
 
 ## 4. Blockers never resolved
 
