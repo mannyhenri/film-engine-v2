@@ -62,6 +62,26 @@ The download base is `window.__feFinalReviewBase()`, which the app's `api()` set
 - **CORS (C6):** if `CORS_ALLOWED_ORIGINS` is set, it must include the renderer's origin (`http://localhost:5173` in dev). Otherwise every API call fails, Download original included.
 - **Typed stream events (C7):** the observer only reads typed stream events (`data.type` is a string), so job listings carrying old markers open nothing. Events from today's streaming routes are typed. With `reviewIdsIn`, it now also reads a structured id inside such an event.
 
+### Live check in a real browser (C1)
+
+The check ran in isolation, so nothing touched the user's Electron window or data:
+- a throwaway backend on port 3297 with a temporary data folder;
+- the Vite dev server on port 5297;
+- a fake local Gridlight on port 3891;
+- headless Chromium (Playwright), driving the app's own `api()`.
+
+**A. Manual vendor: character expression on muapi.**
+- The real dialog opened: "Prompt and assets for muapi", the full prompt, settings to match, and 1 asset (`@identity`). There is no Send or Approve button.
+- **Copy prompt** put exactly that prompt on the clipboard.
+- **Download original** saved `01-identity.png`, 852 bytes, byte-identical to the imported plate.
+- **Close** settled the caller with `FINAL_REQUEST_CANCELLED` ("Closed: the prompt was prepared and nothing was sent"). The dialog closed, and the review is `cancelled` on the server.
+- Screenshot: `docs/manual-generation-handover.png`.
+
+**B. Kept Gridlight: sound through `api()`.**
+- The generation completed with a saved asset and no dialog.
+- It hit the fake gateway exactly once, so the planner-less fallback did not post the route twice.
+- No page errors were logged.
+
 ## 4. Blockers never resolved
 
 - **Product or code blockers:** none. Every point a participant raised has a commit and a test.
@@ -76,4 +96,4 @@ Known items outside this task:
 
 ## Verdict
 
-**It fits.** Every contract above agrees on both sides, each is crossed by a test, and the full suites show no new failures against the baseline.
+**It fits, by tests and by a live headless run.** Every contract above agrees on both sides, each is crossed by a test, and the full suites show no new failures against the baseline.
