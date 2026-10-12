@@ -51,7 +51,10 @@ The download base is `window.__feFinalReviewBase()`, which the app's `api()` set
 
 ## 4. Blockers never resolved
 
-None from the participants. Known items outside this task:
+- **Product or code blockers:** none. Every point a participant raised has a commit and a test.
+- **Process (open):** codex's own tool calls are still delayed, so its independent reads of the latest audit commits are pending. Its last independent run was 16/0 on the manual-generation tests. This does not block the code, but the audit is not yet independently confirmed for its final commit.
+
+Known items outside this task:
 
 - **Demo project data:** `card.dialogue` is stored as a string where an array is expected, so voice batch finds no dialogue and creating a music session fails on the demo. `PUT /shots/:id` can't edit demo cards. The route fixtures work around both.
 - **CORS:** it defaults to accepting every origin. This is pre-existing and documented with the `CORS_ALLOWED_ORIGINS` fix.
