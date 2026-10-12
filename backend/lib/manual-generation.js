@@ -53,7 +53,7 @@ function installReviewStopCleanup(db) {
         const column = ['error_message', 'error'].find(c => cols.includes(c));
         if (!column) continue;
         // A row that recorded any output is history and stays, whatever its error says.
-        const outputs = ['output_path', 'result_path', 'result_json', 'result', 'asset_id', 'output_asset_id', 'file_path', 'request_id', 'provider_job_id']
+        const outputs = ['output_path', 'output_paths', 'result_path', 'result_json', 'result', 'asset_id', 'output_asset_id', 'file_path', 'request_id', 'provider_job_id']
             .filter(c => cols.includes(c)).map(c => ` AND (NEW."${c}" IS NULL OR NEW."${c}" = '')`).join('');
         for (const when of ['INSERT', 'UPDATE']) {
             db.exec(`DROP TRIGGER IF EXISTS "${table}_review_stop_${when.toLowerCase()}"`);

@@ -133,6 +133,32 @@ test('a review stop removes only output-less job rows whose review is for a manu
  db.close();
 });
 
+test('reference-sheet review cleanup preserves output_paths on insert, update, and trigger reinstall',()=>{
+ const db=new Database(':memory:');
+ db.exec('CREATE TABLE film_refsheet_jobs (id TEXT PRIMARY KEY, output_paths TEXT, error_message TEXT)');
+ const outputs=JSON.stringify(['/saved/front.png','/saved/side.png']);
+ db.prepare('INSERT INTO film_refsheet_jobs VALUES (?,?,?)').run('historical',outputs,'FINAL_REQUEST_REVIEW_REQUIRED:r-refsheet');
+ manual.installReviewStopCleanup(db);
+ db.prepare("INSERT INTO film_final_request_reviews (id,fingerprint,snapshot_json,editable_json,provenance_json) VALUES ('r-refsheet','fp',?,'{}','{}')")
+  .run(JSON.stringify({provider:'runway',capability:'image'}));
+ const marker='FINAL_REQUEST_REVIEW_REQUIRED:r-refsheet';
+ assert.equal(db.prepare('SELECT output_paths FROM film_refsheet_jobs WHERE id=?').get('historical').output_paths,outputs);
+ for(const when of ['insert','update']){
+  for(const [suffix,paths] of [['made',outputs],['empty-json','[]'],['null',null],['blank','']]){
+   const id=when+'-'+suffix;
+   db.prepare('INSERT INTO film_refsheet_jobs VALUES (?,?,?)').run(id,paths,when==='insert'?marker:null);
+   if(when==='update')db.prepare('UPDATE film_refsheet_jobs SET error_message=? WHERE id=?').run(marker,id);
+   const row=db.prepare('SELECT output_paths FROM film_refsheet_jobs WHERE id=?').get(id);
+   if(paths)assert.equal(row?.output_paths,paths,id+' retains recorded output history');
+   else assert.equal(row,undefined,id+' remains eligible for manual handover cleanup');
+  }
+ }
+ manual.installReviewStopCleanup(db);
+ db.prepare('UPDATE film_refsheet_jobs SET error_message=? WHERE id=?').run(marker,'historical');
+ assert.equal(db.prepare('SELECT output_paths FROM film_refsheet_jobs WHERE id=?').get('historical')?.output_paths,outputs);
+ db.close();
+});
+
 test('every reference with a recorded original serves that exact file, and nothing else is served',async()=>{
  const {originalReference}=require('../lib/final-request-review');
  const dir=fs.mkdtempSync(path.join(os.tmpdir(),'manual-orig-')),original=path.join(dir,'hero-original.png');fs.writeFileSync(original,'ORIGINAL-FULL-RES');
