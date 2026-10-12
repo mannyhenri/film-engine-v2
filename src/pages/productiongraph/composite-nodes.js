@@ -1,0 +1,9 @@
+export function compositeNodeHtml(n,{esc,port,src,selected,pos}){
+ const wireTypes={VideoAsset:'video',AlphaSequence:'alpha',AlphaPreview:'alpha',DepthSequence:'depth',ImagePlate:'image',CompositeVideo:'video',ForegroundLayer:'video'};
+ const video=n.url&&['composite-source','alpha-preview','composite-output'].includes(n.type)?`<video controls preload="metadata" src="${esc(src(n.url))}" style="width:100%;height:100px;object-fit:contain" onclick="event.stopPropagation()"></video>`:'';
+ const input=Object.entries(n.input_types||{}).map(([name,type])=>`<div class="pg-row">${port('in',wireTypes[type],name)}<span>${esc(name)} · ${esc(type)}</span></div>`).join('');
+ const output=Object.entries(n.output_types||{}).map(([name,type])=>`<div class="pg-row"><span>${esc(type)}</span>${port('out',wireTypes[type],name)}</div>`).join('');
+ return `<div class="pg-node pg-composite${selected}" data-key="${esc(n.key)}" style="${pos}width:${n.w}px;min-height:${n.h}px"><div class="pg-nh"><strong>${esc(n.name)}</strong><div class="pg-sub">${esc(n.status||n.output_type||'typed input')}${n.fixture?' · SYNTHETIC TEST':''}</div></div>${video}${n.key.startsWith('composite-input:')||n.version_id?port('in',wireTypes[n.output_type],'in'):''}<p>${esc(n.phase||'Open the source, settings and provenance')}</p>${input}${output}<button class="pg-sbtn" onclick="event.stopPropagation();pgOpenComposite('${esc(n.id)}')">Configure / inspect</button></div>`;
+}
+export function compositeWireAllowed(from,to,port){const type=from?.output_type||({'video':'VideoAsset','depth-source':'VideoAsset','depth-output':'DepthSequence'}[from?.type]);return !!from?.asset_id&&!!type&&to?.input_types?.[port]===type&&['subject-matte','composite'].includes(to.type);}
+export function encodedPoint([x,y],rotation){if(![0,90,180,-90].includes(rotation))throw Error('Unsupported correction orientation');return {0:[x,y],90:[1-y,x],180:[1-x,1-y],'-90':[y,1-x]}[rotation];}

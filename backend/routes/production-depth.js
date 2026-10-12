@@ -1,14 +1,12 @@
 const {db}=require('../db/database');
 const {createDepthService}=require('../lib/production-depth');
-const {pipeFile}=require('../lib/file-storage');
+const {serveResolvedFile}=require('../lib/file-storage');
 let service;
 function store(){return service || (service=createDepthService(db));}
 async function handleProductionDepth(req,res,parts){
  try{const w=store(),pid=parts[2],resource=parts[4],nid=parts[5],action=parts[6],b=req.body || {};let result,status=200;
   if(req.method==='GET'&&resource==='versions'&&nid&&action){
-   const file=w.versionFile(pid,nid,action),headers={'Content-Type':file.mime,'Accept-Ranges':'bytes','Cache-Control':'private, max-age=31536000, immutable'};
-   if(req.headers.range){const match=/^bytes=(\d+)-(\d*)$/.exec(req.headers.range);if(!match){res.writeHead(416,{'Content-Range':`bytes */${file.size}`});return res.end();}const start=Number(match[1]),end=match[2]?Math.min(Number(match[2]),file.size-1):file.size-1;if(!Number.isSafeInteger(start)||!Number.isSafeInteger(end)||start>end||start>=file.size){res.writeHead(416,{'Content-Range':`bytes */${file.size}`});return res.end();}res.writeHead(206,{...headers,'Content-Length':end-start+1,'Content-Range':`bytes ${start}-${end}/${file.size}`});return pipeFile(file.path,res,{start,end});}
-   res.writeHead(200,{...headers,'Content-Length':file.size});return pipeFile(file.path,res);
+   return serveResolvedFile(req,res,w.versionFile(pid,nid,action),{cacheControl:'private, max-age=31536000, immutable'});
   }
   if(req.method==='GET'&&!resource)result=await w.catalog(pid);
   else if(req.method==='POST'&&resource==='inspect'&&!nid)result=await w.inspectSource(pid,b.source_asset_id);

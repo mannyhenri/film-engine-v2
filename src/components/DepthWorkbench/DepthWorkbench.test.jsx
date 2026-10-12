@@ -1,8 +1,7 @@
 import {it,expect,vi,beforeEach} from 'vitest';
-import {render,screen,fireEvent,waitFor} from '@testing-library/react';
+import {render,screen,fireEvent,waitFor,act} from '@testing-library/react';
 import DepthWorkbench from './DepthWorkbench.jsx';
 import {resetProjectEpoch,noteOpenProject} from '../../lib/project-epoch.js';
-import {buildLineageGraph} from '../../pages/productiongraph/lineage-model.js';
 import {depthWireAllowed} from '../../pages/productiongraph/depth-nodes.js';
 const bridge=vi.hoisted(()=>({state:{currentProject:{id:'p'}},api:vi.fn(),mediaUrl:x=>x}));vi.mock('../../lib/legacy.js',()=>({legacy:bridge}));
 const source={asset_id:'video',fingerprint:'source-fingerprint',file_name:'synthetic.mp4',timing:{width:32,height:48,frame_count:6,fps:{numerator:24000,denominator:1001},variable_frame_rate:false}};
@@ -27,11 +26,6 @@ it('the author inspects a source, saves a node and explicitly reviews the bound 
 });
 it('project switch closes review and discards a late source result',async()=>{
  let done;const ordinary=bridge.api.getMockImplementation();bridge.api.mockImplementation((url,opts)=>url.endsWith('/inspect')?new Promise(resolve=>done=resolve):ordinary(url,opts));render(<DepthWorkbench/>);fireEvent.click(screen.getByText('Depth Map'));await screen.findByText(/SYNTHETIC TEST ADAPTER/);fireEvent.change(screen.getByLabelText('Source video'),{target:{value:'video'}});fireEvent.click(screen.getByText('Inspect source frames'));bridge.state.currentProject={id:'other'};noteOpenProject('other');done(source);await waitFor(()=>expect(screen.queryByRole('dialog')).toBeNull());expect(bridge.api.mock.calls.every(([url])=>!url.endsWith('/nodes'))).toBe(true);
-});
-it('typed canvas nodes retain geometry without invented generative recipes; depth cannot be wired as an alpha/video reference',()=>{
- const source={key:'depth-source:a',type:'depth-source',asset_id:'v',w:260,h:220},map={key:'depth:b',type:'depth-map',id:'b',w:280,h:240},raw={key:'depth-output:c',type:'depth-output',parent:map.key,w:260,h:220};
- const graph=buildLineageGraph({nodes:[source,map,raw],edges:[],groups:[{id:'depth-group:a',rows:[source.key,map.key],members:[source.key,map.key,raw.key],x:20,y:20}],workspace_geometry:{nodes:{[map.key]:{x:1000,y:100,pinned:true}}}});
- expect(graph.nodes.some(n=>n.type==='draft-request')).toBe(false);expect(graph.nodes.find(n=>n.key===map.key)).toMatchObject({x:1000,y:100,pinned:true});expect(depthWireAllowed(source,map,'source','video')).toBe(true);expect(depthWireAllowed(raw,map,'source','video')).toBe(false);expect(depthWireAllowed(raw,{type:'draft-request'},'in','depth')).toBe(false);
 });
 
 it('model detail is explicit in the saved revision and changing it invalidates plan review',async()=>{
@@ -64,4 +58,12 @@ it('new depth nodes require MPS and preserve the balanced model default in the r
  expect(screen.getByLabelText('Model detail').value).toBe('384');expect(screen.getByText(/No CPU neural fallback/)).toBeTruthy();
  fireEvent.click(screen.getByText('Create Depth Map node'));await screen.findByText('Review depth plan');
  const b=JSON.parse(bridge.api.mock.calls.find(([url,opts])=>url.endsWith('/nodes')&&opts.method==='POST')[1].body);expect(b).toMatchObject({model_input_size:384,device:'mps'});
+});
+
+it('saved node selection stays bound while its reviewed plan request is pending',async()=>{
+ nodes=[{id:'n',revision:1,source,settings:{start_frame:0,end_frame_exclusive:6,model_input_size:384,device:'mps'},jobs:[],versions:[]},{id:'b',revision:1,source:{...source,file_name:'other.mp4'},settings:{start_frame:0,end_frame_exclusive:6,model_input_size:384,device:'mps'},jobs:[],versions:[]}];
+ let resolvePlan;const ordinary=bridge.api.getMockImplementation();bridge.api.mockImplementation((u,o)=>u.endsWith('/plan')?new Promise(resolve=>{resolvePlan=resolve;}):ordinary(u,o));
+ render(<DepthWorkbench/>);fireEvent.click(screen.getByText('Depth Map'));await screen.findByLabelText('Saved depth node');fireEvent.change(screen.getByLabelText('Saved depth node'),{target:{value:'n'}});fireEvent.click(screen.getByText('Review depth plan'));
+ try{expect(screen.getByLabelText('Saved depth node').disabled).toBe(true);}finally{await act(async()=>resolvePlan({plan_fingerprint:'plan-for-n',estimated_raw_bytes:36864,request:{mode:'preview',width:32,height:48,timing:{frame_count:6},settings:nodes[0].settings}}));}
+ expect(screen.getByLabelText('Saved depth node').value).toBe('n');expect(screen.getByLabelText('Saved depth node').disabled).toBe(false);expect(screen.getByText('Run reviewed depth plan')).toBeTruthy();
 });

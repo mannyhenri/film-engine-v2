@@ -21,7 +21,8 @@ test('configured real worker publishes four synthetic frames through Film', {
   const {createDepthService, graphProjection} = require(path.join(repo, 'backend/lib/production-depth'));
   const worker = createWorker();
   const pid = crypto.randomUUID(), aid = crypto.randomUUID();
-  const sourceFile = path.join(root, 'synthetic.mp4');
+  const sourceFile = path.join(root, 'video', pid, 'synthetic.mp4');
+  fs.mkdirSync(path.dirname(sourceFile), {recursive: true});
   let service, job;
   try {
     const backend = await worker.describe();
@@ -29,26 +30,21 @@ test('configured real worker publishes four synthetic frames through Film', {
     assert.equal(backend.fixture, false);
     const ff = require(path.join(repo, 'backend/lib/ffmpeg')).resolveFfmpeg();
     assert.equal(ff.available, true, ff.reason);
-    const encoded = spawnSync(ff.bin, ['-v', 'error', '-y', '-f', 'lavfi', '-i',
+    const encoded = spawnSync(ff.bin, ['-nostdin','-v', 'error', '-y', '-f', 'lavfi', '-i',
       'testsrc2=size=160x96:rate=30000/1001', '-frames:v', '6', '-c:v', 'libx264',
-      '-pix_fmt', 'yuv420p', sourceFile]);
+      '-pix_fmt', 'yuv420p', sourceFile],{stdio:['ignore','pipe','pipe']});
     assert.equal(encoded.status, 0, encoded.stderr?.toString());
     const rotation=Number(process.env.FILM_DEPTH_SMOKE_ROTATION??0);
     assert.ok([0,90,180,-90].includes(rotation));
     if(rotation){
-      const rotated=path.join(root,'rotated.mp4');
-      const r=spawnSync(ff.bin,['-v','error','-y','-copyts','-noautorotate','-display_rotation',String(rotation),'-i',sourceFile,'-c:v','copy',rotated]);
+      const rotated=path.join(path.dirname(sourceFile),'rotated.mp4');
+      const r=spawnSync(ff.bin,['-nostdin','-v','error','-y','-copyts','-noautorotate','-display_rotation',String(rotation),'-i',sourceFile,'-c:v','copy',rotated],{stdio:['ignore','pipe','pipe']});
       assert.equal(r.status,0,r.stderr?.toString());fs.renameSync(rotated,sourceFile);
     }
     const beforeHash = await media.hashFile(sourceFile);
     db.prepare('INSERT INTO film_projects(id,title) VALUES(?,?)').run(pid, 'Real depth smoke · synthetic');
     db.prepare("INSERT INTO film_assets(id,project_id,asset_type,file_path,file_name,format,mime_type,width,height) VALUES(?,?,'video_raw',?,'synthetic.mp4','mp4','video/mp4',160,96)").run(aid,pid,sourceFile);
-    const storage = {
-      dirFor(projectId) { return path.join(root, 'exports', projectId); },
-      ensureDir(projectId) { const p = this.dirFor(projectId); fs.mkdirSync(p,{recursive:true}); return p; },
-      isPathContained(file, parent) { return file.startsWith(parent + path.sep); },
-      urlForPath(file) { return '/synthetic/' + path.basename(file); },
-    };
+    const storage = require(path.join(repo, 'backend/lib/file-storage'));
     service = createDepthService(db, {worker, storage});
     const source = await service.inspectSource(pid, aid);
     const node = await service.saveNode(pid, null, {source_asset_id: aid,
@@ -62,6 +58,10 @@ test('configured real worker publishes four synthetic frames through Film', {
     assert.equal(completed.status, 'complete', completed.error);
     const v = service.readNode(pid, node.id).versions[0];
     assert.equal(v.fixture, false); assert.equal(v.depth_kind, 'relative_inverse_depth');
+    assert.equal(v.worker_provenance.backend, 'mps');
+    assert.equal(v.worker_provenance.cpu_neural_fallback, false);
+    assert.ok(v.worker_provenance.gpu_dispatch_output_tensors > 0);
+    assert.ok(v.worker_provenance.gpu_forward_hook_calls > 0);
     assert.equal(v.role, 'authoritative'); assert.equal(v.depth_is_alpha, false);
     assert.deepEqual(v.request.timing, plan.request.timing);
     assert.deepEqual(v.files.frame_count, 4); assert.equal(v.files.width, 160); assert.equal(v.files.height, 96);
@@ -94,7 +94,7 @@ test('configured real worker publishes four synthetic frames through Film', {
     assert.equal(db.prepare('SELECT count(*) n FROM film_scripts').get().n, 0);
     assert.equal(db.prepare('SELECT count(*) n FROM film_scenes').get().n, 0);
     assert.equal(db.prepare('SELECT count(*) n FROM film_shots').get().n, 0);
-    const evidence = {checked_at:new Date().toISOString(),backend,service_wall_seconds:(performance.now()-started)/1000,
+    const evidence = {checked_at:new Date().toISOString(),backend,worker_provenance:v.worker_provenance,service_wall_seconds:(performance.now()-started)/1000,
       synthetic_only:true,live_database_used:false,source_unchanged:true,source_sha256:beforeHash,
       model_input_size:128,files:v.files,timing:v.request.timing,preview_timing:actualTiming,range,
       depth_kind:v.depth_kind,quality_status:v.quality_status,orientation:v.orientation,worker_orientation:v.worker_orientation,admission:plan.admission,graph_edges:graph.edges.length,job_status:completed.status};

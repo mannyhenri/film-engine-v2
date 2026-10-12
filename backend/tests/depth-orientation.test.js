@@ -5,7 +5,7 @@ const {probeRotation,orientationFor,validateWorkerOrientation}=require('../lib/d
 const {vdaModelGrid,validateAdmission}=require('../lib/depth-admission');
 const root=fs.mkdtempSync(path.join(os.tmpdir(),'film-rotation-test-')),ff='/usr/local/bin/ffmpeg';
 test.after(()=>fs.rmSync(root,{recursive:true,force:true}));
-function command(args){const r=spawnSync(ff,['-v','error','-y',...args],{maxBuffer:1024*1024});assert.equal(r.status,0,r.stderr?.toString());return r.stdout;}
+function command(args){const r=spawnSync(ff,['-nostdin','-v','error','-y',...args],{stdio:['ignore','pipe','pipe'],maxBuffer:1024*1024});assert.equal(r.status,0,r.stderr?.toString());return r.stdout;}
 function matrix(angle){const r=angle*Math.PI/180,c=Math.round(Math.cos(r))*65536,s=Math.round(Math.sin(r))*65536;return {side_data_type:'Display Matrix',rotation:angle,displaymatrix:`\n00000000: ${c} ${-s} 0\n00000001: ${s} ${c} 0\n00000002: 0 0 1073741824\n`};}
 function rotate(data,width,height,angle){let values=data,w=width,h=height;for(let i=0;i<((angle/90+4)%4);i++){const next=Buffer.alloc(values.length);for(let y=0;y<w;y++)for(let x=0;x<h;x++)next[y*h+x]=values[x*w+w-1-y];values=next;[w,h]=[h,w];}return values;}
 test('all quarter-turn display matrices are canonical; mirror/scale/arbitrary/changing transforms fail',()=>{

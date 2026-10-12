@@ -306,6 +306,11 @@ function serveFile(res, projectId, subdir, filename, opts) {
         return;
     }
 
+    return serveResolvedFile(res.req, res, {path: filePath, mime: mimeTypes[ext] || 'application/octet-stream'});
+}
+
+/** The caller must resolve and authorize this file before streaming it. */
+function serveResolvedFile(req, res, file, {cacheControl = 'public, max-age=3600'} = {}) {
     /*
      * Length and ranges, because media elements need both.
      *
@@ -320,8 +325,8 @@ function serveFile(res, projectId, subdir, filename, opts) {
      * byte range to seek, and a server that answers 200 with the whole file
      * makes scrubbing re-download the lot.
      */
-    const stat = fs.statSync(filePath);
-    const range = res.req && res.req.headers && res.req.headers.range;
+    const stat = fs.statSync(file.path);
+    const range = req && req.headers && req.headers.range;
     const m = range && /^bytes=(\d*)-(\d*)$/.exec(String(range));
 
     if (m) {
@@ -370,23 +375,23 @@ function serveFile(res, projectId, subdir, filename, opts) {
             return;
         }
         res.writeHead(206, {
-            'Content-Type': mimeTypes[ext] || 'application/octet-stream',
+            'Content-Type': file.mime || 'application/octet-stream',
             'Content-Length': end - start + 1,
             'Content-Range': `bytes ${start}-${end}/${stat.size}`,
             'Accept-Ranges': 'bytes',
-            'Cache-Control': 'public, max-age=3600',
+            'Cache-Control': cacheControl,
         });
-        pipeFile(filePath, res, { start, end });
+        pipeFile(file.path, res, { start, end });
         return;
     }
 
     res.writeHead(200, {
-        'Content-Type': mimeTypes[ext] || 'application/octet-stream',
+        'Content-Type': file.mime || 'application/octet-stream',
         'Content-Length': stat.size,
         'Accept-Ranges': 'bytes',
-        'Cache-Control': 'public, max-age=3600',
+        'Cache-Control': cacheControl,
     });
-    pipeFile(filePath, res);
+    pipeFile(file.path, res);
 }
 
 /**
@@ -477,6 +482,7 @@ module.exports = {
     getFileUrl,
     fileExists,
     serveFile,
+    serveResolvedFile,
     pipeFile,
     isPathContained,
     isOwnedPath,

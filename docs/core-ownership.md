@@ -25,9 +25,9 @@ their shared declarations together into one engine; the rest stays core or becom
 
 | owners | declarations |
 |---|---|
+| component:CompositeWorkbench + component:DepthWorkbench + lib:previz-workspace + page:music + page:playback + page:previs + page:productiongraph | 1 |
 | component:SceneDrift + page:scenes + page:storyboard | 1 |
 | component:VideoPipeline + page:budget + page:playback + page:productiongraph | 1 |
-| lib:previz-workspace + page:music + page:playback + page:previs + page:productiongraph | 1 |
 | lib:previz-workspace + page:previs + page:storyboard | 1 |
 | page:dashboard + page:productiongraph + page:storyboard | 1 |
 | page:edits + page:music | 1 |
@@ -54,7 +54,7 @@ their shared declarations together into one engine; the rest stays core or becom
 | `DRIFT` | component:SceneDrift, page:scenes, page:storyboard |
 | `fmtBytes` | page:edits, page:settings |
 | `importBundle` | page:exportpage, page:projects |
-| `mediaUrl` | lib:previz-workspace, page:music, page:playback, page:previs, page:productiongraph |
+| `mediaUrl` | component:CompositeWorkbench, component:DepthWorkbench, lib:previz-workspace, page:music, page:playback, page:previs, page:productiongraph |
 | `MW` | page:edits, page:music, page:musicws |
 | `mwTime` | page:edits, page:music |
 | `openFrameViewer` | page:dashboard, page:productiongraph, page:storyboard |

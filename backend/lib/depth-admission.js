@@ -1,3 +1,4 @@
+const {seconds}=require('./depth-media');
 const failure=message=>Object.assign(new Error(message),{status:422});
 // Match NumPy/Python ties-to-even rounding used by the pinned VDA Resize helper.
 function nearestEven(value){const whole=Math.floor(value),fraction=value-whole;return fraction===0.5?(whole%2?whole+1:whole):Math.round(value);}
@@ -17,7 +18,7 @@ function validateAdmission(descriptor,request){
  if(width>descriptor.max_width||height>descriptor.max_height||timing.frame_count>descriptor.max_frames)throw failure('Configured worker cannot preserve this requested range and resolution');
  if(descriptor.max_output_pixels!=null&&pixels>descriptor.max_output_pixels)throw failure('Depth output pixels exceed worker limit; review a smaller source asset or preview');
  if(descriptor.max_raw_bytes!=null&&rawBytes>descriptor.max_raw_bytes)throw failure('Raw depth exceeds worker byte limit; choose a shorter range or smaller source asset');
- const duration=timing.duration_ticks*timing.time_base.numerator/timing.time_base.denominator;
+ const duration=seconds(timing.duration_ticks,timing.time_base);
  if(descriptor.max_duration_seconds!=null&&duration>descriptor.max_duration_seconds)throw failure('Depth range exceeds worker duration limit; choose a shorter range');
  if(descriptor.max_source_pixels!=null&&(timing.width*timing.height>descriptor.max_source_pixels||Math.max(timing.width,timing.height)>8192))throw failure('Source geometry exceeds audited local depth limits');
  let grid;

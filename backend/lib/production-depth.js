@@ -3,12 +3,15 @@ const path=require('path');
 const os=require('os');
 const crypto=require('crypto');
 const media=require('./depth-media');
+const {ownedProcessingFile}=require('./processing-input');
+const {reconcileProcessingJobs}=require('./processing-recovery');
 const {createWorker,validateModelInput,validateDevice,validateGpuProvenance}=require('./depth-worker');
 const {validateAdmission}=require('./depth-admission');
 const {orientationFor,validateWorkerOrientation}=require('./depth-orientation');
 const ACTIVE=['running','validating','encoding','cancelling'];
 const VIDEO_TYPES=['video_raw','video_synced','video_final'];
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const IMPLEMENTATION='film-depth-node-v3-gpu';
 const parse=v=>JSON.parse(v);
 const id=()=>crypto.randomUUID();
 function versionUrl(pid,vid,kind){return `/film/projects/${pid}/production-depth/versions/${vid}/${kind}`;}
@@ -16,12 +19,9 @@ function unavailableCatalog(){return {provider:'muapi',model:'depth-anything',en
 function createDepthService(db,{allowFixture=process.env.NODE_ENV==='test'&&process.env.FILM_DEPTH_ALLOW_TEST_FIXTURE==='1',worker=createWorker({allowFixture}),inspect=media.inspectVideo,storage=require('./file-storage')}={}){
  const work=new Map(),ownerToken=id();
  // A prior process's jobs never redispatch. A still-live owner is left alone.
- for(const job of db.prepare(`SELECT id,owner_pid FROM production_depth_jobs WHERE status IN (${ACTIVE.map(()=>'?')})`).all(...ACTIVE)){
-  let alive=true;try{process.kill(job.owner_pid,0);}catch(e){if(e.code==='ESRCH')alive=false;}
-  if(!alive)db.prepare("UPDATE production_depth_jobs SET status='interrupted',phase='Previous worker stopped; review before running again',finished_at=datetime('now') WHERE id=?").run(job.id);
- }
- function project(pid){if(!UUID.test(pid)||!db.prepare('SELECT 1 FROM film_projects WHERE id=?').get(pid))throw media.fail('Project not found',404);}
- function asset(pid,aid){project(pid);const row=db.prepare('SELECT * FROM film_assets WHERE id=? AND project_id=?').get(aid,pid);if(!row)throw media.fail('Source asset is not in this project',404);return row;}
+ reconcileProcessingJobs(db,'production_depth_jobs',work);
+ function project(pid){if(!UUID.test(pid)||!db.prepare('SELECT 1 FROM film_projects WHERE id=?').get(pid))throw media.fail('Project not found',404);reconcileProcessingJobs(db,'production_depth_jobs',work,pid);}
+ function asset(pid,aid){project(pid);const row=db.prepare('SELECT * FROM film_assets WHERE id=? AND project_id=?').get(aid,pid);if(!row)throw media.fail('Source asset is not in this project',404);return {...row,file_path:ownedProcessingFile(storage,pid,row.file_path).path};}
  function node(pid,nid){project(pid);const row=db.prepare('SELECT * FROM production_depth_nodes WHERE id=? AND project_id=?').get(nid,pid);if(!row)throw media.fail('Depth node not found in this project',404);return row;}
  function version(pid,vid){project(pid);const row=db.prepare('SELECT * FROM production_depth_versions WHERE id=? AND project_id=?').get(vid,pid);if(!row)throw media.fail('Depth version not found in this project',404);return row;}
  function job(pid,jid){project(pid);const row=db.prepare('SELECT * FROM production_depth_jobs WHERE id=? AND project_id=?').get(jid,pid);if(!row)throw media.fail('Depth job not found in this project',404);return publicJob(row);}
@@ -75,14 +75,20 @@ function createDepthService(db,{allowFixture=process.env.NODE_ENV==='test'&&proc
   media.timestampExpressions(timing);
   const admission=validateAdmission(backend,{width,height,timing,settings});
   const request={contract:'film-depth-request-v1',project_id:pid,node_id:nid,node_revision:n.revision,mode,source_asset_id:source.asset_id,source_fingerprint:source.fingerprint,source_sha256:source.sha256,source_version:source.asset_version,width,height,timing,settings};
-  const request_fingerprint=media.digest(request),plan_fingerprint=media.digest({request_fingerprint,backend_fingerprint:backend.fingerprint});
-  return {request:{...request,request_fingerprint},backend,admission,plan_fingerprint,estimated_raw_bytes:timing.frame_count*width*height*4,paid:false,uploads:false};
+  const request_fingerprint=media.digest(request);let cache=null;
+  for(const v of db.prepare('SELECT * FROM production_depth_versions WHERE project_id=? AND node_id=? ORDER BY version DESC LIMIT 20').all(pid,nid)){
+   const m=parse(v.metadata_json);if(m.film_implementation!==IMPLEMENTATION||m.request.request_fingerprint!==request_fingerprint||m.backend.fingerprint!==backend.fingerprint)continue;
+   try{const raw=versionFile(pid,v.id,'raw'),preview=versionFile(pid,v.id,'preview'),manifest=versionFile(pid,v.id,'manifest');if(await media.hashFile(raw.path)!==m.files.raw_sha256||await media.hashFile(preview.path)!==m.files.preview_sha256||await media.hashFile(manifest.path)!==m.manifest_sha256)continue;cache={version_id:v.id,job_id:v.job_id,version:v.version};break;}catch{}
+  }
+  const plan_fingerprint=media.digest({request_fingerprint,backend_fingerprint:backend.fingerprint,film_implementation:IMPLEMENTATION,cached_version_id:cache?.version_id??null});
+  return {request:{...request,request_fingerprint},backend,admission,cache,film_implementation:IMPLEMENTATION,plan_fingerprint,estimated_raw_bytes:timing.frame_count*width*height*4,paid:false,uploads:false};
  }
  function update(jid,status,progress,phase){const row=db.prepare('SELECT status,progress FROM production_depth_jobs WHERE id=?').get(jid);if(!row||!ACTIVE.includes(row.status))return;if(row.status==='cancelling'&&status!=='cancelled')return;
   db.prepare('UPDATE production_depth_jobs SET status=?,progress=?,phase=? WHERE id=?').run(status,Math.max(row.progress,Math.min(1,progress)),phase,jid);
  }
  async function execute(pid,nid,b){
   const p=await plan(pid,nid,b);if(!b.plan_fingerprint||b.plan_fingerprint!==p.plan_fingerprint)throw media.fail('Depth plan changed; review the current source, range and backend',409);
+  if(p.cache)return {...job(pid,p.cache.job_id),cached:true,cached_version_id:p.cache.version_id};
   const disk=await fs.promises.statfs(os.tmpdir()),required=p.estimated_raw_bytes*2+fs.statSync(asset(pid,p.request.source_asset_id).file_path).size+16*1024*1024;
   if(required>disk.bavail*disk.bsize)throw media.fail('Not enough temporary disk space for this depth range',507);
   const jid=id(),controller=new AbortController();
@@ -123,12 +129,12 @@ function createDepthService(db,{allowFixture=process.env.NODE_ENV==='test'&&proc
    update(jid,'encoding',0.84,'Encoding display video with one global depth range');const preview=await media.encodePreview(raw,dir,p.request,range,signal);
    const current=await inspectSource(pid,p.request.source_asset_id);if(current.fingerprint!==p.request.source_fingerprint||node(pid,p.request.node_id).revision!==p.request.node_revision)throw media.fail('Source or node changed while depth ran; result was not published',409);
    if(signal.aborted)throw media.fail('Cancelled',409);
-   const metadata={type:'DepthSequence',quality_status:p.backend.provider==='gridlight-local'&&p.backend.model==='Video-Depth-Anything-Small'?'experimental_preview':'unverified',role:p.request.mode==='full'?'authoritative':'preview_only',fixture:p.backend.fixture===true,depth_is_alpha:false,depth_kind:result.depth_kind,request:p.request,backend:p.backend,normalization:range,preview_timing:preview.timing,orientation,admission:p.admission,...(workerProvenance?{worker_provenance:workerProvenance}:{}),...(result.orientation?{worker_orientation:result.orientation}:{}),source_unchanged:true};
+   const metadata={type:'DepthSequence',film_implementation:IMPLEMENTATION,quality_status:p.backend.provider==='gridlight-local'&&p.backend.model==='Video-Depth-Anything-Small'?'experimental_preview':'unverified',role:p.request.mode==='full'?'authoritative':'preview_only',fixture:p.backend.fixture===true,depth_is_alpha:false,depth_kind:result.depth_kind,request:p.request,backend:p.backend,normalization:range,preview_timing:preview.timing,orientation,admission:p.admission,...(workerProvenance?{worker_provenance:workerProvenance}:{}),...(result.orientation?{worker_orientation:result.orientation}:{}),source_unchanged:true};
    out=path.join(storage.ensureDir(pid,'exports'),'depth',jid);await fs.promises.mkdir(out,{recursive:true});
    const rawPath=path.join(out,'depth.f32'),videoPath=path.join(out,'depth-preview.mp4'),manifestPath=path.join(out,'manifest.json');
    await fs.promises.copyFile(raw,rawPath);await fs.promises.copyFile(preview.path,videoPath);const previewHash=await media.hashFile(videoPath,signal);
    metadata.files={raw_sha256:range.sha256,preview_sha256:previewHash,raw_format:'f32le',frame_layout:'frame-major,row-major,one float per pixel',width:p.request.width,height:p.request.height,frame_count:p.request.timing.frame_count};
-   await fs.promises.writeFile(manifestPath,JSON.stringify(metadata,null,2));if(signal.aborted)throw media.fail('Cancelled',409);
+   await fs.promises.writeFile(manifestPath,JSON.stringify(metadata,null,2));metadata.manifest_sha256=await media.hashFile(manifestPath,signal);if(signal.aborted)throw media.fail('Cancelled',409);
    db.transaction(()=>{
     if(node(pid,p.request.node_id).revision!==p.request.node_revision)throw media.fail('Depth node changed before publishing',409);
     if(asset(pid,p.request.source_asset_id).version!==p.request.source_version)throw media.fail('Source asset version changed before publishing',409);
@@ -162,7 +168,7 @@ function graphProjection(db,pid,storage=require('./file-storage')){
   const members=[srcKey,key];
   if(latest){const m=parse(latest.metadata_json),rawKey='depth-output:'+latest.id,previewKey='depth-preview:'+latest.id;
    const preview=db.prepare('SELECT file_path FROM film_assets WHERE id=?').get(latest.preview_asset_id);
-   nodes.push({key:rawKey,type:'depth-output',id:record.id,version_id:latest.id,version:latest.version,role:m.role,fixture:m.fixture,metadata:m,ports:{out:'DepthSequence'},parent:key,w:260,h:220});
+   nodes.push({key:rawKey,type:'depth-output',id:record.id,asset_id:latest.raw_asset_id,output_type:'DepthSequence',version_id:latest.id,version:latest.version,role:m.role,fixture:m.fixture,metadata:m,ports:{out:'DepthSequence'},parent:key,w:260,h:220});
    nodes.push({key:previewKey,type:'depth-preview',id:record.id,version_id:latest.id,version:latest.version,url:preview?versionUrl(pid,latest.id,'preview'):null,fixture:m.fixture,role:m.role,ports:{out:'DepthPreview'},parent:key,w:260,h:220});
    members.push(rawKey,previewKey);edges.push({from:key,from_port:'depth',to:rawKey,to_port:'in',type:'depth',relationship:'immutable_depth_origin',style:'solid'},{from:rawKey,from_port:'display',to:previewKey,to_port:'in',type:'depth',relationship:'depth_visualization',style:'solid'});
   }

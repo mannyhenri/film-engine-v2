@@ -284,7 +284,7 @@ function autoLayout(graph, collapsed) {
     let sceneY = 8;
     const put = (key, x, y) => { pos[key] = { x, y }; };
     const nodeOf = new Map(graph.nodes.map(n => [n.key, n]));
-    const h = key => (NODE_SIZE[(nodeOf.get(key) || {}).type] || { h: 120 }).h;
+    const h = key => nodeOf.get(key)?.h || (NODE_SIZE[(nodeOf.get(key) || {}).type] || { h: 120 }).h;
 
     for (const g of graph.groups) {
         const x0 = 20, y0 = sceneY + 68, rowX = x0 + 240;
@@ -378,7 +378,7 @@ function readGroupLayout(db, projectId) {
 }
 
 /** Geometry identities are project scoped; no content is accepted by this API. */
-const LAYOUT_NODE_KEY=/^(depth|depth-source|depth-output|depth-preview|shot|seq|sound|ver|audio|ib):[0-9a-f-]{36}$|^link:[0-9a-f-]{36}:(start|end)$|^(board|request):[0-9a-f-]{36}$|^reference:[0-9a-f-]{36}:\d+$|^draft:(shot|seq):[0-9a-f-]{36}:(image|video)$|^draft-reference:(shot|seq):[0-9a-f-]{36}:(image|video):(\d+|r[0-9a-f]{16}-\d+|i[0-9a-f-]{36})$/i;
+const LAYOUT_NODE_KEY=/^(depth|depth-source|depth-output|depth-preview|composite|shot|seq|sound|ver|audio|ib):[0-9a-f-]{36}$|^composite-input:[0-9a-f-]{36}:(source|alpha|background|foreground|depth)$|^composite-output:[0-9a-f-]{36}:(alpha|preview|video|foreground)$|^link:[0-9a-f-]{36}:(start|end)$|^(board|request):[0-9a-f-]{36}$|^reference:[0-9a-f-]{36}:\d+$|^draft:(shot|seq):[0-9a-f-]{36}:(image|video)$|^draft-reference:(shot|seq):[0-9a-f-]{36}:(image|video):(\d+|r[0-9a-f]{16}-\d+|i[0-9a-f-]{36})$/i;
 function draftGeometryReferences(recipe={},identities={}){
  identities=identities&&typeof identities==='object'&&!Array.isArray(identities)?identities:{};
  const fields=['reference_images','referenceImages','refImages','references','audio_references','reference_videos','keyframes','promptImage','init_image','image_url','image','end_image','last_frame','source_video','video_url','videoUri','video_uri'];
@@ -783,8 +783,14 @@ function buildGraph(db, projectId) {
             sounds: loose.map(n => ({ key: n.key, versions: n.versions.map(v => `ver:${v.asset_id}`) })) });
     }
 
-    const depth = require('./production-depth').graphProjection(db, projectId);
-    nodes.push(...depth.nodes); edges.push(...depth.edges); groups.push(...depth.groups);
+    for (const projection of [require('./production-depth').graphProjection(db, projectId), require('./composite-graph').graphProjection(db, projectId)]) {
+        nodes.push(...projection.nodes); edges.push(...projection.edges); groups.push(...projection.groups);
+    }
+    const producers = new Map(nodes.filter(n => n.asset_id && /^(depth-output|alpha-output|composite-output|foreground-layer)$/.test(n.type) && !n.key.startsWith('composite-input:')).map(n => [n.asset_id,n]));
+    for (const n of nodes.filter(n => n.key.startsWith('composite-input:'))) {
+        const producer = producers.get(n.asset_id);
+        if (producer) edges.push({from:producer.key,from_port:producer.type==='depth-output'?'display':'out',to:n.key,to_port:'in',type:n.output_type==='DepthSequence'?'depth':'alpha',relationship:'typed_input_provenance',style:'dotted'});
+    }
     const graph = { nodes, edges: edges.filter(e => e.to), groups };
     const collapsed = readCollapsed(db, projectId);
     const auto = autoLayout(graph, collapsed);
@@ -804,7 +810,7 @@ function buildGraph(db, projectId) {
         // Unpinned rows are old automatic/group translations, not individual gestures.
         n.x = s && s.pinned ? s.x : a.x + shift.x; n.y = s && s.pinned ? s.y : a.y + shift.y;
         n.pinned = !!(s && s.pinned);
-        n.w = (NODE_SIZE[n.type] || { w: 200 }).w; n.h = (NODE_SIZE[n.type] || { h: 120 }).h;
+        n.w = n.w || (NODE_SIZE[n.type] || { w: 200 }).w; n.h = n.h || (NODE_SIZE[n.type] || { h: 120 }).h;
     }
 
     attachImpact(nodes, projectId);

@@ -5,6 +5,7 @@ import Lists from './lists.jsx';
 import './production-lineage.css';
 import StoryboardPrint from '../../components/StoryboardPrint/StoryboardPrint.jsx';
 import DepthWorkbench from '../../components/DepthWorkbench/DepthWorkbench.jsx';
+import CompositeWorkbench from '../../components/CompositeWorkbench/CompositeWorkbench.jsx';
 
 /*
  * The Production graph, as React: the page's frame is rendered once, and the engine (engine.js, moved verbatim
@@ -49,6 +50,7 @@ export default function ProductionGraphPage() {
                 <div style={{ flexGrow: 1 }}></div>
                 <StoryboardPrint className="pg-hbtn" />
                 <DepthWorkbench />
+                <CompositeWorkbench />
                 <button className="pg-hbtn" title="Re-place the nodes you haven't moved" onClick={() => E.pgTidy()}>Tidy layout</button>
                 <button className="pg-hbtn" id="pgArrange" title="Stack all scenes and their workflows vertically. Previous manual placements can be restored with Undo." onClick={() => E.pgArrange()}>Arrange vertically</button>
                 <button className="pg-hbtn" id="pgUndoArrange" hidden onClick={() => E.pgArrange(true)}>Undo arrangement</button>

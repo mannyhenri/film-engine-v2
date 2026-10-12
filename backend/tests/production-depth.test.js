@@ -1,5 +1,5 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('fs'),os=require('os'),path=require('path'),crypto=require('crypto');
-const {spawnSync}=require('child_process');
+const {spawn,spawnSync}=require('child_process');
 const dir=fs.mkdtempSync(path.join(os.tmpdir(),'film-depth-test-'));process.env.FILM_DATA_DIR=dir;
 const {db}=require('../db/database');require('../db/schema').ensureSchema();
 const {createDepthService,graphProjection,validDepthConnection}=require('../lib/production-depth');
@@ -7,12 +7,12 @@ const {createWorker,validateDescriptor}=require('../lib/depth-worker');const med
 const uid=()=>crypto.randomUUID(),nodePath=path.dirname(process.execPath),ff='/usr/local/bin/ffmpeg';
 const fixtureFile=path.join(dir,'fixture-worker');fs.writeFileSync(fixtureFile,'#!'+process.execPath+'\n'+fs.readFileSync(path.join(__dirname,'fixtures/depth-fixture-worker.cjs'),'utf8').split('\n').slice(1).join('\n'));fs.chmodSync(fixtureFile,0o700);
 function worker(file=fixtureFile){return createWorker({env:{FILM_DEPTH_ENABLED:'1',FILM_DEPTH_WORKER:file,FILM_DEPTH_MODEL_SHA256:'0'.repeat(64),PATH:nodePath+':/usr/local/bin:/usr/bin:/bin'},allowFixture:true});}
-const storage={ensureDir(pid){const p=path.join(dir,'outputs',pid);fs.mkdirSync(p,{recursive:true});return p;},urlForPath(p){return '/local/'+path.basename(p);}};
+const storage={dirFor(pid,kind){return path.join(dir,kind,pid);},ensureDir(pid,kind){const p=this.dirFor(pid,kind);fs.mkdirSync(p,{recursive:true});return p;},urlForPath(p){return '/local/'+path.basename(p);}};
 function fixture(rate='24000/1001',vfr=false,count=6,size=[32,48]){
- const pid=uid(),aid=uid(),file=path.join(dir,aid+'.mp4');db.prepare('INSERT INTO film_projects(id,title) VALUES(?,?)').run(pid,'Synthetic depth test');
- const args=['-v','error','-y','-f','lavfi','-i',`testsrc2=size=${size[0]}x${size[1]}:rate=${rate}`,'-frames:v',String(count)];
+ const pid=uid(),aid=uid(),file=path.join(storage.ensureDir(pid,'video'),aid+'.mp4');db.prepare('INSERT INTO film_projects(id,title) VALUES(?,?)').run(pid,'Synthetic depth test');
+ const args=['-nostdin','-v','error','-y','-f','lavfi','-i',`testsrc2=size=${size[0]}x${size[1]}:rate=${rate}`,'-frames:v',String(count)];
  if(vfr)args.push('-vf',"select='not(eq(n,2))'",'-fps_mode','vfr');args.push('-c:v','libx264','-pix_fmt','yuv420p',file);
- const run=spawnSync(ff,args);assert.equal(run.status,0,run.stderr?.toString());
+ const run=spawnSync(ff,['-nostdin',...args],{stdio:['ignore','pipe','pipe']});assert.equal(run.status,0,run.stderr?.toString());
  db.prepare("INSERT INTO film_assets(id,project_id,asset_type,file_path,file_name,format,mime_type,width,height) VALUES(?,?,'video_raw',?,?,'mp4','video/mp4',?,?)").run(aid,pid,file,path.basename(file),...size);return {pid,aid,file};
 }
 async function prepared(f,options={}){const w=createDepthService(db,{worker:worker(),storage,allowFixture:true,...options}),source=await w.inspectSource(f.pid,f.aid),node=await w.saveNode(f.pid,null,{source_asset_id:f.aid,source_fingerprint:source.fingerprint,start_frame:1,end_frame_exclusive:5});return {w,source,node};}
@@ -91,4 +91,27 @@ test('changed worker launcher refreshes the reviewed descriptor fingerprint',asy
  const file=path.join(dir,'changing-worker');fs.copyFileSync(fixtureFile,file);fs.chmodSync(file,0o700);const configured=worker(file),before=await configured.describe();
  fs.writeFileSync(file,fs.readFileSync(file,'utf8').replace("revision:'test-v1'","revision:'test-v2'"));
  const after=await configured.describe();assert.equal(after.revision,'test-v2');assert.notEqual(before.fingerprint,after.fingerprint);
+});
+
+test('verified depth cache avoids inference and modified manifest bytes invalidate the reviewed cache',async()=>{
+ const f=fixture(),base=worker();let calls=0;
+ const cachedStorage={...storage,isPathContained(p,root){return p.startsWith(root+path.sep);}};
+ const {w,node}=await prepared(f,{storage:cachedStorage,worker:{describe:()=>base.describe(),async run(...args){calls++;return base.run(...args);}}});
+ const first=await w.plan(f.pid,node.id,{expected_revision:1,mode:'full'}),j=await w.execute(f.pid,node.id,{expected_revision:1,mode:'full',plan_fingerprint:first.plan_fingerprint});await w.settle(j.id);assert.equal(w.job(f.pid,j.id).status,'complete');
+ const hit=await w.plan(f.pid,node.id,{expected_revision:1,mode:'full'});assert.ok(hit.cache);const reused=await w.execute(f.pid,node.id,{expected_revision:1,mode:'full',plan_fingerprint:hit.plan_fingerprint});assert.equal(reused.cached,true);assert.equal(calls,1);assert.equal(w.readNode(f.pid,node.id).versions.length,1);
+ fs.appendFileSync(w.versionFile(f.pid,hit.cache.version_id,'manifest').path,' ');assert.equal((await w.plan(f.pid,node.id,{expected_revision:1,mode:'full'})).cache,null);await assert.rejects(w.execute(f.pid,node.id,{expected_revision:1,mode:'full',plan_fingerprint:hit.plan_fingerprint}),/plan changed/);
+});
+
+test('a surviving instance reconciles a live foreign owner after it exits without redispatch',async()=>{
+ const f=fixture(),{w,source:s,node:n}=await prepared(f);
+ const child=spawn(process.execPath,['-e',"process.stdout.write('ready');setInterval(()=>{},1000)"],{stdio:['ignore','pipe','pipe']});await new Promise((resolve,reject)=>{child.stdout.once('data',resolve);child.once('error',reject);});
+ const exited=new Promise(resolve=>child.once('close',resolve)),jid=uid();
+ try{
+  db.prepare("INSERT INTO production_depth_jobs(id,project_id,node_id,node_revision,mode,status,request_json,backend_json,owner_pid,owner_token) VALUES(?,?,?,1,'full','running','{}','{}',?,'foreign-test-token')").run(jid,f.pid,n.id,child.pid);
+  const survivor=createDepthService(db,{worker:worker(),storage,allowFixture:true});
+  assert.equal(survivor.job(f.pid,jid).status,'running');assert.throws(()=>survivor.cancel(f.pid,jid),/different live process/);
+  child.kill('SIGTERM');await exited;assert.equal(survivor.job(f.pid,jid).status,'interrupted');assert.equal(survivor.readNode(f.pid,n.id).versions.length,0);
+  const updated=await survivor.saveNode(f.pid,n.id,{expected_revision:1,source_asset_id:f.aid,source_fingerprint:s.fingerprint,start_frame:1,end_frame_exclusive:5});assert.equal(updated.revision,2);
+  assert.equal(survivor.readNode(f.pid,n.id).jobs.length,1);
+ }finally{if(child.exitCode===null&&child.signalCode===null)child.kill('SIGTERM');await exited;}
 });

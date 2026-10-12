@@ -19,9 +19,9 @@
  * exported, and `manifest.files` names every carried file with its sha256.
  * On import: every file is verified before anything is written (a damaged one
  * refuses the whole import, naming it); every exported id is replaced by a
- * new one WHEREVER it appears, in a column or inside JSON, so no row can
- * point back at the other machine; every path column is rebuilt under this
- * machine's data directory; mtimes are kept, so a file's identity survives
+ * new one in columns and JSON references, so no row can point back at the
+ * other machine; stored paths are rebuilt in this project's new folder while
+ * carried filenames and bytes stay intact; mtimes are kept, so file identity survives
  * the copy; foreign keys are checked over the rows just inserted, inside the
  * transaction, so a broken reference rolls everything back; and a bounce that
  * was the session's current mix when exported is re-stamped against the new
@@ -61,6 +61,14 @@ const EXPORT_TABLES = [
     { table: 'film_shot_versions', key: 'id', filter: 'shot_id IN (SELECT id FROM film_shots WHERE scene_id IN (SELECT id FROM film_scenes WHERE project_id = ?))' },
     { table: 'film_milestones', key: 'id', filter: 'project_id = ?' },
     { table: 'film_assets', key: 'id', filter: 'project_id = ?' },
+    // Processing parents and immutable versions travel with their registered assets.
+    { table: 'production_depth_nodes', key: 'id', filter: 'project_id = ?' },
+    { table: 'production_depth_jobs', key: 'id', filter: 'project_id = ?' },
+    { table: 'production_depth_versions', key: 'id', filter: 'project_id = ?' },
+    { table: 'production_composite_nodes', key: 'id', filter: 'project_id = ?' },
+    { table: 'production_composite_jobs', key: 'id', filter: 'project_id = ?' },
+    { table: 'production_composite_versions', key: 'id', filter: 'project_id = ?' },
+    { table: 'production_composite_handoffs', key: 'id', filter: 'project_id = ?' },
     { table: 'film_music_cues', key: 'id', filter: 'project_id = ?' },
     { table: 'film_color_presets', key: 'id', filter: 'project_id = ?' },
     { table: 'film_rights', key: 'id', filter: 'project_id = ?' },
@@ -149,6 +157,7 @@ function exportProject(projectId) {
             manifest.tables[table] = rows;
         } catch (e) {
             // Table might not exist yet (optional migration)
+            if (PROCESSING_TABLES.has(table) && !e.message.includes(`no such table: ${table}`)) throw e;
             manifest.tables[table] = [];
         }
     }
@@ -265,6 +274,11 @@ function importProject(archiveBuffer) {
     }
     const destRoot = where.dir;
 
+    // Required processing references must be carried by this bundle, rather
+    // than accidentally resolving to rows/files in the exporting instance.
+    try { validateProcessing(manifest, extractDir); }
+    catch (e) { fs.rmSync(extractDir, { recursive: true, force: true }); throw e; }
+
     // Import in a transaction. Foreign keys are enforced by a check over the
     // rows just inserted rather than per statement, so rows may land in any
     // order and a self-reference (a retry naming its parent) cannot fail.
@@ -276,25 +290,36 @@ function importProject(archiveBuffer) {
             const rows = manifest.tables[table] || [];
             if (rows.length === 0) { stats.tables[table] = 0; continue; }
             const pathCols = new Set(PATH_COLUMNS.filter(c => c.table === table).map(c => c.column));
+            if (table === 'production_composite_handoffs') pathCols.add('directory');
             inserted[table] = [];
             let count = 0;
             for (const row of rows) {
                 const remapped = {};
                 for (const [k, v] of Object.entries(row)) {
                     if (['__proto__', 'constructor', 'prototype'].includes(k)) continue;
-                    let val = remapIds(v, idMap);
-                    if (pathCols.has(k) && typeof val === 'string' && val) {
+                    let val = k === 'file_name' ? v : remapValue(v, idMap, destRoot, PROCESSING_TABLES.has(table), k);
+                    if (pathCols.has(k) && typeof v === 'string' && v) {
                         // Rebuilt inside this project's folder from the kind and
                         // the rest of the path — whichever layout it came from.
-                        const parsed = folders.parseStored(val);
-                        if (parsed) val = path.join(folders.layoutDir(destRoot, parsed.subdir), ...parsed.rest.split('/'));
+                        const parsed = folders.parseStored(v);
+                        if (parsed) val = relocatedPath(v, destRoot);
                         else {
-                            const tail = tailOf(val);
+                            const tail = tailOf(v);
                             if (tail) val = path.join(DATA_DIR, tail);
                         }
                     }
                     if (table === 'film_projects' && k === 'assets_dir') val = destRoot;
                     remapped[k] = val;
+                }
+                if (table === 'production_depth_jobs' || table === 'production_composite_jobs') {
+                    // A transported PID/token never owns work on this instance.
+                    remapped.owner_pid = 0;
+                    remapped.owner_token = '';
+                    if (PROCESSING_ACTIVE.has(remapped.status)) {
+                        remapped.status = 'interrupted';
+                        remapped.phase = 'Imported job interrupted; inspect and review before retry';
+                        remapped.finished_at = new Date().toISOString();
+                    }
                 }
                 const cols = Object.keys(remapped);
                 try {
@@ -302,8 +327,8 @@ function importProject(archiveBuffer) {
                     inserted[table].push(info.lastInsertRowid);
                     count++;
                 } catch (e) {
-                    // A score row that cannot land is a broken session: refuse the import.
-                    if (SCORE_TABLES.has(table)) throw new Error(`${table} row ${row.id} could not be imported: ${e.message}`);
+                    // A required score or processing row cannot be silently lost.
+                    if (STRICT_TABLES.has(table)) throw new Error(`${table} row ${row.id} could not be imported: ${e.message}`);
                     // Older tables keep their tolerance of a schema that moved on.
                     (stats.skipped_rows ||= []).push({ table, id: row.id, reason: e.message });
                 }
@@ -349,12 +374,95 @@ function importProject(archiveBuffer) {
 const { PATH_COLUMNS, tailOf } = require('./data-paths');
 const SCORE_TABLES = new Set(['film_sequences', 'film_music_sessions', 'film_music_tracks', 'film_music_clips', 'film_music_emotion_ranges',
     'film_music_markers', 'film_music_automation', 'film_music_operations', 'film_music_daw_links']);
+const PROCESSING_TABLES = new Set(EXPORT_TABLES.map(t => t.table).filter(t => t.startsWith('production_')));
+const STRICT_TABLES = new Set([...SCORE_TABLES, ...PROCESSING_TABLES]);
+const PROCESSING_ACTIVE = new Set(['running', 'validating', 'encoding', 'cancelling']);
 const UUID_ANY = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
 
-/** Every exported id replaced wherever it appears — a column, a JSON document, a path. */
+/** Replace reference IDs; carried filenames are handled separately. */
 function remapIds(value, idMap) {
     if (typeof value !== 'string' || !value) return value;
     return value.replace(UUID_ANY, m => idMap[m] || idMap[m.toLowerCase()] || m);
+}
+
+function relocatedPath(value, destRoot) {
+    const parsed = folders.parseStored(value);
+    return parsed ? path.join(folders.layoutDir(destRoot, parsed.subdir), ...parsed.rest.split('/')) : null;
+}
+
+/** Rewrite local references, keeping carried physical names and file bytes intact. */
+function remapValue(value, idMap, destRoot, processing, column) {
+    if (typeof value !== 'string' || !value) return value;
+    if (!column.endsWith('_json') && column !== 'metadata') return relocatedPath(value, destRoot) || remapIds(value, idMap);
+    let document;
+    try { document = JSON.parse(value); } catch (_) { return relocatedPath(value, destRoot) || remapIds(value, idMap); }
+    processing ||= !!(document && (document.depth_node_id || document.production_node_id));
+    const visit = (v, key, parent) => {
+        if (Array.isArray(v)) return v.map(x => visit(x, '', key));
+        if (v && typeof v === 'object') return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, visit(x, k, key)]));
+        // The immutable manifests remain origin evidence. Local fingerprints
+        // involving the old IDs are invalid: the service's existing source
+        // inspection/save gate must run before retry, and caches cannot hit.
+        if (processing && (['source_fingerprint', 'request_fingerprint', 'plan_fingerprint', 'cache_key'].includes(key)
+            || (key === 'fingerprint' && ['source', 'source_json'].includes(parent)))) return null;
+        if (typeof v !== 'string' || key === 'file_name') return v;
+        return relocatedPath(v, destRoot) || remapIds(v, idMap);
+    };
+    return JSON.stringify(visit(document, column, ''));
+}
+
+/** Required processing rows/files are a whole unit; optional old tables remain tolerant. */
+function validateProcessing(manifest, extractDir) {
+    const carried = Object.fromEntries(EXPORT_TABLES.map(({ table }) => [table, new Map((manifest.tables[table] || []).map(r => [r.id, r]))]));
+    const assets = new Set();
+    const reference = (table, row, target, value, key) => {
+        if (value == null) return; // NOT NULL constraints are checked during insertion.
+        const found = carried[target]?.get(value);
+        if (!found || (found.project_id && found.project_id !== manifest.source_project_id)) {
+            throw new Error(`${table} row ${row.id} references ${target}.${key} outside the bundle or project`);
+        }
+        if (target === 'film_assets') assets.add(value);
+    };
+    for (const table of PROCESSING_TABLES) for (const row of manifest.tables[table] || []) {
+        if (row.project_id !== manifest.source_project_id) throw new Error(`${table} row ${row.id} references another project`);
+        for (const fk of db.prepare(`PRAGMA foreign_key_list(${table})`).all()) reference(table, row, fk.table, row[fk.from], fk.from);
+        const kind = table.startsWith('production_depth_') ? 'depth' : 'composite';
+        const visit = value => {
+            if (!value || typeof value !== 'object') return;
+            for (const [key, v] of Object.entries(value)) {
+                let target;
+                if (key === 'asset_id' || key.endsWith('_asset_id')) target = 'film_assets';
+                else if (key === 'project_id') target = 'film_projects';
+                else if (['node_id', 'job_id', 'version_id'].includes(key)) target = `production_${kind}_${key.replace('_id', 's')}`;
+                else if (['depth_node_id', 'depth_job_id', 'production_node_id', 'production_job_id'].includes(key)) {
+                    target = `production_${key.startsWith('depth_') ? 'depth' : 'composite'}_${key.includes('node') ? 'nodes' : 'jobs'}`;
+                }
+                if (target) reference(table, row, target, v, key);
+                else visit(v);
+            }
+        };
+        for (const [key, value] of Object.entries(row)) if (key.endsWith('_json')) {
+            const doc = JSON.parse(value);
+            if (key === 'assets_json') for (const [role, aid] of Object.entries(doc)) reference(table, row, 'film_assets', aid, role);
+            else visit(doc);
+        }
+    }
+    const carriedPath = (table, value) => {
+        const parsed = folders.parseStored(value);
+        if (!parsed || !ASSET_SUBDIRS.includes(parsed.subdir)) throw new Error(`${table} references a file outside the bundle`);
+        const root = path.join(extractDir, parsed.subdir), file = path.resolve(root, parsed.rest);
+        if (!file.startsWith(root + path.sep) || !fs.existsSync(file) || !fs.statSync(file).isFile()) {
+            throw new Error(`${table} references a missing carried file: ${value}`);
+        }
+        return file;
+    };
+    for (const aid of assets) carriedPath('film_assets', carried.film_assets.get(aid).file_path);
+    for (const row of manifest.tables.production_composite_handoffs || []) {
+        const file = carriedPath('production_composite_handoffs', path.join(row.directory, 'manifest.json'));
+        if (crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex') !== row.manifest_sha256) {
+            throw new Error('production_composite_handoffs manifest checksum differs from the carried file');
+        }
+    }
 }
 
 function listFiles(root, rel = '') {
@@ -381,14 +489,14 @@ function verifyFiles(root, files) {
 }
 
 /**
- * Foreign keys over the rows just inserted. A score row with a broken
+ * Foreign keys over the rows just inserted. A score/processing row with a broken
  * reference refuses the import; an older table's dangling reference (to
  * something the bundle does not carry) is cleared where the column allows it,
  * and the row dropped where it does not — the tolerance it always had.
  */
 function enforceReferences(inserted, stats) {
     const tables = Object.keys(inserted);
-    const order = [...tables.filter(t => !SCORE_TABLES.has(t)), ...tables.filter(t => SCORE_TABLES.has(t))];
+    const order = [...tables.filter(t => !STRICT_TABLES.has(t)), ...tables.filter(t => STRICT_TABLES.has(t))];
     for (const table of order) {
         const mine = new Set(inserted[table].map(Number));
         const fks = db.prepare(`PRAGMA foreign_key_list(${table})`).all();
@@ -396,7 +504,7 @@ function enforceReferences(inserted, stats) {
         const bad = db.prepare(`PRAGMA foreign_key_check(${table})`).all().filter(v => mine.has(Number(v.rowid)));
         for (const v of bad) {
             const fk = fks.filter(f => f.id === v.fkid);
-            if (SCORE_TABLES.has(table)) throw new Error(`${table} row ${v.rowid} references a missing ${v.parent} (${fk.map(f => f.from).join(', ')})`);
+            if (STRICT_TABLES.has(table)) throw new Error(`${table} row ${v.rowid} references a missing ${v.parent} (${fk.map(f => f.from).join(', ')})`);
             const nullable = fk.every(f => (cols.find(c => c.name === f.from) || {}).notnull === 0);
             if (nullable) db.prepare(`UPDATE ${table} SET ${fk.map(f => `${f.from} = NULL`).join(', ')} WHERE rowid = ?`).run(v.rowid);
             else db.prepare(`DELETE FROM ${table} WHERE rowid = ?`).run(v.rowid);

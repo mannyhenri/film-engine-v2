@@ -718,6 +718,7 @@ const server = http.createServer(async (req, res) => {
             return await handleScripts(req, res, parts, query);
         }
 
+        if (parts[1] === 'projects' && parts[2] && parts[3] === 'production-composite') return await require('./routes/production-composite').handleProductionComposite(req, res, parts);
         if (parts[1] === 'projects' && parts[2] && parts[3] === 'production-depth') {
             return await handleProductionDepth(req, res, parts);
         }
