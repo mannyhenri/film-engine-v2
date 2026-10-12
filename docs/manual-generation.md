@@ -27,6 +27,10 @@ Seedance, Meshy, ElevenLabs, World Labs, Google, OpenAI images, Magnific, Topaz)
 These stay connected: the Gridlight gateway, LLM text (Anthropic, OpenAI text) and local tools
 (ffmpeg, FluidSynth, Blender).
 
+A registered kept provider with no review builder (the local Gridlight gateway, FluidSynth) runs
+directly, with no review screen, as it did before the review requirement. The Gridlight client and
+video runners are restored to the pre-`214cf4a` code that `214cf4a` had blocked.
+
 ## How each route reaches the screen
 
 - **Planner routes:** routes with an exact planner are prepared before anything runs.

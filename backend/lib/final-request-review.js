@@ -201,6 +201,10 @@ function enterExecutionContext(approvals,originalBody={}){execution.enterWith({a
 function getExecutionContext(){return execution.getStore()||{approvals:[]};}
 async function authorizeGeneration(input){return authorizeWithStore(store(),input);}
 async function authorizeWithStore(s,{provider,capability,payload,provenance={},opts={},approvals}){
+ // A REGISTERED kept provider this review cannot describe (the local Gridlight
+ // gateway, local tools) is not a manual vendor and has no paid request to freeze:
+ // it runs directly. Anything else still needs its review.
+ if(require('./providers').get(provider)&&!require('./manual-generation').isManual(provider,capability)&&!Object.prototype.hasOwnProperty.call(require('./final-provider-request').REVIEW_PROVIDER_MODULES,provider))return {ok:true,bypass:true,provider,capability};
  const tokens=opts.finalRequest?[opts.finalRequest]:(approvals||getExecutionContext().approvals);
  let alreadySent=null;
  for(const token of tokens){

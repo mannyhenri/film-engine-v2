@@ -791,15 +791,22 @@ function withJobRecording_(adapter, capability, projectConfig) {
             provenance: { ...o.jobMeta, project_id: cfg.__project_id || undefined, shot_id: cfg.__shot_id || undefined }, opts: o,
         });
         if (!approval.ok) return approval;
-        o.finalRequest = approval.finalRequest;
-        o.jobMeta = { ...o.jobMeta, approval_id: approval.approvalId };
-        o.__meter = { ...o.__meter, sourceRef: 'final-review:' + approval.approvalId };
-        const nativeAudio = typeof approval.snapshot.body?.generate_audio === 'boolean' ? approval.snapshot.body.generate_audio
-            : typeof approval.snapshot.body?.audio === 'boolean' ? approval.snapshot.body.audio : undefined;
-        const dispatchAdapter = get(approval.snapshot.provider);
+        // A kept provider with no review builder (the local Gridlight gateway, local
+        // tools) runs as it did before the final review: its own payload, no snapshot.
+        const direct = approval.bypass === true;
+        o.jobMeta = { ...(o.jobMeta || {}) };
+        if (!direct) {
+            o.finalRequest = approval.finalRequest;
+            o.jobMeta = { ...o.jobMeta, approval_id: approval.approvalId };
+            o.__meter = { ...o.__meter, sourceRef: 'final-review:' + approval.approvalId };
+        }
+        const snapshotBody = direct ? {} : approval.snapshot.body || {};
+        const nativeAudio = typeof snapshotBody.generate_audio === 'boolean' ? snapshotBody.generate_audio
+            : typeof snapshotBody.audio === 'boolean' ? snapshotBody.audio : undefined;
+        const dispatchAdapter = direct ? adapter : get(approval.snapshot.provider);
         if (!dispatchAdapter || !dispatchAdapter.supports(cap || capability)) return {ok:false,status:409,error:'The explicitly approved provider is unavailable. Review again.'};
         o.finalProvider = dispatchAdapter.id;
-        const sendPayload = require('../final-request-review').store().get(approval.approvalId).editable.payload;
+        const sendPayload = direct ? payload : require('../final-request-review').store().get(approval.approvalId).editable.payload;
         const reviewedAudio = nativeAudio !== undefined ? nativeAudio : sendPayload.generate_audio;
         if ((cap || capability) === 'video' && typeof reviewedAudio === 'boolean') o.jobMeta.audio = reviewedAudio;
         const dispatch = dispatchAdapter.id === adapter.id ? inner : metered(dispatchAdapter, cfg).generate.bind(metered(dispatchAdapter, cfg));
@@ -836,7 +843,7 @@ function withJobRecording_(adapter, capability, projectConfig) {
                  * handle `collect` can post the spend without the request.
                  */
                 let meterPlan = null;
-                try { meterPlan=jobs.meterPlan(dispatchAdapter.id,cap||capability,sendPayload,approval.snapshot,null); }
+                try { meterPlan=jobs.meterPlan(dispatchAdapter.id,cap||capability,sendPayload,approval.snapshot||null,null); }
                 catch (_) { /* a price that cannot be worked out is not a blocker */ }
                 /*
                  * WHAT THIS GENERATION IS, not just which capability it used:
@@ -865,9 +872,9 @@ function withJobRecording_(adapter, capability, projectConfig) {
         }
         // Native wrappers own approval transitions and retain the complete
         // provider receipt. A registry failure must not settle another claim.
-        if (result) { result.review_id = approval.approvalId; result.job_id = jobId || result.job_id || null; }
-        if (result?.pending && !result.job_id) result.error += ` Its approved receipt is ${approval.approvalId}; recover it with generation_collect(job_id=${approval.approvalId}).`;
-        if(result?.ok){try{jobs.retainMeter(jobId,jobs.meterPlan(dispatchAdapter.id,cap||capability,sendPayload,approval.snapshot,result));}catch(_){} }
+        if (result) { if (!direct) result.review_id = approval.approvalId; result.job_id = jobId || result.job_id || null; }
+        if (!direct && result?.pending && !result.job_id) result.error += ` Its approved receipt is ${approval.approvalId}; recover it with generation_collect(job_id=${approval.approvalId}).`;
+        if(result?.ok){try{jobs.retainMeter(jobId,jobs.meterPlan(dispatchAdapter.id,cap||capability,sendPayload,approval.snapshot||null,result));}catch(_){} }
         if (!(result && result.ok && o.jobMeta.pipeline_delivery)) settle(jobId, result);
         /*
          * ONE RESULT SHAPE FOR THE SAVE. Every route persists `result.data`,
@@ -898,7 +905,7 @@ function withJobRecording_(adapter, capability, projectConfig) {
                 provenance: { project_id: cfg.__project_id || undefined, shot_id: cfg.__shot_id || undefined }, opts: cb,
             });
             if (!approval.ok) return approval;
-            cb.finalRequest = approval.finalRequest;
+            if (approval.bypass !== true) cb.finalRequest = approval.finalRequest;
             const jobId = open(cap, null);
             const complete=cb.onComplete;
             cb.onComplete=data=>{

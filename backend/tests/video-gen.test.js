@@ -1,9 +1,9 @@
 /**
  * Integration tests for the video generation route (routes/video-gen.js).
  *
- * Spins up the real server with an isolated DB and local mock gateway.
- * Legacy Gridlight generation must fail closed without a reviewed builder;
- * existing local media serving and refusal bookkeeping remain available.
+ * Spins up the real server (temp DB) pointed at an in-process mock Gridlight
+ * gateway, exercising the full proxy path: route → gridlight-client → mock →
+ * job/asset persistence → file serving.
  */
 const { describe, it, before, after } = require('node:test');
 /*
@@ -28,7 +28,6 @@ const BASE_URL = `http://localhost:${TEST_PORT}`;
 let mockMode = 'binary'; // 'binary' | 'json' | 'jsonBadUrl' | 'error500'
 let serverProcess;
 let mockGridlight;
-let generationCalls = 0;
 
 function request(urlPath, opts = {}) {
     const method = opts.method || 'GET';
@@ -86,7 +85,6 @@ describe('Video Generation Integration (mock Gridlight)', () => {
                 res.writeHead(404, { 'Content-Type': 'text/plain' });
                 return res.end('not found');
             }
-            generationCalls++;
             let raw = '';
             req.on('data', c => raw += c);
             req.on('end', () => {
@@ -150,39 +148,70 @@ describe('Video Generation Integration (mock Gridlight)', () => {
         assert.equal(res.status, 404);
     });
 
-    for (const mode of ['binary', 'json', 'jsonBadUrl', 'error500']) {
-        it(`refuses unreviewed legacy Gridlight generation before any POST (${mode})`, async () => {
-            mockMode = mode;
-            const res = await request(`/film/shots/${shotId}/video/generate`, { method:'POST', body:{} });
-            assert.ok(res.status >= 400, 'an unreviewed request reported success');
-            assert.match(res.data.error, /final request|review|approval/i);
-            assert.equal(generationCalls, 0, 'unapproved generation reached the gateway');
-            const assets = await request(`/film/projects/${projectId}/assets`);
-            assert.ok(!(assets.data.assets || []).some(a => a.asset_type === 'video_raw'), 'refusal created generated media');
-        });
-    }
+    it('generates video from a shot (inline binary)', async () => {
+        mockMode = 'binary';
+        const res = await request(`/film/shots/${shotId}/video/generate`, { method: 'POST', body: {} });
+        assert.equal(res.status, 200);
+        assert.equal(res.data.status, 'complete');
+        assert.match(res.data.video_url, /^\/film\/video\/.+1A\.mp4$/);
+    });
 
-    it('records refusal as a failed job without a completed job or generated asset', async () => {
+    it('records the video job and a video_raw asset', async () => {
         const res = await request(`/film/shots/${shotId}/video`);
         assert.equal(res.status, 200);
         const jobs = res.data.jobs || res.data.video_jobs || [];
-        assert.ok(jobs.some(j => j.status === 'failed'));
-        assert.ok(!jobs.some(j => j.status === 'complete'));
-        assert.equal(generationCalls, 0);
+        assert.ok(jobs.some(j => j.status === 'complete'), 'expected a completed video job');
     });
 
-    it('serves existing local MP4 media with the correct MIME type and bytes', async () => {
-        // Serving remains available for media saved by an earlier approved job.
-        const project = await request(`/film/projects/${projectId}`);
-        const root = project.data.assets_dir || project.data.project?.assets_dir;
-        const dir = root ? path.join(root, '04 Video', 'Clips') : path.join(TEST_DIR, 'video', projectId);
-        fs.mkdirSync(dir, { recursive:true });
-        fs.writeFileSync(path.join(dir, '1A.mp4'), Buffer.concat([Buffer.from([0,0,0,24]),Buffer.from('ftypisomFAKE-MP4-DATA')]));
-        const served = await request(`/film/video/${projectId}/1A.mp4`);
+    // Gridlight's POST /video answers application/json with a video_url; only the
+    // GET /videos/:file serving endpoint returns bytes. The route must download
+    // that URL, or film_assets.file_path holds a remote URL, the media never
+    // lands locally, and NLE export emits file:///http://host/... to Premiere.
+    it('downloads media to local storage when the provider returns a JSON URL', async () => {
+        mockMode = 'json';
+        const res = await request(`/film/shots/${shotId}/video/generate`, { method: 'POST', body: {} });
+        assert.equal(res.status, 200);
+        assert.equal(res.data.status, 'complete');
+
+        const assets = await request(`/film/projects/${projectId}/assets`);
+        const video = (assets.data.assets || []).filter(a => a.asset_type === 'video_raw').pop();
+        assert.ok(video, 'expected a video_raw asset');
+        assert.ok(
+            path.isAbsolute(video.file_path),
+            `file_path must be a local absolute path, got ${JSON.stringify(video.file_path)}`
+        );
+        assert.ok(!/^https?:\/\//i.test(video.file_path), 'file_path must not be a remote URL');
+        assert.ok(fs.existsSync(video.file_path), `no file on disk at ${video.file_path}`);
+        assert.match(fs.readFileSync(video.file_path, 'utf8'), /FAKE-MP4-DATA/);
+    });
+
+    it('serves the downloaded media back over the API (no 404)', async () => {
+        mockMode = 'json';
+        // Clear anything an earlier binary-mode test left behind, so passing here
+        // proves THIS generation wrote the file rather than inheriting it.
+        const stale = path.join(TEST_DIR, 'video', projectId, '1A.mp4');
+        try { fs.rmSync(stale, { force: true }); } catch { /* ignore */ }
+
+        const gen = await request(`/film/shots/${shotId}/video/generate`, { method: 'POST', body: {} });
+        const served = await request(gen.data.video_url);
+        assert.equal(served.status, 200, 'the URL the API hands back must not 404');
+        assert.match(served.raw, /FAKE-MP4-DATA/);
+    });
+
+    it('fails loudly when generated media cannot be stored', async () => {
+        mockMode = 'jsonBadUrl';
+        const res = await request(`/film/shots/${shotId}/video/generate`, { method: 'POST', body: {} });
+        assert.equal(res.status, 502, 'unstorable media must not report success');
+        assert.match(res.data.error, /could not be stored/i);
+    });
+
+    it('serves the generated .mp4 with a video mime type', async () => {
+        mockMode = 'binary';
+        const gen = await request(`/film/shots/${shotId}/video/generate`, { method: 'POST', body: {} });
+        const served = await request(gen.data.video_url);
         assert.equal(served.status, 200);
         assert.match(served.headers['content-type'], /video\/mp4/);
         assert.match(served.raw, /FAKE-MP4-DATA/);
-        assert.equal(generationCalls, 0);
     });
 
     it('streams video generation events (status → done)', async () => {
@@ -193,15 +222,12 @@ describe('Video Generation Integration (mock Gridlight)', () => {
         assert.match(res.raw, /"type":"done"/);
     });
 
-    it('batch stream refuses every unreviewed legacy generation', async () => {
+    it('batch-streams video for all shots', async () => {
         mockMode = 'binary';
         const res = await request(`/film/projects/${projectId}/video/batch/stream`, { method: 'POST', body: {} });
         assert.equal(res.status, 200);
         assert.match(res.raw, /"type":"status"/);
-        assert.match(res.raw, /"type":"shot_failed"/);
-        assert.match(res.raw, /final request|review|approval/i);
-        assert.doesNotMatch(res.raw, /"type":"shot_complete"/);
-        assert.equal(generationCalls, 0);
+        assert.match(res.raw, /"type":"shot_complete"/);
         assert.match(res.raw, /"type":"result"/);
         assert.match(res.raw, /"type":"done"/);
     });
@@ -213,14 +239,13 @@ describe('Video Generation Integration (mock Gridlight)', () => {
         assert.ok(jobs.length >= 1);
     });
 
-    it('refuses before an upstream error and retains failed-job bookkeeping', async () => {
+    it('marks the job failed on an upstream 500', async () => {
         mockMode = 'error500';
         const res = await request(`/film/shots/${shotId}/video/generate`, { method: 'POST', body: {} });
         assert.ok(res.status >= 400, `expected error status, got ${res.status}`);
         const status = await request(`/film/shots/${shotId}/video`);
         const jobs = status.data.jobs || status.data.video_jobs || [];
         assert.ok(jobs.some(j => j.status === 'failed'), 'expected a failed video job');
-        assert.equal(generationCalls, 0, 'even an erroring gateway must not receive an unapproved POST');
     });
 
     it('rejects a traversal filename on the serve route', async () => {

@@ -194,3 +194,27 @@ test('the creative transport still sends for every kept provider capability (Gri
   assert.ok(sent.some(u=>u.includes('/gridlight/')),'Gridlight was sent');
  }finally{global.fetch=original;}
 });
+
+test('every kept provider without a review builder (Gridlight, local tools) generates directly, with no review',async()=>{
+ const providers=require('../lib/providers'),{REVIEW_PROVIDER_MODULES:reviewable}=require('../lib/final-provider-request');
+ process.env.FILM_DATA_DIR=process.env.FILM_DATA_DIR||fs.mkdtempSync(path.join(os.tmpdir(),'manual-kept-'));
+ require('../db/schema').ensureSchema();const {db}=require('../db/database');
+ const reviews=()=>db.prepare('SELECT COUNT(*) n FROM film_final_request_reviews').get().n;
+ let checked=0;
+ for(const adapter of providers.list())for(const capability of adapter.capabilities||[]){
+  if(manual.isManual(adapter.id,capability)||capability==='llm'||Object.prototype.hasOwnProperty.call(reviewable,adapter.id))continue;
+  const calls=[];
+  const fake={...adapter,id:adapter.id,capabilities:adapter.capabilities,supports:c=>(adapter.capabilities||[]).includes(c),asyncGeneration:false,
+   generate:async(cap,payload)=>{calls.push({cap,payload});return {ok:true,data:{url:'file:///kept.bin'}};}};
+  const before=reviews();
+  const wrapped=providers.withJobRecording(fake,capability,{});
+  const payload={prompt:'kept '+adapter.id+' '+capability};
+  const result=await wrapped.generate(capability,payload,{});
+  assert.equal(result.ok,true,`${adapter.id}/${capability} runs directly: ${result.error||''}`);
+  assert.equal(calls.length,1,`${adapter.id}/${capability} reached its own adapter once`);
+  assert.equal(calls[0].payload.prompt,payload.prompt);
+  assert.equal(reviews(),before,`${adapter.id}/${capability} created no review`);
+  checked++;
+ }
+ assert.ok(checked>=9,'gridlight and local capabilities were exercised: '+checked);
+});

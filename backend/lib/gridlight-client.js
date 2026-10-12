@@ -104,10 +104,6 @@ function _sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-function finalReviewRequired(endpoint) {
-    return { ok: false, status: 428, data: null, contentType: null, code: 'FINAL_REQUEST_REVIEW_REQUIRED', error: `Final editable request review is unavailable for legacy Gridlight ${endpoint}. Nothing was submitted.` };
-}
-
 /**
  * Call a Gridlight endpoint (non-streaming).
  * Returns the response as a Buffer (for binary like images/video/audio)
@@ -120,16 +116,233 @@ function finalReviewRequired(endpoint) {
  * @returns {Promise<{ ok: boolean, status: number, data: Buffer|object, contentType: string, error?: string }>}
  */
 async function callGridlight(endpoint, payload, options) {
-    // Legacy gateway submissions have no immutable adapter-resolved review.
-    // Reject before queue acquisition or network; a caller-supplied flag is not consent.
-    return finalReviewRequired(endpoint);
+    const opts = options || {};
+    const skipQueue = opts.skipQueue || false;
+
+    // Acquire concurrency slot (unless caller opts out, e.g. health checks)
+    if (!skipQueue) {
+        try {
+            await _acquireSlot(endpoint);
+        } catch (err) {
+            if (err.message === 'queue_full') {
+                return {
+                    ok: false,
+                    status: 429,
+                    data: null,
+                    contentType: null,
+                    error: `queue_full: Too many queued requests for ${endpoint}. Max queue size: ${MAX_QUEUE_SIZE}`,
+                    queue: { active: _getQueue(endpoint).active, queued: _getQueue(endpoint).waiting.length },
+                };
+            }
+            throw err;
+        }
+    }
+
+    try {
+        return await _callGridlightInner(endpoint, payload, opts);
+    } finally {
+        if (!skipQueue) _releaseSlot(endpoint);
+    }
 }
 
-/** Streaming legacy generation is also blocked before opening a connection. */
+/**
+ * Inner call with 429 retry logic.
+ */
+async function _callGridlightInner(endpoint, payload, opts, retryCount) {
+    retryCount = retryCount || 0;
+    const timeout = opts.timeout || 300000;
+    const url = `${GRIDLIGHT_URL}${endpoint}`;
+
+    const headers = { 'Content-Type': 'application/json' };
+    if (GRIDLIGHT_API_KEY) {
+        headers['Authorization'] = `Bearer ${GRIDLIGHT_API_KEY}`;
+    }
+
+    // Ensure stream is false for non-streaming calls
+    const body = { ...payload, stream: false };
+
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeout);
+
+    try {
+        const response = await fetch(url, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify(body),
+            signal: controller.signal,
+        });
+
+        clearTimeout(timer);
+
+        // Handle 429 Too Many Requests with automatic retry
+        if (response.status === 429 && retryCount < MAX_429_RETRIES) {
+            const retryAfter = response.headers.get('retry-after');
+            const delay = retryAfter ? parseInt(retryAfter, 10) * 1000 : RETRY_ON_429_DELAY * (retryCount + 1);
+            await _sleep(delay);
+            return _callGridlightInner(endpoint, payload, opts, retryCount + 1);
+        }
+
+        if (!response.ok) {
+            const errText = await response.text();
+            return {
+                ok: false,
+                status: response.status,
+                data: null,
+                contentType: null,
+                error: `${endpoint} error ${response.status}: ${errText}`,
+                retries: retryCount,
+            };
+        }
+
+        const contentType = response.headers.get('content-type') || '';
+
+        if (contentType.includes('application/json')) {
+            const data = await response.json();
+            return { ok: true, status: response.status, data, contentType, retries: retryCount };
+        }
+
+        // Binary response (image, video, audio)
+        const data = Buffer.from(await response.arrayBuffer());
+        return { ok: true, status: response.status, data, contentType, retries: retryCount };
+
+    } catch (err) {
+        clearTimeout(timer);
+
+        if (err.code === 'ECONNREFUSED' || err.cause?.code === 'ECONNREFUSED') {
+            return {
+                ok: false,
+                status: 503,
+                data: null,
+                contentType: null,
+                error: `service_unavailable: Cannot connect to ${url}. Ensure the service is running.`,
+            };
+        }
+
+        if (err.name === 'AbortError') {
+            return {
+                ok: false,
+                status: 504,
+                data: null,
+                contentType: null,
+                error: `timeout: Request to ${endpoint} timed out after ${timeout}ms`,
+            };
+        }
+
+        return {
+            ok: false,
+            status: 500,
+            data: null,
+            contentType: null,
+            error: `${endpoint} request failed: ${err.message}`,
+        };
+    }
+}
+
+/**
+ * Call a Gridlight endpoint with SSE streaming.
+ * Relays SSE events to the client response, calling callbacks for each event type.
+ *
+ * @param {string} endpoint - e.g. '/video', '/music'
+ * @param {object} payload - Request body (stream: true will be set automatically)
+ * @param {http.ServerResponse} res - The client response to relay events to
+ * @param {object} [callbacks]
+ * @param {function} [callbacks.onProgress] - Called with progress data
+ * @param {function} [callbacks.onComplete] - Called with final complete data
+ * @param {function} [callbacks.onError] - Called with error data
+ * @returns {Promise<{ ok: boolean, finalData: object|null, error?: string }>}
+ */
 async function relayGridlightSSE(endpoint, payload, res, callbacks) {
-    const refusal = finalReviewRequired(endpoint);
-    if (callbacks && callbacks.onError) callbacks.onError({ error: refusal.error });
-    return { ...refusal, finalData: null };
+    const cb = callbacks || {};
+    const url = `${GRIDLIGHT_URL}${endpoint}`;
+
+    const headers = { 'Content-Type': 'application/json' };
+    if (GRIDLIGHT_API_KEY) {
+        headers['Authorization'] = `Bearer ${GRIDLIGHT_API_KEY}`;
+    }
+
+    const body = { ...payload, stream: true };
+
+    // Abort the upstream generation if the client disconnects, so we don't
+    // keep a GPU job (and this reader loop) running against a dead socket.
+    const controller = new AbortController();
+    const onClose = () => controller.abort();
+    if (res && typeof res.on === 'function') res.on('close', onClose);
+
+    try {
+        const response = await fetch(url, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify(body),
+            signal: controller.signal,
+        });
+
+        if (!response.ok) {
+            const errText = await response.text();
+            const errorMsg = `${endpoint} error ${response.status}: ${errText}`;
+            if (cb.onError) cb.onError({ error: errorMsg });
+            return { ok: false, finalData: null, error: errorMsg };
+        }
+
+        let finalData = null;
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+
+        while (true) {
+            if (res && res.writableEnded) break; // client gone — stop relaying
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split('\n');
+            buffer = lines.pop(); // Keep incomplete line
+
+            for (const line of lines) {
+                if (!line.startsWith('data: ')) continue;
+                const dataStr = line.slice(6).trim();
+                if (!dataStr || dataStr === '[DONE]') continue;
+
+                try {
+                    const data = JSON.parse(dataStr);
+
+                    // Relay to client (guard against writing to a closed socket)
+                    if (!res.writableEnded) res.write(`data: ${JSON.stringify(data)}\n\n`);
+
+                    // Call appropriate callback (Gridlight uses data.event, fallback to data.type)
+                    const eventType = data.event || data.type;
+                    if (eventType === 'complete' || eventType === 'completed') {
+                        finalData = data;
+                        if (cb.onComplete) cb.onComplete(data);
+                    } else if (eventType === 'error') {
+                        if (cb.onError) cb.onError(data);
+                    } else if (eventType === 'progress') {
+                        if (cb.onProgress) cb.onProgress(data);
+                    }
+                } catch (parseErr) {
+                    // Skip unparseable lines
+                    console.error(`[gridlight-client] skipped unparseable SSE line from ${endpoint}:`, parseErr.message);
+                }
+            }
+        }
+
+        return { ok: true, finalData };
+
+    } catch (err) {
+        // A client disconnect triggers controller.abort() → AbortError; treat as
+        // a benign cancellation rather than a service failure.
+        if (err.name === 'AbortError') {
+            return { ok: false, finalData: null, error: 'client_disconnected', aborted: true };
+        }
+        const isConnRefused = err.code === 'ECONNREFUSED' || err.cause?.code === 'ECONNREFUSED';
+        const error = isConnRefused
+            ? `service_unavailable: Cannot connect to ${url}. Ensure the service is running.`
+            : `${endpoint} stream failed: ${err.message}`;
+
+        if (cb.onError) cb.onError({ error });
+        return { ok: false, finalData: null, error };
+    } finally {
+        if (res && typeof res.removeListener === 'function') res.removeListener('close', onClose);
+    }
 }
 
 /**

@@ -101,4 +101,22 @@ test('every real generation route reaches a manual review with its full prompt a
  console.log(`routes ${inventory.routes.length}: generation ${reached.length} reached review; not manual ${fixtures.NOT_MANUAL_GENERATION.length}`);
  assert.deepEqual(problems,[]);
 });
+test('a kept Gridlight generation runs end to end: saved result, no review, only the local gateway contacted',async()=>{
+ const original=global.fetch,contacted=[];
+ const wav=Buffer.concat([Buffer.from('RIFF'),Buffer.alloc(40)]);
+ global.fetch=async(url)=>{contacted.push(String(url));return /localhost|127\.0\.0\.1/.test(String(url))?new Response(wav,{status:200,headers:{'content-type':'audio/wav'}}):new Response('{}',{status:503});};
+ try{
+  await call('PUT','/settings',{gridlight_enabled:'1'});
+  try{require('../lib/providers').refreshLocalGateway?.();}catch(_){}
+  const project=JSON.parse((await call('POST','/projects/demo',{})).text).project_id;
+  db.prepare('UPDATE film_projects SET provider_config=? WHERE id=?').run(JSON.stringify({sfx:'gridlight',ambient:'gridlight',music:'gridlight'}),project);
+  const before=db.prepare('SELECT COUNT(*) n FROM film_final_request_reviews').get().n;
+  const out=await call('POST',`/projects/${project}/sounds/generate`,{prompt:'Rain on a tin roof',provider:'gridlight'});
+  assert.equal(out.status,200,out.text.slice(0,200));
+  const saved=JSON.parse(out.text);assert.ok(saved.asset_id,'a result was saved');
+  assert.ok(db.prepare('SELECT 1 FROM film_assets WHERE id=?').get(saved.asset_id),'the asset row exists');
+  assert.equal(db.prepare('SELECT COUNT(*) n FROM film_final_request_reviews').get().n,before,'no review for a kept provider');
+  assert.ok(contacted.length>0&&contacted.every(u=>/localhost|127\.0\.0\.1/.test(u)),'only the local gateway: '+contacted.join(', '));
+ }finally{global.fetch=original;await call('PUT','/settings',{gridlight_enabled:''});}
+});
 test.after(()=>{compiled.exports.server.close();db.close();fs.rmSync(process.env.FILM_DATA_DIR,{recursive:true,force:true});});

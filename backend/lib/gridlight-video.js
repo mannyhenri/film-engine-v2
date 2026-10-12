@@ -647,9 +647,6 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
  * or a 400 is our request and replaying it buys the same refusal twice.
  */
 async function postAndStream(endpoint, body, opts) {
-    // This legacy runner cannot submit the immutable reviewed adapter snapshot.
-    return { ...failure(428, 'Final editable request review is unavailable for this legacy Gridlight video runner. Nothing was submitted.'), code: 'FINAL_REQUEST_REVIEW_REQUIRED' };
-
     const o = opts || {};
     const cfg = config(o);
     const max429 = Number.isFinite(o.max429) ? o.max429 : 10;
@@ -750,8 +747,6 @@ function measure(buf) {
  * every route that persists a provider result stores it unchanged.
  */
 async function generateVideo(payload, opts) {
-    return { ...failure(428, 'Final editable request review is unavailable for this legacy Gridlight video runner. Nothing was submitted.'), code: 'FINAL_REQUEST_REVIEW_REQUIRED' };
-
     const o = opts || {};
     const caps = await fetchCapabilities(o);
     if (!caps.ok) return caps;
@@ -816,8 +811,6 @@ function transitionFor(join) {
  * the whole list for one of them.
  */
 async function generateProduction(spec, opts) {
-    return { ...failure(428, 'Final editable request review is unavailable for this legacy Gridlight video runner. Nothing was submitted.'), code: 'FINAL_REQUEST_REVIEW_REQUIRED' };
-
     const o = opts || {};
     const s = spec || {};
     const shots = Array.isArray(s.shots) ? s.shots : [];

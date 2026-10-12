@@ -287,6 +287,8 @@ async function runImageFallbackChain(chain, payloadOrFactory, opts) {
     const authorization = await review.authorizeGeneration({provider:selected.id, capability:'image', payload:prepared,
         provenance:{project_id:config.__project_id,shot_id:config.__shot_id},opts:opts||{}});
     if (!authorization.ok) return authorization;
+    // A kept provider without a review (the local gateway) generates directly.
+    if (authorization.bypass) { const result = await selected.generate('image', prepared, opts || {}); return { ...result, provider: result.provider || selected.id, _chain: [{ provider: selected.id, ok: !!result.ok, error: result.ok ? null : result.error }] }; }
     // A refusal is shown to the user. A second provider requires a new review.
     const executor=providers.get(authorization.snapshot.provider);
     if(!executor || !executor.supports?.('image'))return {ok:false,status:409,error:'The approved image provider is unavailable. Review another provider before Send.'};
