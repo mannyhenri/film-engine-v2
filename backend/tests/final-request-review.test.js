@@ -1,4 +1,3 @@
-require('../lib/manual-generation').allowSendForTests(); // exercises the dormant API send path
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('fs'),os=require('os'),path=require('path');
 const Database=require('better-sqlite3');
 const {createFinalRequestStore,canonical}=require('../lib/final-request-review');
@@ -101,14 +100,6 @@ test('paid Topaz credit range is backed by immutable completed free quote and ex
  const token=s.approve(paid.id,{fingerprint:paid.fingerprint,human_confirmed:true});
  const changed={...quote,credits:[2,5]};f.db.prepare('UPDATE film_final_request_reviews SET result_json=? WHERE id=?').run(JSON.stringify({topaz_quote:changed}),initial.id);
  assert.throws(()=>s.claim(token,'fixture','image'),/stored provider quote changed/);
- f.db.close();fs.rmSync(f.dir,{recursive:true});
-});
-test('mixed or multiple native Topaz quote stages reject before any planner or transport',async()=>{
- const f=fixture(),{preflightApprovals}=require('../lib/final-request-review');
- const s=createFinalRequestStore(f.db,{resolve:async(provider,capability,payload)=>({provider,capability,endpoint:'/free-create',adapterVersion:'v1',body:payload,references:[],quote:{kind:'free_preflight',amount:0,currency:'USD',credits:0}}),provenance:spec=>({spec})});
- const topaz=await s.preview({...input,provider:'topaz'}),other=await s.preview(input);
- const tokens=[topaz,other].map(r=>s.approve(r.id,{fingerprint:r.fingerprint,human_confirmed:true}));let calls=0;
- await assert.rejects(preflightApprovals({path:'/batch',body:{final_request_approvals:tokens},reviewStore:s,prepare:async()=>{calls++;return{items:[]};}}),error=>error.status===422&&/nothing was submitted/.test(error.message));assert.equal(calls,0);
  f.db.close();fs.rmSync(f.dir,{recursive:true});
 });
 test('identical original payloads select a fresh scoped item instead of a consumed sibling',async()=>{

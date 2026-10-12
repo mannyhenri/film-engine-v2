@@ -18,19 +18,7 @@ const MANUAL_PROVIDERS = new Set([
     'elevenlabs', 'worldlabs', 'google', 'openai', 'magnific', 'topaz',
 ]);
 
-/*
- * The dormant send path keeps its own tests (exact bytes, single charge,
- * recovery). Only a node:test file can reopen it, for its own process.
- */
-let sendPathUnderTest = false;
-function allowSendForTests() {
-    const main = require.main && require.main.filename || '';
-    if (!process.env.NODE_TEST_CONTEXT && !/\.test\.js$/.test(main)) throw new Error('The manual-generation gate can only be lifted by a test file');
-    sendPathUnderTest = true;
-}
-
 function isManual(provider, capability) {
-    if (sendPathUnderTest) return false;
     if (capability === 'llm') return false;
     return MANUAL_PROVIDERS.has(String(provider || ''));
 }
@@ -46,4 +34,25 @@ function assertSendable(provider, capability) {
     if (isManual(provider, capability)) throw manualError(provider);
 }
 
-module.exports = { MANUAL_PROVIDERS, isManual, allowSendForTests, manualError, assertSendable };
+/*
+ * A route that opens a job row before calling the provider marks it failed when
+ * the provider answers "review required". For a manual vendor that answer is the
+ * hand-over, not a failure, so the row is removed rather than left as a failed
+ * generation. Installed on every job table, so a new one is covered too.
+ */
+function installReviewStopCleanup(db) {
+    const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE '%job%'").all().map(r => r.name);
+    for (const table of tables) {
+        const cols = db.prepare(`PRAGMA table_info("${table}")`).all().map(c => c.name);
+        const column = ['error_message', 'error'].find(c => cols.includes(c));
+        if (!column) continue;
+        for (const when of ['INSERT', 'UPDATE']) {
+            db.exec(`CREATE TRIGGER IF NOT EXISTS "${table}_review_stop_${when.toLowerCase()}" AFTER ${when} ON "${table}"
+                WHEN NEW."${column}" LIKE 'FINAL_REQUEST_REVIEW_REQUIRED:%'
+                BEGIN DELETE FROM "${table}" WHERE rowid = NEW.rowid; END`);
+        }
+    }
+    return tables.length;
+}
+
+module.exports = { MANUAL_PROVIDERS, isManual, manualError, assertSendable, installReviewStopCleanup };

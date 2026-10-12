@@ -11,7 +11,7 @@ export function reviewRequired(data) {
  const text = typeof data === 'string' ? data : JSON.stringify(data || {});
  return text.match(/FINAL_REQUEST_REVIEW_REQUIRED:([A-Za-z0-9_-]+)/)?.[1] || null;
 }
-export function cancelledReview() { const error = new Error('Generation cancelled before Send'); error.code = 'FINAL_REQUEST_CANCELLED'; return error; }
+export function cancelledReview() { const error = new Error('Closed: the prompt was prepared and nothing was sent'); error.code = 'FINAL_REQUEST_CANCELLED'; return error; }
 
 // Retry/collect operations resume an existing upstream handle. They must never buy
 // another request. The server boundary remains mandatory for every paid adapter.

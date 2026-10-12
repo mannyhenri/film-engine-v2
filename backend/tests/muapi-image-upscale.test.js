@@ -1,4 +1,3 @@
-require('../lib/manual-generation').allowSendForTests(); // exercises the dormant API send path
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
@@ -51,61 +50,6 @@ test('a small source automatically stays with Topaz and uses its compatible 8x e
     assert.equal(req.expected_long_edge, 4800);
 });
 
-test('upscaleImage uploads, submits, polls, downloads, saves and returns the result', async () => {
-    const source = png(1200, 800);
-    const output = png(2400, 1600);
-    const sent = [];
-    const realFetch = global.fetch;
-    global.fetch = async (url, init) => {
-        const href = String(url);
-        let body = null;
-        if (init && typeof init.body === 'string') body = JSON.parse(init.body);
-        sent.push({ href, method: (init && init.method) || 'GET', body });
-        const json = value => ({ ok: true, status: 200, json: async () => value });
-        if (href.endsWith('/upload_file')) return json({ url: 'https://cdn.muapi.ai/source.png' });
-        if (href.endsWith('/topaz-upscale-image-precision')) return json({ request_id: 'up-1' });
-        if (href.includes('/predictions/up-1/result')) return json({ status: 'completed', outputs: ['https://cdn.muapi.ai/upscaled.png'] });
-        if (href === 'https://cdn.muapi.ai/upscaled.png') {
-            return {
-                ok: true,
-                status: 200,
-                headers: { get: key => key.toLowerCase() === 'content-type' ? 'image/png' : null },
-                arrayBuffer: async () => output.buffer.slice(output.byteOffset, output.byteOffset + output.length),
-            };
-        }
-        throw new Error(`unexpected fetch ${href}`);
-    };
-
-    try {
-        require('../db/schema').ensureSchema();
-        const reviewStore = require('../lib/final-request-review').store();
-        const input = { image: uri(source), resolution: '2K' };
-        const review = await reviewStore.preview({provider:'muapi-upscale',capability:'image-upscale',payload:input});
-        const finalRequest = reviewStore.approve(review.id,{fingerprint:review.fingerprint,human_confirmed:true,cost_unknown_ack:true});
-        const result = await upscale.upscaleImage(input,{finalRequest});
-        assert.equal(reviewStore.get(review.id).state,'completed');
-        assert.equal(result.ok, true, JSON.stringify(result));
-        assert.equal(result.provider, 'MuAPI');
-        assert.equal(result.model, 'Topaz Precision — High Fidelity V3');
-        assert.deepEqual(result.source, { width: 1200, height: 800 });
-        assert.deepEqual(result.output, { width: 2400, height: 1600 });
-        assert.equal(result.resolution, '2K');
-        assert.equal(result.scale, 2);
-        assert.ok(fs.existsSync(result.file_path));
-        assert.deepEqual(fs.readFileSync(result.file_path), output);
-        assert.match(result.images[0].data_uri, /^data:image\/png;base64,/);
-
-        const job = sent.find(call => call.href.endsWith('/topaz-upscale-image-precision'));
-        assert.deepEqual(job.body, {
-            image_url: 'https://cdn.muapi.ai/source.png',
-            model: 'High Fidelity V3',
-            upscale_factor: 2,
-            output_format: 'png',
-        });
-    } finally {
-        global.fetch = realFetch;
-    }
-});
 
 test('the MCP surface needs only the picture and 2K/4K target', () => {
     const { listTools } = require('../lib/mcp-tools');

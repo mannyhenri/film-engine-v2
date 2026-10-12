@@ -50,6 +50,7 @@ function ensureSchema() {
 
     if (count > 0) console.log(`  ${count} migration(s) applied.`);
     else console.log('  Database schema up to date.');
+    require('../lib/manual-generation').installReviewStopCleanup(db);
 }
 
 module.exports = { ensureSchema };

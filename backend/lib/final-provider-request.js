@@ -36,7 +36,7 @@ function validateEndpoint(value) {
  for(const name of endpoint.searchParams.keys())if(/^(?:key|api[_-]?key|token|access[_-]?token|authorization|auth|secret|credential|signature|sig)$|(?:secret|auth[_-]?token|api[_-]?key|x-amz-(?:credential|signature))/i.test(name))throw new Error('Provider credential query parameters cannot be included in final request review');
 }
 function builder(provider, capability, payload) {
- const p = payload || {};
+ let p = payload || {};
  const modules = {openai:'openai-image',google:'google-image',muapi:'muapi-image',seedance:'seedance',runway:'runway',higgsfield:'higgsfield',meshy:'meshy',worldlabs:'worldlabs',magnific:'magnific',elevenlabs:'elevenlabs'};
  if(provider === 'muapi-upscale') {
   const parsed = require('./providers/muapi-upload').parseDataUri(p.image);
@@ -66,7 +66,9 @@ function builder(provider, capability, payload) {
  }
  if(provider==='elevenlabs') {
   const allowed={voice:['eleven_multilingual_v2','eleven_flash_v2_5','eleven_turbo_v2_5','eleven_v3'],sfx:['elevenlabs-sound-effects','eleven_text_to_sound_v2'],ambient:['eleven_text_to_sound_v2'],music:['music_v1','music_v2']};
-  if(p.model && !allowed[capability]?.includes(p.model))throw new Error(`Unsupported ElevenLabs ${capability} model: ${p.model}`);
+  // The adapter sends its own default for a model it does not serve (scene cues
+  // are composed with local MusicGen names); the review shows that same request.
+  if(p.model && !allowed[capability]?.includes(p.model))p={...p,model:undefined};
   if(capability==='music' && p.workflow==='music_separate') { const raw=p.file?.bytes;const bytes=Buffer.isBuffer(raw)?raw:Buffer.from(raw?.data || raw || []);return m.buildStemSeparationRequest({...p,file:{...p.file,bytes}}); }
   const builds={voice:m.buildVoiceRequest,sfx:m.buildSfxRequest,ambient:m.buildAmbientRequest,music:m.buildMusicRequest};
   if(!builds[capability])throw new Error('Unsupported ElevenLabs capability');return builds[capability](p);

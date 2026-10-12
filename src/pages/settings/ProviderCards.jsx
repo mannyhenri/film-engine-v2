@@ -35,7 +35,8 @@ const keyName = (p) => p.account || String(p.label || p.id).replace(/\s*\(.*\)\s
 
 /** The tiles: one per account, riders folded in, set ones first. */
 export function keyTiles(catalog) {
-    const all = (catalog.providers || []).filter(p => p.requiresKey || p.connection);
+    // A manual vendor's prompt is copied into its own app; there is no key to keep.
+    const all = (catalog.providers || []).filter(p => (p.requiresKey || p.connection) && !p.manual);
     const ids = new Set(all.map(p => p.id));
     return all.filter(p => !(p.sharesKeyWith && ids.has(p.sharesKeyWith)))
         .map(p => {
@@ -196,7 +197,8 @@ export function CapabilityMap({ catalog, proj, choice, setChoice, onTier }) {
         const effectiveId = (proj.effective && proj.effective[cap]) || '';
         const eff = (catalog.providers || []).find(p => p.id === effectiveId);
         // `enabled` is the engine's own answer: MuAPI images run on the key stored for Seedance.
-        const noKey = eff && eff.requiresKey && !eff.enabled;
+        const manual = !!eff && (eff.manual_capabilities || []).includes(cap);
+        const noKey = !manual && eff && eff.requiresKey && !eff.enabled;
         const r = (proj.resolution || {})[cap];
         const fellThrough = !pinned && r && r.provider && !r.explicit;
         const vendor = (eff && eff.label) || effectiveId;
@@ -227,7 +229,8 @@ export function CapabilityMap({ catalog, proj, choice, setChoice, onTier }) {
                     : <label>Model<select id={`provmodel-${cap}`} value={pinnedModel} disabled={mo.disabled} title={mo.title}
                         onChange={(e) => { const v = e.target.value; setChoice(c => ({ ...c, [cap + '_model']: v })); }}>
                         {mo.options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}</select></label>}
-                {noKey ? <div className="set-cap-state warn">{who} · no key for {vendor} — add it under API keys</div>
+                {manual ? <div className="set-cap-state">{who} · prompt and assets only — you generate in {vendor}'s own app</div>
+                    : noKey ? <div className="set-cap-state warn">{who} · no key for {vendor} — add it under API keys</div>
                     : fellThrough ? <div className="set-cap-state warn" title={r.note || ''}>Nobody picked this: it falls to {vendor}, and spend goes there. Pick a provider to pin it.</div>
                     : <div className="set-cap-state">{who}</div>}
             </div>

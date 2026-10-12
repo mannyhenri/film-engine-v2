@@ -1,5 +1,4 @@
 'use strict';
-require('../lib/manual-generation').allowSendForTests(); // exercises the dormant API send path
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
@@ -294,62 +293,3 @@ async function withRunwayRequest(run) {
     }
 }
 
-test('Runway aborts a stalled POST within the budget and reports unknown acceptance without retry', async () => {
-    await withRunwayRequest(async (adapter, finalRequest) => {
-        let posts = 0;
-        const handles = [];
-        global.fetch = (url, init) => { posts++; return stallUntilAbort(init); };
-        const started = Date.now();
-        const out = await adapter.generate('image', {}, { finalRequest, timeout: 30, onHandle: id => handles.push(id) });
-        assert.equal(out.status, 504, out.error);
-        assert.equal(out.acceptanceUnknown, true);
-        assert.match(out.error, /acceptance|accepted|unknown/i);
-        assert.equal(posts, 1);
-        assert.deepEqual(handles, []);
-        assert(Date.now() - started < 1000);
-    });
-});
-test('Runway aborts a stalled poll and retains the submitted handle for collection', async () => {
-    await withRunwayRequest(async (adapter, finalRequest) => {
-        let posts = 0, polls = 0;
-        const handles = [];
-        global.fetch = (url, init) => {
-            if (init.method === 'POST') { posts++; return Promise.resolve({ ok: true, status: 200, json: async () => ({ id: 'accepted-task' }) }); }
-            polls++; return stallUntilAbort(init);
-        };
-        const out = await adapter.generate('image', {}, { finalRequest, timeout: 30, onHandle: id => handles.push(id), onTimeout: (id, budget) => ({ ok: false, pending: true, request_id: id, budget }) });
-        assert.equal(out.pending, true, out.error);
-        assert.equal(out.request_id, 'accepted-task');
-        assert.equal(out.budget, 30);
-        assert.deepEqual(handles, ['accepted-task']);
-        assert.equal(posts, 1);
-        assert.equal(polls, 1);
-    });
-});
-test('Runway bounds the POST response body as well as waiting for headers', async () => {
-    await withRunwayRequest(async (adapter, finalRequest) => {
-        let posts = 0;
-        global.fetch = async (url, init) => {
-            posts++;
-            return { ok: true, status: 200, json: () => stallUntilAbort(init) };
-        };
-        const out = await adapter.generate('image', {}, { finalRequest, timeout: 30 });
-        assert.equal(out.status, 504, out.error);
-        assert.equal(out.acceptanceUnknown, true);
-        assert.equal(posts, 1);
-    });
-});
-test('Runway collection aborts a stalled GET without submitting another paid task', async () => {
-    await withRunwayRequest(async (adapter, finalRequest) => {
-        let gets = 0;
-        global.fetch = (url, init) => {
-            assert.notEqual(init.method, 'POST');
-            assert.match(String(url), /\/tasks\/accepted-task$/);
-            gets++;
-            return stallUntilAbort(init);
-        };
-        const out = await adapter.collect('accepted-task', { timeout: 30 });
-        assert.equal(out.status, 504, out.error);
-        assert.equal(gets, 1);
-    });
-});

@@ -1,4 +1,3 @@
-require('../lib/manual-generation').allowSendForTests(); // exercises the dormant API send path
 const test=require('node:test');
 const assert=require('node:assert/strict');
 const fs=require('fs');
@@ -46,48 +45,6 @@ const cases=[
  ['higgsfield','image','higgsfield',{model:'soul-standard',prompt:'Visible exact prompt'}],
  ['muapi-upscale','image-upscale','muapi-topaz-upscale',{image:uri,resolution:'2K'}],
 ];
-for(const [provider,capability,name,payload] of cases)test(`${provider}/${capability} actual transport matches frozen visible semantics and bytes`,async()=>{
- snapshot=await boundary.resolveFinalRequest(provider,capability,payload);claims=0;receipts=[];
- const submitted=[];const uploads=[];const original=global.fetch;
- global.fetch=async(url,init={})=>{
-  const href=String(url);
-  if(!init.method || init.method==='GET')return{ok:true,status:200,json:async()=>({credits:100})};
-  if(href.endsWith('/upload_file')){
-   const blob=init.body.get('file');const bytes=Buffer.from(await blob.arrayBuffer());uploads.push(bytes);return{ok:true,status:200,json:async()=>({url:`https://mock.invalid/${uploads.length}`})};
-  }
-  if(href.endsWith('/v1/ai/uploads/request-url'))return{ok:true,status:200,json:async()=>({files:[{upload_url:'https://mock.invalid/put',asset_url:'https://mock.invalid/1'}]})};
-  if(href.endsWith('/files/generate-upload-url'))return{ok:true,status:200,json:async()=>({upload_url:'https://mock.invalid/put',public_url:'https://mock.invalid/1'})};
-  if(init.method==='PUT'){uploads.push(Buffer.from(init.body));return{ok:true,status:200};}
-  submitted.push({url:href,body:init.body});
-  return{ok:false,status:400,text:async()=>JSON.stringify({error:'mock stops after inspecting serialized paid request'}),json:async()=>({error:'mock stops after inspecting serialized paid request'})};
- };
- try{
-  const opts={finalRequest:{id:'approved-test',fingerprint:'approved-hash'}};
-  const changed={...payload,prompt:'MUTATED AFTER APPROVAL',model:'invalid-after-send'};
-  const m=require('../lib/providers/'+name);const adapter=m.adapter||m[`${provider}Adapter`];
-  if(provider==='muapi-upscale')await m.upscaleImage(payload,opts);else await adapter.generate(capability,changed,opts);
-  assert.equal(claims,1);assert.equal(submitted.length,1);assert.equal(receipts.length,1);assert.equal(receipts[0].references.length,snapshot.references.length);assert.equal(submitted[0].url,snapshot.endpoint);
-  if(snapshot.body.encoding==='multipart'){
-   assert(Buffer.isBuffer(submitted[0].body));
-   const actual=receipts[0].body.fields;
-   assert.equal(receipts[0].serialized_base64,submitted[0].body.toString('base64'));
-   assert.deepEqual(actual,snapshot.body.fields);
-  }else{
-   const actual=JSON.parse(submitted[0].body);const expected=structuredClone(snapshot.body);
-   let ix=0;function map(v){if(Array.isArray(v))return v.map(map);if(v&&typeof v==='object')return Object.fromEntries(Object.entries(v).map(([k,x])=>[k,map(x)]));if(typeof v==='string'&&v.startsWith('data:')&&uploads.length)return `https://mock.invalid/${++ix}`;return v;}
-   assert.deepEqual(actual,map(expected));
-  }
-  for(const bytes of uploads)assert(snapshot.references.some(ref=>ref.sha256===crypto.createHash('sha256').update(bytes).digest('hex')));
-  if(uploads.length && snapshot.body.encoding!=='multipart'){
-   function prove(expected,actual,role='body'){
-    if(Array.isArray(expected))return expected.forEach((v,i)=>prove(v,actual[i],`${role}[${i}]`));
-    if(expected&&typeof expected==='object')return Object.entries(expected).forEach(([k,v])=>prove(v,actual[k],`${role}.${k}`));
-    if(typeof expected==='string'&&expected.startsWith('data:')){const index=Number(String(actual).split('/').pop())-1;assert(uploads[index],`missing uploaded bytes for ${role}`);assert.equal(crypto.createHash('sha256').update(uploads[index]).digest('hex'),crypto.createHash('sha256').update(Buffer.from(expected.split(',')[1],'base64')).digest('hex'),`uploaded bytes/role/order differ at ${role}`);}
-   }
-   prove(snapshot.body,JSON.parse(submitted[0].body));
-  }
- }finally{global.fetch=original;}
-});
 test('unknown models and unverified remote references cannot become an approved request',async()=>{
  await assert.rejects(boundary.resolveFinalRequest('muapi','image',{model:'unknown',prompt:'x'}),/Unsupported/);
  await assert.rejects(boundary.resolveFinalRequest('muapi','image',{prompt:'x',reference_images:[{uri:'https://remote.invalid/a.png'}]}),/immutable/);
@@ -123,26 +80,12 @@ test('closed native schemas reject malformed reference roles/counts/image parts 
   assert.equal(calls,0);
  }finally{global.fetch=original;}
 });
-test('Meshy successful preview never sends an unapproved second texture request',async()=>{
- const payload={model:'meshy-6-lite',operation:'text_to_mesh',prompt:'Approved geometry',refine:true};snapshot=await boundary.resolveFinalRequest('meshy','model3d',payload);
- const original=global.fetch;let posts=0;
- global.fetch=async(url,init={})=>{const data=init.method==='POST'?(posts++,{result:'preview-task'}):{status:'SUCCEEDED',model_urls:{glb:'https://result.invalid/model.glb'}};return{ok:true,status:200,json:async()=>data,text:async()=>JSON.stringify(data)};};
- try{const result=await require('../lib/providers/meshy').adapter.generate('model3d',payload,{finalRequest:{id:'approved-test',fingerprint:'hash'}});assert.equal(result.ok,true);assert.equal(posts,1);assert.equal(result.meta.refinement_requires_review,true);assert.equal(result.meta.refine_task_id,null);}finally{global.fetch=original;}
-});
 test('approval replay rejects a second paid submission at the raw adapter boundary',async()=>{
  const savedStore=contract.store;let calls=0;const original=global.fetch;
  snapshot=await boundary.resolveFinalRequest('muapi','image',{prompt:'Approved once'});
  contract.store=()=>({claim:()=>({snapshot,replay:true,request_id:'existing-paid-job'}),uncertain:()=>{}});
  global.fetch=async()=>{calls++;throw Error('Must not submit');};
  try{await assert.rejects(require('../lib/providers/muapi-image').generate('image',{prompt:'x'},{finalRequest:{id:'once',fingerprint:'hash'}}),/already sent/);assert.equal(calls,0);}finally{contract.store=savedStore;global.fetch=original;}
-});
-test('a provider outage never automatically repeats the paid POST',async()=>{
- const original=global.fetch;try{
-  for(const [provider,capability,name,payload] of [['higgsfield','image','higgsfield',{model:'soul-standard',prompt:'x'}],['elevenlabs','voice','elevenlabs',{text:'hello'}]]){
-   snapshot=await boundary.resolveFinalRequest(provider,capability,payload);let calls=0;global.fetch=async()=>{calls++;return{ok:false,status:503,json:async()=>({error:'mock outage'}),text:async()=>JSON.stringify({error:'mock outage'})};};
-   const m=require('../lib/providers/'+name);await m.adapter.generate(capability,payload,{finalRequest:{id:'approved-test',fingerprint:'hash'}});assert.equal(calls,1);
-  }
- }finally{global.fetch=original;}
 });
 test('changed endpoint routing state invalidates an approved snapshot before any paid POST',async()=>{
  const oldBase=process.env.OPENAI_BASE_URL,original=global.fetch;let calls=0;

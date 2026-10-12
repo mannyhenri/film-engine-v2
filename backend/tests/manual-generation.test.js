@@ -81,3 +81,21 @@ test('kept providers are not blocked by the manual gate',async()=>{
  assert.ok(f.s.approve(r.id,{fingerprint:r.fingerprint,human_confirmed:true,cost_unknown_ack:true}).id);
  f.close();
 });
+
+test('with no stored keys, a project pinned to any manual capability resolves to it and its prompt still builds',async()=>{
+ const credentials=require('../lib/providers/credentials'),original=credentials.getCredential;
+ credentials.getCredential=()=>({apiKey:null,meta:{}});
+ try{
+  const providers=require('../lib/providers'),{resolveFinalRequest}=require('../lib/final-provider-request');
+  // Automatic choice is unchanged (kept providers, e.g. Gridlight, are not displaced); a pin needs no key.
+  const builds={openai:'image',google:'image',muapi:'image',seedance:'video',runway:'video',higgsfield:'video',meshy:'model3d',worldlabs:'world'};
+  for(const adapter of providers.list())for(const capability of adapter.capabilities||[]){
+   if(!manual.isManual(adapter.id,capability))continue;
+   assert.equal(providers.resolveIdWithReason(capability,{[capability]:adapter.id}).id,adapter.id,adapter.id+'/'+capability+' pinned without a key');
+  }
+  for(const [provider,capability] of Object.entries(builds)){
+   const request=await resolveFinalRequest(provider,capability,{prompt:'A lighthouse at dusk'});
+   assert.match(request.endpoint,/^https:\/\//,provider+' builds its prompt without a key');
+  }
+ }finally{credentials.getCredential=original;}
+});

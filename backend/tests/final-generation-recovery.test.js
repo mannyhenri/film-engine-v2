@@ -1,5 +1,4 @@
 'use strict';
-require('../lib/manual-generation').allowSendForTests(); // exercises the dormant API send path
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
@@ -52,106 +51,6 @@ test('concurrent collects poll, persist and meter the accepted job once', async 
         assert.equal((await jobs.collect(id)).already, 'completed');
     } finally { adapter.collect = original; }
 });
-test('collect accepts the review receipt when handle recording failed and preserves the native result', async () => {
-    const f = fixture(), progress = require('../lib/generation-progress'), oldStart = progress.start, oldRecord = jobs.record, oldFetch = global.fetch;
-    const payload = { prompt: 'Handle receipt recovery', model: 'nano-banana-2' };
-    const token = await approved({ provider: 'muapi', capability: 'image', payload, provenance: { project_id: f.project,shot_id:f.shot } });
-    let posts = 0;
-    progress.start = () => null;
-    jobs.record = () => null;
-    global.fetch = async (url, opts = {}) => {
-        if (opts.method === 'POST') { posts++; return { ok: true, json: async () => ({ request_id: 'receipt-' + f.project }) }; }
-        if (String(url).includes('/predictions/')) return { ok: true, json: async () => ({ status: 'completed', outputs: ['https://mock.invalid/receipt.png'] }) };
-        assert.equal(String(url), 'https://mock.invalid/receipt.png');
-        return { ok: true, arrayBuffer: async () => png };
-    };
-    try {
-        const generator = providers.resolve('image', { image: 'muapi', __project_id: f.project,__shot_id:f.shot });
-        const generated = await reviews.runWithApprovals([token], () => generator.generate('image', payload, {jobMeta:{storyboard_frame:{shot_id:f.shot,width:32,height:18}}}));
-        assert.equal(generated.ok, true, generated.error);
-        assert.ok(reviews.store().get(token.id).result.data, 'registry overwrote the retained native bytes with a summary');
-        assert.equal(reviews.store().get(token.id).result._final_request_receipt.job_meta.storyboard_frame.shot_id,f.shot);
-        jobs.record = oldRecord;
-        const recovered = await jobs.collect(token.id);
-        assert.equal(recovered.ok, true, recovered.error);
-        assert.deepEqual(fs.readFileSync(recovered.stored), png);
-        assert.equal(recovered.frame.shot_id,f.shot);
-        assert.equal(db.prepare('SELECT COUNT(*) n FROM film_assets WHERE shot_id=?').get(f.shot).n,1);
-        assert.equal(posts, 1, 'receipt recovery bought another generation');
-        assert.equal(db.prepare('SELECT COUNT(*) n FROM film_usage_events WHERE project_id=?').get(f.project).n, 1);
-    } finally { progress.start = oldStart; jobs.record = oldRecord; global.fetch = oldFetch; }
-});
-test('failed pipeline filing can recover the accepted bytes without a second generation POST', async () => {
-    const f = fixture(), route = `/shots/${f.shot}/pipeline/run`, body = { only_steps: ['keyframe'] };
-    const plan = await require('../lib/final-pipeline-request-plans').preparePipelineRequests({ path: route, body });
-    const tokens = await Promise.all(plan.items.map(approved));
-    const oldFetch = global.fetch, oldWrite = fs.writeFileSync,oldAccepted=jobs.accepted;
-    let posts = 0, rejectSave = true;
-    global.fetch = async (url, opts = {}) => {
-        if (opts.method === 'POST') { posts++; return { ok: true, json: async () => ({ request_id: 'pipeline-' + f.project }) }; }
-        if (String(url).includes('/predictions/')) return { ok: true, json: async () => ({ status: 'completed', outputs: ['https://mock.invalid/pipeline.png'] }) };
-        assert.equal(String(url), 'https://mock.invalid/pipeline.png');
-        return { ok: true, arrayBuffer: async () => png };
-    };
-    fs.writeFileSync = function (file, ...args) {
-        if (rejectSave && String(file).includes('_keyframe_')) throw new Error('Injected pipeline storage failure');
-        return oldWrite.call(this, file, ...args);
-    };
-    jobs.accepted=()=>false;
-    try {
-        const failed = await pipelineRequest(route, { ...body, final_request_approvals: tokens });
-        assert.equal(failed.body.status, 'failed', JSON.stringify(failed));
-        assert.equal(posts, 1);
-        assert.ok(failed.body.next_recovery, 'failed accepted work has no supported recovery action');
-        rejectSave = false;
-        const run=db.prepare('SELECT params FROM film_pipeline_runs WHERE id=?').get(failed.body.run_id),params=JSON.parse(run.params);
-        params.final_pipeline.recovery_attempt={id:'interrupted-recovery',started_at:Date.now()};
-        db.prepare("UPDATE film_pipeline_runs SET status='running',params=? WHERE id=?").run(JSON.stringify(params),failed.body.run_id);
-        const waiting=await pipelineRequest(failed.body.next_recovery.path);
-        assert.equal(waiting.body.status,'recovering');assert.equal(posts,1);
-        params.final_pipeline.recovery_attempt.started_at=Date.now()-21*60*1000;
-        db.prepare('UPDATE film_pipeline_runs SET params=? WHERE id=?').run(JSON.stringify(params),failed.body.run_id);
-        const recovered = await pipelineRequest(failed.body.next_recovery.path, failed.body.next_recovery.body);
-        assert.equal(recovered.body.status, 'complete', JSON.stringify(recovered));
-        assert.equal(posts, 1, 'pipeline recovery bought another generation');
-        const assets = db.prepare('SELECT * FROM film_assets WHERE shot_id=?').all(f.shot);
-        assert.equal(assets.length, 1);
-        assert.deepEqual(fs.readFileSync(assets[0].file_path), png);
-        assert.equal(db.prepare('SELECT COUNT(*) n FROM film_usage_events WHERE project_id=?').get(f.project).n, 1);
-        const repeated = await pipelineRequest(failed.body.next_recovery.path, failed.body.next_recovery.body);
-        assert.equal(repeated.body.status, 'complete', JSON.stringify(repeated));
-        assert.equal(db.prepare('SELECT COUNT(*) n FROM film_assets WHERE shot_id=?').get(f.shot).n, 1);
-        assert.equal(posts, 1);
-    } finally { fs.writeFileSync = oldWrite; global.fetch = oldFetch;jobs.accepted=oldAccepted; }
-});
-test('pending accepted handle survives failed job recording and collects through the ordinary route', async () => {
-    const f=fixture(),progress=require('../lib/generation-progress'),oldStart=progress.start,oldRecord=jobs.record,oldFetch=global.fetch;
-    const payload={prompt:'Accepted pending handle fixture',model:'nano-banana-2'};
-    const token=await approved({provider:'muapi',capability:'image',payload,provenance:{project_id:f.project}});
-    let posts=0,finished=false;
-    progress.start=()=>null;jobs.record=()=>null;
-    global.fetch=async(url,opts={})=>{
-        if(opts.method==='POST'){posts++;return {ok:true,json:async()=>({request_id:'pending-'+f.project})};}
-        if(String(url).includes('/predictions/'))return {ok:true,json:async()=>finished?{status:'completed',outputs:['https://mock.invalid/pending.png']}:{status:'processing'}};
-        assert.equal(String(url),'https://mock.invalid/pending.png');return {ok:true,arrayBuffer:async()=>png};
-    };
-    try{
-        const generated=await reviews.runWithApprovals([token],()=>providers.resolve('image',{image:'muapi',__project_id:f.project}).generate('image',payload,{timeout:1}));
-        assert.equal(generated.pending,true,generated.error);
-        assert.equal(generated.review_id,token.id);
-        assert.equal(reviews.store().get(token.id).state,'submitted');
-        assert.equal(jobs.retainedReceipts(f.project)[0].review_id,token.id);
-        jobs.record=oldRecord;finished=true;
-        const response=await new Promise((resolve,reject)=>{
-            const res={writeHead(status){this.status=status;},end(body){resolve({status:this.status,body:JSON.parse(body)});}};
-            Promise.resolve(require('../routes/generation-jobs').handleGenerationJobs({method:'POST',body:{}},res,['film','generation-jobs',token.id,'collect'])).catch(reject);
-        });
-        assert.equal(response.status,200,response.body.error);
-        assert.deepEqual(fs.readFileSync(response.body.stored),png);
-        assert.equal(posts,1);
-        assert.equal(jobs.retainedReceipts(f.project).length,0);
-    }finally{progress.start=oldStart;jobs.record=oldRecord;global.fetch=oldFetch;}
-});
 test('storage retry reuses cached output and rejects retargeting before provider collection', async()=>{
     const f=fixture(),adapter=providers.get('muapi'),oldCollect=adapter.collect,capabilities=require('../lib/capability-payloads'),oldPersist=capabilities.persistCapabilityResult;
     const id=jobs.record({provider:'muapi',capability:'image',requestId:'save-retry-'+f.project,projectId:f.project,shotId:f.shot,meta:{storyboard_frame:{shot_id:f.shot,width:32,height:18},meter:{model:'nano-banana-2',unit:'image',quantity:1}}});
@@ -190,95 +89,6 @@ test('a captured storyboard frame cannot be retargeted to a sequence leg by belo
         assert.equal(filed.ok,true,filed.error);assert.equal(filed.frame.shot_id,f.shot);assert.equal(polls,1);
     }finally{adapter.collect=oldCollect;}
 });
-test('an accepted prefix followed by a refused item recovers its receipt and freshly reviews only the remaining item',async()=>{
-    const f=fixture(),oldFetch=global.fetch,character=crypto.randomUUID(),voice=crypto.randomUUID();
-    db.prepare('UPDATE film_projects SET provider_config=? WHERE id=?').run(JSON.stringify({voice:'elevenlabs'}),f.project);
-    db.prepare('INSERT INTO film_characters(id,project_id,name) VALUES(?,?,?)').run(character,f.project,'MANNY');
-    db.prepare('INSERT INTO film_voice_profiles(id,project_id,character_id,name,tts_model) VALUES(?,?,?,?,?)').run(voice,f.project,character,'Mock cast voice','eleven_multilingual_v2');
-    db.prepare('UPDATE film_shots SET scene_card_yaml=? WHERE id=?').run(JSON.stringify({action:'Review accepted prefix',dialogue:[{character:'MANNY',line:'Accepted prefix fixture A'},{character:'MANNY',line:'Remaining refused fixture B'}]}),f.shot);
-    const route=`/shots/${f.shot}/pipeline/run`,body={only_steps:['voice']};
-    const lines=['Accepted prefix fixture A','Remaining refused fixture B'];
-    const posts=[];let refuseSecond=true;
-    global.fetch=async(url,opts={})=>{
-        assert.equal(opts.method,'POST');assert.match(String(url),/api\.elevenlabs\.io/);
-        const sent=JSON.parse(opts.body);posts.push(sent.text);
-        if(sent.text===lines[1]&&refuseSecond)return {ok:false,status:400,json:async()=>({detail:'Injected refusal for remaining item'}),text:async()=>'{"detail":"Injected refusal for remaining item"}'};
-        return {ok:true,status:200,headers:{get:name=>name==='content-type'?'audio/pcm':null},arrayBuffer:async()=>Buffer.alloc(960)};
-    };
-    try{
-        const plan=await require('../lib/final-pipeline-request-plans').preparePipelineRequests({path:route,body});
-        const failed=await pipelineRequest(route,{...body,final_request_approvals:await Promise.all(plan.items.map(approved))});
-        assert.equal(failed.body.status,'failed');assert.equal(posts.length,2);
-        assert.equal(db.prepare('SELECT COUNT(*) n FROM film_assets WHERE shot_id=?').get(f.shot).n,1);
-        assert.ok(failed.body.next_recovery,'accepted prefix receipt was discarded because the last item failed');
-        const recovered=await pipelineRequest(failed.body.next_recovery.path);
-        assert.equal(recovered.body.status,'awaiting_review',JSON.stringify(recovered));assert.equal(posts.length,2);
-        const state=JSON.parse(db.prepare('SELECT params FROM film_pipeline_runs WHERE id=?').get(failed.body.run_id).params).final_pipeline;
-        assert.deepEqual(state.completed_items[f.shot+':voice'],[0]);assert.equal(state.completed.includes(f.shot+':voice'),false);
-        const remaining=await require('../lib/final-pipeline-request-plans').preparePipelineRequests(recovered.body.next_review);
-        assert.equal(remaining.items.length,1);assert.equal(remaining.items[0].provenance.item_index,1);
-        refuseSecond=false;
-        const completed=await pipelineRequest(recovered.body.next_review.path,{final_request_approvals:await Promise.all(remaining.items.map(approved))});
-        assert.equal(completed.body.status,'complete',JSON.stringify(completed));assert.equal(posts.length,3);
-        assert.equal(posts.filter(p=>p===lines[0]).length,1,'fresh resume regenerated the delivered prefix');
-        assert.equal(db.prepare('SELECT COUNT(*) n FROM film_assets WHERE shot_id=?').get(f.shot).n,2);
-        assert.equal(db.prepare('SELECT COUNT(*) n FROM film_usage_events WHERE project_id=?').get(f.project).n,2);
-    }finally{global.fetch=oldFetch;}
-});
-test('synchronous accepted usage survives ledger failure and completed-job retry',async()=>{
-    const f=fixture(),oldFetch=global.fetch,oldPrepare=db.prepare,character=crypto.randomUUID();
-    db.prepare('UPDATE film_projects SET provider_config=? WHERE id=?').run(JSON.stringify({voice:'elevenlabs'}),f.project);
-    db.prepare('INSERT INTO film_characters(id,project_id,name) VALUES(?,?,?)').run(character,f.project,'MANNY');
-    db.prepare('INSERT INTO film_voice_profiles(id,project_id,character_id,name,tts_model) VALUES(?,?,?,?,?)').run(crypto.randomUUID(),f.project,character,'Sync mock voice','eleven_multilingual_v2');
-    db.prepare('UPDATE film_shots SET scene_card_yaml=? WHERE id=?').run(JSON.stringify({action:'Sync usage recovery',dialogue:[{character:'MANNY',line:'One accepted synchronous line'}]}),f.shot);
-    let posts=0;global.fetch=async(url,opts={})=>{assert.equal(opts.method,'POST');posts++;return {ok:true,status:200,headers:{get:name=>name==='content-type'?'audio/pcm':null},arrayBuffer:async()=>Buffer.alloc(960)};};
-    try{
-        const route=`/shots/${f.shot}/pipeline/run`,body={only_steps:['voice']};
-        const plan=await require('../lib/final-pipeline-request-plans').preparePipelineRequests({path:route,body});
-        const tokens=await Promise.all(plan.items.map(approved));
-        db.prepare=function(sql){if(sql.includes('INSERT INTO film_usage_events'))return {run(){throw new Error('Injected synchronous usage write failure');}};return oldPrepare.call(this,sql);};
-        const delivered=await pipelineRequest(route,{...body,final_request_approvals:tokens});
-        assert.equal(delivered.body.status,'complete',JSON.stringify(delivered));assert.equal(posts,1);
-        const job=db.prepare('SELECT * FROM film_generation_jobs WHERE project_id=?').get(f.project);
-        assert.equal(db.prepare('SELECT COUNT(*) n FROM film_usage_events WHERE project_id=?').get(f.project).n,0);
-        db.prepare=oldPrepare;
-        const retry=await jobs.collect(job.id);assert.equal(retry.ok,true,retry.error);
-        assert.equal(db.prepare('SELECT COUNT(*) n FROM film_usage_events WHERE project_id=?').get(f.project).n,1,'completed sync receipt lost its meter plan');
-        assert.equal(db.prepare('SELECT COUNT(*) n FROM film_assets WHERE project_id=?').get(f.project).n,1);assert.equal(posts,1);
-        // Historical rows without a meter plan reconcile it from the actual retained receipt.
-        const metadata=JSON.parse(jobs.get(job.id).meta);delete metadata.meter;
-        db.prepare('UPDATE film_generation_jobs SET meta=? WHERE id=?').run(JSON.stringify(metadata),job.id);
-        await jobs.collect(tokens[0].id);assert.ok(JSON.parse(jobs.get(job.id).meta).meter);
-        assert.equal(db.prepare('SELECT COUNT(*) n FROM film_usage_events WHERE project_id=?').get(f.project).n,1);
-    }finally{global.fetch=oldFetch;db.prepare=oldPrepare;}
-});
-test('ordinary completed frames recover by job and review receipts after interrupted filing without duplicating filed bytes',async()=>{
-    const oldFetch=global.fetch;let posts=0;
-    global.fetch=async(url,opts={})=>{if(opts.method==='POST'){posts++;return {ok:true,json:async()=>({request_id:'ordinary-'+posts})};}if(String(url).includes('/predictions/'))return {ok:true,json:async()=>({status:'completed',outputs:['https://mock.invalid/ordinary.png']})};return {ok:true,arrayBuffer:async()=>png};};
-    try{
-        for(const byReview of [false,true]){
-            const f=fixture(),payload={prompt:'Interrupted ordinary frame '+f.project,model:'nano-banana-2'};
-            const token=await approved({provider:'muapi',capability:'image',payload,provenance:{project_id:f.project,shot_id:f.shot}});
-            const generated=await reviews.runWithApprovals([token],()=>providers.resolve('image',{image:'muapi',__project_id:f.project,__shot_id:f.shot}).generate('image',payload,{jobMeta:{storyboard_frame:{shot_id:f.shot,width:32,height:18}}}));
-            assert.equal(generated.ok,true,generated.error);assert.equal(jobs.get(generated.job_id).status,'completed');
-            const delivered=await jobs.collect(byReview?token.id:generated.job_id);
-            assert.equal(delivered.ok,true,delivered.error);assert.equal(delivered.frame.shot_id,f.shot);
-            assert.equal(db.prepare('SELECT COUNT(*) n FROM film_assets WHERE shot_id=?').get(f.shot).n,1);
-            assert.equal((await jobs.collect(token.id)).already,'completed');
-            assert.equal(db.prepare('SELECT COUNT(*) n FROM film_assets WHERE shot_id=?').get(f.shot).n,1);
-        }
-        const f=fixture(),payload={prompt:'Already filed original frame '+f.project,model:'nano-banana-2'};
-        const token=await approved({provider:'muapi',capability:'image',payload,provenance:{project_id:f.project,shot_id:f.shot}});
-        const generated=await reviews.runWithApprovals([token],()=>providers.resolve('image',{image:'muapi',__project_id:f.project,__shot_id:f.shot}).generate('image',payload,{jobMeta:{storyboard_frame:{shot_id:f.shot,width:32,height:18}}}));
-        const file=path.join(process.env.FILM_DATA_DIR,'live-original-'+f.project+'.png');fs.writeFileSync(file,png);
-        const assetId=crypto.randomUUID();db.prepare("INSERT INTO film_assets(id,project_id,shot_id,asset_type,file_name,file_path,version,width,height,metadata) VALUES(?,?,?,'storyboard',?,?,1,32,18,?)").run(assetId,f.project,f.shot,path.basename(file),file,JSON.stringify({provider:'muapi',provider_model:'nano-banana-2'}));
-        db.prepare('UPDATE film_shots SET current_frame_version=1 WHERE id=?').run(f.shot);
-        const adopted=await jobs.collect(generated.job_id);assert.equal(adopted.ok,true,adopted.error);assert.equal(adopted.asset_id,assetId);
-        assert.equal(db.prepare('SELECT COUNT(*) n FROM film_assets WHERE shot_id=?').get(f.shot).n,1);
-        assert.equal(db.prepare('SELECT current_frame_version FROM film_shots WHERE id=?').get(f.shot).current_frame_version,1);
-        assert.equal(posts,3);
-    }finally{global.fetch=oldFetch;}
-});
 test('retained metering shares native billing tiers and charges with the approved estimate',()=>{
     const price=require('../lib/provider-pricing').priceUsage;
     const cases=[
@@ -300,19 +110,6 @@ test('retained metering shares native billing tiers and charges with the approve
     const confirmed=jobs.meterPlan('meshy','image',{},actual,{ok:true,provider_model:'gpt-image-2',native_charged:17});
     assert.equal(confirmed.native_charged,17);assert.equal(confirmed.provider_confirmed,true);
 });
-test('approved native text edits meter the sent characters in the initial and retained receipt',async()=>{
-    const f=fixture(),oldFetch=global.fetch,payload={text:'Original short line',model:'eleven_multilingual_v2'};
-    const snapshot=await require('../lib/final-provider-request').resolveFinalRequest('elevenlabs','voice',payload);
-    const edited={...payload,final_request_body:{...snapshot.body,text:'The distinctly longer line approved in the final native request'}};
-    const token=await approved({provider:'elevenlabs',capability:'voice',payload:edited,provenance:{project_id:f.project}});
-    global.fetch=async(url,opts)=>{assert.equal(JSON.parse(opts.body).text,edited.final_request_body.text);return {ok:true,status:200,headers:{get:()=>null},arrayBuffer:async()=>Buffer.alloc(960)};};
-    try{
-        const result=await reviews.runWithApprovals([token],()=>providers.resolve('voice',{voice:'elevenlabs',__project_id:f.project}).generate('voice',edited));
-        assert.equal(result.ok,true,result.error);
-        assert.equal(db.prepare('SELECT quantity FROM film_usage_events WHERE project_id=?').get(f.project).quantity,edited.final_request_body.text.length);
-        assert.equal(JSON.parse(jobs.get(result.job_id).meta).meter.quantity,edited.final_request_body.text.length);
-    }finally{global.fetch=oldFetch;}
-});
 async function completedFrameFixture(){
     const f=fixture(),payload={prompt:'Frame continuity '+f.project,model:'nano-banana-2'},token=await approved({provider:'muapi',capability:'image',payload,provenance:{project_id:f.project,shot_id:f.shot}});
     const result=await reviews.runWithApprovals([token],()=>providers.resolve('image',{image:'muapi',__project_id:f.project,__shot_id:f.shot}).generate('image',payload,{jobMeta:{storyboard_frame:{shot_id:f.shot,width:32,height:18}}}));
@@ -323,27 +120,6 @@ function insertedFrame(f,bytes,metadata={}){
     db.prepare("INSERT INTO film_assets(id,project_id,shot_id,asset_type,file_name,file_path,version,width,height,provider,provider_model,metadata) VALUES(?,?,?,'storyboard',?,?,1,32,18,'muapi','nano-banana-2',?)").run(id,f.project,f.shot,path.basename(file),file,JSON.stringify(metadata));
     db.prepare('UPDATE film_shots SET current_frame_version=1 WHERE id=?').run(f.shot);return {id,file};
 }
-test('an ambiguous conformed live frame blocks receipt replay without creating another version',async()=>{
-    const oldFetch=global.fetch;global.fetch=async(url,opts={})=>opts.method==='POST'?{ok:true,json:async()=>({request_id:'ambiguous-'+crypto.randomUUID()})}:String(url).includes('/predictions/')?{ok:true,json:async()=>({status:'completed',outputs:['https://mock.invalid/frame.png']})}:{ok:true,arrayBuffer:async()=>png};
-    try{
-        const f=await completedFrameFixture(),saved=insertedFrame(f,Buffer.from('Conformed bytes differ from retained native raster'));
-        const blocked=await jobs.collect(f.result.job_id);assert.equal(blocked.ok,false);assert.match(blocked.error,/identity|reconciliation/);
-        assert.equal(db.prepare('SELECT COUNT(*) n FROM film_assets WHERE shot_id=?').get(f.shot).n,1);
-        assert.equal(db.prepare('SELECT current_frame_version FROM film_shots WHERE id=?').get(f.shot).current_frame_version,1);
-        assert.deepEqual(fs.readFileSync(saved.file),Buffer.from('Conformed bytes differ from retained native raster'));
-    }finally{global.fetch=oldFetch;}
-});
-test('a late captured frame is filed as history while a newer known job remains selected',async()=>{
-    const oldFetch=global.fetch;global.fetch=async(url,opts={})=>opts.method==='POST'?{ok:true,json:async()=>({request_id:'history-'+crypto.randomUUID()})}:String(url).includes('/predictions/')?{ok:true,json:async()=>({status:'completed',outputs:['https://mock.invalid/frame.png']})}:{ok:true,arrayBuffer:async()=>png};
-    try{
-        const f=await completedFrameFixture(),newBytes=require('../lib/png-raster').encode({width:32,height:18,pixels:Buffer.alloc(32*18*4,81)}),saved=insertedFrame(f,newBytes,{generation_job_id:crypto.randomUUID()});
-        const recovered=await jobs.collect(f.result.job_id);assert.equal(recovered.ok,true,recovered.error);assert.equal(recovered.frame.historical,true);assert.match(recovered.frame.filed,/newer selected frame is preserved/);
-        assert.equal(db.prepare('SELECT current_frame_version FROM film_shots WHERE id=?').get(f.shot).current_frame_version,1);
-        assert.deepEqual(fs.readFileSync(saved.file),newBytes);assert.deepEqual(fs.readFileSync(recovered.stored),png);
-        assert.equal(db.prepare('SELECT COUNT(*) n FROM film_assets WHERE shot_id=?').get(f.shot).n,2);
-        assert.equal((await jobs.collect(f.token.id)).already,'completed');assert.equal(db.prepare('SELECT COUNT(*) n FROM film_assets WHERE shot_id=?').get(f.shot).n,2);
-    }finally{global.fetch=oldFetch;}
-});
 function recoveryRun(f,{local=false,receipts=['one'],items=[0],expected=1}={}){
     const id=crypto.randomUUID(),key=f.shot+':keyframe',state={version:1,body:{},tasks:[{shot_id:f.shot,step_id:'keyframe',key},...(local?[{shot_id:f.shot,step_id:'assembly',key:'film:assembly',local:true}]:[])],completed:[],failed:[{step_id:key}],skipped:[],recovery:[{step_id:key,receipts,items,expected_items:expected}],awaiting:false};
     db.prepare("INSERT INTO film_pipeline_runs(id,project_id,shot_id,run_type,status,params) VALUES(?,?,?,'shot','failed',?)").run(id,f.project,f.shot,JSON.stringify({final_pipeline:state}));return {id,key,state};

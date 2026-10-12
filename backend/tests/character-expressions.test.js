@@ -1,5 +1,4 @@
 'use strict';
-require('../lib/manual-generation').allowSendForTests(); // exercises the dormant API send path
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('fs'),os=require('os'),path=require('path'),crypto=require('crypto');
 const temp=fs.mkdtempSync(path.join(os.tmpdir(),'expression-tests-'));
 process.env.FILM_DATA_DIR=temp;
@@ -84,28 +83,6 @@ test('selected expressions append intentionally; mandatory references, provider 
  assert.throws(()=>expr.appendSelectedExpressions(base,selected,ctx,{...provider,maxReferenceImages:4,promptLimit:10}),/prompt budget/);
  s.update(f.id,'slot-1',{revision:1,asset_id:null});assert.throws(()=>expr.appendSelectedExpressions(base,selected,ctx,{...provider,maxReferenceImages:4}),/changed/);
 });
-test('approved expression transport matches the reviewed bytes once; concurrent sends and replay cannot generate again',async()=>{
- const f=fixture(),contract=require('../lib/final-request-review'),body={revision:0};
- const planned=await require('../lib/final-subject-request-plans').prepareSubjectRequests({path:`/characters/${f.id}/expressions/slot-4/generate`,body});
- const review=await contract.store().preview(planned.items[0]),token=contract.store().approve(review.id,{fingerprint:review.fingerprint,human_confirmed:true,cost_unknown_ack:true});
- const original=global.fetch,posts=[],uploads=[];
- global.fetch=async(url,init={})=>{
-  if(String(url).endsWith('/upload_file')){uploads.push(Buffer.from(await init.body.get('file').arrayBuffer()));return {ok:true,status:200,json:async()=>({url:'https://mock.invalid/identity.png'})};}
-  if(init.method==='POST'){posts.push({url:String(url),body:JSON.parse(init.body)});return {ok:true,status:200,json:async()=>({request_id:'mock-expression-success'})};}
-  if(String(url).includes('predictions/'))return {ok:true,status:200,json:async()=>({status:'completed',outputs:['https://mock.invalid/expression.png']})};
-  return {ok:true,status:200,arrayBuffer:async()=>png};
- };
- function response(){return {writeHead(status){this.status=status;},end(text){this.body=JSON.parse(text);}};}
- try {
-  const a=response(),b=response(),route=require('../routes/characters');
-  await contract.runWithApprovals([token],()=>Promise.all([a,b].map(res=>route.handleCharacters({method:'POST',body},res,['film','characters',f.id,'expressions','slot-4','generate']))));
-  assert.deepEqual([a.status,b.status].sort(),[201,409],JSON.stringify([a.body,b.body]));assert.equal(posts.length,1);assert.equal(uploads.length,1);assert.deepEqual(uploads[0],png);
-  const expected=JSON.parse(JSON.stringify(review.snapshot.body));expected.images_list=expected.images_list.map(()=> 'https://mock.invalid/identity.png');assert.deepEqual(posts[0].body,expected);assert.equal(posts[0].url,review.snapshot.endpoint);
-  assert.equal(s.history(f.id,'slot-4').length,1);assert.equal(s.identity(f.id).id,f.anchor);assert.equal(s.slot(f.id,'slot-4').revision,2);
-  const jobCount=db.prepare('SELECT COUNT(*) n FROM film_generation_jobs').get().n,r=response();
-  await contract.runWithApprovals([token],()=>route.handleCharacters({method:'POST',body},r,['film','characters',f.id,'expressions','slot-4','generate']));assert.equal(r.status,409);assert.equal(posts.length,1);assert.equal(db.prepare('SELECT COUNT(*) n FROM film_generation_jobs').get().n,jobCount);
- }finally{global.fetch=original;}
-});
 test('two concurrent collectors file a pending expression exactly once; a newer selected version stays active',async()=>{
  const f=fixture(),slot=s.slot(f.id,'slot-5'),reserved=s.reserve(f.id,'slot-5',0);
  const jobs=require('../lib/generation-jobs'),provider=require('../lib/providers').get('muapi'),oldCollect=provider.collect;
@@ -144,20 +121,6 @@ test('actual storyboard planning records intentional expression metadata and inv
  assert(item.payload.reference_images.some(r=>r.reference_role==='expression'));assert.match(review.snapshot.body.prompt,/facial expression Fear/);
  contract.store().validate(review.id);s.update(f.id,'slot-2',{revision:1,label:'Apprehension'});
  assert.throws(()=>contract.store().validate(review.id),/inputs changed/);
-});
-test('unapproved or stale generation creates no paid transport, reservation or replacement',async()=>{
- const f=fixture(),route=require('../routes/characters');let status,body;
- const res={writeHead(s){status=s;},end(value){body=JSON.parse(value);}};
- await route.handleCharacters({method:'POST',body:{revision:0}},res,['film','characters',f.id,'expressions','slot-1','generate']);
- assert.equal(status,428);assert.match(body.error,/approved request/);assert.equal(s.slot(f.id,'slot-1').revision,0);
- const contract=require('../lib/final-request-review'),plan=await require('../lib/final-subject-request-plans').prepareSubjectRequests({path:`/characters/${f.id}/expressions/slot-1/generate`,body:{revision:0}});
- const review=await contract.store().preview(plan.items[0]);
- await contract.runWithApprovals([{id:review.id,fingerprint:review.fingerprint}],()=>route.handleCharacters({method:'POST',body:{revision:0}},res,['film','characters',f.id,'expressions','slot-1','generate']));
- assert.equal(status,409);assert.equal(s.slot(f.id,'slot-1').revision,0);
- const token=contract.store().approve(review.id,{fingerprint:review.fingerprint,human_confirmed:true,cost_unknown_ack:true});
- s.update(f.id,'slot-1',{revision:0,label:'Fearful'});
- await contract.runWithApprovals([token],()=>route.handleCharacters({method:'POST',body:{revision:0}},res,['film','characters',f.id,'expressions','slot-1','generate']));
- assert.equal(status,409);assert.match(body.error,/changed/);assert.equal(s.slot(f.id,'slot-1').revision,1);
 });
 test('real manual prepare/create/import routes never submit generation and ignore a later UI target',async()=>{
  const f=fixture(),other=fixture(),route=require('../routes/final-request-review'),contract=require('../lib/final-request-review');

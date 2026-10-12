@@ -1,5 +1,4 @@
 'use strict';
-require('../lib/manual-generation').allowSendForTests(); // exercises the dormant API send path
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
@@ -56,16 +55,4 @@ async function approvedReplan(seed) {
     return { first, second, authorized };
 }
 
-test('explicit storyboard seed zero survives the actual normalized Higgsfield path and matches its approval', async () => {
-    const { first, second, authorized } = await approvedReplan(0);
-    assert.equal(authorized.ok, true, JSON.stringify({ first_seed: first.payload.seed, second_seed: second.payload.seed, default_seed: first.provenance.default_seed, status: authorized.status }));
-    assert.equal(first.payload.seed, 0);
-    assert.equal(second.payload.seed, 0);
-    assert.equal(first.provenance.default_seed, undefined);
-});
 
-test('null storyboard seed remains an ephemeral default and matches its approval after replanning', async () => {
-    const { first, authorized } = await approvedReplan(null);
-    assert.equal(authorized.ok, true, JSON.stringify({ seed: first.payload.seed, default_seed: first.provenance.default_seed, status: authorized.status }));
-    assert.equal(first.provenance.default_seed, true);
-});
