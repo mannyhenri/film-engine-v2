@@ -10,7 +10,13 @@ const c={id:'c1',feature:'screenplay',title:'Restaurant'};
 function fake(extra={}){const out=installLegacy({routes:{['GET '+base]:catalog,['GET '+base+'/conversations?feature=screenplay']:{conversations:[c]},['GET '+base+'/conversations/c1']:{conversation:c,tasks:[{id:'t0',status:'completed',provider:'codex',request:{prompt:'Previous message',operation:{kind:'chat'}},result:'Previous response',events:[],apply_state:'none'}]},...extra},project:{id:'p1',title:'Fixture'}});out.fake.state.currentPage='screenplay';return out;}
 const deferred=()=>{let resolve;const promise=new Promise(r=>{resolve=r;});return {promise,resolve};};
 const task=(result,status='completed',operation='chat',apply_state='none')=>({id:'task-a',status,provider:'codex',request:{prompt:'Earlier request',operation:{kind:operation}},result,events:[],apply_state});
-function openOptions(){const button=screen.getByRole('button',{name:'AI options'});if(button.getAttribute('aria-expanded')==='false')fireEvent.click(button);}
+function openOptions(){
+ const button=screen.getByRole('button',{name:'AI options'});if(button.getAttribute('aria-expanded')==='false')fireEvent.click(button);
+ for(const name of ['Context','Story notes','Advanced settings']){
+  const summary=screen.queryByLabelText(name,{selector:'summary'});
+  if(summary?.tagName==='SUMMARY'&&!summary.parentElement.open)fireEvent.click(summary);
+ }
+}
 afterEach(()=>{vi.useRealTimers();delete window.__feDesktop;});
 describe('AI workspace',()=>{
  it('shows only active projects and sends scene requests as drafts before reviewing the exact change',async()=>{

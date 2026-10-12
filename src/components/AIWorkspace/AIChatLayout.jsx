@@ -15,8 +15,8 @@ export default function AIChatLayout({dialogRef,dialogName,variant,title,onClose
   <div className="ai-chat-conversation">{history}</div>
   <div className="ai-chat-composer">
    <label className="ai-sr-only" htmlFor={id+'-message'}>Message</label>
-   <textarea id={id+'-message'} rows={3} maxLength={12000} value={message} onChange={e=>onMessage(e.target.value)} placeholder="What would you like to work on?"/>
-   <div className="ai-chat-composer-controls"><button className="btn ai-attach-button" aria-label="Attach" onClick={()=>{setOptionsOpen(true);if(onAttach)onAttach();}}>+ <span>Attach</span></button>{fileInput}{provider}<span className="ai-chat-attachment-summary">{attachmentSummary}</span><button className="btn btn-primary ai-chat-send" aria-label="Send" disabled={sendDisabled} onClick={onSend}>↑</button></div>
+   <textarea id={id+'-message'} rows={2} maxLength={12000} value={message} onChange={e=>onMessage(e.target.value)} placeholder="What would you like to work on?"/>
+   <div className="ai-chat-composer-controls"><button className="btn ai-attach-button" aria-label="Attach" onClick={()=>{setOptionsOpen(true);const attachments=anchor.current?.querySelector('summary[aria-label="Attachments"]');if(attachments)attachments.parentElement.open=true;if(onAttach)onAttach();}}><span className="ai-attach-plus" aria-hidden="true">+</span><span>Attach</span></button>{fileInput}{provider}<span className="ai-chat-attachment-summary">{attachmentSummary}</span><button className="btn btn-primary ai-chat-send" aria-label="Send" disabled={sendDisabled} onClick={onSend}>↑</button></div>
   </div>
  </section>;
 }
