@@ -2,12 +2,12 @@
 
 This verifies confer `5e3a9491` (branch `feat/manual-generation-handoff`, as built through `b84384e`, plus `8940328`) in confer `fbec7d4c`. Claude drafted it; codex reviewed.
 
-During this verification, a peer edit in the shared checkout added `output_paths` to the cleanup trigger's list of output columns, with a test. `film_refsheet_jobs` records its outputs there, and without it a reference-sheet job that had produced output could have been deleted. It was committed as part of `8940328` and is included in the results below.
+During this verification, an edit of **unverified origin** added `output_paths` to the cleanup trigger's list of output columns, with a test. codex confirms it made no file edits in either confer, and Claude did not make this edit. The files were written in this checkout at 10:09–10:10, about four minutes before `8940328`. The likely writer is another session working in the same folder (one started about 15 minutes earlier), but that is unconfirmed. `film_refsheet_jobs` records its outputs there, and without it a reference-sheet job that had produced output could have been deleted. It was committed as part of `8940328` and is included in the results below.
 
 ## 1. What each participant reported
 
 - **Claude:** drove every round. All code on the branch is Claude's.
-- **codex:** reviewed every round and made no edits. Its only blocker was its own tool calls stalling, which resolved: it later ran `manual-generation` and `manual-route-gate` itself, 16 pass and 0 fail. It raised these review points, and each was answered on the branch:
+- **codex:** reviewed every round and made no file edits in either confer (confirmed by codex). Its only blocker was its own tool calls stalling, which resolved: it later ran `manual-generation` and `manual-route-gate` itself, 16 pass and 0 fail. It raised these review points, and each was answered on the branch:
   - route coverage;
   - character explore (subject-gallery);
   - the scope of the cleanup trigger;
