@@ -72,4 +72,28 @@ describe('manual generation: the final screen hands over prompt and assets',()=>
   await waitFor(()=>expect(screen.queryByRole('dialog')).toBeNull());
   delete window.__feFinalReviewBase;
  });
+ it('every review a stream announces opens once and is cancelled once, in order, through the queued dialog',async()=>{
+  window.__feFinalReviewBase=()=>'/film';
+  const ids=Array.from({length:14},(_,i)=>'stream-'+i);
+  const transport=vi.fn(async url=>{const u=String(url),id=u.split('/final-request-review/')[1].split('/')[0];
+   return {ok:true,json:async()=>u.endsWith('/cancel')?{state:'cancelled'}:{...review('elevenlabs','music'),id,snapshot:{...review('elevenlabs','music').snapshot,body:{prompt:'prompt '+id}}}};});
+  vi.stubGlobal('fetch',transport);
+  render(<FinalRequestReview/>);
+  // A music batch stream: each scene's event names its review; some events repeat.
+  for(const id of ids){window.__feObserveFinalRequestState({type:'music_failed',error:'FINAL_REQUEST_REVIEW_REQUIRED:'+id});window.__feObserveFinalRequestState({type:'progress',note:'FINAL_REQUEST_REVIEW_REQUIRED:'+id});}
+  const seen=[];
+  for(let i=0;i<ids.length;i++){
+   await waitFor(()=>expect(screen.getByRole('dialog').dataset.review).toBe(ids[i]));
+   seen.push(screen.getByLabelText('Prompt to copy').textContent);
+   fireEvent.click(screen.getByRole('button',{name:'Close'}));
+   await waitFor(()=>expect(transport.mock.calls.some(([u])=>String(u).endsWith(`/final-request-review/${ids[i]}/cancel`))).toBe(true));
+  }
+  await waitFor(()=>expect(screen.queryByRole('dialog')).toBeNull());
+  expect(seen).toEqual(ids.map(id=>'prompt '+id));
+  for(const id of ids){
+   expect(transport.mock.calls.filter(([u])=>String(u).endsWith(`/final-request-review/${id}`)).length,id+' opened once').toBe(1);
+   expect(transport.mock.calls.filter(([u])=>String(u).endsWith(`/final-request-review/${id}/cancel`)).length,id+' cancelled once').toBe(1);
+  }
+  delete window.__feFinalReviewBase;
+ });
 });

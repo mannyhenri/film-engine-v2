@@ -19,7 +19,7 @@ During this verification, a peer edit in the shared checkout added `output_paths
 
 ## 2. Shared contracts, both sides
 
-Both participants worked in one repo, so the shared contracts are the frontend↔backend boundaries the diff touched.
+Both participants worked in one repo, so the shared contracts are the frontend↔backend boundaries the diff touched, plus one backend-internal family (i) that codex added.
 
 | # | Contract | Producer | Consumer | Agree? | Crossed by |
 |---|---|---|---|---|---|
@@ -31,6 +31,7 @@ Both participants worked in one repo, so the shared contracts are the frontend�
 | f | Budget estimate entries carry `manual: true` | `backend/routes/budget.js` `markManual` | `src/pages/budget/FilmEstimateTab.jsx` ("your web app" badge) | yes | `manual-generation.test.js` (every registry capability) |
 | g | Bridge returns `{__manual_handoff}` for passthrough; dialog returns `{__manual_nav: 'next' / 'previous'}` | `request-bridge.js`; `FinalRequestReview.jsx` | `public/legacy/core.js` `api()` and `streamSSEPost` (generated, unchanged); `request-bridge.js` `walkReviews` | yes | `ManualBridge.test.jsx` (passthrough not replayed; batches 1–4) |
 | h | Env and settings: `FILM_DATA_DIR`, `CORS_ALLOWED_ORIGINS`, `FILM_ENGINE_PUBLIC_URL`, `gridlight_enabled` | `backend/lib/data-paths.js` and `db/database.js`; `server.js`; `lib/frame-handles.js`; `routes/app-settings.js` | `final-request-review.js` `mediaRoots` (data root); `docs/manual-generation.md`; `lib/video-edit.js` (no public link for manual vendors); `lib/providers/index.js` `localGatewayEnabled` | yes | route and Gridlight end-to-end tests |
+| i | Backend internals: cleanup install and the direct path for kept providers | `backend/db/schema.js` `ensureSchema` → `lib/manual-generation.js` `installReviewStopCleanup` (every job table; output columns incl. `output_paths`; manual-vendor reviews only); `lib/final-request-review.js` `authorizeWithStore` returns `{bypass}` only for a registered, non-manual provider with no review builder | `lib/providers/index.js` wrapper, sync (`approval.bypass === true` → own payload) and stream (`approval.bypass !== true` guards `finalRequest`); `lib/image-fallback.js` (`authorization.bypass` → adapter); `routes/threed.js` passes `finalRequest: undefined`, re-authorized by the wrapper; `worlds.js` and `storyboard-upscale.js` only use manual vendors, so never a bypass | yes | `manual-generation.test.js`: trigger over every registry capability, `output_paths` cases, kept direct path, bypass closed to unregistered ids and manual vendors; Gridlight end-to-end in `manual-route-gate.test.js` |
 
 ## 3. Tests (run on `8940328`)
 
@@ -38,9 +39,13 @@ Both participants worked in one repo, so the shared contracts are the frontend�
 |---|---|
 | `cd backend && node --test tests/manual-generation.test.js tests/manual-route-gate.test.js` | 18 tests, 18 pass, 0 fail; "routes 31: generation 17 reached review; not manual 14"; batch reviews: music 14, voice 7 |
 | `cd backend && node --test tests/*.test.js` | 5460 tests, 5151 pass, 302 fail. Against the pre-change baseline (341 fail): new failures `[]`, and 40 baseline failures now pass |
-| `npx vitest run` | 2 failed, 1236 passed, 1 skipped. Both failures (`App.boot`, `PilotPanel`) also fail on `main` |
+| `npx vitest run` | 2 failed, 1237 passed, 1 skipped. Both failures (`App.boot`, `PilotPanel`) also fail on `main` |
 | `node --test tools/tests/*.test.js` | 239 pass, 0 fail |
 | `npm run smoke` | 49/52 pages clean, 0 console errors. The same 3 failures (screenplay editor, switch project, subject sheets) occur on `main` |
+
+### Streamed reviews, end to end
+
+The backend side: the music batch stream announces a review for every scene (14 for the demo's 7 scenes; `manual-route-gate.test.js`). The frontend side: `ManualGeneration.test.jsx` sends 14 distinct ids through the stream observer, each repeated across two typed events. Each review is fetched once and shown in order through the queued dialog with its own prompt, and each Close cancels that id exactly once. The caller keeps reading its own stream (`request-bridge.js` returns stream paths untouched to `streamSSEPost`).
 
 ## 4. Blockers never resolved
 
