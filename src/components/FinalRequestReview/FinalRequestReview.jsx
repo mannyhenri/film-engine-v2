@@ -35,22 +35,44 @@ const roleKeyOf = ref => !ref || typeof ref!=='object'?'role':['reference_role',
 const previewOf = ref => ref && (typeof ref.data==='string' ? (ref.data.startsWith('data:') ? ref.data : `data:${ref.mime || 'image/png'};base64,${ref.data}`) : undefined) || ref?.preview_url;
 const modelOf = (payload,provider) => (String(provider).startsWith('openai')?payload.openai_model:undefined) || payload.model || payload.modelId || payload.model_id || '';
 const promptOf = payload => payload.final_prompt ?? payload.prompt ?? payload.text ?? '';
+// Manual generation: what the user copies into the vendor's own app.
+const PROMPT_KEYS=new Set(['prompt','promptText','text','final_prompt','negative_prompt_text']);
+const settingsOf = snapshot => {
+ const body=snapshot?.body || {};
+ const entries=body.encoding==='multipart'?(body.fields||[]).filter(f=>f.value!==undefined&&!f.data).map(f=>[f.name,f.value]):Object.entries(body);
+ return entries.filter(([key,value])=>!PROMPT_KEYS.has(key)&&(value===null||['string','number','boolean'].includes(typeof value))&&!(typeof value==='string'&&(value.startsWith('data:')||value.length>200)));
+};
+const assetPathOf = ref => ref?.path || ref?.file_path || ref?.source_path || '';
+const extOf = mime => ({'image/png':'png','image/jpeg':'jpg','image/webp':'webp','video/mp4':'mp4','audio/wav':'wav','audio/mpeg':'mp3','model/gltf-binary':'glb'})[mime] || (mime||'').split('/')[1] || 'bin';
+const assetNameOf = (ref,i) => `${String(ref.order ?? i+1).padStart(2,'0')}-${String(ref.role || 'reference').replace(/[^a-z0-9_-]+/gi,'-')}.${extOf(ref.mime)}`;
+const vendorOf = provider => ({openai:'ChatGPT / OpenAI',google:'Google (Gemini / Flow)',muapi:'muapi',seedance:'Seedance',runway:'Runway',higgsfield:'Higgsfield','muapi-upscale':'Topaz (via muapi)',meshy:'Meshy',worldlabs:'World Labs',magnific:'Magnific',elevenlabs:'ElevenLabs',topaz:'Topaz'})[provider] || provider || 'the generator';
+async function copyText(text) {
+ if (navigator.clipboard?.writeText) { await navigator.clipboard.writeText(text); return; }
+ const area=document.createElement('textarea');area.value=text;document.body.appendChild(area);area.select();document.execCommand('copy');area.remove();
+}
+function briefOf(snapshot,prompt,refs) {
+ const lines=[`Generator: ${vendorOf(snapshot.provider)}${snapshot.model?` · model ${snapshot.model}`:''} · ${snapshot.capability || ''}`,'','PROMPT',prompt || '(no text prompt)'];
+ const settings=settingsOf(snapshot);
+ if(settings.length)lines.push('','SETTINGS',...settings.map(([k,v])=>`${k}: ${v}`));
+ if(refs.length)lines.push('','ASSETS (in order)',...refs.map((ref,i)=>`${ref.order ?? i+1}. ${ref.role || 'reference'}${assetPathOf(ref)?` — ${assetPathOf(ref)}`:''}`));
+ return lines.join('\n');
+}
 
 export function FinalRequestReviewDialog({ initialReview, onSend, onCancel, onReview, request = reviewApi }) {
  const [review,setReview] = useState(initialReview);
  const [draft,setDraft] = useState(() => json(editableOf(initialReview)));
  const [bodyDraft,setBodyDraft]=useState(()=>json(initialReview.snapshot?.body || {})),[bodyDirty,setBodyDirty]=useState(false);
- const [dirty,setDirty] = useState(false), [busy,setBusy] = useState(false), [error,setError] = useState(''), [ack,setAck] = useState(false);
+ const [dirty,setDirty] = useState(false), [busy,setBusy] = useState(false), [error,setError] = useState(''), [copied,setCopied] = useState('');
  const submitting = useRef(false);
  const mounted=useRef(true),epoch=useRef(projectEpoch());
  useEffect(()=>{mounted.current=true;return()=>{mounted.current=false;};},[]);
  const live=()=>mounted.current && epoch.current===projectEpoch();
  const discard=reviews=>Promise.allSettled(reviews.filter(r=>r?.id).map(r=>request(`/final-request-review/${r.id}/cancel`,{})));
  const availability=useDesktopAvailability();
- const [destination,setDestination]=useState('api'),[handoff,setHandoff]=useState(null),[desktopNotice,setDesktopNotice]=useState('');
+ const [destination,setDestination]=useState('copy'),[handoff,setHandoff]=useState(null),[desktopNotice,setDesktopNotice]=useState('');
  let editable; try { editable=JSON.parse(draft); } catch { editable=null; }
- const payload=editable?.payload || {}, references=refsOf(payload), snapshot=review.snapshot || {}, quote=snapshot.quote || review.quote || {};
- const update = fn => { if (!editable || handoff) return; const next=clone(editable); fn(next); setDraft(json(next)); setDirty(true); setAck(false); setError(''); };
+ const payload=editable?.payload || {}, references=refsOf(payload), snapshot=review.snapshot || {};
+ const update = fn => { if (!editable || handoff) return; const next=clone(editable); fn(next); setDraft(json(next)); setDirty(true); setError(''); };
  async function resolve() {
   if (!live() || submitting.current) return;
   let edited; try { edited=JSON.parse(draft); if(bodyDirty){edited.payload.final_request_body=JSON.parse(bodyDraft);const full=fullPromptOf({body:edited.payload.final_request_body});if(full!==undefined)edited.payload.final_prompt=full;} } catch { setError('Request edits must be valid JSON.'); return; }
@@ -65,13 +87,13 @@ export function FinalRequestReviewDialog({ initialReview, onSend, onCancel, onRe
    onReview?.(normalized);
    if(!live()){await discard([normalized]);return;}
    const next={...normalized,route_request:review.route_request};
-   setReview(next); setDraft(json(editableOf(next))); setBodyDraft(json(next.snapshot?.body || {}));setBodyDirty(false); setDirty(false); setAck(false);
+   setReview(next); setDraft(json(editableOf(next))); setBodyDraft(json(next.snapshot?.body || {}));setBodyDirty(false); setDirty(false);
   } catch (e) { if(live())setError(e.message); }
   finally { submitting.current=false; if(live())setBusy(false); }
  }
  async function refresh(nextBody) {
   if(!live() || submitting.current || !review.route_request)return;
-  submitting.current=true;setBusy(true);setAck(false);setError('');
+  submitting.current=true;setBusy(true);setError('');
   try {
    const routeRequest={...review.route_request,...(nextBody && !nextBody.nativeEvent?{body:nextBody}:{})};
    const prepared=await request('/final-request-review/prepare',routeRequest);
@@ -83,28 +105,24 @@ export function FinalRequestReviewDialog({ initialReview, onSend, onCancel, onRe
    setReview(next);setDraft(json(editableOf(next)));setBodyDraft(json(next.snapshot?.body || {}));setBodyDirty(false);setDirty(false);
   }catch(e){if(live())setError(e.message);}finally{submitting.current=false;if(live())setBusy(false);}
  }
- async function send() {
-  if (!live() || submitting.current || dirty || !ack) return;
+ async function handOff() {
+  if (!live() || submitting.current || dirty || destination==='copy') return;
   submitting.current=true; setBusy(true); setError('');
   try {
-   if(destination!=='api') {
-    const saved=handoff || await request(`/final-request-review/${review.id}/handoff`,{fingerprint:review.fingerprint,human_confirmed:true});
-    if(!live())return;
-    setHandoff(saved);
-    const opened=await copyHandoff(saved,destination);
-    if(!live())return;
-    if(!opened.copied || !opened.opened)throw new Error(opened.error || opened.reason || 'Desktop handoff unavailable');
-    setDesktopNotice(opened.note);
-    submitting.current=false;setBusy(false);
-    return;
-   }
-   const unknownCost=quote.amount==null && quote.estimated_cost==null && quote.credits==null;
-   const approved=await request(`/final-request-review/${review.id}/approve`, {fingerprint:review.fingerprint,human_confirmed:true,...(unknownCost?{cost_unknown_ack:true}:{})});
-   const token=approved.approval || approved;
-   onReview?.(token);
-   if(!live()){await discard([token]);return;}
-   await onSend({...token,...(review.route_request?{__route_body:review.route_request.body}:{})});
-  } catch(e) { if(live()){setError(e.message); submitting.current=false; setBusy(false); setAck(false);} }
+   const saved=handoff || await request(`/final-request-review/${review.id}/handoff`,{fingerprint:review.fingerprint,human_confirmed:true});
+   if(!live())return;
+   setHandoff(saved);
+   const opened=await copyHandoff(saved,destination);
+   if(!live())return;
+   if(!opened.copied || !opened.opened)throw new Error(opened.error || opened.reason || 'Desktop handoff unavailable');
+   setDesktopNotice(opened.note);
+  } catch(e) { if(live())setError(e.message); }
+  finally { submitting.current=false; if(live())setBusy(false); }
+ }
+ async function copy(kind) {
+  setError('');
+  try { await copyText(kind==='brief'?briefOf(snapshot,resolvedPrompt,snapshotRefs):resolvedPrompt); if(live())setCopied(kind==='brief'?'Prompt, settings and asset list copied.':'Prompt copied.'); }
+  catch(e){ if(live())setError('Clipboard unavailable: '+e.message+'. Select the prompt text and copy it yourself.'); }
  }
  async function cancel() {
   if (!live() || submitting.current) return;
@@ -116,19 +134,31 @@ export function FinalRequestReviewDialog({ initialReview, onSend, onCancel, onRe
   if(live())onCancel();
  }
  const snapshotRefs=snapshot.references || snapshot.media || [];
+ const resolvedPrompt=fullPromptOf(snapshot) ?? promptOf(payload);
+ const settings=settingsOf(snapshot);
  const batch=initialReview.review_position;
- const sendLabel=batch?.total>1?(batch.index===batch.total-1?`Send all ${batch.total} reviewed requests`:'Approve item and review next'):'Send exact reviewed request';
- const canSend=!busy && !handoff && !dirty && ack && Boolean(review.id && review.fingerprint) && review.state !== 'cancelled' && (destination==='api'||(destination==='chatgpt'?availability.available:availability.browser_available));
- return <div className="final-review-overlay"><section className="final-review-dialog" role="dialog" aria-modal="true" aria-label="Final provider request review">
-  <header><h2>{snapshot.capability==='video'?'Are you ready to generate the video?':'Review the final provider request'}{snapshot.capability!=='video'&&batch?.total>1?` (${batch.index+1} of ${batch.total})`:null}</h2>{snapshot.capability==='video'&&batch?.total>1&&<span>({batch.index+1} of {batch.total})</span>}<button aria-label="Cancel final review" disabled={busy} onClick={cancel}>×</button></header>
+ const canHandOff=!busy && !handoff && !dirty && Boolean(review.id && review.fingerprint) && review.state !== 'cancelled' && (destination==='chatgpt'?availability.available:availability.browser_available);
+ return <div className="final-review-overlay"><section className="final-review-dialog" role="dialog" aria-modal="true" aria-label="Final provider request review" data-review={review.id}>
+  <header><h2>Prompt and assets for {vendorOf(snapshot.provider)}{batch?.total>1?` (${batch.index+1} of ${batch.total})`:null}</h2><button aria-label="Close final review" disabled={busy} onClick={cancel}>×</button></header>
   <div className="final-review-body">
-   {batch?.total>1&&<p>No provider request is sent until every item has been reviewed and you click Send all on the last item.</p>}
-   <p>Edit the request, then resolve your edits to see the exact provider values. Send approves this visible snapshot. A changed source, quote or provider request requires a new review.</p>
-   {handoffEligible(review)&&<label>Image generation destination<select aria-label="Image generation destination" value={destination} disabled={busy||!!handoff} onChange={e=>{setDestination(e.target.value);setAck(false);setError('');}}><option value="api">Selected API provider</option><option value="chatgpt" disabled={!availability.available}>ChatGPT Desktop — copy prompt and open app{availability.available?'':` (${availability.reason})`}</option><option value="browser" disabled={!availability.browser_available}>ChatGPT web — copy prompt and open browser</option></select></label>}
-   {snapshot.capability==='image'&&!handoffEligible(review)&&<p>ChatGPT manual handoff is available for standalone storyboard frames and character, location or prop images. Dependent flow, pipeline, station and in-between images need their existing workflow delivery.</p>}
-   {destination!=='api'&&<p>Manual image generation: nothing is sent to an API. Switch to Chat, paste the copied prompt and attach the exported reference images yourself. {batch?.total>1?'This hands off this item only and stops the batch; no API requests from this batch are sent.':''}</p>}
+   <p className="final-review-manual">Film Engine does not send this request. Copy the prompt, download the assets in order, and generate in {vendorOf(snapshot.provider)}'s own app with the settings below.</p>
+   <section className="final-review-handover" aria-label="Manual generation hand-over">
+    <h3>Prompt</h3>
+    <pre aria-label="Prompt to copy">{resolvedPrompt || ''}</pre>
+    {settings.length>0&&<><h3>Settings to match</h3><dl className="final-review-settings">{settings.map(([key,value])=><div key={key}><dt>{key}</dt><dd>{String(value)}</dd></div>)}</dl></>}
+    <h3>Assets ({snapshotRefs.length})</h3>
+    {snapshotRefs.length?<ol aria-label="Assets to upload" className="final-review-assets">{snapshotRefs.map((ref,i)=><li key={i}>
+     {previewOf(ref)&&ref.mime?.startsWith('image/')&&<img src={previewOf(ref)} alt={`Asset ${i+1}`}/>}
+     <span>{ref.order ?? i+1}. {ref.role || 'reference'}{ref.mime?` · ${ref.mime}`:''}{assetPathOf(ref)?<> · <code>{assetPathOf(ref)}</code></>:null}</span>
+     {previewOf(ref)&&<a href={previewOf(ref)} download={assetNameOf(ref,i)} aria-label={`Download asset ${i+1}`}>Download</a>}
+     {assetPathOf(ref)&&<button type="button" aria-label={`Copy path of asset ${i+1}`} onClick={()=>copyText(assetPathOf(ref)).then(()=>live()&&setCopied('Path copied.')).catch(e=>setError(e.message))}>Copy path</button>}
+    </li>)}</ol>:<p>No assets: this request is prompt only.</p>}
+    {copied&&<p role="status">{copied}</p>}
+   </section>
+   {handoffEligible(review)&&<label>Image hand-off<select aria-label="Image generation destination" value={destination} disabled={busy||!!handoff} onChange={e=>{setDestination(e.target.value);setError('');}}><option value="copy">Copy prompt and download assets</option><option value="chatgpt" disabled={!availability.available}>ChatGPT Desktop — copy prompt and open app{availability.available?'':` (${availability.reason})`}</option><option value="browser" disabled={!availability.browser_available}>ChatGPT web — copy prompt and open browser</option></select></label>}
    {handoff&&<><p role="status">{desktopNotice}</p><ImageHandoffResult handoff={handoff} request={request} onImported={result=>onSend({__manual_handoff:{handoff_id:handoff.id,target:handoff.target,result}})} onFinish={()=>onSend({__manual_handoff:{handoff_id:handoff.id,target:handoff.target,pending:true}})}/></>}
    {!handoff && review.route_request && /\/shots\/[^/]+\/storyboard\/regenerate$/.test(review.route_request.path) && <ExpressionPicker review={review} request={request} disabled={busy||dirty} onApply={selections=>refresh({...review.route_request.body,expression_references:selections})}/>}
+   <details className="final-review-edit"><summary>Edit the prompt, references or options</summary>
    <div className="final-review-grid">
     <label>Provider<input value={editable?.provider || ''} disabled={busy||!!handoff||!editable} onChange={e=>update(x=>{x.provider=e.target.value;})}/></label>
     <label>Model<input value={modelOf(payload,editable?.provider)} disabled={busy||!!handoff||!editable} onChange={e=>update(x=>{const key='modelId' in x.payload?'modelId':'model_id' in x.payload?'model_id':'model';x.payload[key]=e.target.value;if(String(x.provider).startsWith('openai')){x.payload.model=e.target.value;x.payload.openai_model=e.target.value;}})}/></label>
@@ -144,21 +174,19 @@ export function FinalRequestReviewDialog({ initialReview, onSend, onCancel, onRe
    </div>)}</fieldset>}
    {snapshot.metadata?.readOnlyInputFields?.length>0&&<p>Read-only application metadata (not provider options): {snapshot.metadata.readOnlyInputFields.filter(key=>key!=='__not_sent_input_fields').join(', ') || 'None'}.</p>}
    {review.editable?.payload?.__not_sent_input_fields?.length>0&&<p>Not sent by this provider: {review.editable.payload.__not_sent_input_fields.join(', ')}.</p>}
-   <label>All request inputs and options (editable JSON)<textarea aria-label="All request inputs and options" rows="10" value={draft} disabled={busy||!!handoff} spellCheck={false} onChange={e=>{setDraft(e.target.value);setDirty(true);setAck(false);setError('');}}/></label>
+   <label>All request inputs and options (editable JSON)<textarea aria-label="All request inputs and options" rows="10" value={draft} disabled={busy||!!handoff} spellCheck={false} onChange={e=>{setDraft(e.target.value);setDirty(true);setError('');}}/></label>
    <button disabled={busy||!!handoff||!dirty} onClick={resolve}>{busy?'Validating…':'Resolve edits and update final review'}</button>
    {review.route_request&&<button disabled={busy||!!handoff} onClick={refresh}>Refresh final review</button>}
-   {dirty&&<p role="status">Edits are not approved. Resolve them before Send.</p>}
+   {dirty&&<p role="status">Edits are not applied yet. Resolve them to update the prompt and assets above.</p>}
    <h3>Exact resolved provider request</h3>
-   {snapshot.body?.encoding!=='multipart'&&<label>Resolved provider fields (editable JSON)<textarea aria-label="Resolved provider fields" rows="10" disabled={busy||!!handoff} value={bodyDraft} onChange={e=>{setBodyDraft(e.target.value);setBodyDirty(true);setDirty(true);setAck(false);setError('');}}/></label>}
+   {snapshot.body?.encoding!=='multipart'&&<label>Resolved provider fields (editable JSON)<textarea aria-label="Resolved provider fields" rows="10" disabled={busy||!!handoff} value={bodyDraft} onChange={e=>{setBodyDraft(e.target.value);setBodyDirty(true);setDirty(true);setError('');}}/></label>}
    <p>Endpoint: {snapshot.endpoint || snapshot.request?.endpoint || 'See request below'}. Provider: {snapshot.provider || editable?.provider}. Model: {snapshot.model || snapshot.request?.body?.model || 'See request below'}.</p>
    {snapshotRefs.length>0&&<div>{snapshotRefs.map((ref,i)=><div className="final-review-reference" key={i}>{previewOf(ref)&&(ref.mime?.startsWith('video/')?<video src={previewOf(ref)} controls preload="metadata" aria-label={`Resolved video reference ${i+1}`}/>:ref.mime?.startsWith('audio/')?<audio src={previewOf(ref)} controls preload="none" aria-label={`Resolved audio reference ${i+1}`}/>:ref.mime?.startsWith('model/')||ref.mime==='application/octet-stream'?<a href={previewOf(ref)} download={`approved-reference-${i+1}`}>Download exact model reference bytes</a>:<img src={previewOf(ref)} alt={`Resolved reference ${i+1}`}/>)}<span>{ref.order ?? i+1}. {ref.role || 'reference'} · {ref.wire_role || 'wire role not recorded'} · {ref.byte_length ?? 'unknown'} bytes{ref.moodboard_entry_id ? ` · Moodboard ${(ref.influence_roles || []).join(', ')} · ${ref.influence_note || ''} · ${ref.byte_length} bytes` : ''} <code>{ref.sha256 || ref.content_hash || ref.hash}</code>{ref.annotated?' · annotations included':''}</span></div>)}</div>}
    <pre aria-label="Exact resolved provider request">{json(snapshot)}</pre>
-   <h3>{destination!=='api'?'Manual handoff cost':'Cost review'}</h3>{destination!=='api'?<p>No Film Engine API generation is submitted or charged. Your ChatGPT plan and available image-generation limits apply when you generate there.</p>:<>{quote.range&&<p>Provider estimate: {Array.isArray(quote.range)?quote.range.join('–'):`${quote.range.min}–${quote.range.max}`} {quote.currency || quote.unit || 'credits'}. This range is an estimate, not the final billed charge.</p>}<p>{quote.estimated_cost != null ? `${quote.estimated_cost} ${quote.currency || quote.unit || 'credits'} estimated` : quote.amount != null ? `${quote.amount} ${quote.currency || quote.unit || 'credits'} estimated` : 'Verified cost estimate unavailable. The provider may charge credits.'} This is an estimate, not a reported provider charge.{quote.expires_at?` Quote expires ${quote.expires_at}.`:''}</p></>}
-   <code className="final-review-fingerprint">Approved request fingerprint: {review.fingerprint}</code>
-   <label className="final-review-consent"><input type="checkbox" checked={ack} disabled={busy||dirty||!!handoff} onChange={e=>setAck(e.target.checked)}/> {destination!=='api'?'I approve this exact image prompt and reference snapshot for a manual ChatGPT handoff.':'I approve this exact resolved request and the displayed cost terms.'}</label>
+   </details>
    {error&&<p role="alert">{error}</p>}
   </div>
-  <footer><button disabled={busy} onClick={cancel}>{handoff?'Close handoff':'Cancel'}</button><button disabled={!canSend} onClick={send}>{busy?'Approving…':destination!=='api'?'Copy prompt & open ChatGPT':sendLabel}</button></footer>
+  <footer><button disabled={busy} onClick={cancel}>Close</button>{destination==='copy'?<><button disabled={busy||dirty} onClick={()=>copy('brief')}>Copy prompt, settings &amp; asset list</button><button disabled={busy||dirty} onClick={()=>copy('prompt')}>Copy prompt</button></>:<button disabled={!canHandOff} onClick={handOff}>{busy?'Preparing…':'Copy prompt & open ChatGPT'}</button>}</footer>
  </section></div>;
 }
 

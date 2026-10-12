@@ -1,4 +1,5 @@
 'use strict';
+require('../lib/manual-generation').allowSendForTests(); // exercises the dormant API send path
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');

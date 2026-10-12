@@ -1,3 +1,4 @@
+require('../lib/manual-generation').allowSendForTests(); // exercises the dormant API send path
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('fs'),os=require('os'),path=require('path');
 const temp=fs.mkdtempSync(path.join(os.tmpdir(),'final-review-real-store-'));
 process.env.FILM_DATA_DIR=temp;

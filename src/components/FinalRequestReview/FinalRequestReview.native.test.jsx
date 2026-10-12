@@ -91,13 +91,13 @@ function installTransport() {
 }
 
 describe('mounted DOM snapshot through real review store and native video transport',()=>{
- it('sends the DOM-visible edited endpoint, body, explicit seed and distinct ordered frame bytes once',async()=>{
+ it('hands over the DOM-visible edited prompt, settings and distinct ordered frame bytes and sends nothing',async()=>{
   const f=fixture(),{browserRequests,posts,uploads}=installTransport(),route=`/shots/${f.shots[0]}/video/generate`;
   const body={provider:'seedance',model:'seedance-2.5',seed:314159,options:{duration:5,last_frame:f.shots[1]}};
   render(<FinalRequestReview/>);
   let prepareFailure;
   const outgoing=window.__fePrepareFinalRequest(route,{method:'POST',body:JSON.stringify(body)}).then(options=>fetch('http://review.mock.invalid/film'+route,options)).catch(error=>{prepareFailure=error;return error;});
-  await waitFor(()=>{if(prepareFailure)throw prepareFailure;expect(screen.getByRole('dialog')).toBeTruthy();expect(screen.getByRole('heading',{name:'Are you ready to generate the video?'})).toBeTruthy();});expect(posts).toHaveLength(0);expect(uploads).toHaveLength(0);
+  await waitFor(()=>{if(prepareFailure)throw prepareFailure;expect(screen.getByRole('dialog')).toBeTruthy();expect(screen.getByRole('heading',{name:'Prompt and assets for Seedance'})).toBeTruthy();});expect(posts).toHaveLength(0);expect(uploads).toHaveLength(0);
   const initial=JSON.parse(screen.getByLabelText('Exact resolved provider request').textContent);
   const editedPrompt='The visible final motion prompt. Preserve the ordered first and last frames.';
   fireEvent.change(screen.getByLabelText('Resolved provider fields'),{target:{value:JSON.stringify({...initial.body,prompt:editedPrompt,seed:271828})}});
@@ -108,30 +108,25 @@ describe('mounted DOM snapshot through real review store and native video transp
   expect(visible.references.map(ref=>ref.wire_role)).toEqual(['images_list[0]','images_list[1]']);expect(visible.references.map(ref=>ref.order)).toEqual([1,2]);expect(visible.references.map(ref=>ref.role)).toEqual(['image_reference','image_reference']);
   expect(visible.references.map(ref=>ref.sha256)).toEqual(f.bytes.map(hash));expect(new Set(visible.references.map(ref=>ref.sha256)).size).toBe(2);
   visible.references.forEach((ref,i)=>{expect(screen.getByAltText(`Resolved reference ${i+1}`).getAttribute('src')).toBe(ref.data);expect(visible.body.images_list[i]).toBe(ref.data);});
-  const visibleFingerprint=screen.getByText(/Approved request fingerprint:/).textContent.replace('Approved request fingerprint: ','');
+  expect(screen.getByLabelText('Prompt to copy').textContent).toBe(editedPrompt);
+  expect(screen.getByRole('list',{name:'Assets to upload'}).querySelectorAll('li')).toHaveLength(2);
+  expect(screen.queryByRole('button',{name:/Send|Approve/})).toBeNull();
+  fireEvent.click(screen.getByRole('button',{name:'Close'}));
+  expect((await outgoing).code).toBe('FINAL_REQUEST_CANCELLED');
+  expect(browserRequests.some(request=>request.route.endsWith('/approve')||request.route===route)).toBe(false);
   expect(posts).toHaveLength(0);expect(uploads).toHaveLength(0);
-  fireEvent.click(screen.getByRole('checkbox'));fireEvent.click(screen.getByRole('button',{name:'Send exact reviewed request'}));
-  const result=await outgoing;expect(result.status).toBe(400);
-  const approval=browserRequests.find(request=>request.route.endsWith('/approve'));expect(approval.body.fingerprint).toBe(visibleFingerprint);
-  const generation=browserRequests.find(request=>request.route===route);expect(generation.body.final_request_approvals).toEqual([{id:approval.route.split('/')[2],fingerprint:visibleFingerprint}]);
-  expect(posts).toHaveLength(1);expect(posts[0].url).toBe(visible.endpoint);expect(uploads).toHaveLength(visible.references.length);
-  const expected={...visible.body,images_list:visible.references.map(ref=>`https://uploaded.mock.invalid/${ref.sha256}`)};
-  expect(posts[0].body).toEqual(expected);expect(posts[0].serialized).toBe(JSON.stringify(expected));expect(posts[0].body.seed).toBe(271828);
-  uploads.forEach((upload,i)=>{expect(upload.sha256).toBe(visible.references[i].sha256);expect(upload.bytes).toEqual(f.bytes[i]);expect(posts[0].body.images_list[i]).toBe(upload.url);});
  });
- it('cancels durable original and edited batch reviews when the later mounted item is cancelled, with no native submission',async()=>{
+ it('Close cancels durable original, edited and remaining batch reviews, with no native submission',async()=>{
   const f=fixture(),{browserRequests,posts,uploads}=installTransport(),route=`/projects/${f.project}/video/batch`;
   render(<FinalRequestReview/>);
   const outcome=window.__fePrepareFinalRequest(route,{method:'POST',body:JSON.stringify({provider:'seedance',model:'seedance-2.5',seed:12345})}).then(options=>fetch('http://review.mock.invalid/film'+route,options)).catch(error=>error);
-  await screen.findByRole('dialog');const originalFingerprint=screen.getByText(/Approved request fingerprint:/).textContent.replace('Approved request fingerprint: ','');
+  await screen.findByRole('dialog');const original=screen.getByRole('dialog').dataset.review;
   fireEvent.change(screen.getByLabelText('Full prompt'),{target:{value:'Edited first batch item exact final prompt.'}});fireEvent.click(screen.getByRole('button',{name:'Resolve edits and update final review'}));
-  await waitFor(()=>expect(screen.getByText(/Approved request fingerprint:/).textContent).not.toContain(originalFingerprint));
-  fireEvent.click(screen.getByRole('checkbox'));fireEvent.click(screen.getByRole('button',{name:'Approve item and review next'}));await screen.findByText(/\(2 of 2\)/);
-  fireEvent.click(screen.getByRole('button',{name:'Cancel'}));expect((await outcome).code).toBe('FINAL_REQUEST_CANCELLED');
+  await waitFor(()=>expect(screen.getByRole('dialog').dataset.review).not.toBe(original));
+  fireEvent.click(screen.getByRole('button',{name:'Close'}));expect((await outcome).code).toBe('FINAL_REQUEST_CANCELLED');
   const rows=db.prepare('SELECT id,state FROM film_final_request_reviews WHERE json_extract(editable_json,\'$.provenance.project_id\')=?').all(f.project);
   expect(rows).toHaveLength(3);expect(rows.every(row=>row.state==='cancelled')).toBe(true);
-  const approved=browserRequests.find(request=>request.route.endsWith('/approve'));
-  expect(browserRequests.map(request=>request.route)).toContain(approved.route.replace('/approve','/cancel'));
+  expect(browserRequests.some(request=>request.route.endsWith('/approve'))).toBe(false);
   expect(browserRequests.some(request=>request.route===route)).toBe(false);expect(posts).toHaveLength(0);expect(uploads).toHaveLength(0);
  });
 });

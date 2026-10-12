@@ -1,3 +1,4 @@
+require('../lib/manual-generation').allowSendForTests(); // exercises the dormant API send path
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('fs'),os=require('os'),path=require('path');
 const Database=require('better-sqlite3');
 const {createFinalRequestStore,canonical}=require('../lib/final-request-review');

@@ -1,3 +1,4 @@
+require('../lib/manual-generation').allowSendForTests(); // exercises the dormant API send path
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('fs'),os=require('os'),path=require('path'),crypto=require('crypto'),Module=require('module'),{Readable}=require('stream');
 process.env.FILM_DATA_DIR=fs.mkdtempSync(path.join(os.tmpdir(),'fe-final-3d-world-'));
 const {db}=require('../db/database');require('../db/schema').ensureSchema();

@@ -1,4 +1,5 @@
 'use strict';
+require('../lib/manual-generation').allowSendForTests(); // exercises the dormant API send path
 const test = require('node:test'), assert = require('node:assert/strict');
 const fs = require('fs'), os = require('os'), path = require('path'), crypto = require('crypto');
 const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'fe-draft-recovery-'));

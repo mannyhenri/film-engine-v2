@@ -1,3 +1,4 @@
+require('../lib/manual-generation').allowSendForTests(); // exercises the dormant API send path
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('fs'),os=require('os'),path=require('path'),crypto=require('crypto');
 process.env.FILM_DATA_DIR=fs.mkdtempSync(path.join(os.tmpdir(),'final-repair-'));process.env.RUNWAY_API_KEY='mock-only';
 const {db}=require('../db/database');require('../db/schema').ensureSchema();require('../lib/providers/credentials').getCredential=()=>({apiKey:'mock-only',meta:{}});

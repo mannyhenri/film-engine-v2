@@ -6,15 +6,15 @@ const review=()=>({id:'review1',state:'preview',fingerprint:'fingerprint',editab
 const saved=()=>({id:'saved-id',state:'prepared',prompt:'Exact prompt',target:{kind:'character',project_id:'p1',subject_id:'c1',view:'front'},snapshot:{capability:'image'}});
 afterEach(()=>{delete window.__feImageHandoff;localStorage.removeItem('fe-pending-image-handoff');vi.unstubAllGlobals();});
 describe('manual image destination uses no paid API transport',()=>{
- it('does no copy/launch before explicit consent and click, freezes the exact snapshot, then imports into the captured target',async()=>{
+ it('does no copy/launch before the explicit click, freezes the exact snapshot, then imports into the captured target',async()=>{
   const copyAndOpen=vi.fn().mockResolvedValue({copied:true,opened:true,note:'Prompt copied'});
   window.__feImageHandoff={availability:vi.fn().mockResolvedValue({available:true,browser_available:true}),copyAndOpen};
   const request=vi.fn(async path=>path.endsWith('/handoff')?saved():{asset_id:'new-version',version:2});const onSend=vi.fn();
   render(<FinalRequestReviewDialog initialReview={review()} request={request} onSend={onSend} onCancel={()=>{}}/>);
   await waitFor(()=>expect(screen.getByRole('option',{name:'ChatGPT Desktop — copy prompt and open app'}).disabled).toBe(false));
   fireEvent.change(screen.getByLabelText('Image generation destination'),{target:{value:'chatgpt'}});
-  expect(copyAndOpen).not.toHaveBeenCalled();expect(screen.getByRole('button',{name:'Copy prompt & open ChatGPT'}).disabled).toBe(true);
-  fireEvent.click(screen.getByRole('checkbox'));fireEvent.click(screen.getByRole('button',{name:'Copy prompt & open ChatGPT'}));
+  expect(copyAndOpen).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole('button',{name:'Copy prompt & open ChatGPT'}));
   await waitFor(()=>expect(copyAndOpen).toHaveBeenCalledWith('saved-id','desktop'));expect(request.mock.calls.map(c=>c[0])).toEqual(['/final-request-review/review1/handoff']);expect(request.mock.calls[0][1]).toEqual({fingerprint:'fingerprint',human_confirmed:true});expect(onSend).not.toHaveBeenCalled();
   let reader;class FakeReader{constructor(){reader=this;}readAsDataURL(){reader.result='data:image/png;base64,aW1hZ2U=';reader.onload();}}vi.stubGlobal('FileReader',FakeReader);
   await act(async()=>fireEvent.change(screen.getByLabelText('Import ChatGPT result'),{target:{files:[{name:'saved.png',size:10}]}}));
@@ -24,7 +24,7 @@ describe('manual image destination uses no paid API transport',()=>{
  it('clipboard failure is visible and never reports app launch or dispatches an API request',async()=>{
   window.__feImageHandoff={availability:vi.fn().mockResolvedValue({available:true}),copyAndOpen:vi.fn().mockResolvedValue({copied:false,opened:false,error:'Clipboard unavailable'})};
   const onSend=vi.fn(),request=vi.fn().mockResolvedValue(saved());render(<FinalRequestReviewDialog initialReview={review()} request={request} onSend={onSend} onCancel={()=>{}}/>);
-  await waitFor(()=>expect(screen.getByRole('option',{name:'ChatGPT Desktop — copy prompt and open app'}).disabled).toBe(false));fireEvent.change(screen.getByLabelText('Image generation destination'),{target:{value:'chatgpt'}});fireEvent.click(screen.getByRole('checkbox'));fireEvent.click(screen.getByRole('button',{name:'Copy prompt & open ChatGPT'}));
+  await waitFor(()=>expect(screen.getByRole('option',{name:'ChatGPT Desktop — copy prompt and open app'}).disabled).toBe(false));fireEvent.change(screen.getByLabelText('Image generation destination'),{target:{value:'chatgpt'}});fireEvent.click(screen.getByRole('button',{name:'Copy prompt & open ChatGPT'}));
   expect(await screen.findByRole('alert')).toHaveProperty('textContent','Clipboard unavailable');expect(onSend).not.toHaveBeenCalled();expect(request).toHaveBeenCalledTimes(1);
  });
  it('web-only desktop state is disabled',()=>{
@@ -69,10 +69,10 @@ describe('manual image destination uses no paid API transport',()=>{
   const mounted=render(<FinalRequestReview/>);let pending;
   await act(async()=>{pending=window.__fePrepareFinalRequest('/characters/c1/refsheet/generate',{method:'POST',body:JSON.stringify({views:['front']})});});
   await waitFor(()=>expect(screen.getByRole('option',{name:/ChatGPT Desktop/}).disabled).toBe(false));
-  fireEvent.change(screen.getByLabelText('Image generation destination'),{target:{value:'chatgpt'}});fireEvent.click(screen.getByRole('checkbox'));
+  fireEvent.change(screen.getByLabelText('Image generation destination'),{target:{value:'chatgpt'}});
   const button=screen.getByRole('button',{name:'Copy prompt & open ChatGPT'});fireEvent.click(button);fireEvent.click(button);
   await waitFor(()=>expect(copyAndOpen).toHaveBeenCalledTimes(1));expect(calls.filter(url=>url.endsWith('/handoff'))).toHaveLength(1);
-  await act(async()=>fireEvent.click(screen.getByRole('button',{name:'Close handoff'})));
+  await act(async()=>fireEvent.click(screen.getByRole('button',{name:'Close'})));
   expect((await pending).__manual_handoff.handoff_id).toBe('saved-id');
   await waitFor(()=>expect(localStorage.getItem('fe-pending-image-handoff')).toBe('saved-id'));
   mounted.unmount();render(<FinalRequestReview/>);expect(await screen.findByText(/Saved target: character c1 front/)).toBeTruthy();

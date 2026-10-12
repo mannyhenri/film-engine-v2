@@ -1,4 +1,5 @@
 'use strict';
+require('../lib/manual-generation').allowSendForTests(); // exercises the dormant API send path
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('fs'),os=require('os'),path=require('path'),crypto=require('crypto'),Module=require('module'),{Readable}=require('stream');
 const temp=fs.mkdtempSync(path.join(os.tmpdir(),'mood-http-'));process.env.FILM_DATA_DIR=temp;process.env.MUAPI_API_KEY='mock-only';
 const {db}=require('../db/database'),log=console.log;console.log=()=>{};try{require('../db/schema').ensureSchema();}finally{console.log=log;}

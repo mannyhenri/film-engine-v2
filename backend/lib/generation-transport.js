@@ -64,6 +64,7 @@ function redactMediaCredentials(value,redactions,path='body'){
 }
 async function dispatch(request,url,init){
  const context=requests.get(request);if(!context)throw new Error('Creative dispatch needs a claimed approved request');
+ require('./manual-generation').assertSendable(context.snapshot.provider,context.snapshot.capability);
  if(url!==context.snapshot.endpoint)throw new Error('Provider endpoint changed after approval');
  const encoded=await serialize(url,init),references=transportReferences(context,encoded.body);
  assertApprovedSemantics(context,encoded.body);

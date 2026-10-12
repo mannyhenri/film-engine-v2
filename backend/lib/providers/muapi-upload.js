@@ -49,6 +49,8 @@ function parseDataUri(uri) {
  * Anything already addressable is returned untouched.
  */
 async function hostOne(uri, apiKey) {
+    // Manual generation: assets stay local; the user uploads them to the vendor's app.
+    {const m=require('../manual-generation');if(m.isManual('muapi','upload')){const e=m.manualError('muapi');return { ok: false, status: e.status, code: e.code, error: e.message };}}
     if (typeof uri !== 'string') return { ok: false, error: 'not a string' };
     if (/^https?:\/\//i.test(uri)) return { ok: true, url: uri, uploaded: false };
 
@@ -134,6 +136,7 @@ function sniffMedia(buf) {
 }
 
 async function hostFile(fileRef, apiKey) {
+    {const m=require('../manual-generation');if(m.isManual('muapi','upload')){const e=m.manualError('muapi');return { ok: false, status: e.status, code: e.code, error: e.message };}}
     const key = apiKey || muapiKey();
     if (!key) return { ok: false, error: 'muapi: no API key configured' };
     const s = String(fileRef || '');

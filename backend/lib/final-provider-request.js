@@ -7,8 +7,10 @@ const { AsyncLocalStorage } = require('async_hooks');
 const attempts = new AsyncLocalStorage();
 const approvedRequests = new WeakSet();
 const sha = bytes => crypto.createHash('sha256').update(bytes).digest('hex');
+// Every provider the final review can resolve, and the adapter file it reads.
+const REVIEW_PROVIDER_MODULES = Object.freeze({ openai:'openai-image', google:'google-image', muapi:'muapi-image', seedance:'seedance', runway:'runway', higgsfield:'higgsfield', 'muapi-upscale':'muapi-topaz-upscale', meshy:'meshy',worldlabs:'worldlabs',magnific:'magnific',elevenlabs:'elevenlabs' });
 function adapterVersion(provider) {
- const files = { openai:'openai-image', google:'google-image', muapi:'muapi-image', seedance:'seedance', runway:'runway', higgsfield:'higgsfield', 'muapi-upscale':'muapi-topaz-upscale', meshy:'meshy',worldlabs:'worldlabs',magnific:'magnific',elevenlabs:'elevenlabs' };
+ const files = REVIEW_PROVIDER_MODULES;
  if (!files[provider]) throw new Error(`Final request review is not supported for ${provider}`);
  const source=fs.readFileSync(path.join(__dirname,'providers',`${files[provider]}.js`));
  const routing={};
@@ -286,4 +288,4 @@ function normalizeInheritedInputs(provider,capability,payload) {
  if(ignored.length)result.__not_sent_input_fields=[...(payload.__not_sent_input_fields || []),...ignored].filter((key,index,all)=>all.indexOf(key)===index);
  return result;
 }
-module.exports={normalizeInheritedInputs,resolveFinalRequest,approvedRequest,restore,adapterVersion,finishGeneration,isApprovedRequest:request=>approvedRequests.has(request)};
+module.exports={REVIEW_PROVIDER_MODULES,normalizeInheritedInputs,resolveFinalRequest,approvedRequest,restore,adapterVersion,finishGeneration,isApprovedRequest:request=>approvedRequests.has(request)};
