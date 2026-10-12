@@ -1,6 +1,8 @@
 # Manual generation: combined-result verification
 
-This verifies confer `5e3a9491` (branch `feat/manual-generation-handoff`, as built through `b84384e`) in confer `fbec7d4c`. Claude drafted it; codex reviewed.
+This verifies confer `5e3a9491` (branch `feat/manual-generation-handoff`, as built through `b84384e`, plus `8940328`) in confer `fbec7d4c`. Claude drafted it; codex reviewed.
+
+During this verification, a peer edit in the shared checkout added `output_paths` to the cleanup trigger's list of output columns, with a test. `film_refsheet_jobs` records its outputs there, and without it a reference-sheet job that had produced output could have been deleted. It was committed as part of `8940328` and is included in the results below.
 
 ## 1. What each participant reported
 
@@ -30,12 +32,12 @@ Both participants worked in one repo, so the shared contracts are the frontendâ†
 | g | Bridge returns `{__manual_handoff}` for passthrough; dialog returns `{__manual_nav: 'next' / 'previous'}` | `request-bridge.js`; `FinalRequestReview.jsx` | `public/legacy/core.js` `api()` and `streamSSEPost` (generated, unchanged); `request-bridge.js` `walkReviews` | yes | `ManualBridge.test.jsx` (passthrough not replayed; batches 1â€“4) |
 | h | Env and settings: `FILM_DATA_DIR`, `CORS_ALLOWED_ORIGINS`, `FILM_ENGINE_PUBLIC_URL`, `gridlight_enabled` | `backend/lib/data-paths.js` and `db/database.js`; `server.js`; `lib/frame-handles.js`; `routes/app-settings.js` | `final-request-review.js` `mediaRoots` (data root); `docs/manual-generation.md`; `lib/video-edit.js` (no public link for manual vendors); `lib/providers/index.js` `localGatewayEnabled` | yes | route and Gridlight end-to-end tests |
 
-## 3. Tests (run on `b84384e`)
+## 3. Tests (run on `8940328`)
 
 | Command | Result |
 |---|---|
-| `cd backend && node --test tests/manual-generation.test.js tests/manual-route-gate.test.js` | 17 tests, 17 pass, 0 fail; "routes 31: generation 17 reached review; not manual 14"; batch reviews: music 14, voice 7 |
-| `cd backend && node --test tests/*.test.js` | 5459 tests, 5150 pass, 302 fail. Against the pre-change baseline (341 fail): new failures `[]`, and 40 baseline failures now pass |
+| `cd backend && node --test tests/manual-generation.test.js tests/manual-route-gate.test.js` | 18 tests, 18 pass, 0 fail; "routes 31: generation 17 reached review; not manual 14"; batch reviews: music 14, voice 7 |
+| `cd backend && node --test tests/*.test.js` | 5460 tests, 5151 pass, 302 fail. Against the pre-change baseline (341 fail): new failures `[]`, and 40 baseline failures now pass |
 | `npx vitest run` | 2 failed, 1236 passed, 1 skipped. Both failures (`App.boot`, `PilotPanel`) also fail on `main` |
 | `node --test tools/tests/*.test.js` | 239 pass, 0 fail |
 | `npm run smoke` | 49/52 pages clean, 0 console errors. The same 3 failures (screenplay editor, switch project, subject sheets) occur on `main` |
