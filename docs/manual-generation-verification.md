@@ -82,10 +82,12 @@ The check ran in isolation, so nothing touched the user's Electron window or dat
 - It hit the fake gateway exactly once, so the planner-less fallback did not post the route twice.
 - No page errors were logged.
 
+The live run covers these two flows only: one manual-vendor hand-over and one kept-Gridlight generation. Every other interaction (batch Previous/Next, streamed reviews, the upscale dialog, Settings) is proven by the tests above, not live.
+
 ## 4. Blockers never resolved
 
 - **Product or code blockers:** none. Every point a participant raised has a commit and a test.
-- **Process (open):** codex's own tool calls are still delayed, so its independent reads of the latest audit commits are pending. Its last independent run was 16/0 on the manual-generation tests. This does not block the code, but the audit is not yet independently confirmed for its final commit.
+- **Process:** codex's independent verification is done for the backend manual-generation files (16/0) and the four review UI files (182/182). Its tool reads can still stall, so later commits may not yet be independently re-read. This is an operational delay, not a code blocker.
 
 Known items outside this task:
 
