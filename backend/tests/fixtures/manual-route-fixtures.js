@@ -210,6 +210,163 @@ module.exports = {
         ];
     },
 
+    /*
+     * async ({db, call, project, ids}) => [{ path, url, body }]
+     *
+     * The gated paths the app reviews through the planner (gated minus
+     * route_reviewed): each body is the route's own request body as the client
+     * sends it, and the test hands it to POST /final-request-review/prepare.
+     */
+    async plannerCases({ db, call, project, ids }) {
+        const shots = db.prepare(`SELECT s.id, s.shot_code, s.scene_id FROM film_shots s JOIN film_scenes sc ON sc.id = s.scene_id
+            WHERE sc.project_id = ? ORDER BY CAST(sc.scene_number AS INTEGER), s.sort_order, s.shot_code`).all(project);
+        const [shotA, shotB, shotC, shotD, shotE, shotF] = shots;
+        const cases = [];
+        const add = (p, url, body) => cases.push({ path: p, url, body: body || {} });
+
+        /*
+         * Project settings, through their own routes.
+         *
+         * Aspect 16:9: the demo is 2.39:1, and a subject plate carries the
+         * project's ratio as is (lib/reference-plates.js:1012, routes/locations.js:94,
+         * 238), which the review refuses for MuAPI ("Unsupported MuAPI
+         * aspect_ratio", lib/final-request-validation.js:109). Reported, not fixed here.
+         *
+         * Video sound silent: every Runway clip is built with generate_audio true
+         * (lib/video-prompt.js:374), and gen4.5 takes no generated audio
+         * (lib/providers/runway.js:813); "silent" is the project's own choice that
+         * turns it off (lib/video-audio-policy.js:17).
+         */
+        ok(await call('PUT', `/projects/${project}`, { aspect_ratio: '16:9' }), 'project aspect');
+        ok(await call('PUT', `/projects/${project}/video/audio-policy`, { video_audio_policy: 'silent' }), 'video audio policy');
+
+        // An approved (imported) frame on the first six shots; a 6s clip on the first.
+        const frames = [];
+        for (const [i, s] of [shotA, shotB, shotC, shotD, shotE, shotF].entries())
+            frames.push(ok(await call('POST', `/shots/${s.id}/storyboard/import`, { name: `frame-${i}.png`, data: pngUri(320, 180, [40 + i * 40, 90, 160]) }), `storyboard import ${i}`));
+        ok(await call('POST', `/shots/${shotA.id}/media/video/import`, { name: 'take.mp4', data: mp4Uri(6) }), 'video import');
+        ok(await call('POST', `/characters/${ids.characters}/refsheet/import`, { data: pngUri(256, 256), view: 'front', name: 'front.png' }), 'identity plate import');
+        ok(await call('POST', `/locations/${ids.locations}/plate/import`, { data: pngUri(320, 180), name: 'plate.png' }), 'location plate import');
+
+        // Subjects: the bodies the character / subject sheets send.
+        add('/characters/ID/refsheet/generate', `/characters/${ids.characters}/refsheet/generate`, { views: ['front'] });
+        add('/characters/ID/refsheet/orbit', `/characters/${ids.characters}/refsheet/orbit`, {});
+        add('/locations/ID/plate/generate', `/locations/${ids.locations}/plate/generate`, {});
+        add('/locations/ID/plate/refine', `/locations/${ids.locations}/plate/refine`, { instruction: 'add rain puddles reflecting the neon' });
+        add('/locations/ID/plate/compass', `/locations/${ids.locations}/plate/compass`, {});
+        add('/props/ID/plate/generate', `/props/${ids.props}/plate/generate`, {});
+
+        // Board frames.
+        add('/shots/ID/storyboard/regenerate', `/shots/${shotA.id}/storyboard/regenerate`, {});
+        add('/shots/ID/storyboard/refine', `/shots/${shotA.id}/storyboard/refine`, { instruction: 'make the neon sign flicker brighter', use_anchor: false });
+        // Recompose takes its background from a view of the scene's own location
+        // (routes/storyboard.js:2690-2733): a shot whose scene names a location, and a plate with a view.
+        const placed = db.prepare(`SELECT s.id AS shot_id, l.id AS location_id FROM film_shots s JOIN film_scenes sc ON sc.id = s.scene_id
+            JOIN film_locations l ON l.project_id = sc.project_id AND LOWER(l.name) = LOWER(sc.location)
+            WHERE sc.project_id = ? ORDER BY CAST(sc.scene_number AS INTEGER), s.sort_order, s.shot_code LIMIT 1`).get(project);
+        if (![shotA, shotB, shotC, shotD, shotE, shotF].some(s => s.id === placed.shot_id))
+            ok(await call('POST', `/shots/${placed.shot_id}/storyboard/import`, { name: 'frame-placed.png', data: pngUri(320, 180, [200, 60, 90]) }), 'storyboard import (recompose)');
+        ok(await call('POST', `/locations/${placed.location_id}/plate/import`, { data: pngUri(320, 180, [10, 140, 120]), view: 'reverse', name: 'reverse.png' }), 'location view import (recompose)');
+        add('/shots/ID/storyboard/recompose', `/shots/${placed.shot_id}/storyboard/recompose`, { instruction: 'frame the figure on the left third', background_view: 'reverse' });
+        // The upscale dialog's own body (src/pages/storyboard/UpscaleFrameDialog.jsx:27).
+        const up = ok(await call('GET', `/shots/${shotA.id}/storyboard-upscale/preview?resolution=2K&provider=muapi`), 'storyboard upscale preview');
+        add('/shots/ID/storyboard-upscale', `/shots/${shotA.id}/storyboard-upscale`, { provider: 'muapi', resolution: '2K', plan_token: up.plan_token, confirmed: true, cost_unknown_ack: true });
+
+        // Footage. The single clip names its model: the default production tier
+        // (hailuo3) is refused, see the report on lib/video-prompt.js:409.
+        add('/shots/ID/video/generate', `/shots/${shotA.id}/video/generate`, { model: 'gen4.5' });
+        // The upscale dialog sends the chosen model (src/index.html:45688-45689).
+        add('/shots/ID/post/upscale', `/shots/${shotA.id}/post/upscale`, { model: 'magnific-video-upscaler' });
+        /*
+         * /shots/ID/repair is left out: with the project's video on Runway it
+         * cannot be prepared for any body (see the report). Its body would be the
+         * player's (src/pages/playback/player.js:868): { start_sec: 1, end_sec: 5,
+         * resolution } inside the 6s clip.
+         */
+
+        // Batches and pipelines (src/pages/pipeline/PipelinePage.jsx:133, src/index.html:15261-15265).
+        add('/projects/ID/storyboard/generate/stream', `/projects/${project}/storyboard/generate/stream`, {});
+        add('/projects/ID/video/batch/stream', `/projects/${project}/video/batch/stream`, {});
+        add('/shots/ID/pipeline/run/stream', `/shots/${shotA.id}/pipeline/run/stream`, { strict: false });
+        add('/scenes/ID/pipeline/run', `/scenes/${shotA.scene_id}/pipeline/run`, {});
+        add('/projects/ID/pipeline/run', `/projects/${project}/pipeline/run`, {});
+
+        // Sequences. A first-and-last-frame move needs a model that takes a last
+        // frame (gen4.5 takes the first only: lib/providers/video-model-fields.json).
+        const seq = ok(await call('POST', `/projects/${project}/sequences`, { name: 'Opening', shot_ids: [shotA.id, shotB.id] }), 'sequence create').sequence;
+        add('/sequences/ID/generate', `/sequences/${seq.id}/generate`, { model: 'veo3.1' });
+        /*
+         * Native multi-shot takes 3–5 shots, 5–15 s in all (lib/providers/runway.js:1088-1093),
+         * and no three demo shots are that short (the shortest are 5, 6 and 6 s).
+         * Three 4 s shots are written into the last scene through POST /shots.
+         */
+        const lastScene = db.prepare('SELECT id FROM film_scenes WHERE project_id = ? ORDER BY CAST(scene_number AS INTEGER) DESC LIMIT 1').get(project).id;
+        const quick = ok(await call('POST', '/shots', { scene_id: lastScene, cards: [
+            { shot_code: 'SC07-SH03', duration_ms: 4000, description: 'Kai turns from the window, rain streaking the glass behind him' },
+            { shot_code: 'SC07-SH04', duration_ms: 4000, description: 'Close on the implant photo pinned to the evidence board' },
+            { shot_code: 'SC07-SH05', duration_ms: 4000, description: 'Kai pulls on his coat and walks out into the neon corridor' },
+        ] }), 'shots create (native)').shots;
+        for (const [i, s] of quick.entries())
+            ok(await call('POST', `/shots/${s.id}/storyboard/import`, { name: `quick-${i}.png`, data: pngUri(320, 180, [150, 40 + i * 50, 70]) }), `storyboard import (native ${i})`);
+        const multi = ok(await call('POST', `/projects/${project}/sequences`, { name: 'Run of three', shot_ids: quick.map(s => s.id) }), 'sequence create (native)').sequence;
+        add('/sequences/ID/generate-native', `/sequences/${multi.id}/generate-native`, {});
+        /*
+         * A strip has stations only where the camera moves, read from
+         * card.camera.movement (lib/shot-motion.js:281); the demo writes
+         * camera_movement, which nothing reads, and PUT /shots/:id refuses to
+         * edit a demo card, so the move is written to the card directly (as in
+         * generationCases above). Its own shot: a sequence takes its shots from
+         * any other (move: true), which would leave the native one short.
+         */
+        {
+            const row = db.prepare('SELECT scene_card_yaml FROM film_shots WHERE id = ?').get(shotF.id);
+            let card = {}; try { card = JSON.parse(row.scene_card_yaml || '{}'); } catch (_) { card = {}; }
+            card.camera = { ...(card.camera && typeof card.camera === 'object' ? card.camera : {}), movement: 'dolly-in' };
+            db.prepare('UPDATE film_shots SET scene_card_yaml = ?, duration_ms = 4000 WHERE id = ?').run(JSON.stringify(card), shotF.id);
+        }
+        const strip = ok(await call('POST', `/projects/${project}/sequences`, { name: 'Push in', shot_ids: [shotF.id], move: true }), 'sequence create (strip)').sequence;
+        add('/sequences/ID/inbetweens', `/sequences/${strip.id}/inbetweens`, {});
+
+        // In-betweens: frames still to make, for the frame chain.
+        const span = ok(await call('POST', `/projects/${project}/inbetweens`, { from_shot_id: shotB.id, to_shot_id: shotC.id, count: 2 }), 'inbetween span');
+        add('/inbetweens/ID/generate', `/inbetweens/${span.id}/generate`, {});
+        /*
+         * And a span whose one frame has its picture, for the clip. Only a
+         * generation makes a take (routes/inbetweens.js:248-266), and the manual
+         * hand-over refuses an in-between image (lib/image-handoff.js:19), so the
+         * take is written as that generation writes it.
+         */
+        const made = ok(await call('POST', `/projects/${project}/inbetweens`, { from_shot_id: shotA.id, to_shot_id: shotB.id, count: 1 }), 'inbetween span (made)');
+        {
+            const dir = path.dirname(db.prepare('SELECT file_path FROM film_assets WHERE id = ?').get(frames[0].asset_id).file_path);
+            const fileName = `inbetween-${made.id}.ib01.png`, filePath = path.join(dir, fileName), bytes = png(320, 180, [90, 90, 200]);
+            fs.writeFileSync(filePath, bytes);
+            const at = made.frames[0].at_ms, assetId = require('crypto').randomUUID();
+            db.prepare(`INSERT INTO film_assets (id, project_id, shot_id, asset_type, file_path, file_name, format, mime_type, size_bytes, provider, metadata)
+                VALUES (?, ?, ?, 'other', ?, ?, 'png', 'image/png', ?, NULL, ?)`).run(assetId, project, shotA.id, filePath, fileName, bytes.length,
+                JSON.stringify({ kind: 'inbetween_frame', inbetween_id: made.id, at_ms: at, frame_index: 0, direction: '', from_shot_id: shotA.id, to_shot_id: shotB.id }));
+            db.prepare('UPDATE film_inbetweens SET frames_json = ? WHERE id = ?').run(JSON.stringify([{ at_ms: at, direction: '', asset_id: assetId }]), made.id);
+        }
+        // Two legs, each from one picture to the next: a model that takes a last frame.
+        add('/inbetweens/ID/video', `/inbetweens/${made.id}/video`, { model: 'veo3.1' });
+
+        // Flows: the shot-to-clip template, run on a shot and applied to another
+        // with the apply plan's fingerprint (src/index.html:24392).
+        const flow = ok(await call('POST', `/projects/${project}/flows/from-template`, { template_id: 'shot-to-clip', shot_id: shotA.id, scene_id: shotA.scene_id }), 'flow create');
+        add('/flows/ID/run', `/flows/${flow.id}/run`, { shot_id: shotA.id });
+        const plan = ok(await call('GET', `/flows/${flow.id}/apply-plan?project_id=${project}&targets=${encodeURIComponent('shot:' + shotB.id)}`), 'flow apply plan');
+        add('/flows/ID/apply', `/flows/${flow.id}/apply`, { project_id: project, targets: ['shot:' + shotB.id], fingerprint: plan.fingerprint });
+        // Repair with the player's own body (src/pages/playback/player.js): the project
+        // pins video to Runway, which must still produce the hand-over review.
+        add('/shots/ID/repair', `/shots/${shotA.id}/repair`, { start_sec: 1, end_sec: 5, resolution: '480p' });
+        return cases;
+    },
+
+    /* Planner-set paths that do not reach a manual vendor's review, each with why. */
+    NOT_MANUAL_PLANNER: [
+        { path: '/projects/ID/models/batch/stream', reason: 'not a generation: the route answers 428 for every request (routes/threed.js:707-708, "3D batch requires per-subject approved native execution") and the planner refuses it the same way (lib/final-threed-request-plans.js:14); each subject is generated, and reviewed, through /characters|props|locations/:id/model/generate' },
+    ],
+
     /* Routes in the inventory that legitimately do not reach a manual vendor's review. */
     NOT_MANUAL_GENERATION: [
         { path: '/backups/folder/run', method: 'POST', reason: 'local: writes a database snapshot to the chosen folder (routes/backups.js:43, lib/backup-folder.js); no provider' },

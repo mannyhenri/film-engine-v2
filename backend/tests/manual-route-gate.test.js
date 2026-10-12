@@ -31,7 +31,9 @@ function promptOf(body={}){
  const field=(body.fields||[]).find(f=>f.name==='prompt'&&typeof f.value==='string');if(field)return field.value;
  if(typeof body.instances?.[0]?.prompt==='string')return body.instances[0].prompt;
  if(typeof body.world_prompt?.text_prompt==='string')return body.world_prompt.text_prompt;
- const part=Array.isArray(body.input)?body.input.find(p=>p.type==='text'):null;return part?.text||'';
+ const part=Array.isArray(body.input)?body.input.find(p=>p.type==='text'):null;if(part?.text)return part.text;
+ // Runway multi-shot: a prompt per shot.
+ return Array.isArray(body.shots)?body.shots.map(s=>s?.prompt||'').filter(Boolean).join('\n'):'';
 }
 test('every real generation route reaches a manual review with its full prompt and assets; no vendor call, no row left behind',async()=>{
  const fixtures=require('./fixtures/manual-route-fixtures');
@@ -101,6 +103,47 @@ test('every real generation route reaches a manual review with its full prompt a
  console.log(`routes ${inventory.routes.length}: generation ${reached.length} reached review; not manual ${fixtures.NOT_MANUAL_GENERATION.length}`);
  assert.deepEqual(problems,[]);
 });
+test('every planner-prepared generation path reaches a manual review with its full prompt and assets; no vendor call',async()=>{
+ const fixtures=require('./fixtures/manual-route-fixtures');
+ assert.equal(typeof fixtures.plannerCases,'function','fixtures.plannerCases exists');
+ const demo=await call('POST','/projects/demo',{});const project=JSON.parse(demo.text).project_id;
+ db.prepare('UPDATE film_projects SET provider_config=? WHERE id=?').run(JSON.stringify({image:'muapi',video:'runway',voice:'elevenlabs',sfx:'elevenlabs',ambient:'elevenlabs',music:'elevenlabs',model3d:'meshy',post:'magnific',world:'worldlabs'}),project);
+ const first=sql=>{try{return db.prepare(sql).get(project)?.id;}catch(_){return null;}};
+ const ids={projects:project,shots:first('SELECT s.id FROM film_shots s JOIN film_scenes sc ON s.scene_id=sc.id WHERE sc.project_id=? LIMIT 1'),scenes:first('SELECT id FROM film_scenes WHERE project_id=? LIMIT 1'),
+  characters:first('SELECT id FROM film_characters WHERE project_id=? LIMIT 1'),locations:first('SELECT id FROM film_locations WHERE project_id=? LIMIT 1'),props:first('SELECT id FROM film_props WHERE project_id=? LIMIT 1')};
+ const routeReviewed=new Set(inventory.route_reviewed),planner=inventory.gated.filter(p=>!routeReviewed.has(p));
+ assert.ok(planner.length>=26,'planner set present: '+planner.length);
+ const outbound=[];const original=global.fetch;
+ global.fetch=async(url)=>{outbound.push(String(url));return new Response(JSON.stringify({error:'offline in test'}),{status:503,headers:{'content-type':'application/json'}});};
+ const problems=[],reached=[];
+ try{
+  const cases=await fixtures.plannerCases({db,call,project,ids});
+  const named=new Set((fixtures.NOT_MANUAL_PLANNER||[]).map(n=>n.path));
+  const covered=new Set([...cases.map(c=>c.path),...named]);
+  // Set-complete: every planner-prepared gated path is a case or named, with a reason.
+  for(const p of planner)if(!covered.has(p))problems.push({path:p,problem:'neither a planner case nor named as not manual'});
+  for(const c of cases){
+   const sent=outbound.length;
+   const out=await call('POST','/final-request-review/prepare',{path:c.url,body:c.body||{}});
+   const vendor=outbound.slice(sent).filter(u=>!/^https?:\/\/(localhost|127\.0\.0\.1)/.test(u));
+   if(vendor.length)problems.push({path:c.path,problem:'vendor call',vendor});
+   let reviews=[];try{reviews=JSON.parse(out.text).reviews||[];}catch(_){}
+   if(out.status!==200||!reviews.length){problems.push({path:c.path,problem:'no review',status:out.status,text:out.text.slice(0,200)});continue;}
+   for(const r of reviews){
+    const snap=r.snapshot||{};
+    if(!manual.isManual(snap.provider,snap.capability))problems.push({path:c.path,problem:'review is not for a manual vendor',provider:snap.provider});
+    const prompt=promptOf(snap.body);
+    if(!prompt&&!(['post','image-upscale','model3d'].includes(snap.capability)&&(snap.references||[]).length))problems.push({path:c.path,problem:'review has no prompt',capability:snap.capability});
+    for(const ref of snap.references||[])if(!ref.mime||!ref.order||!(ref.data||(ref.path&&ref.byte_length)))problems.push({path:c.path,problem:'asset missing bytes/mime/order'});
+   }
+   reached.push(`${c.path} → ${reviews.length} review(s): ${reviews.map(r=>r.snapshot?.provider+'/'+r.snapshot?.capability).join(', ')}`);
+  }
+ }finally{global.fetch=original;}
+ console.log('planner reached review:\n  '+reached.join('\n  '));
+ console.log(`planner paths ${planner.length}: reached ${reached.length}; named ${(fixtures.NOT_MANUAL_PLANNER||[]).length}`);
+ assert.deepEqual(problems,[]);
+});
+
 test('a kept Gridlight generation runs end to end: saved result, no review, only the local gateway contacted',async()=>{
  const original=global.fetch,contacted=[];
  const wav=Buffer.concat([Buffer.from('RIFF'),Buffer.alloc(40)]);

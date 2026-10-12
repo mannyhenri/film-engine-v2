@@ -102,4 +102,9 @@ describe('manual generation: the final screen hands over prompt and assets',()=>
   }
   delete window.__feFinalReviewBase;
  });
+ it('a multi-shot request hands over every shot prompt, in order, with its duration',()=>{
+  const r=review('runway','video');r.snapshot.body={model:'gen4_turbo',mode:'custom',shots:[{prompt:'Wide: rain on the neon street',duration:4},{prompt:'Close: her eyes catch the light',duration:3}]};
+  render(<FinalRequestReviewDialog initialReview={r} onSend={()=>{}} onCancel={()=>{}} request={vi.fn()}/>);
+  expect(screen.getByLabelText('Prompt to copy').textContent).toBe('Shot 1 (4s): Wide: rain on the neon street\nShot 2 (3s): Close: her eyes catch the light');
+ });
 });

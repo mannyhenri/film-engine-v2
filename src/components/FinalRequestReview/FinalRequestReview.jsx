@@ -20,6 +20,8 @@ function fullPromptOf(snapshot) {
  if (typeof body.world_prompt?.text_prompt==='string') return body.world_prompt.text_prompt;
  const textPart=Array.isArray(body.input)?body.input.find(part=>part.type==='text'):null;
  if(typeof textPart?.text==='string')return textPart.text;
+ // Runway multi-shot: one prompt per shot, handed over in order with its length.
+ if(Array.isArray(body.shots)&&body.shots.some(shot=>typeof shot?.prompt==='string'))return body.shots.map((shot,i)=>`Shot ${i+1}${shot?.duration?` (${shot.duration}s)`:''}: ${shot?.prompt||''}`).join('\n');
  return undefined;
 }
 const readOnlyFieldsOf = review => review.snapshot?.metadata?.readOnlyInputFields || [];
