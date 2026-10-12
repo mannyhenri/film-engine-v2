@@ -20,8 +20,16 @@ describe('unplannable generation paths reach the hand-over through their route',
   const open=vi.fn().mockRejectedValue(cancelledReview());
   await expect(prepareFinalRequest(concrete(path),{method:methodOf(path),body:'{"a":1}'},open,request)).rejects.toMatchObject({code:'FINAL_REQUEST_CANCELLED'});
   expect(open).toHaveBeenCalledTimes(1);expect(open.mock.calls[0][0].id).toBe('route-review');
-  expect(route).toHaveBeenCalledTimes(1);expect(JSON.parse(route.mock.calls[0][1].body)).toEqual({a:1});
+  expect(route).toHaveBeenCalledTimes(1);expect(JSON.parse(route.mock.calls[0][1].body)).toEqual({a:1});expect(route.mock.calls[0][1].method).toBe(methodOf(path));
   expect(request.mock.calls.map(([p])=>p)).toContain('/final-request-review/route-review/cancel');
+ });
+ it.each([[{review:{id:'structured'}}],[{review_id:'structured'}]])('a structured 428 review %j opens that review',async(payload)=>{
+  window.__feFinalReviewBase=()=>'/film';
+  vi.stubGlobal('fetch',vi.fn(async()=>({ok:false,status:428,text:async()=>JSON.stringify(payload)})));
+  const request=vi.fn(async p=>{if(p.endsWith('/prepare'))throw unsupported();if(p==='/final-request-review/structured')return review('structured');return {};});
+  const open=vi.fn().mockRejectedValue(cancelledReview());
+  await expect(prepareFinalRequest(concrete(inventory.route_reviewed[0]),{method:'POST',body:'{}'},open,request)).rejects.toMatchObject({code:'FINAL_REQUEST_CANCELLED'});
+  expect(open.mock.calls[0][0].id).toBe('structured');
  });
  it('a route that needs no manual vendor completes once and returns its own result',async()=>{
   window.__feFinalReviewBase=()=>'/film';

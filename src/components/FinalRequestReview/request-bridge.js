@@ -59,9 +59,11 @@ async function routeReview(path,opts,body,openReview,request,epoch) {
  const base = typeof window.__feFinalReviewBase === 'function' ? window.__feFinalReviewBase() : 'http://localhost:3100/film';
  const response = await fetch(base + path, { method: opts.method || 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
  const text = await response.text();
- const ids=[...new Set([...text.matchAll(/FINAL_REQUEST_REVIEW_REQUIRED:([A-Za-z0-9_-]+)/g)].map(m=>m[1]))];
+ let data; try { data=JSON.parse(text); } catch { data={output:text}; }
+ // The review id arrives in the error string, or as a structured field on a 428.
+ const structured=response.status===428?[data?.review?.id,data?.review_id].filter(id=>typeof id==='string'):[];
+ const ids=[...new Set([...[...text.matchAll(/FINAL_REQUEST_REVIEW_REQUIRED:([A-Za-z0-9_-]+)/g)].map(m=>m[1]),...structured])];
  if (!ids.length) {
-  let data; try { data=JSON.parse(text); } catch { data={output:text}; }
   if (!response.ok) throw Object.assign(new Error(data.error || `HTTP ${response.status}`),{data,status:response.status});
   return {...opts,__manual_handoff:data};
  }
