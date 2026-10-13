@@ -152,7 +152,7 @@ test('production account-probe wiring remains asynchronous and single-flight on 
  const manager=createAIConnections({resolveBinary:id=>'/fixture/'+id,temporaryRoot:dir,readyDelay:1,reconnectDelays:[],spawnProcess:(bin,args,config)=>{
   const child=new EventEmitter();child.stdin=new PassThrough();child.stdout=new PassThrough();child.stderr=new PassThrough();child.input='';child.stdin.on('data',b=>child.input+=b);child.kill=()=>setImmediate(()=>child.emit('close',143));
   if(config.stdio[0]==='ignore'){
-   probes.push({bin,args,config});setTimeout(()=>{const help=bin.endsWith('claude')?'--safe-mode --input-format --tools --no-session-persistence':'--ignore-user-config --ephemeral --json';const output=args.includes('--help')?help:bin.endsWith('claude')?JSON.stringify({loggedIn:true,authMethod:'claude.ai'}):'Logged in using ChatGPT';fs.writeSync(config.stdio[1],output);child.emit('close',0);},10);
+   probes.push({bin,args,config});setTimeout(()=>{const help=bin.endsWith('claude')?'--safe-mode --input-format --tools --no-session-persistence --include-partial-messages':'--ignore-user-config --ephemeral --json';const output=args.includes('--help')?help:bin.endsWith('claude')?JSON.stringify({loggedIn:true,authMethod:'claude.ai'}):'Logged in using ChatGPT';fs.writeSync(config.stdio[1],output);child.emit('close',0);},10);
   }else{child.provider=path.basename(JSON.parse(args[1]).bin);workers.push(child);setImmediate(()=>child.stdout.write('{"type":"film.worker.ready"}\n'));}
   return child;
  }});

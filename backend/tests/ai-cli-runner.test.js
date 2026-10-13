@@ -15,7 +15,7 @@ test('async capability/account probes share one flight, leave timers responsive,
  try{
   const runner=createCLIRunner({temporaryRoot:dir,resolveBinary:id=>'/fixture/'+id,spawnProcess:(bin,args,options)=>{
    const child=new EventEmitter();child.stderr=new PassThrough();child.kill=()=>{};calls.push({bin,args,options});
-   setTimeout(()=>{const help=bin.endsWith('claude')?'--safe-mode --input-format --tools --no-session-persistence':'--ignore-user-config --ephemeral --json';const output=args.includes('--help')?help:bin.endsWith('claude')?JSON.stringify({loggedIn:true,authMethod:'claude.ai'}):'Logged in using ChatGPT';fs.writeSync(options.stdio[1],output);child.emit('close',0);},15);return child;
+   setTimeout(()=>{const help=bin.endsWith('claude')?'--safe-mode --input-format --tools --no-session-persistence --include-partial-messages':'--ignore-user-config --ephemeral --json';const output=args.includes('--help')?help:bin.endsWith('claude')?JSON.stringify({loggedIn:true,authMethod:'claude.ai'}):'Logged in using ChatGPT';fs.writeSync(options.stdio[1],output);child.emit('close',0);},15);return child;
   }});
   let responsive=false;setTimeout(()=>responsive=true,1);
   const first=runner.providersAsync(true),second=runner.providersAsync(true);

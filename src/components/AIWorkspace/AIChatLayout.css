@@ -7,6 +7,18 @@
  background:var(--gl-bg-surface,#1c2027);color:var(--gl-text-primary,#eee);
  border:1px solid var(--gl-border-subtle,#3d4653);border-radius:20px;
 }
+/* Legacy .btn sets no background, so in-chat actions rendered as white system buttons.
+   :where keeps this a low-specificity base that the specific controls below override. */
+.ai-workspace.ai-chat-workspace :where(.btn){
+ display:inline-flex;align-items:center;gap:6px;margin:0 8px 0 0;padding:8px 14px;
+ border:1px solid var(--gl-border-subtle,#4b5768);border-radius:8px;
+ background:var(--gl-bg-elevated,#252b35);color:var(--gl-text-primary,#eee);
+ font-family:inherit;font-size:14px;font-weight:500;line-height:1.3;cursor:pointer;
+}
+.ai-workspace.ai-chat-workspace :where(.btn:not(:disabled):hover){background:var(--gl-bg-hover,#303846);transform:none}
+.ai-workspace.ai-chat-workspace :where(.btn:disabled){opacity:.45;cursor:not-allowed}
+.ai-workspace.ai-chat-workspace .ai-chat-conversation article>.btn{margin-top:4px}
+.ai-workspace.ai-chat-workspace .ai-chat-progress,.ai-workspace.ai-chat-workspace .ai-chat-conversation article>p[role=status]{margin:0 0 12px;font-size:15px;line-height:1.5;color:var(--gl-text-muted,#abb4c3)}
 .ai-workspace.ai-chat-workspace>.ai-chat-title {
  position:static;z-index:auto;flex:none;align-items:center;
  margin:0;padding:22px 36px;background:transparent;
@@ -78,7 +90,7 @@
 .ai-workspace.ai-chat-workspace .ai-attach-button{display:inline-flex;align-items:center;gap:10px;margin:0;padding:6px 0;border:0;background:transparent;color:var(--gl-text-muted,#abb4c3);font-size:16px}
 .ai-attach-plus{font-size:25px;font-weight:400;line-height:1}
 .ai-workspace.ai-chat-workspace .ai-provider-compact{display:flex;align-items:center;flex:0 1 auto;min-width:0;margin:0}
-.ai-workspace.ai-chat-workspace .ai-provider-compact select{appearance:none;box-sizing:border-box;width:auto;min-width:0;max-width:220px;margin:0;padding:8px 28px 8px 12px;border:1px solid var(--gl-border-subtle,#4b5768);border-radius:8px;background:transparent;box-shadow:none;color:inherit;font-size:15px;line-height:24px}
+.ai-workspace.ai-chat-workspace .ai-provider-compact select{appearance:none;box-sizing:border-box;width:auto;min-width:0;max-width:320px;margin:0;padding:8px 28px 8px 12px;text-overflow:ellipsis;border:1px solid var(--gl-border-subtle,#4b5768);border-radius:8px;background:transparent;box-shadow:none;color:inherit;font-size:15px;line-height:24px}
 .ai-provider-compact{position:relative}
 .ai-provider-compact::after{content:'⌄';position:absolute;right:10px;pointer-events:none;color:var(--gl-text-muted,#abb4c3);font-size:14px}
 .ai-chat-attachment-summary{margin-left:2px;font-size:12px;line-height:1.4;color:var(--gl-text-muted,#abb4c3)}
