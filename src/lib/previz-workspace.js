@@ -170,7 +170,7 @@ export const previzWorkspace = {
   busy: false,
   bind(E) {
     this.E = E;
-    const names = ['previzTarget', 'previzRoom', 'previzCapture', 'previzRenderReview', 'previzSend', 'previzCancel', 'previzFilter', 'previzSelectSet', 'previzCreateTarget', 'previzCreateShot', 'previzStartNewShot', 'previzAddScene'];
+    const names = ['previzTarget', 'previzRoom', 'previzApply', 'previzCapture', 'previzRenderReview', 'previzSend', 'previzCancel', 'previzFilter', 'previzSelectSet', 'previzCreateTarget', 'previzCreateShot', 'previzStartNewShot', 'previzAddScene'];
     for (const name of names) window[name] = (...args) => this[name](...args);
     return () => {
       this.E.worldMeshRelease();
@@ -413,7 +413,7 @@ export const previzWorkspace = {
   footerHtml() {
     const t = this.target(),
       disabled = !t || !legacy.WORLD.version || this.busy;
-    return `<div class="pv-delivery"><div><span>STORYBOARD DESTINATION</span><b title="${legacy.esc(t ? 'New image version · existing history preserved' : 'Existing shots at other locations stay where they are')}">${legacy.esc(t ? `${legacy.state.currentProject?.title || 'Project'} / Storyboard / ${t.shot_code}` : 'Choose or create a shot at this location')}</b><small>${t ? 'New image version · existing history preserved' : 'Existing shots at other locations stay where they are'}</small>${!t && legacy.WORLD.version ? '<button class="pv-btn" onclick="previzCreateTarget()">Create shot from this view</button>' : ''}</div><div class="pv-delivery-actions"><button class="pv-btn pv-draft" onclick="previzCapture()" title="Browser preview"${disabled ? ' disabled' : ''}>Save draft to storyboard</button><button class="pv-btn pv-primary" onclick="previzRenderReview()" title="${this.draft ? 'Same saved scene snapshot' : 'Save a draft first'}"${disabled || !this.draft ? ' disabled' : ''}>Render in Blender</button><small>Browser preview</small><small>${this.draft ? 'Same saved scene snapshot' : 'Save a draft first'}</small></div></div>`;
+    return `<div class="pv-delivery"><div><span>STORYBOARD DESTINATION</span><b title="${legacy.esc(t ? 'New image version · existing history preserved' : 'Existing shots at other locations stay where they are')}">${legacy.esc(t ? `${legacy.state.currentProject?.title || 'Project'} / Storyboard / ${t.shot_code}` : 'Choose or create a shot at this location')}</b><small>${t ? 'New image version · existing history preserved' : 'Existing shots at other locations stay where they are'}</small>${!t && legacy.WORLD.version ? '<button class="pv-btn" onclick="previzCreateTarget()">Create shot from this view</button>' : ''}</div><div class="pv-delivery-actions"><button class="pv-btn" onclick="previzApply()" title="Send this camera, its keyed move and who stands where to the shot. Production › Generate writes them into the prompt; anything changed there stays."${!(t || legacy.WORLD.shotId) || this.busy ? ' disabled' : ''}>Apply to shot</button><button class="pv-btn pv-draft" onclick="previzCapture()" title="Browser preview"${disabled ? ' disabled' : ''}>Save draft to storyboard</button><button class="pv-btn pv-primary" onclick="previzRenderReview()" title="${this.draft ? 'Same saved scene snapshot' : 'Save a draft first'}"${disabled || !this.draft ? ' disabled' : ''}>Render in Blender</button><small>Browser preview</small><small>${this.draft ? 'Same saved scene snapshot' : 'Save a draft first'}</small></div></div>`;
   },
   async capture() {
     const E = this.E,
@@ -499,6 +499,33 @@ export const previzWorkspace = {
       framing: clone(E.worldShotNow()),
       room: this.room?.name || ''
     };
+  },
+  /*
+   * APPLY TO SHOT: what Previz decided becomes what the shot is blocked with, so generation and Production ›
+   * Generate use it (lib/previs-direction.js turns it into prompt words). The button lived in a decisions bar the
+   * redesigned console stopped drawing, which left a staged camera unable to reach the shot at all.
+   * Scouting a set keeps the camera, its keys and the staging here only (worldTimelineSave), so they are written to
+   * the target shot first — the same write "Create shot from this view" makes — and then applied.
+   */
+  async previzApply() {
+    const W = legacy.WORLD, t = this.target(), shotId = (t && t.id) || W.shotId;
+    if (!shotId) return legacy.setStatus('Choose the shot to apply this to first (Choose target shot)');
+    if (this.busy) return;
+    this.busy = true;
+    this.E.worldConsoleRender();
+    try {
+      if (W.scout) {
+        if (!W.blocking?.blocking?.camera) throw new Error('Frame a camera view first');
+        const b = clone(W.blocking.blocking);
+        if (W.version?.id) await api(`/shots/${shotId}/world`, {method:'POST',body:JSON.stringify({world_version_id:W.version.id})});
+        await api(`/shots/${shotId}/previs`, {method:'PUT',body:JSON.stringify({...b,
+          camera:{...b.camera,focalMm:W.lens || b.camera.focalMm || 35},durationMs:W.durationMs,
+          cameraKeys:clone(W.keys || []),moves:clone(W.moves || [])})});
+      }
+      await api(`/shots/${shotId}/previs/apply`, {method:'POST',body:'{}'});
+      legacy.setStatus(`Applied to ${(t && t.shot_code) || 'the shot'}: Production › Generate now uses this camera, move and staging (anything you changed there stays).`);
+    } catch (err) { legacy.setStatus('Could not apply: ' + err.message); }
+    finally { this.busy = false; this.E.worldConsoleRender(); }
   },
   async previzCapture() {
     if (this.busy) return;

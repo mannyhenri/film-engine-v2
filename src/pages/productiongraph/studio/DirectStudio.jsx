@@ -4,6 +4,7 @@ import { scenesOf, secondsOf, matchingSequence, collectReferences, briefOf, higg
 import {
     EMOS, FAMS, INTS, MOVES, MV, MV_GROUPS, FRAMINGS, ANGLES, FACINGS, LENSES, TECHS, TRANS, TRANS_SHORT, SFX_QUICK, CAST_COLORS,
     nid, canonOf, lineLen, clamp, half, fmt, shortName, seedShot, applyEmotion, blankMove, beatStarts, compile, compileText, checks, ageConflicts,
+    applyPrevis, previsBehind,
 } from './direct-model.js';
 import HiggsfieldCatalog from './HiggsfieldCatalog.jsx';
 
@@ -71,7 +72,12 @@ export default function DirectStudio({ pid, graph, catalog, runway = { connected
             setInfo(r);
             revs.current = { shots: Object.fromEntries(Object.entries(r.shots || {}).map(([id, x]) => [id, x.revision || 0])), studio: r.studio_revision || 0 };
             const canon = canonOf((r.cast || []).map(c => c.name));
-            setS(Object.fromEntries(Object.entries(r.shots || {}).map(([id, x]) => [id, x.direction && x.direction.v ? x.direction : seedShot(x.card, x.card.duration_s, canon)])));
+            // An applied Previz is taken the first time a shot meets it (keeping any camera field changed here);
+            // a later Previz change waits for the director's Update in the shot's Camera tab.
+            setS(Object.fromEntries(Object.entries(r.shots || {}).map(([id, x]) => {
+                const d = x.direction && x.direction.v ? x.direction : seedShot(x.card, x.card.duration_s, canon);
+                return [id, x.previs && x.previs.applied && !d.pvz ? applyPrevis(d, x.previs) : d];
+            })));
             if (r.studio) setStudio(s => ({ ...DEFAULT_STUDIO, ...r.studio, hand: r.studio.hand ?? null }));
         } catch (err) { legacy.setStatus('Direction: ' + err.message, true); }
     }, [pid]);
@@ -599,7 +605,7 @@ export default function DirectStudio({ pid, graph, catalog, runway = { connected
                     </div>); })()}
 
                 {k === 'shot' && shotCode && <ShotPanel {...{ s: S[shotCode], node: byId.get(shotCode), card: cards[shotCode]?.card || {}, id: shotCode, label, ui, patchUi, edit, go, offsets, lt0, nameOf, colorOf, castList, castKey,
-                    grouped, scope, S, setS, dirty, queueSave, touch, amb, music: studio.music, setting: settingOf(sceneOf(shotCode)), setSetting: (v) => setSt({ settings: { ...studio.settings, [sceneOf(shotCode)]: v } }) }} />}
+                    grouped, scope, S, setS, dirty, queueSave, touch, amb, music: studio.music, setting: settingOf(sceneOf(shotCode)), pv: cards[shotCode]?.previs || null, setSetting: (v) => setSt({ settings: { ...studio.settings, [sceneOf(shotCode)]: v } }) }} />}
 
                 {k === 'char' && shotCode && <CharPanel {...{ s: S[shotCode], id: shotCode, ch: sel.ch, ui, patchUi, edit, offsets, lt0, nameOf }} />}
 
@@ -716,14 +722,13 @@ function PreviewClip({ video, at, playing }) {
     return <video ref={ref} className="ds-pvimg" src={video} preload="metadata" />;
 }
 
-function ShotPanel({ s, node, card, id, label, ui, patchUi, edit, go, offsets, lt0, nameOf, colorOf, castList, castKey, grouped, scope, S, setS, dirty, queueSave, touch, amb, music, setting, setSetting }) {
+function ShotPanel({ s, node, card, id, label, ui, patchUi, edit, go, offsets, lt0, nameOf, colorOf, castList, castKey, grouped, scope, S, setS, dirty, queueSave, touch, amb, music, setting, setSetting, pv }) {
     const img = shotImg(node, 160);
     const castHere = [...new Set([...(card.characters || []).map(castKey), ...s.lines.map(l => l.ch), ...Object.keys(s.perf || {})])].filter(Boolean);
     const cam = s.cam;
     const ovr = ['framing', 'angle', 'facing', 'lens'].filter(x => cam[x] !== s.inh?.[x]);
     const fr = FRAMINGS.find(f => f[0] === cam.framing);
     const camSet = (key, v) => () => edit(id, x => { x.cam[key] = v; }, 0);
-    const lensIdx = Math.max(0, LENSES.indexOf(cam.lens));
     const others = scope.filter(x => x !== id && S[x].tech !== s.tech);
     return <>
         <div className="ds-panel" style={{ gap: 8 }}>
@@ -744,8 +749,10 @@ function ShotPanel({ s, node, card, id, label, ui, patchUi, edit, go, offsets, l
         </div>}
 
         {ui.tab === 'camera' && <>
+            <PrevizPanel s={s} pv={pv} onUpdate={() => edit(id, x => { const n = applyPrevis(x, pv); x.cam = n.cam; x.inh = n.inh; x.pvz = n.pvz; }, 0)}
+                onToggle={(on) => edit(id, x => { if (x.pvz) x.pvz.on = on; }, 0)} />
             <div className="ds-panel">
-                <div className="ds-row"><h4>Framing</h4><span className={'ds-pill ' + (ovr.length ? 'ovr' : 'inh')}>{ovr.length ? 'Changed here: ' + ovr.join(', ') : 'From the scene card'}</span><div style={{ flex: 1 }} /><button type="button" className="ds-link" onClick={() => legacy.navigateTo && legacy.navigateTo('previs')}>Frame it in Previz 3D ↗</button></div>
+                <div className="ds-row"><h4>Framing</h4><span className={'ds-pill ' + (ovr.length ? 'ovr' : 'inh')}>{ovr.length ? 'Changed here: ' + ovr.join(', ') : s.pvz ? 'From Previz' : 'From the scene card'}</span><div style={{ flex: 1 }} /><button type="button" className="ds-link" onClick={() => legacy.navigateTo && legacy.navigateTo('previs')}>Frame it in Previz 3D ↗</button></div>
                 <span className="ds-mono" style={{ color: '#e4e4e7' }}>{(fr ? fr[1] : cam.framing).toUpperCase()} · {cam.facing.toUpperCase()} · {cam.angle.toUpperCase()} HEIGHT · {cam.lens}MM</span>
                 <span className="ds-lab">Size</span>
                 <div className="ds-chips">{FRAMINGS.map(f => <button key={f[0]} type="button" title={f[1]} className={'ds-chip' + (cam.framing === f[0] ? ' on' : '')} onClick={camSet('framing', f[0])}>{f[0]}</button>)}</div>
@@ -753,7 +760,7 @@ function ShotPanel({ s, node, card, id, label, ui, patchUi, edit, go, offsets, l
                 <div className="ds-chips">{ANGLES.map(a => <button key={a} type="button" className={'ds-chip' + (cam.angle === a ? ' on' : '')} onClick={camSet('angle', a)}>{a}</button>)}</div>
                 <span className="ds-lab">Subject facing</span>
                 <div className="ds-chips">{FACINGS.map(a => <button key={a} type="button" className={'ds-chip' + (cam.facing === a ? ' on' : '')} onClick={camSet('facing', a)}>{a}</button>)}</div>
-                <div className="ds-row"><span className="ds-lab" style={{ margin: 0 }}>Lens</span><Step lab={`${cam.lens}mm`} less="Wider lens" more="Longer lens" minus={() => edit(id, x => { x.cam.lens = LENSES[Math.max(0, lensIdx - 1)]; }, 0)} plus={() => edit(id, x => { x.cam.lens = LENSES[Math.min(LENSES.length - 1, lensIdx + 1)]; }, 0)} />
+                <div className="ds-row"><span className="ds-lab" style={{ margin: 0 }}>Lens</span><Step lab={`${cam.lens}mm`} less="Wider lens" more="Longer lens" minus={() => edit(id, x => { x.cam.lens = [...LENSES].reverse().find(l => l < x.cam.lens) ?? LENSES[0]; }, 0)} plus={() => edit(id, x => { x.cam.lens = LENSES.find(l => l > x.cam.lens) ?? LENSES[LENSES.length - 1]; }, 0)} />
                     <input className="ds-in" style={{ width: 130 }} aria-label="Lens note" placeholder="anamorphic" value={cam.lensNote || ''} onChange={e => { const v = e.target.value; edit(id, x => { x.cam.lensNote = v; }, 0); }} /></div>
             </div>
             <div className="ds-panel">
@@ -942,3 +949,32 @@ function LinePanel({ s, id, sel, ui, patchUi, edit, offsets, nameOf, colorOf, ca
         <p className="ds-muted">Timing is a request. No model promises the exact second, or separate voice and effect tracks.</p>
     </div>;
 }
+
+/**
+ * What Previz decided for this shot (lib/previs-direction.js). Applied: its move and staging are in the prompt
+ * (switchable), and camera fields not changed here follow it. Staged but not applied: say where to apply it.
+ */
+function PrevizPanel({ s, pv, onUpdate, onToggle }) {
+    const openPreviz = () => legacy.navigateTo && legacy.navigateTo('previs');
+    if (!pv) return null;
+    if (!pv.applied && !s.pvz) return (
+        <div className="ds-panel">
+            <div className="ds-row"><h4>Previz</h4><span className="ds-pill">Not applied</span></div>
+            <p className="ds-muted">This shot has a camera and staging in Previz that haven't been applied yet. Use Apply to shot in Previz and they come into this prompt; anything you've changed here stays.</p>
+            <div className="ds-row"><button type="button" className="ds-btn sm" onClick={openPreviz}>Open Previz ↗</button></div>
+        </div>);
+    const behind = previsBehind(s, pv);
+    const on = s.pvz ? s.pvz.on !== false : true;
+    return (
+        <div className="ds-panel">
+            <div className="ds-row"><h4>From Previz</h4>{behind && pv.applied && <span className="ds-pill ovr">Previz changed since</span>}<div style={{ flex: 1 }} />
+                <label className="ps-inline"><input type="checkbox" checked={on} disabled={!s.pvz} onChange={e => onToggle(e.target.checked)} /> In the prompt</label></div>
+            {s.pvz?.move && <p className="ds-muted" style={{ margin: 0 }}><b>Move:</b> {s.pvz.move}</p>}
+            {s.pvz?.staging?.length > 0 && <p className="ds-muted" style={{ margin: 0 }}><b>Staging:</b> {s.pvz.staging.join(' ')}</p>}
+            {!s.pvz?.move && !s.pvz?.staging?.length && <p className="ds-muted" style={{ margin: 0 }}>Previz set the framing and lens; no move or named people were blocked.</p>}
+            {behind && pv.applied && <div className="ds-row"><span className="ds-muted" style={{ flex: 1 }}>Previz was applied again with a different camera or staging. Update takes it; anything you changed here stays.</span>
+                <button type="button" className="ds-btn sm pri" onClick={onUpdate}>Update from Previz</button></div>}
+            {!pv.applied && <p className="ds-muted" style={{ margin: 0 }}>Previz has unapplied changes for this shot. <button type="button" className="ds-link" onClick={openPreviz}>Apply them in Previz ↗</button></p>}
+        </div>);
+}
+

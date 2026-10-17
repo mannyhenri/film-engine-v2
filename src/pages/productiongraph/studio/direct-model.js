@@ -206,6 +206,42 @@ export function seedShot(card = {}, fallbackSeconds = 5, canon = (n) => String(n
         lines, moves, perf: {}, sfx, lit: String(card.lighting?.notes || ''), tech: '', cuts: [], transOut: 'continuous' };
 }
 
+/* ---------- what Previz decided (lib/previs-direction.js) ---------- */
+
+/** The camera fields Previz decides, in this studio's words. Only these are ever taken from Previz. */
+export const PREVIS_CAM_FIELDS = ['framing', 'angle', 'facing', 'lens'];
+export function previsCam(pv = {}) {
+    const out = {};
+    if (pv.framing) out.framing = framingOf(pv.framing);
+    if (ANGLES.includes(pv.angle)) out.angle = pv.angle;
+    if (FACINGS.includes(pv.facing)) out.facing = pv.facing;
+    if (Number(pv.lens) > 0) out.lens = Math.round(Number(pv.lens));
+    return out;
+}
+
+/**
+ * Take an applied Previz into a shot's direction, KEEPING THE DIRECTOR'S EDITS: a camera field still equal to
+ * what it inherited (`inh`, which "Changed here" is measured against) follows Previz; a field changed here
+ * stays as it is, and only its inherited value moves (so "Changed here" still says so). The move and the
+ * staging are Previz's own sentences, kept beside the shot's moves (`pvz`), never replacing them.
+ */
+export function applyPrevis(s, pv) {
+    if (!s || !pv || !pv.applied) return s;
+    const n = clone(s);
+    const from = previsCam(pv);
+    const inh = { ...(n.inh || n.cam) };
+    for (const k of Object.keys(from)) {
+        if (n.cam[k] === inh[k]) n.cam[k] = from[k];
+        inh[k] = from[k];
+    }
+    n.inh = inh;
+    n.pvz = { sig: pv.sig, move: pv.move || '', staging: Array.isArray(pv.staging) ? pv.staging : [], on: n.pvz ? n.pvz.on !== false : true };
+    return n;
+}
+
+/** Previz changed since this shot last took it (or was applied after the shot was directed). */
+export const previsBehind = (s, pv) => !!(pv && pv.applied && (!s?.pvz || s.pvz.sig !== pv.sig));
+
 /* ---------- acting ---------- */
 
 /** The beats an emotion plays as, from what sets it off: face, gaze, breath, body, voice; listening reactions on request. */
@@ -267,6 +303,11 @@ export function compileShot(s, ctx) {
         if (i === 0) {
             const lens = s.cam.lens + 'mm' + (s.cam.lensNote ? ' ' + s.cam.lensNote : '');
             items.push({ t: -2, cls: 'cam', x: (s.start ? (first ? 'Opening frame: ' : '') + s.start + ' ' : '') + 'Framing: ' + (fr ? fr[1] : s.cam.framing).toLowerCase() + ', ' + s.cam.angle.toLowerCase() + ' height' + (s.cam.facing && s.cam.facing !== 'Three-quarter' ? ', ' + s.cam.facing.toLowerCase() + ' to camera' : '') + ', ' + lens + '.' });
+            // Blocked in Previz: where everyone stands, and the move as the director keyed it.
+            if (s.pvz && s.pvz.on !== false) {
+                if (s.pvz.staging && s.pvz.staging.length) items.push({ t: -1.8, cls: 'act', x: s.pvz.staging.join(' ') });
+                if (s.pvz.move) items.push({ t: -1.6, cls: 'cam', x: s.pvz.move });
+            }
             const lit = (s.tech ? s.tech + ' lighting. ' : '') + (s.lit || '');
             if (lit.trim()) items.push({ t: -1, cls: 'lit', x: 'Light: ' + lit.trim() });
         }
@@ -359,6 +400,11 @@ export function checks(ctx) {
     if (one && units[0] && units[0].ids.length > 2) out.push({ k: 'warn', text: `${units[0].ids.length} shots in one clip: the model may merge or skip a framing. Review before paying.`, fixes: [] });
     const el = units.reduce((a, u) => a + u.ids.reduce((b, id) => b + shots[id].lines.filter(l => l.src === 'eleven').length, 0), 0);
     if (el) out.push({ k: 'info', text: `${el} line${el > 1 ? 's use' : ' uses'} an ElevenLabs recording. The clip speaks it natively and Cut lip-syncs the recording over it.`, fixes: [] });
+    for (const u of units) for (const id of u.ids) {
+        const x = shots[id];
+        if (x?.pvz?.on !== false && x?.pvz?.move && !/holds its position/.test(x.pvz.move) && x.moves.some(m => m.type === 'static'))
+            out.push({ k: 'warn', text: `${u.label}: Previz moves the camera, but this shot also says "Static shot". The prompt asks for both; remove one.`, fixes: [] });
+    }
     for (const c of conflicts) out.push({ k: 'warn', text: c.text, fixes: c.fixes });
     if (hand) out.push({ k: 'info', text: 'Sending your hand-edited text.', fixes: [] });
     if (!out.some(x => x.k === 'err')) out.unshift({ k: 'ok', text: 'Length, references and model all fit.', fixes: [] });

@@ -125,9 +125,9 @@ for (const [sheet, css] of Object.entries(SHEETS)) {
     });
 }
 
-test('the picture fills its view: the fit leaves at most 6px a side', () => {
+test('the picture fills its view: the fit leaves at most 3px a side', () => {
     const fit = fnBody(ENGINE, 'worldFitFrame');
     const pads = [...fit.matchAll(/box\.(?:width|height)\s*-\s*(\d+)/g)].map(m => Number(m[1]));
     assert.ok(pads.length === 2, 'worldFitFrame no longer reads the view box');
-    assert.ok(pads.every(p => p <= 12), `the frame is inset ${pads.join('/')}px inside the view`);
+    assert.ok(pads.every(p => p <= 6), `the frame is inset ${pads.join('/')}px inside the view`);
 });

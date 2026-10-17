@@ -50,6 +50,8 @@ function getDirection(db, projectId) {
                 duration_s: Number(card.duration_seconds) || Math.round((Number(r.duration_ms) || 0) / 1000) || 0,
             },
             direction: d ? d.data : null, revision: d ? d.revision : 0,
+            // What Previz decided for this shot, in prompt words (lib/previs-direction.js); null when never blocked.
+            previs: require('./previs-direction').previsForShot(db, r.id),
         };
     }
     const cast = db.prepare('SELECT id, name, description, age_range FROM film_characters WHERE project_id = ? ORDER BY name').all(projectId)
