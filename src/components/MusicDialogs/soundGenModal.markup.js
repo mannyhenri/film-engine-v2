@@ -18,7 +18,6 @@ export default `
                             <select id="soundGenKind" class="ss-input">
                                 <option value="sfx">Effect</option>
                                 <option value="ambient">Room tone</option>
-                                <option value="music">Score</option>
                             </select>
                         </div>
                         <div style="width:120px;">

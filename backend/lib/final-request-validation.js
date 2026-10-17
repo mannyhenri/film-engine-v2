@@ -130,7 +130,6 @@ const supportedInputFields = {
  'elevenlabs/voice':'text prompt voice_id elevenlabs_voice_id model stability similarity_boost speed language style use_speaker_boost previous_text next_text output_format',
  'elevenlabs/sfx':'text prompt description prompt_influence duration_s duration_seconds duration model',
  'elevenlabs/ambient':'text prompt description prompt_influence duration_s duration_seconds duration model',
- 'elevenlabs/music':'prompt text description duration_s duration_seconds duration model vocals force_instrumental composition_plan seed workflow file stem_variation_id',
  'muapi-upscale/image-upscale':'image resolution'
 };
 const metadataInputFields = new Set(('final_prompt final_request_body final_request_approvals options provenance project_id shot_id scene_id subject_id subject_kind world_version_id source_paths generation_choices __project_id __shot_id __scene_id __seed __default_seed __model_explicit __not_sent_input_fields num_frames fps camera_control interpolation delivery output_format stream video_negative_prompt audio_policy video_audio_policy source_width source_height source_bytes source_seconds source_frames source_fps source_duration_ms capture_note captures_excluded format').split(' '));
@@ -141,7 +140,7 @@ function unsupportedInheritedFields(capability,payload,request,provider) {
  for(const key of Object.keys(payload))if(!allowed.has(key) && !metadataInputFields.has(key))result.push(key);
  // A selected optional technical field must reach the wire, even when another
  // operation under the same capability supports a field with that name.
- const durationFields=['duration','duration_seconds','durationSeconds','music_length_ms','length_seconds'];
+ const durationFields=['duration','duration_seconds','durationSeconds','length_seconds'];
  const sent=key=>request.body?.[key]!==undefined || request.form?.has(key);
  for(const key of ['seed','steps','cfg_scale','guidance_scale','strength','denoise_strength','sampler','scheduler','duration','duration_s','duration_ms'])
   if(payload[key]!=null && !sent(key) && !(key.startsWith('duration') && durationFields.some(sent)))result.push(key);

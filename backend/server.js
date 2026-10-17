@@ -24,7 +24,7 @@
  *   PUT/DELETE /film/notes/:id                          — Update/delete note
  *   POST/GET /film/projects/:id/assets                  — Asset registry
  *   GET/DELETE /film/assets/:id                         — Asset by ID
- *   POST/GET /film/projects/:id/music-cues              — Music cues
+ *   POST/GET /film/projects/:id/music-cues              — Sound cues (effects and ambient)
  *   POST/GET /film/projects/:id/color-presets            — Color presets
  *   GET    /film/projects/:id/dashboard                  — Production dashboard
  *   GET    /film/projects/:id/status-board               — Status board
@@ -48,15 +48,14 @@
  *   GET    /film/audio/:projectId/:filename                 — Serve audio files
  *   POST   /film/shots/:id/video/generate[/stream]          — Video generation
  *   GET    /film/projects/:id/production-graph              — The production graph (layout, tidy, version pointers)
+ *   GET/POST /film/projects/:id/cuts, /film/cuts/:id[/sounds|/versions|/send-to-resolve], /film/cut-sounds/:id — Cuts
  *   POST   /film/projects/:id/video/batch[/stream]          — Batch video generation
  *   GET    /film/video/:projectId/:filename                 — Serve video files
  *   POST   /film/shots/:id/lipsync/generate[/stream]        — Lip-sync generation
  *   POST   /film/projects/:id/lipsync/batch                 — Batch lip-sync
- *   POST   /film/scenes/:id/music/generate[/stream]         — Music score generation
  *   POST   /film/shots/:id/sfx/generate                     — SFX generation
  *   POST   /film/scenes/:id/ambient/generate                — Ambient audio generation
- *   POST   /film/projects/:id/music/batch[/stream]          — Batch music generation
- *   GET    /film/music/:projectId/:filename                 — Serve music files
+ *   GET    /film/music/:projectId/:filename                 — Serve sound and music files
  *   POST   /film/shots/:id/post/[upscale|face-restore|color-grade|composite] — Post-production
  *   POST   /film/projects/:id/post/batch[/stream]           — Batch post-production
  *   POST   /film/shots/:id/pipeline/run[/stream]            — Shot pipeline
@@ -82,6 +81,7 @@ const { handleScenes } = require('./routes/scenes');
 const { handleShots } = require('./routes/shots');
 const { handleAppSettings } = require('./routes/app-settings');
 const { handleModelCatalog } = require('./routes/model-catalog');
+const { handleProductionStudio } = require('./routes/production-studio');
 const { handleProjectStorage } = require('./routes/project-storage');
 const { handleEdits } = require('./routes/edits');
 const { handleEvents } = require('./routes/events');
@@ -97,7 +97,6 @@ const { handleMediaImport } = require('./routes/media-import');
 const { handleUploads } = require('./routes/uploads');
 const { handleSequences } = require('./routes/sequences');
 const { handleInbetweens } = require('./routes/inbetweens');
-const { handleMusicSessions } = require('./routes/music-sessions');
 const { handleAnnotations } = require('./routes/annotations');
 const { handleScreenplayAI } = require('./routes/screenplay-ai');
 const { handleWritingStyle } = require('./routes/writing-style');
@@ -131,8 +130,6 @@ const { handleVoice } = require('./routes/voice');
 const { handleVideoGen } = require('./routes/video-gen');
 const { handleLipsync } = require('./routes/lipsync');
 const { handleMusicGen } = require('./routes/music-gen');
-const { handleMusicMidi } = require('./routes/music-midi');
-const { handleInstruments } = require('./routes/instruments');
 const { handlePostProduction } = require('./routes/post-production');
 const { handlePipeline } = require('./routes/pipeline');
 const { handleThreeD } = require('./routes/threed');
@@ -169,50 +166,19 @@ const aiRouteAuth = createAIRouteAuth({port: PORT, capability: process.env.FILM_
 delete process.env.FILM_AI_CAPABILITY;
 
 // ── Rate Limiter ────────────────────────────────────────────────────
-// Sliding-window rate limiter keyed by client IP.
+// Sliding window per client (lib/rate-limit.js). Loopback (this desktop app) is never limited on general requests;
+// generation routes are limited for everyone.
 // RATE_LIMIT_WINDOW_MS: window size (default 60s)
-// RATE_LIMIT_MAX_GENERAL: max general requests per window (default 200)
+// RATE_LIMIT_MAX_GENERAL: max general requests per window for non-loopback clients (default 200)
 // RATE_LIMIT_MAX_GENERATION: max generation requests per window (default 10)
 const RATE_LIMIT_WINDOW = parseInt(process.env.RATE_LIMIT_WINDOW_MS || '60000', 10);
-const RATE_LIMIT_MAX_GENERAL = parseInt(process.env.RATE_LIMIT_MAX_GENERAL || '200', 10);
-const RATE_LIMIT_MAX_GENERATION = parseInt(process.env.RATE_LIMIT_MAX_GENERATION || '10', 10);
-
-const _rateBuckets = {};  // ip → { general: [timestamps], generation: [timestamps] }
-
-function _getRateBucket(ip) {
-    if (!_rateBuckets[ip]) _rateBuckets[ip] = { general: [], generation: [] };
-    return _rateBuckets[ip];
-}
-
-function _pruneTimestamps(arr, now) {
-    const cutoff = now - RATE_LIMIT_WINDOW;
-    while (arr.length && arr[0] < cutoff) arr.shift();
-}
-
+const rateLimiter = require('./lib/rate-limit').createRateLimiter({
+    windowMs: RATE_LIMIT_WINDOW,
+    maxGeneral: parseInt(process.env.RATE_LIMIT_MAX_GENERAL || '200', 10),
+    maxGeneration: parseInt(process.env.RATE_LIMIT_MAX_GENERATION || '10', 10),
+});
 // Clean stale entries every 5 minutes
-setInterval(() => {
-    const now = Date.now();
-    for (const ip of Object.keys(_rateBuckets)) {
-        const b = _rateBuckets[ip];
-        _pruneTimestamps(b.general, now);
-        _pruneTimestamps(b.generation, now);
-        if (!b.general.length && !b.generation.length) delete _rateBuckets[ip];
-    }
-}, 5 * 60 * 1000).unref();
-
-/**
- * Check rate limit. Returns true if allowed, false if limited.
- */
-function checkRateLimit(ip, bucket) {
-    const now = Date.now();
-    const b = _getRateBucket(ip);
-    const arr = b[bucket];
-    _pruneTimestamps(arr, now);
-    const max = bucket === 'generation' ? RATE_LIMIT_MAX_GENERATION : RATE_LIMIT_MAX_GENERAL;
-    if (arr.length >= max) return false;
-    arr.push(now);
-    return true;
-}
+setInterval(() => rateLimiter.sweep(), 5 * 60 * 1000).unref();
 
 // Generation routes that consume GPU/API resources
 const GENERATION_ROUTES = new Set([
@@ -371,10 +337,9 @@ const server = http.createServer(async (req, res) => {
     }
 
     // Rate limiting
-    const clientIp = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.socket.remoteAddress || 'unknown';
     const subRoute = parts[3] || '';
     const rateBucket = (req.method === 'POST' && GENERATION_ROUTES.has(subRoute)) ? 'generation' : 'general';
-    if (!checkRateLimit(clientIp, rateBucket)) {
+    if (!rateLimiter.allow({ remoteAddress: req.socket.remoteAddress, forwardedFor: req.headers['x-forwarded-for'], bucket: rateBucket })) {
         res.writeHead(429, { 'Content-Type': 'application/json', 'Retry-After': String(Math.ceil(RATE_LIMIT_WINDOW / 1000)) });
         res.end(JSON.stringify({ error: 'Too many requests. Please try again later.' }));
         return;
@@ -527,6 +492,14 @@ const server = http.createServer(async (req, res) => {
          * the shot, video and music-cue handlers, which match on the first
          * segments and would otherwise swallow /video/select and /select.
          */
+        // Route: /film/production-studio/* and /film/projects/:id/production-studio/* — the Generate and Assemble tabs
+        // Route: cuts (Production's Cut tab) — /film/projects/:id/cuts, /film/cuts/:id[/…], /film/cut-sounds/:id
+        if ((parts[1] === 'projects' && parts[2] && parts[3] === 'cuts') || (parts[1] === 'cuts' && parts[2]) || (parts[1] === 'cut-sounds' && parts[2])) {
+            return await require('./routes/production-cuts').handleProductionCuts(req, res, parts);
+        }
+        if (parts[1] === 'production-studio' || (parts[1] === 'projects' && parts[2] && parts[3] === 'production-studio')) {
+            return await handleProductionStudio(req, res, parts);
+        }
         if ((parts[1] === 'projects' && parts[3] === 'production-graph')
             || (parts[1] === 'shots' && parts[3] === 'video' && parts[4] === 'select')
             || (parts[1] === 'music-cues' && parts[3] === 'select')) {
@@ -538,6 +511,8 @@ const server = http.createServer(async (req, res) => {
             const sounds = require('./routes/sounds');
             if (parts[4] === 'generate') {
                 // GET is the free preview the shared confirmation reads; POST spends.
+                // The preview's prompt, kind and length are in the query string; the handler reads req.query.
+                req.query = query;
                 return await sounds.generateSound(req, res, parts[2]);
             }
             if (!parts[4] && req.method === 'GET') {
@@ -553,17 +528,6 @@ const server = http.createServer(async (req, res) => {
         if ((parts[1] === 'projects' && parts[2] && parts[3] === 'sequences')
             || (parts[1] === 'sequences' && parts[2])) {
             const handled = await handleSequences(req, res, parts, query);
-            if (handled !== false) return handled;
-        }
-
-        // The score session: a multitrack arrangement over a picture sequence.
-        // Registered here, before the project catch-all, on the trap
-        // /film/locations/:id already cost once: a handler that exists and is
-        // never reached looks exactly like a missing feature.
-        if ((parts[1] === 'projects' && parts[2] && (parts[3] === 'music-sessions' || parts[3] === 'music-packages' || parts[3] === 'music-score'))
-            || (parts[1] === 'music-sessions' && parts[2])
-            || (parts[1] === 'daw' && parts[2])) {
-            const handled = await handleMusicSessions(req, res, parts, query);
             if (handled !== false) return handled;
         }
 
@@ -914,11 +878,6 @@ const server = http.createServer(async (req, res) => {
             return await handleAssets(req, res, parts, query);
         }
 
-        // Route: /film/projects/:id/music-rights
-        if (parts[1] === 'projects' && parts[2] && parts[3] === 'music-rights') {
-            return await handleAssets(req, res, parts, query);
-        }
-
         // Route: /film/projects/:id/continuity[/board]
         if (parts[1] === 'projects' && parts[2] && parts[3] === 'continuity') {
             return await handleContinuity(req, res, parts, query);
@@ -1028,7 +987,7 @@ const server = http.createServer(async (req, res) => {
             return await handleLipsync(req, res, parts, query);
         }
 
-        // Route: /film/projects/:id/music[/batch[/stream]|/jobs]
+        // Route: /film/projects/:id/music[/jobs|/mix|/stems|/srt]
         if (parts[1] === 'projects' && parts[2] && parts[3] === 'music') {
             return await handleMusicGen(req, res, parts, query);
         }
@@ -1200,7 +1159,7 @@ const server = http.createServer(async (req, res) => {
             return await handleVideoGen(req, res, parts, query);
         }
 
-        // Route: /film/music/:projectId/:filename — serve music files
+        // Route: /film/music/:projectId/:filename — serve sound and music files
         if (parts[1] === 'music' && parts[2] && parts[3]) {
             return await handleMusicGen(req, res, parts, query);
         }
@@ -1228,11 +1187,6 @@ const server = http.createServer(async (req, res) => {
         // Route: /film/scenes/:id/call-sheet
         if (parts[1] === 'scenes' && parts[2] && parts[3] === 'call-sheet') {
             return await handleCallSheets(req, res, parts, query);
-        }
-
-        // Route: /film/scenes/:id/music/generate[/stream]
-        if (parts[1] === 'scenes' && parts[2] && parts[3] === 'music') {
-            return await handleMusicGen(req, res, parts, query);
         }
 
         // Route: /film/scenes/:id/ambient/generate
@@ -1295,18 +1249,11 @@ const server = http.createServer(async (req, res) => {
             return await handleBudget(req, res, parts, query);
         }
 
-        // Route: /film/instruments[...] — the director's own plugins and patches.
-        // Not project-scoped: a library outlives a film.
-        if (parts[1] === 'instruments') {
-            return await handleInstruments(req, res, parts, query);
-        }
-
         // Route: /film/spend/rates — the published rate book, and corrections
         if (parts[1] === 'spend') {
             return await handleBudget(req, res, parts, query);
         }
 
-        // Route: /film/music-cues/:id/rights
         /*
          * Route: /film/music-cues/:id — change or remove a cue.
          *
@@ -1319,18 +1266,11 @@ const server = http.createServer(async (req, res) => {
         if (parts[1] === 'music-cues' && parts[2] && !parts[3]) {
             return await handleAssets(req, res, parts, query);
         }
-        // /film/music-cues/:id/midi[/parts/:part/import] — the cue's notes (GRD-3994).
-        if (parts[1] === 'music-cues' && parts[2] && parts[3] === 'midi') {
-            return await handleMusicMidi(req, res, parts, query);
-        }
         // /film/music-cues/:id/generate — generate the cue that was written.
         // Registered beside the other music-cue verbs; handled by music-gen.js
         // because that is where the payload builders and the persistence live.
         if (parts[1] === 'music-cues' && parts[2] && parts[3] === 'generate') {
             return await handleMusicGen(req, res, parts, query);
-        }
-        if (parts[1] === 'music-cues' && parts[2] && parts[3] === 'rights') {
-            return await handleAssets(req, res, parts, query);
         }
 
         // Route: /film/backups/:id[/download|/restore]

@@ -5,7 +5,8 @@
  *   voice   — text-to-speech dialogue clips      POST /text-to-speech/:voiceId
  *   sfx     — one-shot sound effects             POST /sound-generation
  *   ambient — seamless looping beds              POST /sound-generation (loop)
- *   music   — scored cues                        POST /music
+ *
+ * (Music — POST /music and stem separation — went when music-making was retired on 2026-10-14.)
  *
  * All three answer with raw audio bytes rather than a URL, so results come back
  * as a Buffer and persistProviderMedia writes them straight to disk.
@@ -17,14 +18,8 @@ const { getCredential } = require('./credentials');
 
 const DEFAULT_BASE_URL = 'https://api.elevenlabs.io/v1';
 const DEFAULT_TTS_MODEL = 'eleven_multilingual_v2';
-const DEFAULT_MUSIC_MODEL = 'music_v2';
 const DEFAULT_VOICE_ID = '21m00Tcm4TlvDq8ikWAM'; // Rachel
 const DEFAULT_OUTPUT_FORMAT = 'mp3_44100_128';
-
-// Documented bounds for POST /music.
-const MUSIC_MIN_MS = 3000;
-const MUSIC_MAX_MS = 600000;
-const MUSIC_DEFAULT_MS = 30000;
 
 // Documented bounds for POST /sound-generation. `loop` requires the v2 model.
 const SFX_MIN_SECONDS = 0.5;
@@ -32,8 +27,7 @@ const SFX_MAX_SECONDS = 30;
 const LOOPABLE_SFX_MODEL = 'eleven_text_to_sound_v2';
 
 function supports(capability) {
-    return capability === 'voice' || capability === 'sfx'
-        || capability === 'music' || capability === 'ambient';
+    return capability === 'voice' || capability === 'sfx' || capability === 'ambient';
 }
 
 function missingKey() {
@@ -292,125 +286,6 @@ function buildAmbientRequest(payload) {
 }
 
 /**
- * Build a POST /music request from a canonical music payload.
- *
- * Two mismatches with the rest of the pipeline are worth naming:
- *
- * Length is milliseconds here, while the scene card and the sfx endpoint both
- * speak seconds — passing `duration_seconds` through would be silently ignored
- * and every cue would come back at whatever length the model felt like.
- *
- * `model` arrives defaulted to Gridlight's `musicgen-large` from
- * buildMusicPrompt, which is not an ElevenLabs model id. Forwarding it would
- * fail the request, so only a real `music_*` id is honoured.
- */
-function buildMusicRequest(payload) {
-    const baseUrl = (process.env.ELEVENLABS_BASE_URL || DEFAULT_BASE_URL).replace(/\/+$/, '');
-    const prompt = payload.prompt || payload.text || payload.description || '';
-    const outputFormat = normalizeOutputFormat(payload);
-
-    const requestedS = Number(payload.duration_s || payload.duration_seconds || payload.duration || 0);
-    const lengthMs = requestedS > 0
-        ? Math.max(MUSIC_MIN_MS, Math.min(MUSIC_MAX_MS, Math.round(requestedS * 1000)))
-        : MUSIC_DEFAULT_MS;
-
-    const modelId = String(payload.model || '').startsWith('music_') ? payload.model : DEFAULT_MUSIC_MODEL;
-
-    // Film cues are underscore: sung vocals over dialogue ruin a scene, so
-    // instrumental is the default and has to be opted out of explicitly.
-    const wantsVocals = payload.vocals === true || payload.force_instrumental === false;
-
-    /*
-     * A cue that changes over its own length.
-     *
-     * `composition_plan` is named parts, each with its own direction and its own
-     * duration, and the API honours those durations. SIX rules govern it, and
-     * every one of them is otherwise a paid request that fails. All six were
-     * PROBED against the live API with deliberately invalid bodies, which
-     * validation rejects for free — two of them are not in the documentation at
-     * all and only running it found them:
-     *
-     *   1. "You must provide exactly one of `prompt` or `composition_plan`."
-     *   2. "You must not provide `music_length_ms` when passing `composition_plan`."
-     *   3. a part's duration_ms must be 3000..120000
-     *   4. `lines` is REQUIRED on a v1 section, even for an instrumental cue
-     *   5. "`force_instrumental` can only be used with `prompt`."   (undocumented)
-     *   6. THE SHAPE IS PER MODEL:                                  (undocumented)
-     *        music_v1 -> MusicPrompt   { positive_global_styles, sections[] }
-     *        music_v2 -> CompositionPlan { chunks[] }
-     *      sending v1's shape to v2 is
-     *      "Invalid type of `composition_plan` used for model music_v2".
-     *
-     * (6) is why the plan arrives here in a neutral shape and is converted at
-     * the adapter: which body a model wants is a provider fact, like
-     * promptLimit and referenceMode, and belongs beside the model ids.
-     */
-    const MODEL_PLAN_SHAPE = { music_v1: 'sections', music_v2: 'chunks' };
-
-    const plan = payload.composition_plan;
-    const hasPlan = plan && Array.isArray(plan.sections) && plan.sections.length > 0;
-
-    /*
-     * (5): a plan cannot carry force_instrumental, and silently dropping it
-     * would lose the protection it exists for — sung vocals over dialogue ruin
-     * a scene, and instrumental is this engine's default. The plan has its own
-     * way to say it: no `lines`, and `vocals` among the negatives. Expressed
-     * rather than abandoned.
-     */
-    const planNegatives = (() => {
-        const declared = (plan && Array.isArray(plan.negative_global_styles))
-            ? plan.negative_global_styles.slice() : [];
-        if (wantsVocals || declared.some(n => /vocal|sung|lyric|voice/i.test(String(n)))) return declared;
-        return [...declared, 'vocals'];
-    })();
-
-    function planBodyFor(shape) {
-        if (shape === 'chunks') {
-            // v2 has no globals of its own, so the cue's overall style travels
-            // with every chunk. That is the shape, not a workaround.
-            return {
-                chunks: plan.sections.map(s => ({
-                    text: s.direction || s.section_name,
-                    duration_ms: s.duration_ms,
-                    positive_styles: [...(plan.positive_global_styles || []), ...(s.positive_local_styles || [])],
-                    negative_styles: [...planNegatives, ...(s.negative_local_styles || [])],
-                })),
-            };
-        }
-        return {
-            positive_global_styles: plan.positive_global_styles || [],
-            negative_global_styles: planNegatives,
-            sections: plan.sections.map(s => ({
-                section_name: s.section_name,
-                positive_local_styles: s.positive_local_styles || [],
-                negative_local_styles: s.negative_local_styles || [],
-                duration_ms: s.duration_ms,
-                lines: [],
-            })),
-        };
-    }
-
-    const body = hasPlan
-        ? { composition_plan: planBodyFor(MODEL_PLAN_SHAPE[modelId] || 'chunks'), model_id: modelId }
-        : { prompt, model_id: modelId, music_length_ms: lengthMs, force_instrumental: !wantsVocals };
-    if (Number.isInteger(payload.seed)) body.seed = payload.seed;
-
-    return {
-        url: `${baseUrl}/music?output_format=${encodeURIComponent(outputFormat)}`,
-        body,
-        model: modelId,
-        outputFormat,
-        // Carried so a raw-PCM response can have its channel count INFERRED
-        // from the byte count rather than assumed. /music returns stereo and
-        // /text-to-speech returns mono, and a wrong guess plays at half or
-        // double speed.
-        durationMs: lengthMs,
-        mimeType: outputFormat.startsWith('pcm_') ? 'audio/wav' : 'audio/mpeg',
-        format: outputFormat.startsWith('pcm_') ? 'wav' : 'mp3',
-    };
-}
-
-/**
  * An upstream 5xx is the PROVIDER failing, and a failed generation bills
  * nothing — so it is worth one more attempt.
  *
@@ -432,79 +307,6 @@ const RETRY_STATUS = new Set([429, 500, 502, 503, 504]);
 const RETRY_DELAY_MS = 1200;
 
 async function callElevenLabs(request, apiKey, opts) { return callElevenLabsOnce(request,apiKey,opts); }
-
-/**
- * STEM SEPARATION (MUS-011): the one ElevenLabs music endpoint that takes a
- * FILE rather than words. Verified against the live API with a deliberately
- * incomplete body (a 422 costs nothing): `POST /v1/music/stem-separation`,
- * multipart, `file` required, `stem_variation_id` one of `two_stems_v1` /
- * `six_stems_v1`, `output_format` in the query. It answers synchronously with
- * a ZIP of stems, which is why `lib/music-separation.js` treats the bytes as
- * untrusted and unpacks them itself.
- *
- * The output format is held to `mp3_*`: a `pcm_*` entry inside a ZIP may be
- * headerless samples, and a stem the sniffer cannot identify is a stem the
- * import refuses — the shape of that answer is unverified, so it is refused
- * rather than guessed.
- */
-const STEM_VARIATION_IDS = Object.freeze(['two_stems_v1', 'six_stems_v1']);
-const STEM_DEFAULT_OUTPUT = 'mp3_44100_128';
-
-function buildStemSeparationRequest(payload) {
-    const p = payload || {};
-    const baseUrl = (process.env.ELEVENLABS_BASE_URL || DEFAULT_BASE_URL).replace(/\/+$/, '');
-    const variation = String(p.stem_variation_id || '');
-    if (!STEM_VARIATION_IDS.includes(variation)) {
-        throw new Error(`elevenlabs: stem_variation_id must be one of ${STEM_VARIATION_IDS.join(', ')} (got '${variation}')`);
-    }
-    const file = p.file || {};
-    if (!file.bytes || !file.bytes.length) throw new Error('elevenlabs: stem separation needs the recording\'s bytes');
-    const outputFormat = /^mp3_\d+_\d+$/.test(String(p.output_format || '')) ? p.output_format : STEM_DEFAULT_OUTPUT;
-    const form = new FormData();
-    form.append('file', new Blob([file.bytes], { type: file.mime || 'application/octet-stream' }), file.name || 'source.wav');
-    form.append('stem_variation_id', variation);
-    return {
-        url: `${baseUrl}/music/stem-separation?output_format=${encodeURIComponent(outputFormat)}`,
-        multipart: true, form, model: variation, outputFormat, mimeType: 'application/zip', format: 'zip',
-    };
-}
-
-/** The approved multipart call. An uncertain response requires review; it is never automatically submitted again. */
-async function callElevenLabsMultipart(request, apiKey, opts) { return callMultipartOnce(request,apiKey,opts); }
-
-async function callMultipartOnce(request, apiKey, opts) {
-    if(!require('../final-provider-request').isApprovedRequest(request))return {ok:false,status:428,error:'The exact approved final ElevenLabs request is required.'};
-    const controller = new AbortController();
-    const timeout = (opts && opts.timeout) || 600000;
-    const timer = setTimeout(() => controller.abort(), timeout);
-    try {
-        // No Content-Type: fetch writes the multipart boundary itself, and a
-        // hand-set header without it is a body the server cannot split.
-        const response = await require('../generation-transport').dispatch(request, request.url, {
-            method: 'POST',
-            headers: { 'Accept': 'application/zip', 'xi-api-key': apiKey },
-            body: request.form,
-            signal: controller.signal,
-        });
-        clearTimeout(timer);
-        if (!response.ok) {
-            const body = await parseErrorResponse(response);
-            return { ok: false, status: response.status, error: normalizeError('elevenlabs', response.status, body) };
-        }
-        const data = Buffer.from(await response.arrayBuffer());
-        return {
-            ok: true, status: response.status, data,
-            mimeType: 'application/zip', contentType: 'application/zip',
-            provider: 'elevenlabs', provider_model: request.model,
-            provider_job_id: response.headers.get('request-id') || response.headers.get('x-request-id') || '',
-            meta: { output_format: request.outputFormat, format: 'zip', stem_variation_id: request.model },
-        };
-    } catch (err) {
-        clearTimeout(timer);
-        if (err.name === 'AbortError') return { ok: false, status: 504, error: `elevenlabs: stem separation timed out after ${timeout}ms` };
-        return { ok: false, status: 500, error: `elevenlabs: ${err.message}` };
-    }
-}
 
 async function callElevenLabsOnce(request, apiKey, opts) {
     if(!require('../final-provider-request').isApprovedRequest(request))return {ok:false,status:428,error:'The exact approved final ElevenLabs request is required.'};
@@ -626,13 +428,6 @@ function meterElevenLabs(capability, payload, result) {
         return { unit: 'second', quantity: seconds, model: model || LOOPABLE_SFX_MODEL };
     }
 
-    if (capability === 'music') {
-        const ms = Number(p.duration_ms) || (Number(p.duration_s || p.duration_seconds || p.duration) || 0) * 1000;
-        const seconds = ms > 0 ? ms / 1000 : 0;
-        if (!(seconds > 0)) return null;
-        return { unit: 'second', quantity: Math.round(seconds * 100) / 100,
-                 model: String(model).startsWith('music_') ? model : DEFAULT_MUSIC_MODEL };
-    }
     return null;
 }
 
@@ -644,34 +439,7 @@ const adapter = {
     kind: 'generator',
     label: 'ElevenLabs',
     requiresKey: true,
-    capabilities: ['voice', 'sfx', 'ambient', 'music'],
-    /*
-     * THE MUSIC WORKFLOWS (MUS-009), declared rather than assumed. /music
-     * composes a whole cue from a prompt or a composition plan; it returns ONE
-     * mixed file, takes no reference audio, no picture and no range, so those
-     * are unsupported with the reason. Separation is PLANNED: the epic's next
-     * task wires it, and declaring it available before it is would put a
-     * button on the page that fails at the provider.
-     */
-    music: {
-        music_compose: { status: 'available', models: ['music_v1', 'music_v2'], default_model: DEFAULT_MUSIC_MODEL,
-            limits: { min_ms: MUSIC_MIN_MS, max_ms: MUSIC_MAX_MS, models: ['music_v1', 'music_v2'], section_min_ms: 3000, section_max_ms: 120000 },
-            source: 'https://elevenlabs.io/docs/api-reference/music/compose' },
-        music_parts: { status: 'unsupported', reason: 'ElevenLabs Music returns one mixed cue; it has no native multi-part output' },
-        /*
-         * Separation (MUS-011). `max_input_ms` is null because ElevenLabs
-         * publishes no input-length ceiling for this endpoint; null is the
-         * stated absence, not an invented number. The input formats are the
-         * ones the stem importer sniffs, since the recording is always one of
-         * those by the time it is on a track.
-         */
-        music_separate: { status: 'available', models: ['two_stems_v1', 'six_stems_v1'], default_model: 'six_stems_v1',
-            limits: { stem_counts: [2, 6], max_input_ms: null, input_formats: ['wav', 'aiff', 'flac', 'mp3', 'm4a'] },
-            source: 'https://elevenlabs.io/docs/api-reference/music/separate-stems' },
-        music_reference: { status: 'unsupported', reason: '/music takes a prompt or a composition plan and no reference audio or melody' },
-        music_video: { status: 'unsupported', reason: '/music takes no picture; a cue is conditioned on words and a length only' },
-        music_inpaint: { status: 'unsupported', reason: '/music regenerates a whole cue; it cannot regenerate a range of an existing one in context' },
-    },
+    capabilities: ['voice', 'sfx', 'ambient'],
     connection: {
         instructions: 'ElevenLabs has no OAuth for API access — paste an API key. Click "Get your key" to open your ElevenLabs API keys page.',
         helpUrl: 'https://elevenlabs.io/app/settings/api-keys',
@@ -687,17 +455,8 @@ const adapter = {
         if (!apiKey) return missingKey();
 
         const request = await require('../final-provider-request').approvedRequest('elevenlabs',capability,opts);
-        if(request.form)return callElevenLabsMultipart(request,apiKey,opts);
-
-        /*
-         * /music carries the description in `prompt`; the other two use `text`.
-         * A composition plan carries it in the SECTIONS and must not also send
-         * a prompt — the API refuses both together — so a planned cue is
-         * complete with neither field, and this guard rejected every one of
-         * them before the request was ever made.
-         */
-        if (!request.body.text && !request.body.prompt && !request.body.composition_plan) {
-            return { ok: false, status: 400, error: `elevenlabs: ${capability === 'music' ? 'prompt' : 'text'} is required` };
+        if (!request.body.text && !request.body.prompt) {
+            return { ok: false, status: 400, error: 'elevenlabs: text is required' };
         }
         return callElevenLabs(request, apiKey, opts);
     },
@@ -812,7 +571,4 @@ module.exports = {    wrapPcmAsWav, normalizeOutputFormat, SFX_MIN_SECONDS, SFX_
     recordVoiceRefusal,
     buildVoiceRequest,
     buildSfxRequest,
-    buildMusicRequest,
-    buildAmbientRequest,
-    buildStemSeparationRequest,
-    callElevenLabsMultipart,};
+    buildAmbientRequest,};

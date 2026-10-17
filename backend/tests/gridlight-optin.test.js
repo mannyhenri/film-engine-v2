@@ -56,8 +56,9 @@ function setEnabled(on) {
 }
 
 test('the gateway declares the capabilities this test is about', () => {
-    assert.ok(CAPS.length >= 10,
-        `gridlight declares ${CAPS.length} capabilities; this set was written against 10`);
+    assert.ok(CAPS.length >= 9,
+        `gridlight declares ${CAPS.length} capabilities; this set was written against 9 (10 before music was retired)`);
+    assert.ok(!CAPS.includes('music'), 'gridlight still declares the retired music capability');
 });
 
 test('OFF by default: nothing resolves to a local service nobody enabled', () => {

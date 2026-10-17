@@ -97,6 +97,35 @@ describe('Production graph: it draws the project from the real response', () => 
         expect(world.textContent).toContain('1A');
         expect(world.textContent).toContain('Arrival');
     });
+    it('the one load also fills the Generate tab: every shot the server sent is pickable there', async () => {
+        openPage();
+        await act(async () => { await window.loadProductionGraph(); });
+        const shots = document.querySelector('[aria-label="Storyboard"]');
+        for (const n of GRAPH.nodes.filter(x => x.type === 'shot')) expect(shots.textContent, n.shot_code).toContain(n.shot_code);
+        expect(document.getElementById('pgCanvas').closest('.pg-classic').hidden, 'the classic graph shows only on its tab').toBe(true);
+    });
+    it("the old graph's side panel (shot outline and node palette) never shows: no tab is the graph any more", async () => {
+        const { view } = openPage();
+        await act(async () => { await window.loadProductionGraph(); });
+        const root = document.documentElement;
+        const css = fs.readFileSync(path.resolve(__dirname, 'studio/studio.css'), 'utf8');
+        expect(css).toMatch(/:root:not\(\[data-pg-view="graph"\]\)\s+#pgSidePanel\s*\{\s*display:\s*none/);
+        for (const tab of [...document.querySelectorAll('[role="tab"]')]) {
+            await act(async () => { tab.click(); });
+            expect(root.dataset.pgView, tab.textContent).not.toBe('graph');
+        }
+        expect(document.getElementById('pgCanvas').closest('.pg-classic').hidden, 'the old graph stays mounted, hidden').toBe(true);
+        view.unmount();
+        expect(root.dataset.pgView).toBeUndefined();
+    });
+    it("the app's left phase panel is gone while Production is the open page: the page takes its width", () => {
+        // Every page stays mounted (Main.jsx), so only the ACTIVE page can decide; the shell marks it .page.active.
+        const css = fs.readFileSync(path.resolve(__dirname, 'studio/studio.css'), 'utf8');
+        const rule = /@media \(min-width:\s*701px\)\s*\{([\s\S]*?)\n\}/.exec(css);
+        expect(rule, 'desktop only: on a phone the panel is the menu drawer').toBeTruthy();
+        expect(rule[1]).toMatch(/:root:has\(#page-productiongraph\.active\)\s*\{\s*--fe-panel:\s*0px/);
+        expect(rule[1]).toMatch(/:root:has\(#page-productiongraph\.active\)\s+\.fe-panel\s*\{\s*display:\s*none/);
+    });
 });
 
 describe('Production graph: Run what changed spends only through the shared confirmation', () => {

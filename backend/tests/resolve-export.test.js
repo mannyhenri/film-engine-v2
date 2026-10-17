@@ -172,17 +172,25 @@ test('the export: XML, media per scene, markers, metadata and a script that comp
     assert.equal(JSON.parse(body.match(/MARKERS = json\.loads\((".*")\)/)[1].replace(/^"|"$/g, '"')) && true, true);
 });
 
-test('an approved score (the bed music-approval lays) goes to Score/ on the music lane', async () => {
-    const tl = require('../routes/timeline');
-    const real = tl.loadTimeline;
-    const scoreFile = tone('score_mix.wav', 4);
-    tl.loadTimeline = id => { const t = real(id); t.beds.push({ kind: 'music', source: 'score_session', scene_id: null, type: 'audio_music', path: scoreFile, asset_duration_ms: 4000, start_ms: 0, end_ms: 4000, gain_db: 0 }); return t; };
+test("a scene's imported music file is its music bed, copied into the scene folder on the music lane", async () => {
+    // Music is brought in as a file (asset_type audio_music, scene-scoped); the
+    // timeline plays the scene's newest one as its bed and Resolve gets it on
+    // the music lane, never under a Score/ folder (scores were retired 2026-10-14).
+    const older = asset(null, 'audio_music', tone('diner_theme_v1.wav', 4), { scene_id: scenes[0].id, duration_ms: 4000, created: '2026-01-01 00:00:00' });
+    const newer = asset(null, 'audio_music', tone('diner_theme_v2.wav', 4), { scene_id: scenes[0].id, duration_ms: 4000, created: '2026-03-01 00:00:00' });
     try {
         const plan = require('../lib/resolve-export').planResolve(db, pid);
-        const f = plan.files.find(x => x.to === 'Score/score_mix.wav');
-        assert.ok(f, 'the score is copied into Score/');
-        assert.ok(plan.lanes.music.some(m => m.file === 'Score/score_mix.wav' && m.start_ms === 0));
-    } finally { tl.loadTimeline = real; }
+        assert.equal(plan.lanes.music.length, 1, JSON.stringify(plan.lanes.music));
+        const bed = plan.lanes.music[0];
+        assert.equal(bed.name, 'music diner_theme_v2.wav', 'the newest music file is the bed');
+        assert.equal(bed.start_ms, 0, 'the bed starts with its scene');
+        assert.ok(bed.file.startsWith('Scene_01_INT-DINER-NIGHT/Sound/'), bed.file);
+        const f = plan.files.find(x => x.to === bed.file);
+        assert.ok(f, 'the music file is copied into the export');
+        assert.ok(!plan.files.some(x => /^Score\//.test(x.to)), 'nothing goes to a Score/ folder');
+    } finally {
+        db.prepare('DELETE FROM film_assets WHERE id IN (?, ?)').run(older, newer);
+    }
 });
 
 test('a project with nothing to edit is refused, naming why', async () => {

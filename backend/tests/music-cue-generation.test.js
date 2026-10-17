@@ -113,19 +113,15 @@ function sceneWithEveryKind() {
     return { projectId: pid, sceneId: sid, cues: made };
 }
 
-test('the score path picks the SCORE cue, not whichever row came back first', () => {
+test('the sfx path picks the SFX cue, not whichever row came back first', () => {
     const { sceneId, cues } = sceneWithEveryKind();
     const music = require('../routes/music-gen');
-    assert.ok(music._internal && music._internal.cueForScene,
-        'cueForScene is not reachable for testing — the selection cannot be checked');
-
-    const scene = db.prepare('SELECT * FROM film_scenes WHERE id = ?').get(sceneId);
-    const project = db.prepare('SELECT * FROM film_projects WHERE id = ?').get(scene.project_id);
-    const scored = music._internal.cueForScene(scene, project, null);
-
-    assert.ok(scored.cue, 'no cue was selected at all');
-    assert.strictEqual(scored.cue.id, cues.score,
-        `the score was built from the "${scored.cue.cue_type}" cue — this is the crickets bug`);
+    assert.ok(music._internal && music._internal.cueOfKind && music._internal.CUE_KIND_FOR,
+        'cueOfKind is not reachable for testing — the selection cannot be checked');
+    const picked = music._internal.cueOfKind(sceneId, music._internal.CUE_KIND_FOR.sfx);
+    assert.ok(picked.chosen, 'no cue was selected at all');
+    assert.strictEqual(picked.chosen.id, cues.sfx,
+        `the sound effect was built from the "${picked.chosen.cue_type}" cue — this is the crickets bug`);
 });
 
 test('the ambient path picks the AMBIENT cue', () => {
@@ -139,56 +135,24 @@ test('the ambient path picks the AMBIENT cue', () => {
         `the ambient bed was built from the "${opts.cue.cue_type}" cue`);
 });
 
-test('a scene with only the WRONG kind of cue derives, and says the cue was not used', () => {
+test('a chosen cue also names the cues it did not use, and never itself', () => {
     /*
-     * The other half of filtering. Silently deriving is right -- an ambient cue
-     * is not a score -- but silently is what made this invisible in the first
-     * place, so the response has to name the cues it declined to use.
-     */
-    const pid = generateId();
-    db.prepare(`INSERT INTO film_projects (id, title, created_at, updated_at)
-        VALUES (?, ?, datetime('now'), datetime('now'))`).run(pid, 'wrong kind probe');
-    const sid = generateId();
-    db.prepare(`INSERT INTO film_scenes (id, project_id, scene_number, location, time_of_day, description, created_at)
-        VALUES (?, ?, 2, 'DRIVE-IN LOT', 'NIGHT', 'Crickets.', datetime('now'))`).run(sid, pid);
-    db.prepare(`INSERT INTO film_music_cues
-        (id, project_id, scene_id, cue_type, title, description, start_ms, created_at)
-        VALUES (?, ?, ?, 'ambient', 'Lot Air', 'crickets and highway', 0, datetime('now'))`)
-        .run(generateId(), pid, sid);
-
-    const music = require('../routes/music-gen');
-    const scene = db.prepare('SELECT * FROM film_scenes WHERE id = ?').get(sid);
-    const project = db.prepare('SELECT * FROM film_projects WHERE id = ?').get(pid);
-    const scored = music._internal.cueForScene(scene, project, null);
-
-    assert.strictEqual(scored.derived, true,
-        'an ambient-only scene produced a written score — the ambient cue was used as the score');
-    assert.ok(Array.isArray(scored.other_cues) && scored.other_cues.length >= 1,
-        'the scene has a cue that was not used and the result does not mention it');
-    assert.ok(scored.other_cues.some(c => c.cue_type === 'ambient'),
-        `the declined cue is not named: ${JSON.stringify(scored.other_cues)}`);
-});
-
-test('a scene WITH a score cue also names the cues it did not use', () => {
-    /*
-     * Both branches. The derived branch reporting declined cues while the
-     * written branch stays silent is the same omission on the path that runs
-     * most often -- and it survived a mutation until this existed.
+     * Silently picking one cue is what made the coin toss invisible in the
+     * first place, so the selection has to name the cues it declined to use.
      */
     const { sceneId, cues } = sceneWithEveryKind();
     const music = require('../routes/music-gen');
-    const scene = db.prepare('SELECT * FROM film_scenes WHERE id = ?').get(sceneId);
-    const project = db.prepare('SELECT * FROM film_projects WHERE id = ?').get(scene.project_id);
-    const scored = music._internal.cueForScene(scene, project, null);
-
-    assert.strictEqual(scored.derived, false, 'a scene with a score cue derived anyway');
-    assert.strictEqual(scored.cue.id, cues.score);
-    assert.ok(Array.isArray(scored.other_cues) && scored.other_cues.length >= 1,
-        'the scene carries other cues and the written branch reports none of them');
-    assert.ok(scored.other_cues.some(c => c.cue_type === 'ambient'),
-        `the ambient cue sitting unused is not named: ${JSON.stringify(scored.other_cues)}`);
-    assert.ok(!scored.other_cues.some(c => c.id === cues.score),
-        'the chosen cue is listed among the ones that were declined');
+    for (const kind of Object.values(music._internal.CUE_KIND_FOR)) {
+        const picked = music._internal.cueOfKind(sceneId, kind);
+        assert.strictEqual(picked.chosen && picked.chosen.id, cues[kind], `${kind}: the wrong cue was chosen`);
+        assert.ok(Array.isArray(picked.others) && picked.others.length >= 1,
+            `${kind}: the scene carries other cues and the selection reports none of them`);
+        assert.ok(!picked.others.some(c => c.id === cues[kind]),
+            `${kind}: the chosen cue is listed among the ones that were declined`);
+        const other = kind === 'sfx' ? 'ambient' : 'sfx';
+        assert.ok(picked.others.some(c => c.id === cues[other]),
+            `${kind}: the ${other} cue sitting unused is not named: ${JSON.stringify(picked.others)}`);
+    }
 });
 
 // ---------------------------------------------------------------------------
@@ -223,22 +187,6 @@ test('the cue-generation tool is addressed by CUE, not by scene', () => {
     assert.ok(required.includes('cue_id'), 'cue_id is optional, so the cue can still be guessed');
 });
 
-test('the node tool says it does not persist, so nothing is lost believing it did', () => {
-    /*
-     * `gen.*` handlers deliberately do not write assets -- in a graph that is
-     * `out.asset`'s job. Executed alone through MCP there is no out.asset, so
-     * the bytes come back in the tool result and reach film_assets never. That
-     * is a paid generation that exists only in a transcript, and the tool
-     * description is the only place an agent can learn it.
-     */
-    const m = require('../lib/mcp-tools');
-    const list = (m.buildTools ? m.buildTools() : m.TOOLS) || [];
-    const node = (Array.isArray(list) ? list : Object.values(list)).find(t => t.name === 'node_gen_music');
-    assert.ok(node, 'node_gen_music is missing');
-    assert.match(String(node.description), /not (saved|persist)|persist/i,
-        'node_gen_music does not say that running it alone stores nothing');
-});
-
 // ---------------------------------------------------------------------------
 // 3. A generated cue is linked to what it produced
 // ---------------------------------------------------------------------------
@@ -260,10 +208,10 @@ test('generating from a cue records which asset it produced', () => {
     const assetId = generateId();
     const scene = db.prepare('SELECT * FROM film_scenes WHERE id = ?').get(sceneId);
     db.prepare(`INSERT INTO film_assets (id, project_id, scene_id, asset_type, file_name, version)
-        VALUES (?, ?, ?, 'audio_music', 'x.wav', 1)`).run(assetId, scene.project_id, sceneId);
+        VALUES (?, ?, ?, 'audio_sfx', 'x.wav', 1)`).run(assetId, scene.project_id, sceneId);
 
-    music._internal.linkCueAsset(cues.score, assetId);
-    const row = db.prepare('SELECT generated_asset_id FROM film_music_cues WHERE id = ?').get(cues.score);
+    music._internal.linkCueAsset(cues.sfx, assetId);
+    const row = db.prepare('SELECT generated_asset_id FROM film_music_cues WHERE id = ?').get(cues.sfx);
     assert.strictEqual(row.generated_asset_id, assetId, 'the cue was not linked to its asset');
 
     // And it must not touch any other cue on the scene.
@@ -279,10 +227,17 @@ test('every path that generates from a cue links the asset back', () => {
      */
     const lines = MUSIC_SRC.split('\n');
     const inserts = [];
+    // The shared cue path (sfx and ambient cues alike) names its asset type as a parameter, so its
+    // site is found by function; the scene ambient bed names its type literally.
+    const cueFnStart = lines.findIndex(l => /async function runCueGeneration\(/.test(l));
+    assert.ok(cueFnStart >= 0, 'runCueGeneration is gone — the cue path cannot be checked');
+    const cueFnEnd = lines.findIndex((l, i) => i > cueFnStart && /^}/.test(l));
     lines.forEach((line, i) => {
-        if (/'audio_(music|ambient)'/.test(line) && /VALUES/.test(line)) inserts.push(i + 1);
+        if (i > cueFnStart && i < cueFnEnd && /INSERT INTO film_assets/.test(line)) inserts.push(i + 1);
+        else if (/'audio_ambient'/.test(line) && /VALUES/.test(line)) inserts.push(i + 1);
     });
-    assert.ok(inserts.length >= 4, `expected several generated-audio inserts, found ${inserts.length}`);
+    assert.ok(inserts.some(at => at > cueFnStart && at < cueFnEnd), 'the cue path stores no asset any more');
+    assert.ok(inserts.length >= 2, `expected the cue path and the ambient bed, found ${inserts.length}`);
 
     /*
      * PER SITE, not a total. Counting calls passes while one path has stopped

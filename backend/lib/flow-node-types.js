@@ -84,14 +84,6 @@ const NODE_TYPES = {
         capability: 'voice',
         pipelineSteps: ['voice'],
     },
-    'gen.music': {
-        label: "Music",
-        kind: 'generator',
-        inputs: ['text'],
-        outputs: ['audio'],
-        capability: 'music',
-        pipelineSteps: ['music'],
-    },
     'gen.sfx': {
         label: "Sound Effect",
         kind: 'generator',

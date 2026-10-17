@@ -2,7 +2,7 @@
  * PGN-017 — honour the hold in every batch run.
  *
  * A held shot, sequence or cue is skipped, and REPORTED as skipped, by every
- * batch entry point: the four generators' batches and their streams, the
+ * batch entry point: the video and voice batches and their streams, the
  * storyboard batch and its stream, the lip-sync and post batches, the pipeline
  * runner, the run plan, "Run what changed", "Run to here" and the page's
  * "Run pending". A held node is left out of a projected total and listed
@@ -51,8 +51,8 @@ test('every batch-shaped function in routes/ is a registered entry point or exem
     assert.deepEqual(uncovered, [], 'batch functions that neither honour the hold nor say why not');
     for (const [k, why] of exempt) assert.ok(why && why.length > 20, `${k} is exempt with no reason`);
     // The epic's named entry points, plus the three runners and the page.
-    for (const need of ['generateStoryboard', 'generateStoryboardStream', 'batchVideo', 'batchVideoStream', 'batchMusic',
-        'batchMusicStream', 'batchVoice', 'batchVoiceStream', 'executeShots', 'buildRunPlan', 'planRunChanged', 'planRunToHere', 'pgRunPending']) {
+    for (const need of ['generateStoryboard', 'generateStoryboardStream', 'batchVideo', 'batchVideoStream',
+        'batchVoice', 'batchVoiceStream', 'executeShots', 'buildRunPlan', 'planRunChanged', 'planRunToHere', 'pgRunPending']) {
         assert.ok(hold.BATCH_ENTRY_POINTS.some(e => e.fn === need), `${need} is not registered`);
     }
 });
@@ -85,7 +85,7 @@ db.prepare("INSERT INTO film_scenes (id, project_id, scene_number, location) VAL
 const card = JSON.stringify({ description: 'She waits.', dialogue: [{ character: 'MAYA', text: 'Hello.' }] });
 db.prepare("INSERT INTO film_shots (id, scene_id, shot_code, scene_card_yaml) VALUES (?, ?, '1A', ?)").run(A, SC, card);
 db.prepare("INSERT INTO film_shots (id, scene_id, shot_code, scene_card_yaml, held_at) VALUES (?, ?, '1B', ?, datetime('now'))").run(B, SC, card);
-db.prepare("INSERT INTO film_music_cues (id, project_id, scene_id, cue_type, held_at) VALUES (?, ?, ?, 'score', datetime('now'))").run(CUE, P, SC);
+db.prepare("INSERT INTO film_music_cues (id, project_id, scene_id, cue_type, held_at) VALUES (?, ?, ?, 'sfx', datetime('now'))").run(CUE, P, SC);
 db.prepare("INSERT INTO film_music_cues (id, project_id, scene_id, cue_type) VALUES (?, ?, ?, 'ambient')").run(AMB, P, SC);
 
 test('splitShots keeps the unheld and names the held with the reason', () => {
@@ -99,7 +99,7 @@ test('splitShots keeps the unheld and names the held with the reason', () => {
 });
 
 test('a scene step acts on the cue music-gen would choose; held only when THAT cue is held', () => {
-    assert.equal((hold.cueHeldFor(db, SC, 'music') || {}).id, CUE, 'the held score is not seen');
+    assert.equal((hold.cueHeldFor(db, SC, 'sfx') || {}).id, CUE, 'the held effects cue is not seen');
     assert.equal(hold.cueHeldFor(db, SC, 'ambient'), null, 'an unheld ambient cue read as held');
     assert.equal(hold.cueHeldFor(db, SC, 'keyframe'), null, 'a shot step read a cue');
 });
@@ -121,16 +121,16 @@ test('the run plan leaves a held shot out of the work AND the total, and lists i
 test('Run what changed lists held work apart from the rest, for shots and for a held cue\'s scene step', () => {
     const rc = require('../lib/run-changed');
     const ids = rc.heldIds(db, P);
-    assert.ok(ids.has(B)); assert.ok(ids.has(`${SC}:music`), 'a held score cue does not hold its scene step');
+    assert.ok(ids.has(B)); assert.ok(ids.has(`${SC}:sfx`), 'a held effects cue does not hold its scene step');
     assert.ok(!ids.has(`${SC}:ambient`));
     const plan = rc.buildRunChangedPlan({
         report: { shots: [{ shot_id: B, shot_code: '1B', stages: [{ stage: 'keyframe', state: 'redo' }] },
             { shot_id: A, shot_code: '1A', stages: [{ stage: 'keyframe', state: 'redo' }] }] },
-        scenes: { [SC]: { music: 'redo', ambient: 'redo' } },
+        scenes: { [SC]: { sfx: 'redo', ambient: 'redo' } },
         held: ids,
     });
     assert.deepEqual(plan.items.map(i => `${i.stage}@${i.shot_code || i.scene_id}`).sort(), [`ambient@${SC}`, 'keyframe@1A']);
-    assert.deepEqual(plan.held.map(h => `${h.stage}@${h.shot_code || h.scene_id}`).sort(), ['keyframe@1B', `music@${SC}`]);
+    assert.deepEqual(plan.held.map(h => `${h.stage}@${h.shot_code || h.scene_id}`).sort(), ['keyframe@1B', `sfx@${SC}`]);
     assert.ok(plan.held.every(h => /held/.test(h.reason)));
 });
 
@@ -148,7 +148,7 @@ test('Run to here leaves held nodes out of the steps and the total and names the
     plan = planRunToHere(graph, 'seq:q');
     assert.match((plan.blockers[0] || {}).reason || '', /held/i);
     // A held sound: nothing to run, listed as held.
-    graph = { nodes: [{ key: 'sound:c', type: 'sound', id: 'c', cue_type: 'score', held: true, selected_asset_id: null }] };
+    graph = { nodes: [{ key: 'sound:c', type: 'sound', id: 'c', cue_type: 'sfx', held: true, selected_asset_id: null }] };
     plan = planRunToHere(graph, 'sound:c');
     assert.equal(plan.items.length, 0); assert.equal(plan.total_cost, 0);
     assert.ok(plan.held.some(h => h.key === 'sound:c'));
@@ -168,10 +168,9 @@ const LISTING = [
     { file: 'voice', handler: 'handleVoice', seg: 'voice', list: 'shots', held: () => B, body: { plan_only: true } },
     { file: 'post-production', handler: 'handlePostProduction', seg: 'post', list: 'shots', held: () => B },
     { file: 'lipsync', handler: 'handleLipsync', seg: 'lipsync', list: 'shots', held: () => B },
-    { file: 'music-gen', handler: 'handleMusicGen', seg: 'music', list: 'scenes', held: () => CUE },
 ];
 
-test('the listing batches name held shots and cues and leave them out of the work', async () => {
+test('the listing batches name held shots and leave them out of the work', async () => {
     for (const t of LISTING) {
         const r = await route(t.file, t.handler, ['film', 'projects', P, t.seg, 'batch'], t.body || {});
         assert.equal(r.status, 200, `${t.file}: ${JSON.stringify(r.out)}`);

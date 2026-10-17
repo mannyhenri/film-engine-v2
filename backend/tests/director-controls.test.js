@@ -5,15 +5,14 @@
  *  A. "Could we add a full regenerate dialogue button on playback in case we
  *      made changes… are we also sending the details of the scene so the
  *      emotions of the dialogue are accurate?"
- *  B. "Still don't have a way to add details to the music generator when we
- *      want (do not regenerate it again though)."
+ *  B. (A per-scene score direction box — retired with music generation; the
+ *      ambient direction box is held in music-direction.test.js.)
  *  C. "How does the camera movements saved in previs? What are all the buttons
  *      on the top right… seems like we have a lot of unused or overcomplicated
  *      buttons there."
  *
  * Set-based over the registries, because each of these fails PARTIALLY: a
- * delivery chain that reads a line and ignores a scene, a music field settable
- * in one place and not the other, a toolbar where two of twelve buttons are
+ * delivery chain that reads a line and ignores a scene, a toolbar where two of twelve buttons are
  * accounted for. An example test passes in every one of those states.
  */
 
@@ -112,38 +111,6 @@ test('A5 · playback can regenerate a scene\'s dialogue, and says what that cost
     assert.ok(/confirmPaidImage\s*\(/.test(fn[0]),
         'a paid action must go through the shared confirmation, which shows the lines it will '
         + 'speak and lets the voice provider and model be chosen');
-});
-
-/* ── B. Music details, without buying the cue again ─────────────────────── */
-
-test('B1 · a scene\'s score direction can be written from where the score is', () => {
-    // The cue form lives on the Music Cues page behind "+ Music Cue". A
-    // director looking at a scene that already HAS a score had no way to say
-    // anything about it without generating something.
-    assert.ok(/function saveScoreDirection\(/.test(SRC), 'no way to write a score direction per scene');
-    assert.ok(/onchange="saveScoreDirection\(/.test(SRC),
-        'saveScoreDirection is bound to nothing');
-});
-
-test('B2 · writing the direction never generates', () => {
-    const fn = SRC.match(/async function saveScoreDirection\([\s\S]*?\n    \}/);
-    assert.ok(fn, 'saveScoreDirection is not readable');
-    assert.ok(!/\/generate/.test(fn[0]),
-        'saving a direction generates — the one thing the director said not to do');
-    assert.ok(/music-cues/.test(fn[0]), 'the direction is stored somewhere other than the cue');
-});
-
-test('B3 · it edits the scene\'s existing cue rather than making a second one', () => {
-    // Two cues on one scene means "the cue" is whichever the query returns
-    // first — the same defect two plate rows for one view already caused.
-    const fn = SRC.match(/async function saveScoreDirection\([\s\S]*?\n    \}/)[0];
-    assert.ok(/method: 'PUT'/.test(fn), 'an existing cue is never updated, only created');
-    assert.ok(/cue_type: 'score'/.test(fn), 'the cue it writes is not a score cue');
-    assert.ok(/__scoreCues/.test(fn), 'it never looks for the scene\'s existing cue');
-    // And the loader must actually fill that lookup, or every save creates a
-    // second cue and "the cue" becomes whichever the query returns first.
-    assert.ok(/cue_type === 'score' && !scoreCues\[c\.scene_id\]/.test(SRC),
-        'nothing classifies a scene\'s existing score cue, so the lookup is always empty');
 });
 
 /* ── C. The previs toolbar — removed ──────────────────────────────────────

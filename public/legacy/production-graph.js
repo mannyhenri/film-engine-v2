@@ -15,7 +15,7 @@
  * ══════════════════════════════════════════════════════════════════════════
  */
 let PRODUCTION_GRAPH_ON = false;
-const PG_OLD_PAGES = ['shotboard', 'videoshots', 'music', 'musiccues', 'playback', 'pipeline', 'flows'];
+const PG_OLD_PAGES = ['shotboard', 'videoshots', 'music', 'playback', 'pipeline', 'flows'];
 const PG = {
     graph: null, byKey: new Map(), sel: null, zoom: 0.9, pan: { x: 0, y: 0 }, scene: 'all',
     busy: new Map(), drawerCache: {}, play: { index: 0, playing: false, t0: 0, timer: null, stills: true, audio: true },
@@ -26,8 +26,7 @@ const PG = {
 
 /**
  * Which set of pages the menu shows. The eight old pages stay in the build and
- * reachable by URL either way; the Score workspace stays in the menu too,
- * because the graph opens it rather than replacing it.
+ * reachable by URL either way.
  */
 async function applyProductionFlag() {
     pgEnsureSide();

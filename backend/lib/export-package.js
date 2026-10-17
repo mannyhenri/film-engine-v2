@@ -76,11 +76,6 @@ function byShotId(assets) {
 function preflightExport(project, shots, assets = [], opts = {}) {
     const blocking = [];
     const warnings = [];
-    // The rights policy at final export, over the approved score (MUS-022; evaluated by the caller).
-    if (opts.rights) {
-        if (opts.rights.blocked.length) blocking.push({ code: 'SCORE_RIGHTS', message: `The rights policy blocks the score: ${opts.rights.blocked.map(i => `${i.name} (${i.status})`).join('; ')}`, items: opts.rights.blocked });
-        if (opts.rights.warned.length) warnings.push({ code: 'SCORE_RIGHTS', message: `Score rights to settle before delivery: ${opts.rights.warned.map(i => `${i.name} (${i.status})`).join('; ')}`, items: opts.rights.warned });
-    }
     /*
      * CLIPS BELOW THE DELIVERY SIZE, measured from the files (the delivery
      * check). A warning, not a block: the editor may upscale in the NLE, but
@@ -123,7 +118,6 @@ function preflightExport(project, shots, assets = [], opts = {}) {
     for (const issue of audioPlan.blocking) {
         if (!blocking.some(existing => existing.code === issue.code && existing.shot_code === issue.shot_code && existing.asset_id === issue.asset_id)) blocking.push(issue);
     }
-    if (assets.some(a=>media.metadata(a).handoff_only)) warnings.push({code:'SCORE_STEMS_SIDECAR',detail:'Approved score stems are copied as separate files; the approved mix is the timeline music lane. Import stems manually when replacing that mix to avoid doubling the score.'});
     warnings.push({code:'INTERCHANGE_LIMITATIONS', detail:opts.format === 'edl' ? 'EDL transfers picture edit decisions only: no media paths, audio lanes, captions, grades or compositing. Conform the media manually.' : 'Native grades/LUTs, compositing, caption tracks and plug-in effects do not transfer. Import SRT/VTT separately. Embedded production sound and separate stems are both retained; audition and mute duplicates when mixing.'});
     if (assets.some(a => { const m=media.metadata(a); return m.fade_in_ms || m.fade_out_ms; }) && opts.format === 'fcpxml') warnings.push({ code:'AUDIO_FADES_UNSUPPORTED', detail:'Audio fade automation is preserved in Premiere/Resolve XML, but must be rebuilt for this FCPXML export.' });
 

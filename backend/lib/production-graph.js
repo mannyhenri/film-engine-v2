@@ -32,7 +32,8 @@ const NODE_SIZE = Object.freeze({
 });
 
 const VIDEO_TYPES = ['video_final', 'video_synced', 'video_raw'];
-const SOUND_KIND = Object.freeze({ sfx: 'sfx', ambient: 'ambient', score: 'music', source: 'music', transition: 'music' });
+// A sound node's kind, by cue type. Effects and ambience only: music cues were retired on 2026-10-14.
+const SOUND_KIND = Object.freeze({ sfx: 'sfx', ambient: 'ambient' });
 const LINK_MODES = Object.freeze(['shot_image', 'video_last_frame']);
 
 function parseJson(text, fallback) {
@@ -521,7 +522,8 @@ function buildGraph(db, projectId) {
            FROM film_shots sh JOIN film_scenes s ON s.id = sh.scene_id
           WHERE s.project_id = ? ORDER BY ${ORDER_BY_SQL}`).all(projectId);
     const sequences = db.prepare('SELECT * FROM film_sequences WHERE project_id = ? ORDER BY created_at').all(projectId);
-    const cues = db.prepare('SELECT * FROM film_music_cues WHERE project_id = ? ORDER BY created_at, id').all(projectId);
+    // Sound cues only; a retired music cue in an old project is not drawn.
+    const cues = db.prepare("SELECT * FROM film_music_cues WHERE project_id = ? AND cue_type IN ('sfx', 'ambient') ORDER BY created_at, id").all(projectId);
 
     const nodes = [], edges = [];
     const edge = (from, fromPort, to, toPort, type, style) =>
@@ -660,7 +662,7 @@ function buildGraph(db, projectId) {
 
     const cueVersionMap = new Map();
     for (const c of cues) {
-        const kind = SOUND_KIND[c.cue_type] || 'music';
+        const kind = SOUND_KIND[c.cue_type];
         const versions = cueVersions(db, c);
         cueVersionMap.set(c.id, versions);
         const parentKey = c.sequence_id && seqNode.has(c.sequence_id) ? `seq:${c.sequence_id}`
@@ -878,7 +880,7 @@ const BADGE_STAGES = ['voice', 'lipsync', 'sfx', 'post'];
 const out_ = (state, why, extra) => Object.assign({ state, why: why || IMPACT_WHY[state] || '', action: IMPACT_ACTION[state] || '' }, extra || {});
 const stageState = s => (s === 'redo' || s === 'waiting' || s === 'current') ? s : null;
 const assetOf = (id, ctx) => (id && ctx.assets && ctx.assets[id]) || null;
-const SOUND_STAGE = { score: 'music', source: 'music', transition: 'music', ambient: 'ambient', sfx: 'sfx' };
+const SOUND_STAGE = { ambient: 'ambient', sfx: 'sfx' };
 
 const NODE_IMPACT = Object.freeze({
     shot(n, ctx) {

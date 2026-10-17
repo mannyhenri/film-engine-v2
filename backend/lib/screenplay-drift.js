@@ -260,13 +260,32 @@ function matchesScene(scene, stamp) {
  * fingerprint that cannot be computed must not fail a screenplay save the user
  * has already made.
  */
+/*
+ * A scene stamp written by the CURRENT formula says so: `f3:<hash>`.
+ *
+ * The amnesties above forgive a scene stamp equal to an older formula's hash of the scene as it
+ * is now. A bare hash cannot say which formula wrote it, and the card-dialogue one is the common
+ * case: a breakdown copies the screenplay's lines onto the cards, so the card-dialogue hash of a
+ * scene whose dialogue was then rewritten equals the hash stamped before the rewrite. The rewrite
+ * was forgiven as a "re-baseline" and moved every shot with it, so a changed line never warned.
+ * A marked stamp is never equal to any formula's bare hash, so no amnesty reaches it; shot stamps
+ * stay bare and are compared with sceneFingerprint() itself. An unmarked stamp is from before
+ * this and keeps the amnesties until it is next written.
+ */
+const CURRENT_STAMP = 'f3:';
 function stampScene(sceneId) {
     try {
         const db = database();
         const scene = db.prepare('SELECT * FROM film_scenes WHERE id = ?').get(sceneId);
         if (!scene) return null;
         const fp = sceneFingerprint(scene);
-        if (scene.source_fingerprint === fp) return fp;
+        const marked = CURRENT_STAMP + fp;
+        if (scene.source_fingerprint === marked) return fp;
+        if (scene.source_fingerprint === fp) {
+            // The current formula's hash, written before stamps were marked: the same draft, so no change.
+            db.prepare('UPDATE film_scenes SET source_fingerprint = ? WHERE id = ?').run(marked, sceneId);
+            return fp;
+        }
 
         // Stamped under the pre-dialogue formula and otherwise unchanged: this
         // is a re-baseline, not a rewrite. Update the hash and leave the
@@ -276,7 +295,7 @@ function stampScene(sceneId) {
             && (scene.source_fingerprint === legacySceneFingerprint(scene)
                 || scene.source_fingerprint === cardDialogueSceneFingerprint(scene)
                 || scene.source_fingerprint === emptyDialogueSceneFingerprint(scene))) {
-            db.prepare('UPDATE film_scenes SET source_fingerprint = ? WHERE id = ?').run(fp, sceneId);
+            db.prepare('UPDATE film_scenes SET source_fingerprint = ? WHERE id = ?').run(marked, sceneId);
             // Carry the SHOTS with it. Migrating the scene alone leaves every
             // shot holding a hash nothing will ever match again, which is how
             // this became an unclearable warning in the first place. Only shots
@@ -296,10 +315,10 @@ function stampScene(sceneId) {
         // explained is worse than no timestamp.
         const firstEver = !scene.source_fingerprint;
         if (firstEver) {
-            db.prepare('UPDATE film_scenes SET source_fingerprint = ? WHERE id = ?').run(fp, sceneId);
+            db.prepare('UPDATE film_scenes SET source_fingerprint = ? WHERE id = ?').run(marked, sceneId);
         } else {
             db.prepare("UPDATE film_scenes SET source_fingerprint = ?, source_changed_at = datetime('now') WHERE id = ?")
-                .run(fp, sceneId);
+                .run(marked, sceneId);
         }
         return fp;
     } catch (_) { return null; }
@@ -311,7 +330,10 @@ function stampShot(shotId, sceneId) {
         const db = database();
         const scene = db.prepare('SELECT * FROM film_scenes WHERE id = ?').get(sceneId);
         if (!scene) return null;
-        const fp = scene.source_fingerprint || sceneFingerprint(scene);
+        // The scene as it reads NOW, which is what drift() compares against. The stored scene hash
+        // can lag the screenplay (a dialogue-only edit matched by content is not re-stamped, an
+        // autosave does not reconcile), and writing it back left a warning no card save could clear.
+        const fp = sceneFingerprint(scene) || String(scene.source_fingerprint || '').replace(CURRENT_STAMP, '') || null;
         db.prepare('UPDATE film_shots SET scene_fingerprint = ? WHERE id = ?').run(fp, shotId);
         return fp;
     } catch (_) { return null; }

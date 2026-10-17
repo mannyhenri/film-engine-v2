@@ -40,7 +40,7 @@ const GENERATIVE_STEPS = PIPELINE_STEPS.filter(s => !LOCAL_STEP_COST[s.id]);
 /** Step id → capability, for cost. Mirrors routes/pipeline.js STEP_CAPABILITY. */
 const STEP_CAPABILITY = {
     keyframe: 'image', video: 'video', voice: 'voice', lipsync: 'lipsync',
-    music: 'music', sfx: 'sfx', ambient: 'ambient', post: 'post',
+    sfx: 'sfx', ambient: 'ambient', post: 'post',
 };
 
 /**

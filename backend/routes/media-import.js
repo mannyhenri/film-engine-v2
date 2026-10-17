@@ -186,11 +186,8 @@ function setClipCoverage(req, res, assetId) {
     }
 }
 
-/** Which uploadable kind a cue's audio is, from the cue's own type. */
-const CUE_CAPABILITY = Object.freeze({
-    score: 'music', source: 'music', transition: 'music',
-    ambient: 'ambient', sfx: 'sfx',
-});
+/** Which uploadable kind a cue's audio is, from the cue's own type. Sound cues only: music cues were retired. */
+const CUE_CAPABILITY = Object.freeze({ ambient: 'ambient', sfx: 'sfx' });
 
 function handleMediaImport(req, res, urlParts, query) {
     if (urlParts[1] === 'media-kinds' && req.method === 'GET') return listMediaKinds(res);
@@ -223,7 +220,10 @@ function handleMediaImport(req, res, urlParts, query) {
                 error: 'This cue is not attached to a scene, so its audio has nowhere to play.',
             });
         }
-        const capability = CUE_CAPABILITY[cue.cue_type] || 'music';
+        const capability = CUE_CAPABILITY[cue.cue_type];
+        if (!capability) {
+            return json(res, 400, { error: `A ${cue.cue_type} cue is music, and music cues were retired: upload the music to the scene instead.` });
+        }
         return importForCapability(req, res, 'scene', cue.scene_id, capability, {
             query,
             onImported: (imported) => {

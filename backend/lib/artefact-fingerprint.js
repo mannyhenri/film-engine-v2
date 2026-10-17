@@ -37,14 +37,80 @@ function canonical(value) {
         .map(k => JSON.stringify(k) + ':' + canonical(value[k])).join(',') + '}';
 }
 
+/*
+ * sha256 of canonical(value), fed piece by piece instead of building the string first: a clip's
+ * payload is ~16MB of data URIs, and concatenating then hashing it cost more than the hash. The
+ * pieces join to exactly canonical(value), so the digest is the same. A long string with nothing
+ * JSON would escape is its own JSON body, so it goes in as is, without JSON.stringify copying it.
+ */
+const JSON_PLAIN = /^[\x20\x21\x23-\x5b\x5d-\x7e]*$/;
+function feed(h, value) {
+    if (value === null || typeof value !== 'object') {
+        if (typeof value === 'string' && value.length > 4096 && JSON_PLAIN.test(value)) { h.update('"'); h.update(value); h.update('"'); return; }
+        h.update(JSON.stringify(value) ?? 'null');
+        return;
+    }
+    if (Array.isArray(value)) {
+        h.update('[');
+        value.forEach((v, i) => { if (i) h.update(','); feed(h, v); });
+        h.update(']');
+        return;
+    }
+    h.update('{');
+    Object.keys(value).sort().forEach((k, i) => { h.update((i ? ',' : '') + JSON.stringify(k) + ':'); feed(h, value[k]); });
+    h.update('}');
+}
+
 function hash(value) {
-    return crypto.createHash('sha256').update(canonical(value)).digest('hex').slice(0, 32);
+    const h = crypto.createHash('sha256');
+    feed(h, value);
+    return h.digest('hex').slice(0, 32);
 }
 
 function database() { return require('../db/database').db; }
 
+/*
+ * The same hash, without redoing it (lib/file-strings.js). A payload's megabytes are data URIs of
+ * files, and the cache that read them hands back one string per version of each file. So a payload
+ * whose SHAPE is unchanged, with every large string the same version of the same file, hashes to
+ * what it hashed to last time: the shape is the canonical form with each such string replaced by
+ * the file's `path|size|mtime`. A large string that is not a known file's bytes means no shortcut:
+ * the hash is computed in full, exactly as before. Only the cost changes, never a fingerprint.
+ */
+const LARGE = 4096;
+function shapeOf(value) {
+    const { fileOfString } = require('./file-strings');
+    let ok = true;
+    const walk = (v) => {
+        if (!ok) return '';
+        if (typeof v === 'string' && v.length > LARGE) {
+            const key = fileOfString(v);
+            if (key === undefined) { ok = false; return ''; }
+            return '\u0000file:' + JSON.stringify(key);
+        }
+        if (v === null || typeof v !== 'object') return JSON.stringify(v) ?? 'null';
+        if (Array.isArray(v)) return '[' + v.map(walk).join(',') + ']';
+        return '{' + Object.keys(v).sort().map(k => JSON.stringify(k) + ':' + walk(v[k])).join(',') + '}';
+    };
+    const out = walk(value);
+    return ok ? out : null;
+}
+const HASH_MEMO = new Map();   // `${kind}|${shotId}` -> { shape, fingerprint }
+const HASH_MEMO_MAX = 4096;
+function memoHash(memoKey, value) {
+    const shape = shapeOf(value);
+    if (shape === null) return hash(value);
+    const hit = HASH_MEMO.get(memoKey);
+    if (hit && hit.shape === shape) return hit.fingerprint;
+    const fingerprint = hash(value);
+    HASH_MEMO.delete(memoKey);
+    HASH_MEMO.set(memoKey, { shape, fingerprint });
+    while (HASH_MEMO.size > HASH_MEMO_MAX) HASH_MEMO.delete(HASH_MEMO.keys().next().value);
+    return fingerprint;
+}
+
 /**
- * The 12 generated artefact kinds.
+ * The 11 generated artefact kinds (generated music was retired on 2026-10-14).
  *
  * `capability` ties a kind to the orchestrated step that produces it, so the
  * registry can be checked against STEP_CAPABILITY rather than trusted. Kinds
@@ -56,7 +122,6 @@ const ARTEFACT_KINDS = {
     video:           { capability: 'video',   scope: 'shot' },
     voice:           { capability: 'voice',   scope: 'shot' },
     lipsync:         { capability: 'lipsync', scope: 'shot' },
-    music:           { capability: 'music',   scope: 'scene' },
     sfx:             { capability: 'sfx',     scope: 'shot' },
     ambient:         { capability: 'ambient', scope: 'scene' },
     post:            { capability: 'post',    scope: 'shot' },
@@ -178,8 +243,9 @@ function fingerprintFor(kind, ids) {
         const pin = (kind === 'keyframe' || kind === 'video') && ids.shotId
             ? db.prepare('SELECT world_version_id FROM film_previs_blocking WHERE shot_id = ? AND world_version_id IS NOT NULL').get(ids.shotId) : null;
         // In a set the exact framing is the point: the blocking fingerprint (camera, aspect, world) is included.
-        return pin ? hash({ kind, payload, world_version_id: pin.world_version_id, blocking: require('../routes/previs').blockingFingerprint(ids.shotId) })
-            : hash({ kind, payload });
+        const memoKey = `${kind}|${ids.shotId}`;
+        return pin ? memoHash(memoKey, { kind, payload, world_version_id: pin.world_version_id, blocking: require('../routes/previs').blockingFingerprint(ids.shotId) })
+            : memoHash(memoKey, { kind, payload });
     }
 
     // Payload unavailable (lipsync/post before their inputs exist). Fall back to

@@ -20,7 +20,7 @@
     { id:'plan',       label:'Plan',           blurb:'Board it, block it, and know what it costs.',
       pages:['storyboard','deliverables','previs','consistency','milestones','budget'] },
     { id:'production', label:'Production',     blurb:'Run the pipeline: picture, voice, score.',
-      pages:['productiongraph','shotboard','videoshots','music','musiccues','musicws','playback','pipeline','flows'] },
+      pages:['productiongraph','shotboard','videoshots','music','playback','pipeline','flows'] },
     { id:'post',       label:'Post',           blurb:'Export it, and keep the files straight.',
       pages:['edits','exportpage','titles','subtitles','rights','marketing','assets','jobsqueue','renderhistory'] }
   ];
@@ -108,6 +108,34 @@
     }
   }
 
+  /*
+   * THE SIDE PANEL CAN BE PUT AWAY. On desktop it takes 232px from every page, and a scene (Previz, the board,
+   * the screenplay) wants the width. One button in the top bar hides it and brings it back; Cmd+Backslash (Ctrl+Backslash) does
+   * the same. Remembered on this computer; a phone keeps its menu drawer, which this does not touch.
+   */
+  function sidePanelOff() { try { return localStorage.getItem('fe_side_panel_off') === '1'; } catch (_) { return false; } }
+  function applySidePanel(off) {
+    document.body.classList.toggle('fe-panel-off', !!off);
+    var b = document.getElementById('fePanelToggle');
+    if (b) {
+      var label = off ? 'Show the side panel' : 'Hide the side panel';
+      b.setAttribute('aria-pressed', off ? 'true' : 'false');
+      b.setAttribute('aria-label', label);
+      b.title = label + ' (\u2318\\)';
+    }
+    // Pages that size a canvas to their box (Previz, the board) measure on resize.
+    try { window.dispatchEvent(new Event('resize')); } catch (_) { /* old engines */ }
+  }
+  function toggleSidePanel() {
+    var off = !document.body.classList.contains('fe-panel-off');
+    try { localStorage.setItem('fe_side_panel_off', off ? '1' : '0'); } catch (_) { /* remembered for this session only */ }
+    applySidePanel(off);
+  }
+  document.addEventListener('keydown', function (e) {
+    if ((e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey && e.key === '\\') { e.preventDefault(); toggleSidePanel(); }
+  });
+  window.toggleSidePanel = toggleSidePanel;
+
   window.toggleDrawer = toggleDrawer;
   window.feShowPhase = function () { if (!els.list) return; if (window.state && window.state.currentProject) showPhase(current, false); else showNoProject(); };
   window.closeDrawer = closeDrawer;
@@ -124,11 +152,17 @@
       '<button class="fe-burger" onclick="toggleDrawer()" aria-label="Menu" title="Menu">' +
       '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" ' +
       'stroke-width="2" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg></button>' +
+      '<button class="fe-panel-toggle" id="fePanelToggle" onclick="toggleSidePanel()" aria-pressed="false" ' +
+      'aria-label="Hide the side panel" title="Hide the side panel (⌘\\)">' +
+      '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" ' +
+      'stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="3"/>' +
+      '<path d="M9 4v16"/></svg></button>' +
       '<div class="fe-brand" id="feBrand"><img class="fe-mark" src="./branding/filmengine-mark.svg" alt="Film Engine">' +
       '<div><div class="fe-proj" id="feProjName">Film Engine</div>' +
       '<div class="fe-projsub" id="feProjSub">AI production pipeline</div></div></div>' +
       '<div class="fe-track" id="feTrack"></div>';
     document.body.appendChild(top);
+    applySidePanel(sidePanelOff());
 
     // Into the top bar, not the body: these are global actions, and a global
     // action belongs beside the other global furniture rather than in a column
@@ -215,12 +249,10 @@
     var brand = top.querySelector('#feBrand');
     brand.title = 'Switch project';
     brand.onclick = function () {
-      if (window.state && window.state.currentProject && window.backToProjectList) {
-        window.backToProjectList();
-        return;
-      }
-      var t = navBtn('projects') || navBtn('dashboard');
-      if (t) t.click(); else if (window.navigateTo) window.navigateTo('projects');
+      // With a film open or not, the brand goes to the project list. With none open it used to look for a
+      // 'projects' nav button, find none (the list is not a nav item) and click Home: an empty film, no way back.
+      if (window.backToProjectList) { window.backToProjectList(); return; }
+      if (window.navigateTo) window.navigateTo('projects');
     };
 
     PHASES.forEach(function (p) {

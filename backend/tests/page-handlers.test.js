@@ -277,69 +277,6 @@ test('every modal is shown with the class its own CSS displays', () => {
         + `appear and the control that opens them looks dead:\n  ${wrong.join('\n  ')}`);
 });
 
-test('the cue rights editor sends every field the route accepts, from the served vocabulary', () => {
-    /*
-     * A control that EXISTS and whose value never reaches the request is the
-     * same defect as no control at all, and it looks identical from the page:
-     * you type a territory, press Save, and the field comes back empty. The
-     * manual-edit audit checks that a control exists; this checks the value
-     * travels.
-     *
-     * Derived from the route's own field list, so a seventh licence field is
-     * covered with nothing to remember.
-     */
-    const routeSrc = fs.readFileSync(path.join(__dirname, '..', 'routes', 'assets.js'), 'utf8');
-    const fn = routeSrc.slice(routeSrc.indexOf('function updateMusicRights'));
-    const body = fn.slice(0, fn.indexOf('\nfunction ', 10));
-    const fields = [...new Set([...body.matchAll(/body\.([a-z_]+)\s*!==\s*undefined/g)].map(m => m[1]))];
-    assert.ok(fields.length >= 6, `only ${fields.length} licence fields found — the scan is not reading the route`);
-
-    const page = ownScript();
-    const at = page.indexOf('async function saveCueRights');
-    assert.ok(at > -1, 'saveCueRights is gone — nothing saves a cue\'s rights');
-    const saver = page.slice(at, page.indexOf('\n    /*', at));
-    for (const f of fields) {
-        assert.ok(new RegExp(`${f}\\s*:`).test(saver),
-            `the rights editor never sends ${f} — the control is there and its value goes nowhere`);
-    }
-
-    /*
-     * And the vocabulary is SERVED, not typed into the page. The route refuses
-     * a status it does not know, so a second copy here is a set of options that
-     * are rejected on save the first time somebody adds one — and the refusal
-     * reads as saving being broken.
-     */
-    assert.ok(/vocabulary:\s*\{[^}]*license_status:\s*VALID_LICENSE_STATUSES/.test(routeSrc),
-        'the rights vocabulary is not served, so the editor has nothing to build its options from');
-    const statuses = routeSrc.match(/const VALID_LICENSE_STATUSES = \[([^\]]+)\]/);
-    assert.ok(statuses, 'the status vocabulary is gone from the route');
-    /*
-     * Scoped to the editor's own body. Page-wide, this fires on the cost
-     * modal's `<option value="unknown">Unknown</option>` for location type,
-     * which is an unrelated field that happens to share a word — and a check
-     * that cries wolf is one that gets switched off.
-     */
-    const opener = page.slice(page.indexOf('async function openCueRights'));
-    const editor = opener.slice(0, opener.indexOf('\n    async function ', 10));
-    /*
-     * Bound to the vocabulary being the SOURCE of the options, not merely
-     * mentioned: `['unknown','licensed'].map(...)` still renders
-     * `value="${esc(v)}"`, so an attribute-level check passes on a hardcoded
-     * list, and `/CUE_RIGHTS_VOCAB/` passes because the opener still fetches it.
-     */
-    assert.ok(/const opts = \(list, current\) => list\.map/.test(editor),
-        'the option builder does not render the list it is handed');
-    for (const field of ['license_status', 'license_type']) {
-        assert.ok(new RegExp(`opts\\(CUE_RIGHTS_VOCAB\\.${field}`).test(editor),
-            `${field} is not built from the served vocabulary — the page holds its own copy, `
-            + 'which the route will refuse the first time somebody adds a value');
-    }
-    for (const v of statuses[1].split(',').map(x => x.trim().replace(/'/g, ''))) {
-        assert.ok(!new RegExp(`value="${v}"`).test(editor),
-            `the rights editor hardcodes the licence status "${v}" instead of rendering the served vocabulary`);
-    }
-});
-
 test('the delivery pages reach every field their routes accept', () => {
     /*
      * Credits, title cards and subtitles all shipped their routes with the

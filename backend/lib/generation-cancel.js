@@ -24,17 +24,23 @@ async function cancelJob(jobId) {
     const adapter = require('./providers').get(row.provider);
     if (adapter && adapter.cancel === 'provider' && typeof adapter.cancelJob === 'function') {
         const r = await adapter.cancelJob(row.request_id);
+        // Some providers cancel only while queued: a refusal that says so falls through to stop waiting.
+        if (r && !r.ok && r.fallback === 'stop_waiting') return stopWaiting(row, r.error);
         if (!r || !r.ok) return { ok: false, status: (r && r.status) || 502, error: (r && r.error) || `${row.provider} did not confirm the cancel` };
         require('./generation-jobs').fail(row.id, 'cancelled by the director');
         return { ok: true, mode: 'provider', cancelled: true, job_id: row.id,
             message: `${row.provider} cancelled the job.` };
     }
+    return stopWaiting(row);
+}
+
+function stopWaiting(row, why) {
     let meta = {};
     try { meta = JSON.parse(row.meta || '{}') || {}; } catch (_) { meta = {}; }
     meta.stopped_waiting = 1;
     db().prepare("UPDATE film_generation_jobs SET meta = ?, phase = 'stopped waiting' WHERE id = ?").run(JSON.stringify(meta), row.id);
     return { ok: true, mode: 'stop_waiting', cancelled: false, job_id: row.id,
-        warning: `${row.provider} cannot be told to stop a job once it has started. It may still finish and bill; it stays under "Waiting to be collected", so nothing it makes is lost.` };
+        warning: `${why ? why + '. ' : ''}${row.provider} cannot be told to stop a job once it has started. It may still finish and bill; it stays under "Waiting to be collected", so nothing it makes is lost.` };
 }
 
 function cancelRun(projectId, runId) {

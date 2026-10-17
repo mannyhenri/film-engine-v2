@@ -319,7 +319,7 @@ test('positions survive a reload, and Tidy re-places only what nobody moved', as
 test('a sound wires to a sequence or a shot, takes its scene, and selects among its own versions only', async () => {
     const f = fixture();
     const seq = (await api(`/film/projects/${f.projectId}/sequences`, { method: 'POST', body: { name: 'S', shot_ids: [f.shots['1B']] } })).data.sequence;
-    const cue = (await api(`/film/projects/${f.projectId}/music-cues`, { method: 'POST', body: { cue_type: 'score', title: 'Cue' } })).data;
+    const cue = (await api(`/film/projects/${f.projectId}/music-cues`, { method: 'POST', body: { cue_type: 'sfx', title: 'Cue' } })).data;
     const wired = await api(`/film/music-cues/${cue.id}`, { method: 'PUT', body: { sequence_id: seq.id } });
     assert.strictEqual(wired.status, 200, JSON.stringify(wired.data));
     assert.strictEqual(wired.data.sequence_id, seq.id);
@@ -331,9 +331,9 @@ test('a sound wires to a sequence or a shot, takes its scene, and selects among 
     fs.writeFileSync(file, Buffer.alloc(64));
     const mine = generateId(), theirs = generateId();
     db.prepare(`INSERT INTO film_assets (id, project_id, scene_id, asset_type, file_path, file_name, format, version, metadata)
-                VALUES (?, ?, ?, 'audio_music', ?, 'cue.wav', 'wav', 1, ?)`).run(mine, f.projectId, f.sceneId, file, JSON.stringify({ cue_id: cue.id }));
+                VALUES (?, ?, ?, 'audio_sfx', ?, 'cue.wav', 'wav', 1, ?)`).run(mine, f.projectId, f.sceneId, file, JSON.stringify({ cue_id: cue.id }));
     db.prepare(`INSERT INTO film_assets (id, project_id, scene_id, asset_type, file_path, file_name, format, version)
-                VALUES (?, ?, ?, 'audio_music', ?, 'x.wav', 'wav', 1)`).run(theirs, f.projectId, f.sceneId, file);
+                VALUES (?, ?, ?, 'audio_sfx', ?, 'x.wav', 'wav', 1)`).run(theirs, f.projectId, f.sceneId, file);
     assert.strictEqual((await api(`/film/music-cues/${cue.id}/select`, { method: 'POST', body: { asset_id: mine } })).status, 200);
     assert.strictEqual((await api(`/film/music-cues/${cue.id}/select`, { method: 'POST', body: { asset_id: theirs } })).status, 400,
         'a sound another cue made was selected as this cue\'s');

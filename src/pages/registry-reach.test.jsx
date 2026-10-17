@@ -68,7 +68,8 @@ async function clickReaches(control) {
     }
     // A control that only exists after something is selected (the Production graph's shot drawer): the page's
     // reach.js says how to get there, with the page's own functions, before the click is counted.
-    if (control.prepare) await act(async () => { await control.prepare(window); });
+    // A list of steps runs each in its own act, so the page renders between them (tick a shot, then open its tab).
+    if (control.prepare) for (const step of [].concat(control.prepare)) await act(async () => { await step(window); });
     const coreFns = Object.entries(legacy.fake).filter(([k, v]) => typeof v === 'function' && v.mock && k !== 'setStatus' && k !== 'api');
     const before = { api: legacy.calls.length, core: coreFns.map(([, v]) => v.mock.calls.length) };
     // A control that needs input first (Audition refuses an empty line) says what to type.

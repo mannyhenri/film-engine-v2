@@ -17,7 +17,7 @@
  *   cardinality  voice and sfx are one-context-to-many-payloads and return
  *                ARRAYS. Returning a single object silently drops every
  *                dialogue line after the first.
- *   scope        music and ambient are scene-scoped and build with no shot in
+ *   scope        ambient is scene-scoped and builds with no shot in
  *                context; requiring one forces callers to pick arbitrarily.
  *   sub-types    post has four (upscale, face_restore, color_grade, composite)
  *                and the orchestrated step names none, so it defaults.
@@ -30,7 +30,7 @@
 const { buildStoryboardPrompt, rankContributions, trimToAllowance } = require('./storyboard-prompt');
 const { buildVideoPayload } = require('./video-prompt');
 const { extractDialogue, buildVoicePayload } = require('./dialogue-builder');
-const { buildMusicPrompt, buildSFXPrompts, buildAmbientPrompt } = require('./music-prompt');
+const { buildSFXPrompts, buildAmbientPrompt } = require('./music-prompt');
 
 // Applying an already-built consistency context is pure, so it imports directly.
 // consistency-context.js itself requires db/database at module scope and is
@@ -855,13 +855,6 @@ const CAPABILITY_BUILDERS = {
         };
     },
 
-    /** Scene-scoped: builds with no shot in context. */
-    music(ctx) {
-        requireCtx(ctx, ['scene'], 'music');
-        const cue = ctx.musicCue || (ctx.overrides && ctx.overrides.cue) || null;
-        return buildMusicPrompt(cue, ctx.scene, ctx.project);
-    },
-
     /** One payload per declared cue. No cues yields none. */
     sfx(ctx) {
         requireCtx(ctx, ['sceneCard', 'scene'], 'sfx');
@@ -1100,7 +1093,7 @@ function withTierModel(payload, ctx, adapter) {
  * @param {string} capability
  * @param {object} ctx - { project, scene, shot, sceneCard, characters, location,
  *                         voiceProfiles, videoAsset, audioAsset, keyframeAsset,
- *                         musicCue, ambient, initImage, consistency, overrides }
+ *                         ambient, initImage, consistency, overrides }
  * @returns {{ payload: object|object[], meta: object }}
  */
 /**
@@ -1275,10 +1268,6 @@ function loadShotContext(shotId, opts) {
         return [...seen.values()].sort((a, b) => idx(a.file_name) - idx(b.file_name) || String(a.file_name).localeCompare(String(b.file_name)));
     })();
 
-    const musicCue = db.prepare(
-        'SELECT * FROM film_music_cues WHERE scene_id = ? ORDER BY start_ms LIMIT 1'
-    ).get(scene.id);
-
     /*
      * The scene's ambient direction, if anyone has written one.
      *
@@ -1319,7 +1308,7 @@ function loadShotContext(shotId, opts) {
             if (fs.existsSync(imgPath)) {
                 const mime = /\.jpe?g$/i.test(imgPath) ? 'image/jpeg'
                     : /\.webp$/i.test(imgPath) ? 'image/webp' : 'image/png';
-                initImage = `data:${mime};base64,${fs.readFileSync(imgPath).toString('base64')}`;
+                initImage = require('./file-strings').readDataUri(imgPath, mime);   // read once per version of the file
                 /*
                  * Too big to send inline — a 4K board frame is ~10MB of PNG
                  * against a 5MB ceiling. Hand the video model the same frame
@@ -1329,7 +1318,7 @@ function loadShotContext(shotId, opts) {
                 const media = require('./provider-media');
                 if (media.tooLargeForDataUri(initImage, media.DATA_URI_LIMIT)) {
                     const small = require('./thumbnails').videoKeyframeFor(imgPath, 1920);
-                    if (small) initImage = `data:image/jpeg;base64,${fs.readFileSync(small).toString('base64')}`;
+                    if (small) initImage = require('./file-strings').readDataUri(small, 'image/jpeg');
                 }
             }
         } catch (error) { throw new Error(`Cannot prepare storyboard reference: ${error.message}`); }
@@ -1482,7 +1471,7 @@ function loadShotContext(shotId, opts) {
 
     return {
         shot, scene, project, sceneCard, characters, location, voiceProfiles, props,
-        keyframeAsset, videoAsset, audioAsset, dialogueAudio, musicCue, ambient, initImage,
+        keyframeAsset, videoAsset, audioAsset, dialogueAudio, ambient, initImage,
         consistency: consistencyContext,
         previs,
         // State is useful for disclosure even when the durable payload rightly

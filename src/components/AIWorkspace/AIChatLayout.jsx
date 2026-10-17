@@ -9,14 +9,14 @@ export default function AIChatLayout({dialogRef,dialogName,variant,title,onClose
   <header className="ai-chat-title"><div><h2>{title}</h2><p>Film Engine</p></div><button className="btn ai-chat-close-button" aria-label="Close" onClick={onClose}>×</button></header>
   {status}
   <div className="ai-chat-topbar">{projectPicker}<div className="ai-options-anchor" ref={anchor} onKeyDown={e=>{if(e.key==='Escape'&&optionsOpen){e.preventDefault();e.stopPropagation();setOptionsOpen(false);anchor.current.querySelector('button').focus();}}}>
-   <button className="btn ai-options-button" aria-label="AI options" aria-expanded={optionsOpen} aria-controls={id} onClick={()=>setOptionsOpen(v=>!v)}>⋯</button>
+   <button className="btn ai-options-button" aria-label="AI options" aria-expanded={optionsOpen} aria-controls={id} onClick={()=>setOptionsOpen(v=>!v)}><svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true" focusable="false"><circle cx="4" cy="10" r="1.8" fill="currentColor"/><circle cx="10" cy="10" r="1.8" fill="currentColor"/><circle cx="16" cy="10" r="1.8" fill="currentColor"/></svg></button>
    <div className="ai-options-dropdown" role="region" aria-label="AI options panel" id={id} hidden={!optionsOpen}><h3>Options</h3>{options}{preview}</div>
   </div></div>
   <div className="ai-chat-conversation">{history}</div>
   <div className="ai-chat-composer">
    <label className="ai-sr-only" htmlFor={id+'-message'}>Message</label>
    <textarea id={id+'-message'} rows={2} maxLength={12000} value={message} onChange={e=>onMessage(e.target.value)} placeholder="What would you like to work on?"/>
-   <div className="ai-chat-composer-controls"><button className="btn ai-attach-button" aria-label="Attach" onClick={()=>{setOptionsOpen(true);const attachments=anchor.current?.querySelector('summary[aria-label="Attachments"]');if(attachments)attachments.parentElement.open=true;if(onAttach)onAttach();}}><span className="ai-attach-plus" aria-hidden="true">+</span><span>Attach</span></button>{fileInput}{provider}<span className="ai-chat-attachment-summary">{attachmentSummary}</span><button className="btn btn-primary ai-chat-send" aria-label="Send" disabled={sendDisabled} onClick={onSend}>↑</button></div>
+   <div className="ai-chat-composer-controls"><button className="btn ai-attach-button" aria-label="Attach" onClick={()=>{setOptionsOpen(true);const attachments=anchor.current?.querySelector('summary[aria-label="Attachments"]');if(attachments)attachments.parentElement.open=true;if(onAttach)onAttach();}}><span className="ai-attach-plus" aria-hidden="true">+</span><span>Attach</span></button>{fileInput}{provider}<span className="ai-chat-attachment-summary">{attachmentSummary}</span><button className="btn btn-primary ai-chat-send" aria-label="Send" disabled={sendDisabled} onClick={onSend}><svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="M10 16V4M4.5 9.5L10 4l5.5 5.5" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/></svg></button></div>
   </div>
  </section>;
 }

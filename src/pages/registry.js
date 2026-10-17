@@ -11,8 +11,6 @@ import CharactersPage from './characters/index.jsx';
 import LocationsPage from './locations/index.jsx';
 import PropsPage from './props/index.jsx';
 import AssetsPage from './assets/index.jsx';
-import MusicwsPage from './musicws/index.jsx';
-import MusiccuesPage from './musiccues/index.jsx';
 import MilestonesPage from './milestones/index.jsx';
 import PlaybackPage from './playback/index.jsx';
 import NotesPage from './notes/index.jsx';
@@ -50,8 +48,6 @@ export const PAGES = [
     { id: 'locations', Component: LocationsPage, chunk: null, react: true },
     { id: 'props', Component: PropsPage, chunk: null, react: true },
     { id: 'assets', Component: AssetsPage, chunk: null, react: true },
-    { id: 'musicws', Component: MusicwsPage, chunk: null, react: true },
-    { id: 'musiccues', Component: MusiccuesPage, chunk: null, react: true },
     { id: 'milestones', Component: MilestonesPage, chunk: null, react: true },
     { id: 'playback', Component: PlaybackPage, chunk: null, react: true },
     { id: 'notes', Component: NotesPage, chunk: null, react: true },

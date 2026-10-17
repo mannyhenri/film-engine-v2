@@ -48,8 +48,6 @@ const BATCH_ENTRY_POINTS = Object.freeze([
     { file: 'backend/routes/video-gen.js', fn: 'batchVideoStream' },
     { file: 'backend/routes/voice.js', fn: 'batchVoice' },
     { file: 'backend/routes/voice.js', fn: 'batchVoiceStream' },
-    { file: 'backend/routes/music-gen.js', fn: 'batchMusic' },
-    { file: 'backend/routes/music-gen.js', fn: 'batchMusicStream' },
     { file: 'backend/routes/lipsync.js', fn: 'batchLipsync' },
     { file: 'backend/routes/post-production.js', fn: 'batchPost' },
     { file: 'backend/routes/post-production.js', fn: 'batchPostStream' },

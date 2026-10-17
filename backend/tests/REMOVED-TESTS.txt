@@ -60,3 +60,37 @@ style-book-plan.test.js  — reads docs/plans/style-book-implementation.md
 style-book-qa.test.js  — reads docs/plans/style-book-qa.md
 style-book-research.test.js  — reads docs/plans/style-book-research.md
 version.test.js  — reads gridlight.json
+
+# Retired by the user on 2026-10-14 with music-making (the Score workstation, Music Cues, AI score generation;
+# tools/split-lib.js RETIRED). Each tested only what was removed. Sound effects, ambient beds and imported music keep their tests.
+ableton-mcp.test.js  — music-making retired (2026-10-14)
+ableton-sidecar.test.js  — music-making retired (2026-10-14)
+approved-score.test.js  — music-making retired (2026-10-14)
+daw-adapter.test.js  — music-making retired (2026-10-14)
+daw-sync-ui.test.js  — music-making retired (2026-10-14)
+instrument-host.test.js  — music-making retired (2026-10-14)
+instrument-render.test.js  — music-making retired (2026-10-14)
+instruments.test.js  — music-making retired (2026-10-14)
+music-ai-controls.test.js  — music-making retired (2026-10-14)
+music-bounce.test.js  — music-making retired (2026-10-14)
+music-bundle.test.js  — music-making retired (2026-10-14)
+music-capabilities.test.js  — music-making retired (2026-10-14)
+music-context.test.js  — music-making retired (2026-10-14)
+music-cue-fields.test.js  — music-making retired (2026-10-14)
+music-e2e.test.js  — music-making retired (2026-10-14)
+music-emotion-proposals.test.js  — music-making retired (2026-10-14)
+music-generation.test.js  — music-making retired (2026-10-14)
+music-jobs.test.js  — music-making retired (2026-10-14)
+music-midi.test.js  — music-making retired (2026-10-14)
+music-package.test.js  — music-making retired (2026-10-14)
+music-registries.test.js  — music-making retired (2026-10-14)
+music-rights.test.js  — music-making retired (2026-10-14)
+music-separation.test.js  — music-making retired (2026-10-14)
+music-session-contracts.test.js  — music-making retired (2026-10-14)
+music-session-mcp.test.js  — music-making retired (2026-10-14)
+music-sessions-routes.test.js  — music-making retired (2026-10-14)
+music-stem-import.test.js  — music-making retired (2026-10-14)
+music-workstation-editor.test.js  — music-making retired (2026-10-14)
+music-workstation-schema.test.js  — music-making retired (2026-10-14)
+scene-score.test.js  — music-making retired (2026-10-14)
+score-instruments.test.js  — music-making retired (2026-10-14)

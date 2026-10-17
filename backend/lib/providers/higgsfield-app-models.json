@@ -1,0 +1,3413 @@
+{
+ "checked": "2026-10-14",
+ "source": "Higgsfield MCP server: models_explore (list, type video) for the catalog; generate_video with get_cost:true for each price (a quote submits nothing).",
+ "credit_usd": {
+  "usd_per_credit": 0.033,
+  "basis": "Ultra plan: $99 a month for 3,000 credits (≈ $0.033 a credit). Top-up packs run about $0.053–0.059 a credit. Set your own rate with a provider-rate override (usd_per_credit) if you buy credits another way."
+ },
+ "excluded": {
+  "marketing_studio_video": "Ad workflow: builds a 12–15s ad from saved products, avatars and hooks, not a shot from a prompt",
+  "marketing_studio_v2_video": "Ad workflow: product, brand-URL and avatar ads, not a shot from a prompt",
+  "marketing_studio_v2_reference2video": "Ad workflow: recreates a reference ad around a product",
+  "higgsfield_preset": "Runs a saved Higgsfield preset (effects), not a prompt",
+  "ad_multiplier": "Ad variant multiplier: remixes an existing ad",
+  "ad_multiplier_v2": "Ad recreation from a reference video",
+  "draw_to_video": "Animates a drawing on a source video",
+  "clipify": "Cuts a YouTube video into clips",
+  "flux_3_video_edit": "Edits an existing video",
+  "kling_video_edit": "Edits an existing video",
+  "hf_mult_motion_control": "Genjutsu: moves reference subjects with a driving video",
+  "hf_mult_replace_object": "Genjutsu: replaces an object in an existing video",
+  "kling3_0_motion_control": "Motion transfer from a driving video",
+  "reframe": "Reframes an existing video to a new shape",
+  "video_background_remover": "Tool: removes a video background",
+  "sam_3_video": "Tool: removes a video background",
+  "voice_change": "Tool: changes the voice in a video",
+  "dubbing": "Tool: dubs a video into another language",
+  "sync_so": "Tool: lip-syncs a video to new audio",
+  "topaz_hyperion_2_5": "Tool: upscales a video",
+  "topaz_video": "Tool: upscales a video",
+  "bytedance_video_upscale": "Tool: upscales a video",
+  "video_upscale": "Tool: upscales a video",
+  "video_deflicker": "Tool: removes flicker from a video",
+  "depth_anything_video": "Tool: makes a depth map from a video",
+  "fps_boost": "Tool: raises a video's frame rate"
+ },
+ "failed_quotes": [
+  {
+   "model": "minimax_hailuo",
+   "duration": 6,
+   "resolution": "512",
+   "variant": "minimax-2.3",
+   "error": "500 from Higgsfield cost estimate"
+  },
+  {
+   "model": "minimax_hailuo",
+   "duration": 10,
+   "resolution": "1080",
+   "variant": "minimax-2.3",
+   "error": "500 from Higgsfield cost estimate"
+  }
+ ],
+ "quotes": [
+  {
+   "model": "seedance_2_5",
+   "duration": 10,
+   "resolution": "1080p",
+   "credits": 160
+  },
+  {
+   "model": "seedance_2_5",
+   "duration": 5,
+   "resolution": "480p",
+   "credits": 15
+  },
+  {
+   "model": "seedance_2_5",
+   "duration": 5,
+   "resolution": "720p",
+   "credits": 35
+  },
+  {
+   "model": "seedance_2_5",
+   "duration": 5,
+   "resolution": "1080p",
+   "credits": 80
+  },
+  {
+   "model": "seedance_2_5",
+   "duration": 10,
+   "resolution": "1080p",
+   "generate_audio": false,
+   "credits": 160
+  },
+  {
+   "model": "seedance_2_5",
+   "duration": 4,
+   "resolution": "480p",
+   "credits": 12
+  },
+  {
+   "model": "seedance_2_0",
+   "duration": 5,
+   "resolution": "480p",
+   "credits": 15
+  },
+  {
+   "model": "seedance_2_0",
+   "duration": 5,
+   "resolution": "720p",
+   "credits": 22.5
+  },
+  {
+   "model": "seedance_2_0",
+   "duration": 5,
+   "resolution": "1080p",
+   "credits": 60
+  },
+  {
+   "model": "seedance_2_0",
+   "duration": 5,
+   "resolution": "4k",
+   "credits": 110
+  },
+  {
+   "model": "seedance_2_0",
+   "duration": 10,
+   "resolution": "1080p",
+   "credits": 120
+  },
+  {
+   "model": "seedance_2_0",
+   "duration": 5,
+   "resolution": "1080p",
+   "mode": "fast",
+   "credits": 12.5
+  },
+  {
+   "model": "seedance_2_0",
+   "duration": 5,
+   "resolution": "1080p",
+   "generate_audio": false,
+   "credits": 60
+  },
+  {
+   "model": "wan3_0",
+   "duration": 5,
+   "resolution": "480p",
+   "credits": 5
+  },
+  {
+   "model": "wan3_0",
+   "duration": 5,
+   "resolution": "720p",
+   "credits": 8.75
+  },
+  {
+   "model": "wan3_0",
+   "duration": 5,
+   "resolution": "1080p",
+   "credits": 17.5
+  },
+  {
+   "model": "wan3_0",
+   "duration": 10,
+   "resolution": "1080p",
+   "generate_audio": false,
+   "credits": 35
+  },
+  {
+   "model": "wan3_0_prime",
+   "duration": 5,
+   "resolution": "480p",
+   "credits": 7.5
+  },
+  {
+   "model": "wan3_0_prime",
+   "duration": 5,
+   "resolution": "720p",
+   "credits": 15
+  },
+  {
+   "model": "wan3_0_prime",
+   "duration": 5,
+   "resolution": "1080p",
+   "credits": 30
+  },
+  {
+   "model": "kling3_0",
+   "duration": 5,
+   "mode": "std",
+   "credits": 10
+  },
+  {
+   "model": "kling3_0",
+   "duration": 5,
+   "mode": "pro",
+   "credits": 12.5
+  },
+  {
+   "model": "kling3_0",
+   "duration": 5,
+   "mode": "4k",
+   "credits": 30
+  },
+  {
+   "model": "kling3_0",
+   "duration": 10,
+   "mode": "pro",
+   "sound": "off",
+   "credits": 17.5
+  },
+  {
+   "model": "kling3_0",
+   "duration": 10,
+   "mode": "pro",
+   "credits": 25
+  },
+  {
+   "model": "kling3_0",
+   "duration": 5,
+   "mode": "std",
+   "sound": "off",
+   "credits": 7.5
+  },
+  {
+   "model": "kling3_0",
+   "duration": 5,
+   "mode": "4k",
+   "sound": "off",
+   "credits": 30
+  },
+  {
+   "model": "kling3_0_turbo",
+   "duration": 5,
+   "resolution": "720p",
+   "credits": 7.5
+  },
+  {
+   "model": "kling3_0_turbo",
+   "duration": 10,
+   "resolution": "1080p",
+   "credits": 20
+  },
+  {
+   "model": "kling_o3_image_reference",
+   "duration": 5,
+   "mode": "std",
+   "credits": 6.25
+  },
+  {
+   "model": "kling_o3_image_reference",
+   "duration": 5,
+   "mode": "pro",
+   "credits": 10
+  },
+  {
+   "model": "kling_o3_image_reference",
+   "duration": 5,
+   "mode": "4k",
+   "credits": 30
+  },
+  {
+   "model": "kling_o3_image_reference",
+   "duration": 10,
+   "mode": "pro",
+   "sound": "off",
+   "credits": 15
+  },
+  {
+   "model": "kling_o3_flf",
+   "duration": 5,
+   "mode": "pro",
+   "credits": 9
+  },
+  {
+   "model": "minimax_h3",
+   "duration": 5,
+   "resolution": "2K",
+   "credits": 10
+  },
+  {
+   "model": "minimax_h3",
+   "duration": 10,
+   "resolution": "2K",
+   "credits": 20
+  },
+  {
+   "model": "minimax_h3_max",
+   "duration": 5,
+   "resolution": "480p",
+   "credits": 7.5
+  },
+  {
+   "model": "minimax_h3_max",
+   "duration": 10,
+   "resolution": "768p",
+   "credits": 25
+  },
+  {
+   "model": "flux_3_video",
+   "duration": 5,
+   "resolution": "720p",
+   "credits": 27.5
+  },
+  {
+   "model": "flux_3_video",
+   "duration": 10,
+   "resolution": "1080p",
+   "credits": 90
+  },
+  {
+   "model": "flux_3_video",
+   "duration": 5,
+   "resolution": "720p",
+   "generate_audio": false,
+   "credits": 27.5
+  },
+  {
+   "model": "grok_video_v15",
+   "duration": 5,
+   "resolution": "480p",
+   "credits": 12.5
+  },
+  {
+   "model": "grok_video_v15",
+   "duration": 5,
+   "resolution": "720p",
+   "credits": 22.5
+  },
+  {
+   "model": "grok_video_v15",
+   "duration": 10,
+   "resolution": "1080p",
+   "credits": 80
+  },
+  {
+   "model": "grok_video_v15_lite",
+   "duration": 5,
+   "resolution": "720p",
+   "credits": 5
+  },
+  {
+   "model": "grok_video_v15_lite",
+   "duration": 10,
+   "resolution": "1080p",
+   "credits": 40
+  },
+  {
+   "model": "grok_video",
+   "duration": 5,
+   "credits": 7.5
+  },
+  {
+   "model": "grok_video",
+   "duration": 10,
+   "credits": 15
+  },
+  {
+   "model": "minimax_hailuo",
+   "duration": 6,
+   "resolution": "768",
+   "variant": "minimax-2.3",
+   "credits": 6
+  },
+  {
+   "model": "minimax_hailuo",
+   "duration": 6,
+   "resolution": "1080",
+   "variant": "minimax-2.3",
+   "credits": 10
+  },
+  {
+   "model": "minimax_hailuo",
+   "duration": 10,
+   "resolution": "768",
+   "variant": "minimax-2.3",
+   "credits": 11
+  },
+  {
+   "model": "minimax_hailuo",
+   "duration": 6,
+   "resolution": "768",
+   "variant": "minimax-2.3-fast",
+   "credits": 4
+  },
+  {
+   "model": "minimax_hailuo",
+   "duration": 6,
+   "resolution": "768",
+   "variant": "minimax",
+   "credits": 6
+  },
+  {
+   "model": "minimax_hailuo",
+   "duration": 6,
+   "resolution": "1080",
+   "variant": "minimax-2.3-fast",
+   "credits": 7
+  },
+  {
+   "model": "wan2_6",
+   "duration": 5,
+   "quality": "720p",
+   "credits": 7.5
+  },
+  {
+   "model": "wan2_6",
+   "duration": 15,
+   "quality": "1080p",
+   "credits": 30
+  },
+  {
+   "model": "wan2_7",
+   "duration": 5,
+   "resolution": "720p",
+   "credits": 7.5
+  },
+  {
+   "model": "wan2_7",
+   "duration": 10,
+   "resolution": "1080p",
+   "credits": 25
+  },
+  {
+   "model": "seedance1_5",
+   "duration": 4,
+   "resolution": "480p",
+   "credits": 2.4
+  },
+  {
+   "model": "seedance1_5",
+   "duration": 8,
+   "resolution": "720p",
+   "credits": 9.6
+  },
+  {
+   "model": "seedance1_5",
+   "duration": 12,
+   "resolution": "1080p",
+   "credits": 36
+  },
+  {
+   "model": "seedance1_5",
+   "duration": 4,
+   "resolution": "1080p",
+   "generate_audio": false,
+   "credits": 12
+  },
+  {
+   "model": "seedance_2_0_mini",
+   "duration": 5,
+   "resolution": "480p",
+   "credits": 2.5
+  },
+  {
+   "model": "seedance_2_0_mini",
+   "duration": 10,
+   "resolution": "720p",
+   "credits": 10
+  },
+  {
+   "model": "kling2_6",
+   "duration": 5,
+   "credits": 10
+  },
+  {
+   "model": "kling2_6",
+   "duration": 10,
+   "sound": false,
+   "credits": 10
+  },
+  {
+   "model": "kling2_6",
+   "duration": 10,
+   "credits": 20
+  },
+  {
+   "model": "kling2_6",
+   "duration": 5,
+   "sound": false,
+   "credits": 5
+  },
+  {
+   "model": "happy_horse_video",
+   "duration": 5,
+   "resolution": "720p",
+   "credits": 12.5
+  },
+  {
+   "model": "happy_horse_video",
+   "duration": 10,
+   "resolution": "1080p",
+   "credits": 45
+  },
+  {
+   "model": "gemini_omni",
+   "duration": 8,
+   "resolution": "720p",
+   "credits": 24
+  },
+  {
+   "model": "gemini_omni_flash_1_1",
+   "duration": 5,
+   "resolution": "360p",
+   "mode": "text-to-video",
+   "credits": 5
+  },
+  {
+   "model": "gemini_omni_flash_1_1",
+   "duration": 5,
+   "resolution": "720p",
+   "mode": "text-to-video",
+   "credits": 15
+  },
+  {
+   "model": "gemini_omni_flash_1_1",
+   "duration": 5,
+   "resolution": "1080p",
+   "mode": "text-to-video",
+   "credits": 22.5
+  },
+  {
+   "model": "gemini_omni_flash_1_1",
+   "duration": 10,
+   "resolution": "4k",
+   "mode": "text-to-video",
+   "credits": 90
+  },
+  {
+   "model": "veo3",
+   "variant": "veo-3-fast",
+   "credits": 22
+  },
+  {
+   "model": "veo3",
+   "variant": "veo-3-preview",
+   "credits": 58
+  },
+  {
+   "model": "veo3_1",
+   "duration": 8,
+   "quality": "basic",
+   "variant": "veo-3-1-fast",
+   "credits": 32
+  },
+  {
+   "model": "veo3_1",
+   "duration": 8,
+   "quality": "basic",
+   "variant": "veo-3-1-preview",
+   "credits": 80
+  },
+  {
+   "model": "veo3_1",
+   "duration": 8,
+   "quality": "high",
+   "variant": "veo-3-1-fast",
+   "credits": 32
+  },
+  {
+   "model": "veo3_1",
+   "duration": 8,
+   "quality": "ultra",
+   "variant": "veo-3-1-fast",
+   "credits": 72
+  },
+  {
+   "model": "veo3_1",
+   "duration": 4,
+   "quality": "basic",
+   "variant": "veo-3-1-fast",
+   "credits": 16
+  },
+  {
+   "model": "veo3_1",
+   "duration": 8,
+   "quality": "ultra",
+   "variant": "veo-3-1-preview",
+   "credits": 120
+  },
+  {
+   "model": "veo3_1",
+   "duration": 8,
+   "quality": "high",
+   "variant": "veo-3-1-preview",
+   "credits": 80
+  },
+  {
+   "model": "veo3_1_lite",
+   "duration": 8,
+   "credits": 12
+  },
+  {
+   "model": "veo3_1_lite",
+   "duration": 4,
+   "generate_audio": true,
+   "credits": 6
+  },
+  {
+   "model": "veo3_1_lite",
+   "duration": 4,
+   "generate_audio": false,
+   "credits": 6
+  },
+  {
+   "model": "cinematic_studio_3_0",
+   "duration": 5,
+   "resolution": "720p",
+   "credits": 25
+  },
+  {
+   "model": "cinematic_studio_3_0",
+   "duration": 10,
+   "resolution": "4k",
+   "generate_audio": true,
+   "credits": 240
+  },
+  {
+   "model": "cinematic_studio_3_0",
+   "duration": 5,
+   "resolution": "480p",
+   "credits": 17.5
+  },
+  {
+   "model": "cinematic_studio_3_0",
+   "duration": 5,
+   "resolution": "1080p",
+   "credits": 65
+  },
+  {
+   "model": "cinematic_studio_3_0",
+   "duration": 5,
+   "resolution": "720p",
+   "generate_audio": true,
+   "credits": 25
+  },
+  {
+   "model": "cinematic_studio_video_3_5",
+   "duration": 5,
+   "resolution": "720p",
+   "credits": 25
+  },
+  {
+   "model": "cinematic_studio_video_3_5",
+   "duration": 5,
+   "resolution": "480p",
+   "credits": 17.5
+  },
+  {
+   "model": "cinematic_studio_video_3_5",
+   "duration": 10,
+   "resolution": "1080p",
+   "generate_audio": true,
+   "credits": 130
+  },
+  {
+   "model": "cinematic_studio_video_4_0",
+   "duration": 5,
+   "resolution": "720p",
+   "credits": 35
+  },
+  {
+   "model": "cinematic_studio_video_4_0",
+   "duration": 5,
+   "resolution": "480p",
+   "credits": 15
+  },
+  {
+   "model": "cinematic_studio_video_4_0",
+   "duration": 10,
+   "resolution": "1080p",
+   "credits": 160
+  },
+  {
+   "model": "cinematic_studio_video_v2",
+   "duration": 5,
+   "mode": "std",
+   "credits": 7.5
+  },
+  {
+   "model": "cinematic_studio_video_v2",
+   "duration": 10,
+   "mode": "pro",
+   "credits": 20
+  },
+  {
+   "model": "cinematic_studio_video",
+   "duration": 5,
+   "credits": 8
+  },
+  {
+   "model": "cinematic_studio_video",
+   "duration": 10,
+   "credits": 18
+  },
+  {
+   "model": "seedance_2_0",
+   "duration": 5,
+   "resolution": "720p",
+   "mode": "fast",
+   "credits": 12.5
+  },
+  {
+   "model": "wan3_0_prime",
+   "duration": 10,
+   "resolution": "1080p",
+   "credits": 60
+  },
+  {
+   "model": "kling_o3_flf",
+   "duration": 10,
+   "mode": "pro",
+   "credits": 18
+  },
+  {
+   "model": "minimax_h3_max",
+   "duration": 10,
+   "resolution": "480p",
+   "credits": 15
+  },
+  {
+   "model": "flux_3_video",
+   "duration": 10,
+   "resolution": "720p",
+   "credits": 55
+  },
+  {
+   "model": "grok_video_v15",
+   "duration": 10,
+   "resolution": "720p",
+   "credits": 45
+  },
+  {
+   "model": "grok_video_v15_lite",
+   "duration": 10,
+   "resolution": "720p",
+   "credits": 10
+  },
+  {
+   "model": "grok_video_v15_lite",
+   "duration": 5,
+   "resolution": "480p",
+   "credits": 5
+  },
+  {
+   "model": "wan2_6",
+   "duration": 10,
+   "quality": "720p",
+   "credits": 15
+  },
+  {
+   "model": "wan2_7",
+   "duration": 10,
+   "resolution": "720p",
+   "credits": 15
+  },
+  {
+   "model": "seedance1_5",
+   "duration": 4,
+   "resolution": "720p",
+   "credits": 4.8
+  },
+  {
+   "model": "seedance_2_0_mini",
+   "duration": 10,
+   "resolution": "480p",
+   "credits": 5
+  },
+  {
+   "model": "happy_horse_video",
+   "duration": 10,
+   "resolution": "720p",
+   "credits": 25
+  },
+  {
+   "model": "gemini_omni",
+   "duration": 4,
+   "resolution": "720p",
+   "credits": 12
+  },
+  {
+   "model": "gemini_omni_flash_1_1",
+   "duration": 10,
+   "resolution": "720p",
+   "mode": "text-to-video",
+   "credits": 30
+  },
+  {
+   "model": "cinematic_studio_3_0",
+   "duration": 10,
+   "resolution": "720p",
+   "credits": 50
+  },
+  {
+   "model": "cinematic_studio_video_3_5",
+   "duration": 10,
+   "resolution": "720p",
+   "credits": 50
+  },
+  {
+   "model": "cinematic_studio_video_4_0",
+   "duration": 10,
+   "resolution": "720p",
+   "credits": 70
+  },
+  {
+   "model": "cinematic_studio_video_v2",
+   "duration": 10,
+   "mode": "std",
+   "credits": 15
+  },
+  {
+   "model": "kling_o3_image_reference",
+   "duration": 5,
+   "mode": "std",
+   "sound": "off",
+   "credits": 5
+  },
+  {
+   "model": "kling_o3_image_reference",
+   "duration": 5,
+   "mode": "4k",
+   "sound": "off",
+   "credits": 30
+  },
+  {
+   "model": "kling_o3_flf",
+   "duration": 5,
+   "mode": "std",
+   "credits": 6.25
+  },
+  {
+   "model": "kling_o3_flf",
+   "duration": 5,
+   "mode": "4k",
+   "credits": 30
+  },
+  {
+   "model": "kling3_0_turbo",
+   "duration": 10,
+   "resolution": "720p",
+   "credits": 15
+  },
+  {
+   "model": "kling3_0",
+   "duration": 10,
+   "mode": "std",
+   "credits": 20
+  },
+  {
+   "model": "seedance_2_5",
+   "duration": 10,
+   "resolution": "720p",
+   "credits": 70
+  },
+  {
+   "model": "wan3_0",
+   "duration": 3,
+   "resolution": "720p",
+   "credits": 5.25
+  },
+  {
+   "model": "minimax_h3",
+   "duration": 15,
+   "resolution": "2K",
+   "aspect_ratio": "9:16",
+   "credits": 30
+  },
+  {
+   "model": "kling_o3_image_reference",
+   "duration": 10,
+   "mode": "pro",
+   "credits": 20
+  }
+ ],
+ "models": {
+  "seedance_2_5": {
+   "label": "Seedance 2.5",
+   "provider": "Bytedance",
+   "description": "Seedance 2.5 text-to-video, multimodal omni-reference generation, video edit, and video extension",
+   "family": "seedance-2-5",
+   "api": "seedance-2-5",
+   "duration": {
+    "min": 4,
+    "max": 30,
+    "values": null
+   },
+   "aspects": [
+    "21:9",
+    "16:9",
+    "4:3",
+    "1:1",
+    "3:4",
+    "9:16"
+   ],
+   "resolution": {
+    "param": "resolution",
+    "values": {
+     "480p": "480p",
+     "720p": "720p",
+     "1080p": "1080p"
+    },
+    "default": "720p"
+   },
+   "audio": {
+    "param": "generate_audio",
+    "on": true,
+    "off": false,
+    "default": true
+   },
+   "native_audio": true,
+   "multi_shot": false,
+   "roles": [
+    "start_image",
+    "end_image",
+    "image_references",
+    "video_references",
+    "audio_references"
+   ],
+   "start_frame": true,
+   "end_frame": true,
+   "image_references": true,
+   "needs_start_frame": false,
+   "max_images": 30,
+   "max_images_source": "API reference endpoint",
+   "tags": [
+    "text-to-video",
+    "reference",
+    "identity",
+    "audio-reference",
+    "video-reference",
+    "video-edit",
+    "video-extension",
+    "480p",
+    "720p",
+    "1080p"
+   ],
+   "url": "https://higgsfield.ai/ai/video?model=seedance_2_5",
+   "default_setting": "resolution=720p",
+   "linear_price_checked": true,
+   "credits": {
+    "resolution=1080p": {
+     "on": {
+      "per_second": 16,
+      "lengths_quoted": [
+       10,
+       5
+      ]
+     },
+     "off": {
+      "per_second": 16,
+      "lengths_quoted": [
+       10
+      ]
+     }
+    },
+    "resolution=480p": {
+     "on": {
+      "per_second": 3,
+      "lengths_quoted": [
+       5,
+       4
+      ]
+     }
+    },
+    "resolution=720p": {
+     "on": {
+      "per_second": 7,
+      "lengths_quoted": [
+       5,
+       10
+      ]
+     }
+    }
+   }
+  },
+  "seedance_2_0": {
+   "label": "Seedance 2.0",
+   "provider": "Bytedance",
+   "description": "Reference-driven video with image/video/audio reference inputs, consistent identity, multi-SKU; optional generate_audio for native audio",
+   "family": "seedance-2",
+   "api": "seedance-2",
+   "duration": {
+    "min": 4,
+    "max": 15,
+    "values": null
+   },
+   "aspects": [
+    "16:9",
+    "9:16",
+    "4:3",
+    "3:4",
+    "1:1",
+    "21:9"
+   ],
+   "resolution": {
+    "param": "resolution",
+    "values": {
+     "480p": "480p",
+     "720p": "720p",
+     "1080p": "1080p",
+     "4K": "4k"
+    },
+    "default": "720p"
+   },
+   "audio": {
+    "param": "generate_audio",
+    "on": true,
+    "off": false,
+    "default": true
+   },
+   "native_audio": true,
+   "multi_shot": false,
+   "roles": [
+    "start_image",
+    "end_image",
+    "image_references",
+    "video_references",
+    "audio_references"
+   ],
+   "start_frame": true,
+   "end_frame": true,
+   "image_references": true,
+   "needs_start_frame": false,
+   "max_images": 9,
+   "max_images_source": "API reference endpoint",
+   "tags": [
+    "reference",
+    "identity",
+    "consistent",
+    "product",
+    "multi-sku",
+    "e-commerce",
+    "audio",
+    "audio-reference",
+    "video-reference",
+    "start-frame",
+    "end-frame",
+    "4k",
+    "high-resolution",
+    "unlim"
+   ],
+   "url": "https://higgsfield.ai/ai/video?model=seedance_2_0",
+   "default_setting": "mode=std,resolution=720p",
+   "linear_price_checked": true,
+   "credits": {
+    "mode=std,resolution=480p": {
+     "on": {
+      "per_second": 3,
+      "lengths_quoted": [
+       5
+      ]
+     }
+    },
+    "mode=std,resolution=720p": {
+     "on": {
+      "per_second": 4.5,
+      "lengths_quoted": [
+       5
+      ]
+     }
+    },
+    "mode=std,resolution=1080p": {
+     "on": {
+      "per_second": 12,
+      "lengths_quoted": [
+       5,
+       10
+      ]
+     },
+     "off": {
+      "per_second": 12,
+      "lengths_quoted": [
+       5
+      ]
+     }
+    },
+    "mode=std,resolution=4k": {
+     "on": {
+      "per_second": 22,
+      "lengths_quoted": [
+       5
+      ]
+     }
+    },
+    "mode=fast,resolution=1080p": {
+     "on": {
+      "per_second": 2.5,
+      "lengths_quoted": [
+       5
+      ]
+     }
+    },
+    "mode=fast,resolution=720p": {
+     "on": {
+      "per_second": 2.5,
+      "lengths_quoted": [
+       5
+      ]
+     }
+    }
+   }
+  },
+  "seedance_2_0_mini": {
+   "label": "Seedance 2.0 Mini",
+   "provider": "Bytedance",
+   "description": "Fast budget Seedance 2.0 variant with image/video/audio reference inputs and native audio",
+   "family": "seedance-2-mini",
+   "api": null,
+   "duration": {
+    "min": 4,
+    "max": 15,
+    "values": null
+   },
+   "aspects": [
+    "16:9",
+    "9:16",
+    "4:3",
+    "3:4",
+    "1:1",
+    "21:9"
+   ],
+   "resolution": {
+    "param": "resolution",
+    "values": {
+     "480p": "480p",
+     "720p": "720p"
+    },
+    "default": "720p"
+   },
+   "audio": {
+    "param": "generate_audio",
+    "on": true,
+    "off": false,
+    "default": true
+   },
+   "native_audio": true,
+   "multi_shot": false,
+   "roles": [
+    "start_image",
+    "end_image",
+    "image_references",
+    "video_references",
+    "audio_references"
+   ],
+   "start_frame": true,
+   "end_frame": true,
+   "image_references": true,
+   "needs_start_frame": false,
+   "max_images": null,
+   "max_images_source": "unpublished: takes image references, count not listed",
+   "tags": [
+    "fast",
+    "budget",
+    "reference",
+    "identity",
+    "consistent",
+    "audio",
+    "audio-reference",
+    "video-reference",
+    "start-frame",
+    "end-frame",
+    "unlim"
+   ],
+   "url": "https://higgsfield.ai/ai/video?model=seedance_2_0_mini",
+   "default_setting": "resolution=720p",
+   "linear_price_checked": true,
+   "credits": {
+    "resolution=480p": {
+     "on": {
+      "per_second": 0.5,
+      "lengths_quoted": [
+       5,
+       10
+      ]
+     }
+    },
+    "resolution=720p": {
+     "on": {
+      "per_second": 1,
+      "lengths_quoted": [
+       10
+      ]
+     }
+    }
+   }
+  },
+  "seedance1_5": {
+   "label": "Seedance 1.5 Pro",
+   "provider": "Bytedance",
+   "description": "Reliable motion, improved quality",
+   "family": "seedance-1-5",
+   "api": null,
+   "duration": {
+    "min": 4,
+    "max": 12,
+    "values": [
+     4,
+     8,
+     12
+    ]
+   },
+   "aspects": [
+    "16:9",
+    "9:16",
+    "4:3",
+    "3:4",
+    "1:1",
+    "21:9"
+   ],
+   "resolution": {
+    "param": "resolution",
+    "values": {
+     "480p": "480p",
+     "720p": "720p",
+     "1080p": "1080p"
+    },
+    "default": "720p"
+   },
+   "audio": {
+    "param": "generate_audio",
+    "on": true,
+    "off": false,
+    "default": true
+   },
+   "native_audio": true,
+   "multi_shot": false,
+   "roles": [
+    "start_image",
+    "end_image"
+   ],
+   "start_frame": true,
+   "end_frame": true,
+   "image_references": false,
+   "needs_start_frame": false,
+   "max_images": 1,
+   "max_images_source": "start frame only",
+   "tags": [
+    "reliable",
+    "motion",
+    "quality",
+    "versatile"
+   ],
+   "url": "https://higgsfield.ai/ai/video?model=seedance1_5",
+   "default_setting": "resolution=720p",
+   "linear_price_checked": true,
+   "credits": {
+    "resolution=480p": {
+     "on": {
+      "per_second": 0.6,
+      "lengths_quoted": [
+       4
+      ]
+     }
+    },
+    "resolution=720p": {
+     "on": {
+      "per_second": 1.2,
+      "lengths_quoted": [
+       8,
+       4
+      ]
+     }
+    },
+    "resolution=1080p": {
+     "on": {
+      "per_second": 3,
+      "lengths_quoted": [
+       12
+      ]
+     },
+     "off": {
+      "per_second": 3,
+      "lengths_quoted": [
+       4
+      ]
+     }
+    }
+   }
+  },
+  "wan3_0": {
+   "label": "Wan 3.0",
+   "provider": "Wan",
+   "description": "Wan 3.0 text-to-video, first/last frame video, and multimodal reference-to-video with native audio",
+   "family": "wan-3",
+   "api": "wan-3",
+   "duration": {
+    "min": 2,
+    "max": 30,
+    "values": null
+   },
+   "aspects": [
+    "16:9",
+    "9:16",
+    "1:1",
+    "4:3",
+    "3:4"
+   ],
+   "resolution": {
+    "param": "resolution",
+    "values": {
+     "480p": "480p",
+     "720p": "720p",
+     "1080p": "1080p"
+    },
+    "default": "720p"
+   },
+   "audio": {
+    "param": "generate_audio",
+    "on": true,
+    "off": false,
+    "default": true
+   },
+   "native_audio": true,
+   "multi_shot": false,
+   "roles": [
+    "start_image",
+    "end_image",
+    "image_references",
+    "video_references",
+    "audio_references"
+   ],
+   "start_frame": true,
+   "end_frame": true,
+   "image_references": true,
+   "needs_start_frame": false,
+   "max_images": 10,
+   "max_images_source": "API reference endpoint",
+   "tags": [
+    "text-to-video",
+    "reference",
+    "identity",
+    "audio-reference",
+    "video-reference",
+    "first-last-frame",
+    "sound",
+    "thinking",
+    "480p",
+    "720p",
+    "1080p"
+   ],
+   "url": "https://higgsfield.ai/ai/video?model=wan3_0",
+   "default_setting": "resolution=720p",
+   "linear_price_checked": true,
+   "credits": {
+    "resolution=480p": {
+     "on": {
+      "per_second": 1,
+      "lengths_quoted": [
+       5
+      ]
+     }
+    },
+    "resolution=720p": {
+     "on": {
+      "per_second": 1.75,
+      "lengths_quoted": [
+       5,
+       3
+      ]
+     }
+    },
+    "resolution=1080p": {
+     "on": {
+      "per_second": 3.5,
+      "lengths_quoted": [
+       5
+      ]
+     },
+     "off": {
+      "per_second": 3.5,
+      "lengths_quoted": [
+       10
+      ]
+     }
+    }
+   }
+  },
+  "wan3_0_prime": {
+   "label": "Wan 3.0 Prime",
+   "provider": "Wan",
+   "description": "Wan 3.0 Prime text-to-video, first/last frame video, and multimodal reference-to-video with native audio",
+   "family": "wan-3-prime",
+   "api": "wan-3-prime",
+   "duration": {
+    "min": 2,
+    "max": 30,
+    "values": null
+   },
+   "aspects": [
+    "16:9",
+    "9:16",
+    "1:1",
+    "4:3",
+    "3:4"
+   ],
+   "resolution": {
+    "param": "resolution",
+    "values": {
+     "480p": "480p",
+     "720p": "720p",
+     "1080p": "1080p"
+    },
+    "default": "720p"
+   },
+   "audio": {
+    "param": "generate_audio",
+    "on": true,
+    "off": false,
+    "default": true
+   },
+   "native_audio": true,
+   "multi_shot": false,
+   "roles": [
+    "start_image",
+    "end_image",
+    "image_references",
+    "video_references",
+    "audio_references"
+   ],
+   "start_frame": true,
+   "end_frame": true,
+   "image_references": true,
+   "needs_start_frame": false,
+   "max_images": 10,
+   "max_images_source": "API reference endpoint",
+   "tags": [
+    "text-to-video",
+    "reference",
+    "identity",
+    "audio-reference",
+    "video-reference",
+    "first-last-frame",
+    "sound",
+    "thinking",
+    "480p",
+    "720p",
+    "1080p",
+    "prime"
+   ],
+   "url": "https://higgsfield.ai/ai/video?model=wan3_0_prime",
+   "default_setting": "resolution=720p",
+   "linear_price_checked": true,
+   "credits": {
+    "resolution=480p": {
+     "on": {
+      "per_second": 1.5,
+      "lengths_quoted": [
+       5
+      ]
+     }
+    },
+    "resolution=720p": {
+     "on": {
+      "per_second": 3,
+      "lengths_quoted": [
+       5
+      ]
+     }
+    },
+    "resolution=1080p": {
+     "on": {
+      "per_second": 6,
+      "lengths_quoted": [
+       5,
+       10
+      ]
+     }
+    }
+   }
+  },
+  "wan2_7": {
+   "label": "Wan 2.7",
+   "provider": "Wan",
+   "description": "Synchronized audio, character-consistent video",
+   "family": "wan-2-7",
+   "api": "wan-2-7",
+   "duration": {
+    "min": 2,
+    "max": 15,
+    "values": null
+   },
+   "aspects": [
+    "16:9",
+    "9:16",
+    "1:1",
+    "4:3",
+    "3:4"
+   ],
+   "resolution": {
+    "param": "resolution",
+    "values": {
+     "720p": "720p",
+     "1080p": "1080p"
+    },
+    "default": "720p"
+   },
+   "audio": null,
+   "native_audio": true,
+   "multi_shot": false,
+   "roles": [
+    "start_image",
+    "end_image",
+    "audio_references"
+   ],
+   "start_frame": true,
+   "end_frame": true,
+   "image_references": false,
+   "needs_start_frame": false,
+   "max_images": 1,
+   "max_images_source": "start frame only in the app",
+   "tags": [
+    "audio",
+    "character",
+    "consistent",
+    "sync",
+    "sound",
+    "unlim"
+   ],
+   "url": "https://higgsfield.ai/ai/video?model=wan2_7",
+   "default_setting": "resolution=720p",
+   "linear_price_checked": true,
+   "credits": {
+    "resolution=720p": {
+     "on": {
+      "per_second": 1.5,
+      "lengths_quoted": [
+       5,
+       10
+      ]
+     }
+    },
+    "resolution=1080p": {
+     "on": {
+      "per_second": 2.5,
+      "lengths_quoted": [
+       10
+      ]
+     }
+    }
+   }
+  },
+  "wan2_6": {
+   "label": "Wan 2.6 Video",
+   "provider": "Wan",
+   "description": "Open-weight, stylized, experimental creative",
+   "family": "wan-2-6",
+   "api": "wan-2-6",
+   "duration": {
+    "min": 5,
+    "max": 15,
+    "values": [
+     5,
+     10,
+     15
+    ]
+   },
+   "aspects": [
+    "16:9",
+    "9:16",
+    "1:1"
+   ],
+   "resolution": {
+    "param": "quality",
+    "values": {
+     "720p": "720p",
+     "1080p": "1080p"
+    },
+    "default": "720p"
+   },
+   "audio": null,
+   "native_audio": false,
+   "multi_shot": false,
+   "roles": [
+    "image_references",
+    "video_references",
+    "audio_references"
+   ],
+   "start_frame": false,
+   "end_frame": false,
+   "image_references": true,
+   "needs_start_frame": false,
+   "max_images": null,
+   "max_images_source": "unpublished: takes image references, count not listed",
+   "tags": [
+    "stylized",
+    "experimental",
+    "creative",
+    "open-weight",
+    "artistic"
+   ],
+   "url": "https://higgsfield.ai/ai/video?model=wan2_6",
+   "default_setting": "quality=720p",
+   "linear_price_checked": true,
+   "credits": {
+    "quality=720p": {
+     "on": {
+      "per_second": 1.5,
+      "lengths_quoted": [
+       5,
+       10
+      ]
+     }
+    },
+    "quality=1080p": {
+     "on": {
+      "per_second": 2,
+      "lengths_quoted": [
+       15
+      ]
+     }
+    }
+   }
+  },
+  "kling3_0": {
+   "label": "Kling v3.0",
+   "provider": "Kling",
+   "description": "Multi-shot, audio sync, motion transfer",
+   "family": "kling-3",
+   "api": {
+    "std": "kling-3-standard",
+    "pro": "kling-3-pro",
+    "4k": "kling-3-4k"
+   },
+   "duration": {
+    "min": 3,
+    "max": 15,
+    "values": null
+   },
+   "aspects": [
+    "16:9",
+    "9:16",
+    "1:1"
+   ],
+   "resolution": {
+    "param": "mode",
+    "values": {
+     "720p": "std",
+     "1080p": "pro",
+     "4K": "4k"
+    },
+    "default": "720p"
+   },
+   "audio": {
+    "param": "sound",
+    "on": "on",
+    "off": "off",
+    "default": true
+   },
+   "native_audio": true,
+   "multi_shot": true,
+   "roles": [
+    "start_image",
+    "end_image"
+   ],
+   "start_frame": true,
+   "end_frame": true,
+   "image_references": false,
+   "needs_start_frame": false,
+   "max_images": 1,
+   "max_images_source": "start frame (and end frame)",
+   "tags": [
+    "multi-shot",
+    "audio",
+    "motion-transfer",
+    "cinematic",
+    "advanced",
+    "unlim"
+   ],
+   "url": "https://higgsfield.ai/ai/video?model=kling3_0",
+   "default_setting": "mode=std",
+   "linear_price_checked": true,
+   "credits": {
+    "mode=std": {
+     "on": {
+      "per_second": 2,
+      "lengths_quoted": [
+       5,
+       10
+      ]
+     },
+     "off": {
+      "per_second": 1.5,
+      "lengths_quoted": [
+       5
+      ]
+     }
+    },
+    "mode=pro": {
+     "on": {
+      "per_second": 2.5,
+      "lengths_quoted": [
+       5,
+       10
+      ]
+     },
+     "off": {
+      "per_second": 1.75,
+      "lengths_quoted": [
+       10
+      ]
+     }
+    },
+    "mode=4k": {
+     "on": {
+      "per_second": 6,
+      "lengths_quoted": [
+       5
+      ]
+     },
+     "off": {
+      "per_second": 6,
+      "lengths_quoted": [
+       5
+      ]
+     }
+    }
+   }
+  },
+  "kling3_0_turbo": {
+   "label": "Kling 3.0 Turbo",
+   "provider": "Kling",
+   "description": "Fast text-to-video and single start-frame animation",
+   "family": "kling-3-turbo",
+   "api": "kling-3-turbo",
+   "duration": {
+    "min": 3,
+    "max": 15,
+    "values": null
+   },
+   "aspects": [
+    "16:9",
+    "9:16",
+    "1:1"
+   ],
+   "resolution": {
+    "param": "resolution",
+    "values": {
+     "720p": "720p",
+     "1080p": "1080p"
+    },
+    "default": "720p"
+   },
+   "audio": null,
+   "native_audio": false,
+   "multi_shot": false,
+   "roles": [
+    "start_image"
+   ],
+   "start_frame": true,
+   "end_frame": false,
+   "image_references": false,
+   "needs_start_frame": false,
+   "max_images": 1,
+   "max_images_source": "start frame only",
+   "tags": [
+    "fast",
+    "turbo",
+    "text-to-video",
+    "image-to-video",
+    "start-frame",
+    "budget",
+    "kling"
+   ],
+   "url": "https://higgsfield.ai/ai/video?model=kling3_0_turbo",
+   "default_setting": "resolution=720p",
+   "linear_price_checked": true,
+   "credits": {
+    "resolution=720p": {
+     "on": {
+      "per_second": 1.5,
+      "lengths_quoted": [
+       5,
+       10
+      ]
+     }
+    },
+    "resolution=1080p": {
+     "on": {
+      "per_second": 2,
+      "lengths_quoted": [
+       10
+      ]
+     }
+    }
+   }
+  },
+  "kling_o3_image_reference": {
+   "label": "Kling 3.0 Omni",
+   "provider": "Kling",
+   "description": "Generate video from text and up to seven reference images",
+   "family": "kling-o3",
+   "api": "kling-o3",
+   "duration": {
+    "min": 3,
+    "max": 15,
+    "values": null
+   },
+   "aspects": [
+    "16:9",
+    "9:16",
+    "1:1"
+   ],
+   "resolution": {
+    "param": "mode",
+    "values": {
+     "720p": "std",
+     "1080p": "pro",
+     "4K": "4k"
+    },
+    "default": "720p"
+   },
+   "audio": {
+    "param": "sound",
+    "on": "on",
+    "off": "off",
+    "default": true
+   },
+   "native_audio": true,
+   "multi_shot": true,
+   "roles": [
+    "image_references"
+   ],
+   "start_frame": false,
+   "end_frame": false,
+   "image_references": true,
+   "needs_start_frame": false,
+   "max_images": 7,
+   "max_images_source": "API image-reference endpoint",
+   "tags": [
+    "multi-shot",
+    "audio",
+    "4k"
+   ],
+   "url": "https://higgsfield.ai/ai/video?model=kling_o3_image_reference",
+   "default_setting": "mode=std",
+   "linear_price_checked": true,
+   "credits": {
+    "mode=std": {
+     "on": {
+      "per_second": 1.25,
+      "lengths_quoted": [
+       5
+      ]
+     },
+     "off": {
+      "per_second": 1,
+      "lengths_quoted": [
+       5
+      ]
+     }
+    },
+    "mode=pro": {
+     "on": {
+      "per_second": 2,
+      "lengths_quoted": [
+       5,
+       10
+      ]
+     },
+     "off": {
+      "per_second": 1.5,
+      "lengths_quoted": [
+       10
+      ]
+     }
+    },
+    "mode=4k": {
+     "on": {
+      "per_second": 6,
+      "lengths_quoted": [
+       5
+      ]
+     },
+     "off": {
+      "per_second": 6,
+      "lengths_quoted": [
+       5
+      ]
+     }
+    }
+   }
+  },
+  "kling_o3_flf": {
+   "label": "Kling 3.0 Omni (Frames)",
+   "provider": "Kling",
+   "description": "Generate video from text or a first frame and optional last frame",
+   "family": "kling-o3",
+   "api": "kling-o3",
+   "duration": {
+    "min": 3,
+    "max": 15,
+    "values": null
+   },
+   "aspects": [
+    "16:9",
+    "9:16",
+    "1:1"
+   ],
+   "resolution": {
+    "param": "mode",
+    "values": {
+     "720p": "std",
+     "1080p": "pro",
+     "4K": "4k"
+    },
+    "default": "720p"
+   },
+   "audio": {
+    "param": "sound",
+    "on": "on",
+    "off": "off",
+    "default": true
+   },
+   "native_audio": true,
+   "multi_shot": true,
+   "roles": [
+    "start_image",
+    "end_image"
+   ],
+   "start_frame": true,
+   "end_frame": true,
+   "image_references": false,
+   "needs_start_frame": true,
+   "max_images": 1,
+   "max_images_source": "first and last frame",
+   "tags": [
+    "multi-shot",
+    "audio",
+    "4k"
+   ],
+   "url": "https://higgsfield.ai/ai/video?model=kling_o3_flf",
+   "default_setting": "mode=std",
+   "linear_price_checked": true,
+   "credits": {
+    "mode=pro": {
+     "on": {
+      "per_second": 1.8,
+      "lengths_quoted": [
+       5,
+       10
+      ]
+     }
+    },
+    "mode=std": {
+     "on": {
+      "per_second": 1.25,
+      "lengths_quoted": [
+       5
+      ]
+     }
+    },
+    "mode=4k": {
+     "on": {
+      "per_second": 6,
+      "lengths_quoted": [
+       5
+      ]
+     }
+    }
+   }
+  },
+  "kling2_6": {
+   "label": "Kling 2.6 Video",
+   "provider": "Kling",
+   "description": "Cinematic motion, advanced physics",
+   "family": "kling-2-6",
+   "api": "kling-2-6-pro",
+   "duration": {
+    "min": 5,
+    "max": 10,
+    "values": [
+     5,
+     10
+    ]
+   },
+   "aspects": [
+    "16:9",
+    "9:16",
+    "1:1"
+   ],
+   "resolution": null,
+   "audio": {
+    "param": "sound",
+    "on": true,
+    "off": false,
+    "default": true
+   },
+   "native_audio": true,
+   "multi_shot": false,
+   "roles": [
+    "start_image"
+   ],
+   "start_frame": true,
+   "end_frame": false,
+   "image_references": false,
+   "needs_start_frame": false,
+   "max_images": 1,
+   "max_images_source": "start frame only",
+   "tags": [
+    "cinematic",
+    "motion",
+    "physics",
+    "advanced",
+    "audio"
+   ],
+   "url": "https://higgsfield.ai/ai/video?model=kling2_6",
+   "default_setting": "",
+   "linear_price_checked": true,
+   "credits": {
+    "": {
+     "on": {
+      "per_second": 2,
+      "lengths_quoted": [
+       5,
+       10
+      ]
+     },
+     "off": {
+      "per_second": 1,
+      "lengths_quoted": [
+       10,
+       5
+      ]
+     }
+    }
+   }
+  },
+  "minimax_h3": {
+   "label": "MiniMax H3",
+   "provider": "MiniMax",
+   "description": "Multimodal video generation with keyframes or image/video/audio references",
+   "family": "minimax-h3",
+   "api": "minimax-h3",
+   "duration": {
+    "min": 4,
+    "max": 15,
+    "values": null
+   },
+   "aspects": [
+    "21:9",
+    "16:9",
+    "4:3",
+    "1:1",
+    "3:4",
+    "9:16"
+   ],
+   "resolution": {
+    "param": "resolution",
+    "values": {
+     "2K": "2K"
+    },
+    "default": "2K"
+   },
+   "audio": null,
+   "native_audio": false,
+   "multi_shot": false,
+   "roles": [
+    "start_image",
+    "end_image",
+    "image_references",
+    "video_references",
+    "audio_references"
+   ],
+   "start_frame": true,
+   "end_frame": true,
+   "image_references": true,
+   "needs_start_frame": false,
+   "max_images": 9,
+   "max_images_source": "API reference endpoint",
+   "tags": [
+    "text-to-video",
+    "image-to-video",
+    "reference",
+    "audio-reference",
+    "video-reference",
+    "start-frame",
+    "end-frame",
+    "2k"
+   ],
+   "url": "https://higgsfield.ai/ai/video?model=minimax_h3",
+   "default_setting": "resolution=2K",
+   "linear_price_checked": true,
+   "credits": {
+    "resolution=2K": {
+     "on": {
+      "per_second": 2,
+      "lengths_quoted": [
+       5,
+       10,
+       15
+      ]
+     }
+    }
+   }
+  },
+  "minimax_h3_max": {
+   "label": "MiniMax H3 Max",
+   "provider": "MiniMax",
+   "description": "Fast text-to-video, keyframe, and multimodal-reference video generation",
+   "family": "minimax-h3-max",
+   "api": null,
+   "duration": {
+    "min": 5,
+    "max": 15,
+    "values": null
+   },
+   "aspects": [
+    "21:9",
+    "16:9",
+    "4:3",
+    "1:1",
+    "3:4",
+    "9:16"
+   ],
+   "resolution": {
+    "param": "resolution",
+    "values": {
+     "480p": "480p",
+     "768p": "768p"
+    },
+    "default": "768p"
+   },
+   "audio": null,
+   "native_audio": false,
+   "multi_shot": false,
+   "roles": [
+    "start_image",
+    "end_image",
+    "image_references",
+    "video_references",
+    "audio_references"
+   ],
+   "start_frame": true,
+   "end_frame": true,
+   "image_references": true,
+   "needs_start_frame": false,
+   "max_images": null,
+   "max_images_source": "unpublished: takes image references, count not listed",
+   "tags": [
+    "text-to-video",
+    "image-to-video",
+    "reference",
+    "video-reference",
+    "audio-reference",
+    "start-frame",
+    "end-frame",
+    "fast"
+   ],
+   "url": "https://higgsfield.ai/ai/video?model=minimax_h3_max",
+   "default_setting": "resolution=768p",
+   "linear_price_checked": true,
+   "credits": {
+    "resolution=480p": {
+     "on": {
+      "per_second": 1.5,
+      "lengths_quoted": [
+       5,
+       10
+      ]
+     }
+    },
+    "resolution=768p": {
+     "on": {
+      "per_second": 2.5,
+      "lengths_quoted": [
+       10
+      ]
+     }
+    }
+   }
+  },
+  "minimax_hailuo": {
+   "label": "Minimax Hailuo",
+   "provider": "Hailuo",
+   "description": "Natural physics, facial emotion, multiple variants",
+   "family": "hailuo-2-3",
+   "api": "hailuo-2-3-standard",
+   "duration": {
+    "min": 6,
+    "max": 10,
+    "values": [
+     6,
+     10
+    ]
+   },
+   "aspects": [
+    "16:9"
+   ],
+   "resolution": {
+    "param": "resolution",
+    "values": {
+     "512p": "512",
+     "768p": "768",
+     "1080p": "1080"
+    },
+    "default": "768p"
+   },
+   "audio": null,
+   "native_audio": false,
+   "multi_shot": false,
+   "roles": [
+    "start_image",
+    "end_image"
+   ],
+   "start_frame": true,
+   "end_frame": true,
+   "image_references": false,
+   "needs_start_frame": false,
+   "max_images": 1,
+   "max_images_source": "start frame (and end frame)",
+   "tags": [
+    "physics",
+    "emotion",
+    "facial",
+    "realistic",
+    "1080p",
+    "natural"
+   ],
+   "url": "https://higgsfield.ai/ai/video?model=minimax_hailuo",
+   "default_setting": "resolution=768,variant=minimax-2.3",
+   "linear_price_checked": true,
+   "credits": {
+    "resolution=768,variant=minimax-2.3": {
+     "on": {
+      "per_clip": {
+       "6": 6,
+       "10": 11
+      },
+      "lengths_quoted": [
+       6,
+       10
+      ]
+     }
+    },
+    "resolution=1080,variant=minimax-2.3": {
+     "on": {
+      "per_clip": {
+       "6": 10
+      },
+      "lengths_quoted": [
+       6
+      ]
+     }
+    },
+    "resolution=768,variant=minimax-2.3-fast": {
+     "on": {
+      "per_clip": {
+       "6": 4
+      },
+      "lengths_quoted": [
+       6
+      ]
+     }
+    },
+    "resolution=768,variant=minimax": {
+     "on": {
+      "per_clip": {
+       "6": 6
+      },
+      "lengths_quoted": [
+       6
+      ]
+     }
+    },
+    "resolution=1080,variant=minimax-2.3-fast": {
+     "on": {
+      "per_clip": {
+       "6": 7
+      },
+      "lengths_quoted": [
+       6
+      ]
+     }
+    }
+   }
+  },
+  "flux_3_video": {
+   "label": "FLUX 3 Video",
+   "provider": "Black Forest Labs",
+   "description": "Text-to-video, multi-frame image-to-video, and video continuation with synchronized audio",
+   "family": "flux-3",
+   "api": null,
+   "duration": {
+    "min": 5,
+    "max": 20,
+    "values": null
+   },
+   "aspects": [
+    "21:9",
+    "2:1",
+    "16:9",
+    "4:3",
+    "1:1",
+    "3:4",
+    "9:16"
+   ],
+   "resolution": {
+    "param": "resolution",
+    "values": {
+     "720p": "720p",
+     "1080p": "1080p"
+    },
+    "default": "720p"
+   },
+   "audio": {
+    "param": "generate_audio",
+    "on": true,
+    "off": false,
+    "default": true
+   },
+   "native_audio": true,
+   "multi_shot": false,
+   "roles": [
+    "start_image",
+    "end_image",
+    "image_references",
+    "video_references"
+   ],
+   "start_frame": true,
+   "end_frame": true,
+   "image_references": true,
+   "needs_start_frame": false,
+   "max_images": 20,
+   "max_images_source": "Higgsfield app (as listed by the AI Video Model Selector)",
+   "tags": [
+    "text-to-video",
+    "image-to-video",
+    "video-continuation",
+    "audio",
+    "start-frame",
+    "end-frame",
+    "storyboard",
+    "1080p"
+   ],
+   "url": "https://higgsfield.ai/ai/video?model=flux_3_video",
+   "default_setting": "resolution=720p",
+   "linear_price_checked": true,
+   "credits": {
+    "resolution=720p": {
+     "on": {
+      "per_second": 5.5,
+      "lengths_quoted": [
+       5,
+       10
+      ]
+     },
+     "off": {
+      "per_second": 5.5,
+      "lengths_quoted": [
+       5
+      ]
+     }
+    },
+    "resolution=1080p": {
+     "on": {
+      "per_second": 9,
+      "lengths_quoted": [
+       10
+      ]
+     }
+    }
+   }
+  },
+  "gemini_omni_flash_1_1": {
+   "label": "Gemini Omni Flash 1.1",
+   "provider": "Google",
+   "description": "Gemini Omni Flash 1.1 text-to-video, keyframe animation, multimodal reference generation, and video editing with native audio",
+   "family": "gemini-omni",
+   "api": null,
+   "duration": {
+    "min": 3,
+    "max": 10,
+    "values": null
+   },
+   "aspects": [
+    "16:9",
+    "9:16"
+   ],
+   "resolution": {
+    "param": "resolution",
+    "values": {
+     "360p": "360p",
+     "720p": "720p",
+     "1080p": "1080p",
+     "4K": "4k"
+    },
+    "default": "720p"
+   },
+   "audio": null,
+   "native_audio": true,
+   "multi_shot": false,
+   "roles": [
+    "start_image",
+    "end_image",
+    "image_references",
+    "video_references"
+   ],
+   "start_frame": true,
+   "end_frame": true,
+   "image_references": true,
+   "needs_start_frame": false,
+   "max_images": 1,
+   "max_images_source": "Higgsfield app (as listed by the AI Video Model Selector)",
+   "tags": [
+    "audio",
+    "text-to-video",
+    "image-to-video",
+    "reference",
+    "video-edit",
+    "360p",
+    "720p",
+    "1080p",
+    "4k"
+   ],
+   "url": "https://higgsfield.ai/ai/video?model=gemini_omni_flash_1_1",
+   "default_setting": "resolution=720p",
+   "linear_price_checked": true,
+   "credits": {
+    "resolution=360p": {
+     "on": {
+      "per_second": 1,
+      "lengths_quoted": [
+       5
+      ]
+     }
+    },
+    "resolution=720p": {
+     "on": {
+      "per_second": 3,
+      "lengths_quoted": [
+       5,
+       10
+      ]
+     }
+    },
+    "resolution=1080p": {
+     "on": {
+      "per_second": 4.5,
+      "lengths_quoted": [
+       5
+      ]
+     }
+    },
+    "resolution=4k": {
+     "on": {
+      "per_second": 9,
+      "lengths_quoted": [
+       10
+      ]
+     }
+    }
+   }
+  },
+  "gemini_omni": {
+   "label": "Gemini Omni Flash",
+   "provider": "Google",
+   "description": "Reference-driven video with native audio and image/video reference inputs",
+   "family": "gemini-omni-1-0",
+   "api": null,
+   "duration": {
+    "min": 4,
+    "max": 10,
+    "values": null
+   },
+   "aspects": [
+    "16:9",
+    "9:16"
+   ],
+   "resolution": {
+    "param": "resolution",
+    "values": {
+     "720p": "720p"
+    },
+    "default": "720p"
+   },
+   "audio": null,
+   "native_audio": true,
+   "multi_shot": false,
+   "roles": [
+    "image_references",
+    "video_references"
+   ],
+   "start_frame": false,
+   "end_frame": false,
+   "image_references": true,
+   "needs_start_frame": false,
+   "max_images": null,
+   "max_images_source": "unpublished: takes image references, count not listed",
+   "tags": [
+    "audio",
+    "reference",
+    "image-to-video",
+    "video-to-video",
+    "text-to-video",
+    "high-resolution",
+    "unlim"
+   ],
+   "url": "https://higgsfield.ai/ai/video?model=gemini_omni",
+   "default_setting": "resolution=720p",
+   "linear_price_checked": true,
+   "credits": {
+    "resolution=720p": {
+     "on": {
+      "per_second": 3,
+      "lengths_quoted": [
+       8,
+       4
+      ]
+     }
+    }
+   }
+  },
+  "veo3_1": {
+   "label": "Google Veo 3.1",
+   "provider": "Google",
+   "description": "Ultra-realistic, top-tier cinematic quality",
+   "family": "veo-3-1",
+   "api": null,
+   "duration": {
+    "min": 4,
+    "max": 8,
+    "values": [
+     4,
+     6,
+     8
+    ]
+   },
+   "aspects": [
+    "16:9",
+    "9:16"
+   ],
+   "resolution": null,
+   "audio": null,
+   "native_audio": true,
+   "multi_shot": false,
+   "roles": [
+    "start_image"
+   ],
+   "start_frame": true,
+   "end_frame": false,
+   "image_references": false,
+   "needs_start_frame": false,
+   "max_images": 1,
+   "max_images_source": "start frame only",
+   "tags": [
+    "ultra-realistic",
+    "cinematic",
+    "top-tier",
+    "quality",
+    "audio"
+   ],
+   "url": "https://higgsfield.ai/ai/video?model=veo3_1",
+   "default_setting": "quality=basic,variant=veo-3-1-fast",
+   "linear_price_checked": true,
+   "credits": {
+    "quality=basic,variant=veo-3-1-fast": {
+     "on": {
+      "per_second": 4,
+      "lengths_quoted": [
+       8,
+       4
+      ]
+     }
+    },
+    "quality=basic,variant=veo-3-1-preview": {
+     "on": {
+      "per_second": 10,
+      "lengths_quoted": [
+       8
+      ]
+     }
+    },
+    "quality=high,variant=veo-3-1-fast": {
+     "on": {
+      "per_second": 4,
+      "lengths_quoted": [
+       8
+      ]
+     }
+    },
+    "quality=ultra,variant=veo-3-1-fast": {
+     "on": {
+      "per_second": 9,
+      "lengths_quoted": [
+       8
+      ]
+     }
+    },
+    "quality=ultra,variant=veo-3-1-preview": {
+     "on": {
+      "per_second": 15,
+      "lengths_quoted": [
+       8
+      ]
+     }
+    },
+    "quality=high,variant=veo-3-1-preview": {
+     "on": {
+      "per_second": 10,
+      "lengths_quoted": [
+       8
+      ]
+     }
+    }
+   }
+  },
+  "veo3_1_lite": {
+   "label": "Google Veo 3.1 Lite",
+   "provider": "Google",
+   "description": "Fast, affordable, budget batch clips",
+   "family": "veo-3-1-lite",
+   "api": null,
+   "duration": {
+    "min": 4,
+    "max": 8,
+    "values": [
+     4,
+     6,
+     8
+    ]
+   },
+   "aspects": [
+    "16:9",
+    "9:16"
+   ],
+   "resolution": null,
+   "audio": {
+    "param": "generate_audio",
+    "on": true,
+    "off": false,
+    "default": false
+   },
+   "native_audio": true,
+   "multi_shot": false,
+   "roles": [
+    "start_image",
+    "end_image"
+   ],
+   "start_frame": true,
+   "end_frame": true,
+   "image_references": false,
+   "needs_start_frame": false,
+   "max_images": 1,
+   "max_images_source": "start frame (and end frame)",
+   "tags": [
+    "fast",
+    "budget",
+    "affordable",
+    "batch",
+    "lite"
+   ],
+   "url": "https://higgsfield.ai/ai/video?model=veo3_1_lite",
+   "default_setting": "",
+   "linear_price_checked": true,
+   "credits": {
+    "": {
+     "off": {
+      "per_second": 1.5,
+      "lengths_quoted": [
+       8,
+       4
+      ]
+     },
+     "on": {
+      "per_second": 1.5,
+      "lengths_quoted": [
+       4
+      ]
+     }
+    }
+   }
+  },
+  "veo3": {
+   "label": "Google Veo 3",
+   "provider": "Google",
+   "description": "Reliable cinematic, broad creative range",
+   "family": "veo-3",
+   "api": null,
+   "duration": {
+    "min": 8,
+    "max": 8,
+    "values": null,
+    "note": "Veo 3 makes 8s clips; the app has no length setting"
+   },
+   "aspects": [
+    "16:9",
+    "9:16"
+   ],
+   "resolution": null,
+   "audio": null,
+   "native_audio": true,
+   "multi_shot": false,
+   "roles": [
+    "start_image"
+   ],
+   "start_frame": true,
+   "end_frame": false,
+   "image_references": false,
+   "needs_start_frame": false,
+   "max_images": 1,
+   "max_images_source": "start frame only",
+   "tags": [
+    "cinematic",
+    "reliable",
+    "creative",
+    "audio",
+    "image-to-video"
+   ],
+   "url": "https://higgsfield.ai/ai/video?model=veo3",
+   "default_setting": "variant=veo-3-fast",
+   "linear_price_checked": false,
+   "credits": {
+    "variant=veo-3-fast": {
+     "on": {
+      "per_clip": {
+       "fixed": 22
+      },
+      "lengths_quoted": [
+       null
+      ]
+     }
+    },
+    "variant=veo-3-preview": {
+     "on": {
+      "per_clip": {
+       "fixed": 58
+      },
+      "lengths_quoted": [
+       null
+      ]
+     }
+    }
+   }
+  },
+  "grok_video_v15": {
+   "label": "Grok Video 1.5",
+   "provider": "xAI",
+   "description": "Multimodal video generation from text, a start image, or image and audio references",
+   "family": "grok-video-1-5",
+   "api": "grok-video-1-5",
+   "duration": {
+    "min": 2,
+    "max": 15,
+    "values": null
+   },
+   "aspects": [
+    "16:9"
+   ],
+   "resolution": {
+    "param": "resolution",
+    "values": {
+     "480p": "480p",
+     "720p": "720p",
+     "1080p": "1080p"
+    },
+    "default": "720p"
+   },
+   "audio": null,
+   "native_audio": true,
+   "multi_shot": false,
+   "roles": [
+    "start_image",
+    "image_references",
+    "audio_references"
+   ],
+   "start_frame": true,
+   "end_frame": false,
+   "image_references": true,
+   "needs_start_frame": false,
+   "max_images": 7,
+   "max_images_source": "API reference endpoint",
+   "tags": [
+    "audio",
+    "cinematic",
+    "text-to-video",
+    "image-to-video",
+    "reference",
+    "audio-reference",
+    "start-frame",
+    "physics",
+    "camera-motion",
+    "preview"
+   ],
+   "url": "https://higgsfield.ai/ai/video?model=grok_video_v15",
+   "default_setting": "resolution=720p",
+   "linear_price_checked": true,
+   "credits": {
+    "resolution=480p": {
+     "on": {
+      "per_second": 2.5,
+      "lengths_quoted": [
+       5
+      ]
+     }
+    },
+    "resolution=720p": {
+     "on": {
+      "per_second": 4.5,
+      "lengths_quoted": [
+       5,
+       10
+      ]
+     }
+    },
+    "resolution=1080p": {
+     "on": {
+      "per_second": 8,
+      "lengths_quoted": [
+       10
+      ]
+     }
+    }
+   }
+  },
+  "grok_video_v15_lite": {
+   "label": "Grok Imagine Video 1.5 Lite",
+   "provider": "xAI",
+   "description": "Fast text and first-frame image-to-video generation, up to 1080p (upscaled)",
+   "family": "grok-video-1-5-lite",
+   "api": null,
+   "duration": {
+    "min": 1,
+    "max": 15,
+    "values": null
+   },
+   "aspects": [
+    "16:9",
+    "9:16",
+    "4:3",
+    "3:4",
+    "1:1",
+    "3:2",
+    "2:3"
+   ],
+   "resolution": {
+    "param": "resolution",
+    "values": {
+     "480p": "480p",
+     "720p": "720p",
+     "1080p": "1080p"
+    },
+    "default": "720p"
+   },
+   "audio": null,
+   "native_audio": true,
+   "multi_shot": false,
+   "roles": [
+    "start_image"
+   ],
+   "start_frame": true,
+   "end_frame": false,
+   "image_references": false,
+   "needs_start_frame": false,
+   "max_images": 1,
+   "max_images_source": "start frame only",
+   "tags": [
+    "audio",
+    "fast",
+    "lite",
+    "text-to-video",
+    "image-to-video",
+    "start-frame"
+   ],
+   "url": "https://higgsfield.ai/ai/video?model=grok_video_v15_lite",
+   "default_setting": "resolution=720p",
+   "linear_price_checked": true,
+   "credits": {
+    "resolution=720p": {
+     "on": {
+      "per_second": 1,
+      "lengths_quoted": [
+       5,
+       10
+      ]
+     }
+    },
+    "resolution=1080p": {
+     "on": {
+      "per_second": 4,
+      "lengths_quoted": [
+       10
+      ]
+     }
+    },
+    "resolution=480p": {
+     "on": {
+      "per_second": 1,
+      "lengths_quoted": [
+       5
+      ]
+     }
+    }
+   }
+  },
+  "grok_video": {
+   "label": "Grok Video",
+   "provider": "xAI",
+   "description": "Text and image-to-video, audio support",
+   "family": "grok-video",
+   "api": null,
+   "duration": {
+    "min": 1,
+    "max": 15,
+    "values": null
+   },
+   "aspects": [
+    "16:9",
+    "9:16",
+    "1:1"
+   ],
+   "resolution": null,
+   "audio": null,
+   "native_audio": true,
+   "multi_shot": false,
+   "roles": [
+    "start_image"
+   ],
+   "start_frame": true,
+   "end_frame": false,
+   "image_references": false,
+   "needs_start_frame": false,
+   "max_images": 1,
+   "max_images_source": "start frame only",
+   "tags": [
+    "audio",
+    "versatile",
+    "text-to-video",
+    "image-to-video"
+   ],
+   "url": "https://higgsfield.ai/ai/video?model=grok_video",
+   "default_setting": "",
+   "linear_price_checked": true,
+   "credits": {
+    "": {
+     "on": {
+      "per_second": 1.5,
+      "lengths_quoted": [
+       5,
+       10
+      ]
+     }
+    }
+   }
+  },
+  "happy_horse_video": {
+   "label": "Happy Horse Video",
+   "provider": "Happy Horse",
+   "description": "Text-to-video and single start-frame animation",
+   "family": "happy-horse",
+   "api": null,
+   "duration": {
+    "min": 3,
+    "max": 15,
+    "values": null
+   },
+   "aspects": [
+    "16:9",
+    "9:16",
+    "1:1",
+    "4:3",
+    "3:4"
+   ],
+   "resolution": {
+    "param": "resolution",
+    "values": {
+     "720p": "720p",
+     "1080p": "1080p"
+    },
+    "default": "720p"
+   },
+   "audio": null,
+   "native_audio": false,
+   "multi_shot": false,
+   "roles": [
+    "start_image"
+   ],
+   "start_frame": true,
+   "end_frame": false,
+   "image_references": false,
+   "needs_start_frame": false,
+   "max_images": 1,
+   "max_images_source": "start frame only",
+   "tags": [
+    "text-to-video",
+    "image-to-video",
+    "start-frame",
+    "happy-horse"
+   ],
+   "url": "https://higgsfield.ai/ai/video?model=happy_horse_video",
+   "default_setting": "resolution=720p",
+   "linear_price_checked": true,
+   "credits": {
+    "resolution=720p": {
+     "on": {
+      "per_second": 2.5,
+      "lengths_quoted": [
+       5,
+       10
+      ]
+     }
+    },
+    "resolution=1080p": {
+     "on": {
+      "per_second": 4.5,
+      "lengths_quoted": [
+       10
+      ]
+     }
+    }
+   }
+  },
+  "cinematic_studio_video_4_0": {
+   "label": "Cinema Studio 4.0",
+   "provider": "Higgsfield",
+   "description": "Cinema-grade video generation with automatic prompt direction and camera, lighting, pacing, genre, era, and color controls",
+   "family": "cinema-studio-4",
+   "api": "cinema-studio-4",
+   "duration": {
+    "min": 4,
+    "max": 30,
+    "values": null
+   },
+   "aspects": [
+    "21:9",
+    "16:9",
+    "4:3",
+    "1:1",
+    "3:4",
+    "9:16"
+   ],
+   "resolution": {
+    "param": "resolution",
+    "values": {
+     "480p": "480p",
+     "720p": "720p",
+     "1080p": "1080p"
+    },
+    "default": "720p"
+   },
+   "audio": {
+    "param": "generate_audio",
+    "on": true,
+    "off": false,
+    "default": true
+   },
+   "native_audio": true,
+   "multi_shot": false,
+   "roles": [
+    "start_image",
+    "end_image",
+    "image_references",
+    "video_references",
+    "audio_references"
+   ],
+   "start_frame": true,
+   "end_frame": true,
+   "image_references": true,
+   "needs_start_frame": false,
+   "max_images": 30,
+   "max_images_source": "API reference endpoint",
+   "tags": [
+    "cinematic",
+    "director",
+    "text-to-video",
+    "reference",
+    "audio-reference",
+    "video-reference",
+    "video-edit",
+    "video-extension",
+    "480p",
+    "720p"
+   ],
+   "url": "https://higgsfield.ai/ai/video?model=cinematic_studio_video_4_0",
+   "default_setting": "resolution=720p",
+   "linear_price_checked": true,
+   "credits": {
+    "resolution=720p": {
+     "on": {
+      "per_second": 7,
+      "lengths_quoted": [
+       5,
+       10
+      ]
+     }
+    },
+    "resolution=480p": {
+     "on": {
+      "per_second": 3,
+      "lengths_quoted": [
+       5
+      ]
+     }
+    },
+    "resolution=1080p": {
+     "on": {
+      "per_second": 16,
+      "lengths_quoted": [
+       10
+      ]
+     }
+    }
+   }
+  },
+  "cinematic_studio_video_3_5": {
+   "label": "Cinematic Studio Video 3.5",
+   "provider": null,
+   "description": "",
+   "family": "cinema-studio-3-5",
+   "api": null,
+   "duration": {
+    "min": 4,
+    "max": 15,
+    "values": null,
+    "note": "The app lists 4s up with a 15s default; 15s is taken as the longest"
+   },
+   "aspects": [
+    "21:9",
+    "16:9",
+    "4:3",
+    "1:1",
+    "3:4",
+    "9:16"
+   ],
+   "resolution": {
+    "param": "resolution",
+    "values": {
+     "480p": "480p",
+     "720p": "720p",
+     "1080p": "1080p"
+    },
+    "default": "720p"
+   },
+   "audio": {
+    "param": "generate_audio",
+    "on": true,
+    "off": false,
+    "default": false
+   },
+   "native_audio": true,
+   "multi_shot": true,
+   "roles": [
+    "start_image",
+    "end_image",
+    "image_references",
+    "video_references",
+    "audio_references"
+   ],
+   "start_frame": true,
+   "end_frame": true,
+   "image_references": true,
+   "needs_start_frame": false,
+   "max_images": null,
+   "max_images_source": "unpublished: takes image references, count not listed",
+   "tags": [],
+   "url": "https://higgsfield.ai/ai/video?model=cinematic_studio_video_3_5",
+   "default_setting": "resolution=720p",
+   "linear_price_checked": true,
+   "credits": {
+    "resolution=720p": {
+     "off": {
+      "per_second": 5,
+      "lengths_quoted": [
+       5,
+       10
+      ]
+     }
+    },
+    "resolution=480p": {
+     "off": {
+      "per_second": 3.5,
+      "lengths_quoted": [
+       5
+      ]
+     }
+    },
+    "resolution=1080p": {
+     "on": {
+      "per_second": 13,
+      "lengths_quoted": [
+       10
+      ]
+     }
+    }
+   }
+  },
+  "cinematic_studio_3_0": {
+   "label": "Cinema Studio Video 3.0",
+   "provider": "Higgsfield",
+   "description": "Most advanced cinema-grade model",
+   "family": "cinema-studio-3",
+   "api": null,
+   "duration": {
+    "min": 4,
+    "max": 15,
+    "values": null
+   },
+   "aspects": [
+    "21:9",
+    "16:9",
+    "4:3",
+    "1:1",
+    "3:4",
+    "9:16"
+   ],
+   "resolution": {
+    "param": "resolution",
+    "values": {
+     "480p": "480p",
+     "720p": "720p",
+     "1080p": "1080p",
+     "4K": "4k"
+    },
+    "default": "720p"
+   },
+   "audio": {
+    "param": "generate_audio",
+    "on": true,
+    "off": false,
+    "default": false
+   },
+   "native_audio": true,
+   "multi_shot": false,
+   "roles": [
+    "image",
+    "start_image",
+    "end_image"
+   ],
+   "start_frame": true,
+   "end_frame": true,
+   "image_references": false,
+   "needs_start_frame": false,
+   "max_images": 1,
+   "max_images_source": "one picture (start or end frame)",
+   "tags": [
+    "cinematic",
+    "premium",
+    "advanced",
+    "sota",
+    "film",
+    "best-quality"
+   ],
+   "url": "https://higgsfield.ai/ai/video?model=cinematic_studio_3_0",
+   "default_setting": "resolution=720p",
+   "linear_price_checked": true,
+   "credits": {
+    "resolution=720p": {
+     "off": {
+      "per_second": 5,
+      "lengths_quoted": [
+       5,
+       10
+      ]
+     },
+     "on": {
+      "per_second": 5,
+      "lengths_quoted": [
+       5
+      ]
+     }
+    },
+    "resolution=4k": {
+     "on": {
+      "per_second": 24,
+      "lengths_quoted": [
+       10
+      ]
+     }
+    },
+    "resolution=480p": {
+     "off": {
+      "per_second": 3.5,
+      "lengths_quoted": [
+       5
+      ]
+     }
+    },
+    "resolution=1080p": {
+     "off": {
+      "per_second": 13,
+      "lengths_quoted": [
+       5
+      ]
+     }
+    }
+   }
+  },
+  "cinematic_studio_video_v2": {
+   "label": "Cinema Studio Video (v2)",
+   "provider": "Higgsfield",
+   "description": "Refined cinematic camera and color, genre control",
+   "family": "cinema-studio-2",
+   "api": null,
+   "duration": {
+    "min": 3,
+    "max": 12,
+    "values": null
+   },
+   "aspects": [
+    "1:1",
+    "4:3",
+    "3:4",
+    "16:9",
+    "9:16"
+   ],
+   "resolution": null,
+   "audio": {
+    "param": "sound",
+    "on": "on",
+    "off": "off",
+    "default": true
+   },
+   "native_audio": true,
+   "multi_shot": true,
+   "roles": [
+    "image",
+    "start_image",
+    "end_image"
+   ],
+   "start_frame": true,
+   "end_frame": true,
+   "image_references": false,
+   "needs_start_frame": false,
+   "max_images": 1,
+   "max_images_source": "one picture (start or end frame)",
+   "tags": [
+    "cinematic",
+    "camera",
+    "color",
+    "genre",
+    "refined"
+   ],
+   "url": "https://higgsfield.ai/ai/video?model=cinematic_studio_video_v2",
+   "default_setting": "mode=std",
+   "linear_price_checked": true,
+   "credits": {
+    "mode=std": {
+     "on": {
+      "per_second": 1.5,
+      "lengths_quoted": [
+       5,
+       10
+      ]
+     }
+    },
+    "mode=pro": {
+     "on": {
+      "per_second": 2,
+      "lengths_quoted": [
+       10
+      ]
+     }
+    }
+   }
+  },
+  "cinematic_studio_video": {
+   "label": "Cinema Studio Video (v1)",
+   "provider": "Higgsfield",
+   "description": "Solid cinematic, dramatic compositions",
+   "family": "cinema-studio-1",
+   "api": null,
+   "duration": {
+    "min": 5,
+    "max": 10,
+    "values": [
+     5,
+     10
+    ]
+   },
+   "aspects": [
+    "1:1",
+    "4:3",
+    "3:4",
+    "16:9",
+    "9:16"
+   ],
+   "resolution": null,
+   "audio": {
+    "param": "sound",
+    "on": true,
+    "off": false,
+    "default": true
+   },
+   "native_audio": true,
+   "multi_shot": false,
+   "roles": [
+    "image",
+    "start_image",
+    "end_image"
+   ],
+   "start_frame": true,
+   "end_frame": true,
+   "image_references": false,
+   "needs_start_frame": false,
+   "max_images": 1,
+   "max_images_source": "one picture (start or end frame)",
+   "tags": [
+    "cinematic",
+    "dramatic",
+    "compositions",
+    "sound",
+    "slow-motion"
+   ],
+   "url": "https://higgsfield.ai/ai/video?model=cinematic_studio_video",
+   "default_setting": "",
+   "linear_price_checked": true,
+   "credits": {
+    "": {
+     "on": {
+      "per_clip": {
+       "5": 8,
+       "10": 18
+      },
+      "lengths_quoted": [
+       5,
+       10
+      ]
+     }
+    }
+   }
+  }
+ }
+}

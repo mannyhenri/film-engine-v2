@@ -45,7 +45,9 @@
 .ai-workspace.ai-chat-workspace option{background:var(--gl-bg-surface,#1c2027);color:var(--gl-text-primary,#eee)}
 .ai-project-chip:focus-within{outline:2px solid var(--gl-brand-pink,#a8c8ff);outline-offset:3px}
 .ai-options-anchor{position:relative;flex:none}
-.ai-workspace.ai-chat-workspace .ai-options-button{width:42px;height:40px;margin:0;padding:0;border:1px solid var(--gl-border-subtle,#3d4653);border-radius:10px;background:var(--gl-bg-elevated,#252b35);color:var(--gl-text-muted,#abb4c3);font-size:26px;line-height:1}
+/* The two icon buttons draw SVG, centred by the box: a font glyph (⋯, ↑) sits on its font's baseline and is never centred. */
+.ai-workspace.ai-chat-workspace .ai-options-button{display:inline-flex;align-items:center;justify-content:center;width:42px;height:40px;margin:0;padding:0;border:1px solid var(--gl-border-subtle,#3d4653);border-radius:10px;background:var(--gl-bg-elevated,#252b35);color:var(--gl-text-muted,#abb4c3);font-size:0;line-height:0}
+.ai-workspace.ai-chat-workspace .ai-options-button svg,.ai-workspace.ai-chat-workspace .ai-chat-composer-controls .ai-chat-send svg{display:block;flex:none}
 .ai-workspace.ai-chat-workspace .ai-options-dropdown{
  position:absolute;right:0;top:calc(100% + 12px);z-index:4;
  box-sizing:border-box;width:min(430px,calc(100vw - 48px));max-height:min(64dvh,580px);
@@ -94,7 +96,7 @@
 .ai-provider-compact{position:relative}
 .ai-provider-compact::after{content:'⌄';position:absolute;right:10px;pointer-events:none;color:var(--gl-text-muted,#abb4c3);font-size:14px}
 .ai-chat-attachment-summary{margin-left:2px;font-size:12px;line-height:1.4;color:var(--gl-text-muted,#abb4c3)}
-.ai-workspace.ai-chat-workspace .ai-chat-composer-controls .ai-chat-send{flex:none;width:42px;height:42px;margin-left:auto;padding:0;border:0;border-radius:10px;background:var(--gl-brand-pink,#a8c8ff);color:var(--gl-text-inverse,#fff);font-size:26px;line-height:1}
+.ai-workspace.ai-chat-workspace .ai-chat-composer-controls .ai-chat-send{display:inline-flex;align-items:center;justify-content:center;flex:none;width:42px;height:42px;margin-left:auto;padding:0;border:0;border-radius:10px;background:var(--gl-brand-pink,#a8c8ff);color:var(--gl-text-inverse,#fff);font-size:0;line-height:0}
 .ai-workspace.ai-chat-workspace .ai-draft-proposal,.ai-workspace.ai-chat-workspace .ai-change-review{margin:20px 0;padding:24px;border:1px solid var(--gl-border-subtle,#536074);border-radius:16px;background:var(--gl-bg-elevated,#242a34)}
 .ai-workspace.ai-chat-workspace .ai-draft-heading{position:static;display:flex;align-items:center;justify-content:space-between;gap:16px;margin:0 0 18px;padding:0;border:0;background:transparent;z-index:auto}
 .ai-workspace.ai-chat-workspace .ai-draft-heading h3,.ai-workspace.ai-chat-workspace .ai-change-review h3{margin:0;font-size:20px;line-height:1.4}

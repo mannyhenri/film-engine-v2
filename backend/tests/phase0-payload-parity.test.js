@@ -101,14 +101,13 @@ const REQUIRED_KEYS = {
     video:   ['prompt', 'negative_prompt', 'width', 'height', 'num_frames', 'fps', 'camera_control'],
     voice:   ['text', 'model', 'language', 'output_format', 'sample_rate'],
     lipsync: ['video_url', 'audio_url', 'model', 'quality', 'output_format'],
-    music:   ['prompt', 'model', 'duration_s'],
     sfx:     ['type', 'prompt', 'duration_s', 'model', 'category'],
     ambient: ['type', 'prompt', 'duration_s', 'bed_duration_s', 'loopable', 'crossfade_s'],
     post:    ['input_url', 'output_format'],
 };
 
 const MANY = new Set(['voice', 'sfx']);              // one input, N payloads out
-const SCENE_SCOPED = new Set(['music', 'ambient']);   // need no shot
+const SCENE_SCOPED = new Set(['ambient']);   // need no shot (music was retired on 2026-10-14)
 
 // ── Fixture ─────────────────────────────────────────────────────────────
 // One shot with dialogue, an sfx cue, a keyframe, a rendered video and a
@@ -143,7 +142,6 @@ function fixtureCtx(overrides) {
         videoAsset: { id: 'asset-v', file_name: '1A.mp4', file_path: '/data/video/proj-1/1A.mp4' },
         audioAsset: { id: 'asset-a', file_name: '1A_RAY_0.wav', file_path: '/data/audio/proj-1/1A_RAY_0.wav' },
         keyframeAsset: { id: 'asset-k', file_name: '1A.png', file_path: '/data/storyboards/proj-1/1A.png' },
-        musicCue: { id: 'cue-1', scene_id: 'scene-1', mood: 'tense', genre: 'score', description: 'low strings' },
         initImage: null,
         overrides: {},
     };

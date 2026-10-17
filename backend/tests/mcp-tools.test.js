@@ -359,12 +359,10 @@ const CREATE_DELETE_PAIRS = [
     // a clip and not lift it again turns a first take into a permanent
     // fixture of the cut; deleting keeps the audio, which cost money.
     { create: 'music_session_create', remove: 'music_session_delete' },
-    { create: 'music_track_create',   remove: 'music_track_delete' },
-    { create: 'music_clip_create',    remove: 'music_clip_delete' },
-    { create: 'music_marker_create',  remove: 'music_marker_delete' },
-    { create: 'music_emotion_create', remove: 'music_emotion_delete' },
-    { create: 'music_automation_create', remove: 'music_automation_delete' },
     { create: 'inbetweens_create', remove: 'inbetweens_delete' },
+    // A rough cut is tried and thrown away; so is a sound wired into one.
+    { create: 'cut_create', remove: 'cut_delete' },
+    { create: 'cut_sound_add', remove: 'cut_sound_delete' },
 ];
 
 test('the pair list covers every create tool on the surface', () => {

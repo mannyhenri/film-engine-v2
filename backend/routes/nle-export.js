@@ -46,28 +46,6 @@ function getProjectAssets(projectId) {
 }
 
 /**
- * The approved score, laid once (MUS-020): scene MUSIC under a covered scene
- * is dropped, and the approved mix is added as a bed on the first shot of its
- * picture in this export's own running order. Ambience and effects are not
- * music and stay. Every format folds from the same list, so all three agree.
- */
-function withApprovedScore(projectId, shots, assets) {
-    const approval = require('../lib/music-approval');
-    const { scores } = approval.approvedScores(db, projectId);
-    if (!scores.length) return assets;
-    const entries = shots.map(sh => ({ shot_id: sh.id, shot_code: sh.shot_code, start_ms: 0, covers: sh.covers }));
-    const { placements } = approval.placeScores(entries, scores);
-    const covered = new Set(placements.flatMap(p => p.scene_ids));
-    const kept = assets.filter(a => !(a.asset_type === 'audio_music' && !a.shot_id && a.scene_id && covered.has(a.scene_id)));
-    for (const p of placements) {
-        kept.push({ id: p.asset_id, shot_id: null, scene_id: null, lay_on_shot_id: p.first_shot_id, asset_type: 'audio_music',
-            file_path: p.file_path, file_name: path.basename(p.file_path), format: 'wav', duration_ms: p.duration_ms, metadata: '{"kind":"approved_score"}' });
-        for (const asset of require('../lib/nle-media').scoreStems(db,p)) kept.push({...asset,shot_id:null,scene_id:null,lay_on_shot_id:p.first_shot_id,asset_type:'audio_music'});
-    }
-    return kept;
-}
-
-/**
  * Each shot's SELECTED clip, and no other clip of that shot. Every generator
  * takes the first video asset it finds for a shot, which was the OLDEST row —
  * so an export handed the editor a take nobody chose while playback and the
@@ -155,7 +133,7 @@ function handleNLEExport(req, res, urlParts, query) {
     const { coverageFor, foldShots, measuredDurations } = require('../lib/clip-coverage');
     const shots = foldShots(getProjectShots(projectId), coverageFor(db, projectId),
         measuredDurations(db, projectId)).shots;
-    const assets = withSelectedClips(shots, withApprovedScore(projectId, shots, getProjectAssets(projectId)));
+    const assets = withSelectedClips(shots, getProjectAssets(projectId));
     const safeTitle = (project.title || 'timeline').replace(/[^a-zA-Z0-9_-]/g, '_');
 
     // Build settings object from project row
@@ -176,7 +154,7 @@ function handleNLEExport(req, res, urlParts, query) {
      */
     if (format === 'preflight') {
         const { preflightExport } = require('../lib/export-package');
-        const out = preflightExport(project, shots, assets, { format:query.target || 'premiere', settings, rights: require('../lib/music-rights').evaluateProject(db, projectId, 'final_export'),
+        const out = preflightExport(project, shots, assets, { format:query.target || 'premiere', settings,
             deliveryCheck: require('../lib/delivery-quality').deliveryCheck(db, projectId) });
         res.writeHead(out.ready ? 200 : 409, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ project_id: projectId, ...out }));
@@ -194,7 +172,7 @@ function handleNLEExport(req, res, urlParts, query) {
         const { ensureDir } = require('../lib/file-storage');
         const stamp = new Date().toISOString().replace(/[:.]/g, '-');
         const dest = path.join(ensureDir(projectId, 'exports'), `${safeTitle}_${stamp}`);
-        packageExport(project, shots, assets, { format: query.target || 'premiere', dest, settings, rights: require('../lib/music-rights').evaluateProject(db, projectId, 'final_export') })
+        packageExport(project, shots, assets, { format: query.target || 'premiere', dest, settings })
             .then(out => {
                 res.writeHead(200, { 'Content-Type': 'application/json' });
                 res.end(JSON.stringify({

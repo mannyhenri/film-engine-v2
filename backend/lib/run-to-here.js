@@ -119,7 +119,7 @@ function planRunToHere(graph, key, opts) {
         else return { error: 'This clip belongs to nothing on the graph.' };
     } else if (root.type === 'sequence') planSequence(root, new Set());
     else if (root.type === 'sound') {
-        const cap = pg.SOUND_KIND[root.cue_type] || 'music';
+        const cap = pg.SOUND_KIND[root.cue_type] || 'sfx';
         if (root.held) noteHeld(root);
         else if (!root.selected_asset_id || behind(root)) {
             add({ stage: cap, key: root.key, cue_id: root.id, capability: cap, cost: COST_PER_CALL[cap] || 0,

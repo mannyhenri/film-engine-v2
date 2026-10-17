@@ -23,7 +23,6 @@ export const LEGACY_GLOBALS = [
     'loadScreenplayDrift',    // fill DRIFT from the screenplay-drift report (the storyboard reads it too)
     'DRIFT',                  // which scenes' shots were written from an earlier draft (a top-level `let`)
     'updateSceneStatusIcons', // the status icon beside each scene heading in the screenplay editor
-    'MW',           // the music workstation's state: "Score this edit" sets MW.session before navigating (edits)
     'mwTime',       // ms -> m:ss.t, as every timing in the app is shown (edits)
     'fmtBytes',     // bytes -> "12.3 MB" (edits)
     'checkUploadSize', // refuse a body over the server's per-request ceiling before sending it (edits)

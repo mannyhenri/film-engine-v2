@@ -1,0 +1,4839 @@
+[
+ {
+  "id": "simple-walk",
+  "label": "Simple, one action",
+  "settings": "5s 16:9 720p",
+  "dan_scene": "Cinematic",
+  "dan_dialogue": "none",
+  "dan_top": "seedance",
+  "dan_top_shared": "seedance",
+  "ours_top": "wan-3-prime",
+  "ours_top_shared": "wan",
+  "top1_agree": false,
+  "dan_top5": [
+   "seedance",
+   "seedance-2",
+   "wan",
+   "kling-omni",
+   "gemini-omni"
+  ],
+  "ours_top5_shared": [
+   "wan",
+   "seedance",
+   "h3",
+   "seedance-2",
+   "kling"
+  ],
+  "ours_top5_all": [
+   "wan-3-prime",
+   "seedance-2-5",
+   "minimax-h3",
+   "wan-3",
+   "seedance-2"
+  ],
+  "overlap_top5": 3,
+  "shared_ranked_by_dan": 6,
+  "spearman": 0.48571428571428577,
+  "dan_blocked": [],
+  "ours_blocked_shared": [],
+  "ours_traits": [],
+  "dan_cards": [
+   {
+    "id": "seedance",
+    "fit": 10,
+    "share": 1,
+    "noAdvantage": false,
+    "reason": "Your top quality pick for this scene."
+   },
+   {
+    "id": "seedance-2",
+    "fit": 9,
+    "share": 0,
+    "noAdvantage": false,
+    "reason": "An alternative when you want quality close to Seedance 2.5."
+   },
+   {
+    "id": "wan",
+    "fit": 8,
+    "share": 0,
+    "noAdvantage": false,
+    "reason": "Fits the camera work and cinematic look of this scene."
+   },
+   {
+    "id": "kling-omni",
+    "fit": 7,
+    "share": 0,
+    "noAdvantage": false,
+    "reason": "A close Kling alternative, with a small quality trade-off."
+   },
+   {
+    "id": "gemini-omni",
+    "fit": 7,
+    "share": 0,
+    "noAdvantage": true,
+    "reason": "No clear advantage over the stronger choices for this scene."
+   },
+   {
+    "id": "flux",
+    "fit": 7,
+    "share": 0,
+    "noAdvantage": true,
+    "reason": "No clear advantage over the stronger choices for this scene."
+   },
+   {
+    "id": "h3",
+    "fit": 1,
+    "share": 0,
+    "noAdvantage": true,
+    "reason": "A lower-priority alternative for this scene; Seedance is the preferred quality choice."
+   },
+   {
+    "id": "kling",
+    "fit": 0,
+    "share": 0,
+    "noAdvantage": false,
+    "reason": "No specific reason returned. Evaluate again to retry."
+   }
+  ],
+  "ours_cards": [
+   {
+    "id": "wan-3-prime",
+    "label": "Wan 3.0 Prime",
+    "fit": 75,
+    "top": true,
+    "budget": false,
+    "usd": 0.56
+   },
+   {
+    "id": "seedance-2-5",
+    "label": "Seedance 2.5",
+    "fit": 73,
+    "top": false,
+    "budget": false,
+    "usd": 0.37
+   },
+   {
+    "id": "minimax-h3",
+    "label": "MiniMax H3",
+    "fit": 73,
+    "top": false,
+    "budget": false,
+    "usd": 0.65
+   },
+   {
+    "id": "wan-3",
+    "label": "Wan 3.0",
+    "fit": 73,
+    "top": false,
+    "budget": false,
+    "usd": 1
+   },
+   {
+    "id": "seedance-2",
+    "label": "Seedance 2.0",
+    "fit": 69,
+    "top": false,
+    "budget": false,
+    "usd": 4.67
+   },
+   {
+    "id": "kling-3-4k",
+    "label": "Kling 3.0 (4k)",
+    "fit": 61,
+    "top": false,
+    "budget": false,
+    "usd": 0.56
+   },
+   {
+    "id": "cinema-studio-4",
+    "label": "Cinema Studio 4.0",
+    "fit": 58,
+    "top": false,
+    "budget": false,
+    "usd": 0.56
+   },
+   {
+    "id": "kling-3-pro",
+    "label": "Kling 3.0 (pro)",
+    "fit": 56,
+    "top": false,
+    "budget": false,
+    "usd": 0.56
+   },
+   {
+    "id": "kling-o3",
+    "label": "Kling O3",
+    "fit": 56,
+    "top": false,
+    "budget": false,
+    "usd": 0.56
+   },
+   {
+    "id": "kling-3-standard",
+    "label": "Kling 3.0 (standard)",
+    "fit": 47,
+    "top": false,
+    "budget": false,
+    "usd": 0.56
+   },
+   {
+    "id": "kling-omni",
+    "label": "Kling Omni",
+    "fit": 47,
+    "top": false,
+    "budget": false,
+    "usd": 0.56
+   },
+   {
+    "id": "kling-3-turbo",
+    "label": "Kling 3.0 (turbo)",
+    "fit": 44,
+    "top": false,
+    "budget": false,
+    "usd": 0.56
+   },
+   {
+    "id": "kling-2-6-pro",
+    "label": "Kling 2.6 (pro)",
+    "fit": 39,
+    "top": false,
+    "budget": false,
+    "usd": 0.35
+   },
+   {
+    "id": "happy-horse-1-1",
+    "label": "HappyHorse 1.1",
+    "fit": 34,
+    "top": false,
+    "budget": false,
+    "usd": 0.56
+   },
+   {
+    "id": "wan-2-7",
+    "label": "Wan 2.7",
+    "fit": 34,
+    "top": false,
+    "budget": false,
+    "usd": 0.56
+   },
+   {
+    "id": "pixverse-v6",
+    "label": "PixVerse V6",
+    "fit": 34,
+    "top": false,
+    "budget": false,
+    "usd": 0.58
+   },
+   {
+    "id": "grok-video-1-5",
+    "label": "Grok Imagine Video 1.5",
+    "fit": 29,
+    "top": false,
+    "budget": false,
+    "usd": 0.56
+   },
+   {
+    "id": "happy-horse-1",
+    "label": "Happy Horse 1.0",
+    "fit": 27,
+    "top": false,
+    "budget": false,
+    "usd": 0.56
+   },
+   {
+    "id": "kling-2-5-turbo-pro",
+    "label": "Kling 2.5 Turbo (pro)",
+    "fit": 25,
+    "top": false,
+    "budget": false,
+    "usd": 0.21
+   },
+   {
+    "id": "wan-2-6",
+    "label": "Wan 2.6",
+    "fit": 25,
+    "top": false,
+    "budget": false,
+    "usd": 0.56
+   },
+   {
+    "id": "hailuo-2-3-standard",
+    "label": "Hailuo 2.3 (standard)",
+    "fit": 23,
+    "top": false,
+    "budget": false,
+    "usd": 0.67
+   },
+   {
+    "id": "ltx-2-5-pro",
+    "label": "LTX-2.5 (pro)",
+    "fit": 21,
+    "top": false,
+    "budget": false,
+    "usd": 1.02
+   },
+   {
+    "id": "ltx-2-5-fast",
+    "label": "LTX-2.5 (fast)",
+    "fit": 14,
+    "top": false,
+    "budget": false,
+    "usd": 0.67
+   }
+  ]
+ },
+ {
+  "id": "simple-closeup",
+  "label": "Simple close-up, 480p draft",
+  "settings": "4s 16:9 480p",
+  "dan_scene": "B-roll",
+  "dan_dialogue": "none",
+  "dan_top": "seedance",
+  "dan_top_shared": "seedance",
+  "ours_top": "seedance-2-5",
+  "ours_top_shared": "seedance",
+  "top1_agree": true,
+  "dan_top5": [
+   "seedance",
+   "seedance-2",
+   "wan",
+   "kling-omni",
+   "gemini-omni"
+  ],
+  "ours_top5_shared": [
+   "seedance",
+   "wan",
+   "h3",
+   "seedance-2",
+   "kling"
+  ],
+  "ours_top5_all": [
+   "seedance-2-5",
+   "wan-3-prime",
+   "minimax-h3",
+   "wan-3",
+   "seedance-2"
+  ],
+  "overlap_top5": 3,
+  "shared_ranked_by_dan": 5,
+  "spearman": 0.8,
+  "dan_blocked": [
+   "h3",
+   "flux"
+  ],
+  "ours_blocked_shared": [],
+  "ours_traits": [
+   "human_closeup"
+  ],
+  "dan_cards": [
+   {
+    "id": "seedance",
+    "fit": 10,
+    "share": 1,
+    "noAdvantage": false,
+    "reason": "Your top quality pick for this scene."
+   },
+   {
+    "id": "seedance-2",
+    "fit": 9,
+    "share": 0,
+    "noAdvantage": false,
+    "reason": "An alternative when you want quality close to Seedance 2.5."
+   },
+   {
+    "id": "wan",
+    "fit": 8,
+    "share": 0,
+    "noAdvantage": false,
+    "reason": "A fit for the supporting shot and simple movement you described."
+   },
+   {
+    "id": "kling-omni",
+    "fit": 7,
+    "share": 0,
+    "noAdvantage": false,
+    "reason": "A close Kling alternative, with a small quality trade-off."
+   },
+   {
+    "id": "gemini-omni",
+    "fit": 7,
+    "share": 0,
+    "noAdvantage": true,
+    "reason": "No clear advantage over the stronger choices for this scene."
+   },
+   {
+    "id": "kling",
+    "fit": 0,
+    "share": 0,
+    "noAdvantage": false,
+    "reason": "No specific reason returned. Evaluate again to retry."
+   }
+  ],
+  "ours_cards": [
+   {
+    "id": "seedance-2-5",
+    "label": "Seedance 2.5",
+    "fit": 84,
+    "top": true,
+    "budget": false,
+    "usd": 0.3
+   },
+   {
+    "id": "wan-3-prime",
+    "label": "Wan 3.0 Prime",
+    "fit": 84,
+    "top": false,
+    "budget": false,
+    "usd": 0.45
+   },
+   {
+    "id": "minimax-h3",
+    "label": "MiniMax H3",
+    "fit": 81,
+    "top": false,
+    "budget": false,
+    "usd": 0.65
+   },
+   {
+    "id": "wan-3",
+    "label": "Wan 3.0",
+    "fit": 81,
+    "top": false,
+    "budget": false,
+    "usd": 0.8
+   },
+   {
+    "id": "seedance-2",
+    "label": "Seedance 2.0",
+    "fit": 81,
+    "top": false,
+    "budget": false,
+    "usd": 3.73
+   },
+   {
+    "id": "kling-3-4k",
+    "label": "Kling 3.0 (4k)",
+    "fit": 79,
+    "top": false,
+    "budget": false,
+    "usd": 0.45
+   },
+   {
+    "id": "kling-3-pro",
+    "label": "Kling 3.0 (pro)",
+    "fit": 75,
+    "top": false,
+    "budget": false,
+    "usd": 0.45
+   },
+   {
+    "id": "kling-o3",
+    "label": "Kling O3",
+    "fit": 75,
+    "top": false,
+    "budget": false,
+    "usd": 0.45
+   },
+   {
+    "id": "cinema-studio-4",
+    "label": "Cinema Studio 4.0",
+    "fit": 71,
+    "top": false,
+    "budget": false,
+    "usd": 0.45
+   },
+   {
+    "id": "kling-3-standard",
+    "label": "Kling 3.0 (standard)",
+    "fit": 69,
+    "top": false,
+    "budget": false,
+    "usd": 0.45
+   },
+   {
+    "id": "kling-3-turbo",
+    "label": "Kling 3.0 (turbo)",
+    "fit": 66,
+    "top": false,
+    "budget": false,
+    "usd": 0.45
+   },
+   {
+    "id": "kling-omni",
+    "label": "Kling Omni",
+    "fit": 64,
+    "top": false,
+    "budget": false,
+    "usd": 0.45
+   },
+   {
+    "id": "kling-2-6-pro",
+    "label": "Kling 2.6 (pro)",
+    "fit": 50,
+    "top": false,
+    "budget": false,
+    "usd": 0.35
+   },
+   {
+    "id": "happy-horse-1-1",
+    "label": "HappyHorse 1.1",
+    "fit": 42,
+    "top": false,
+    "budget": false,
+    "usd": 0.45
+   },
+   {
+    "id": "pixverse-v6",
+    "label": "PixVerse V6",
+    "fit": 39,
+    "top": false,
+    "budget": false,
+    "usd": 0.46
+   },
+   {
+    "id": "wan-2-7",
+    "label": "Wan 2.7",
+    "fit": 36,
+    "top": false,
+    "budget": false,
+    "usd": 0.45
+   },
+   {
+    "id": "happy-horse-1",
+    "label": "Happy Horse 1.0",
+    "fit": 31,
+    "top": false,
+    "budget": false,
+    "usd": 0.45
+   },
+   {
+    "id": "grok-video-1-5",
+    "label": "Grok Imagine Video 1.5",
+    "fit": 31,
+    "top": false,
+    "budget": false,
+    "usd": 0.45
+   },
+   {
+    "id": "hailuo-2-3-standard",
+    "label": "Hailuo 2.3 (standard)",
+    "fit": 29,
+    "top": false,
+    "budget": false,
+    "usd": 0.67
+   },
+   {
+    "id": "kling-2-5-turbo-pro",
+    "label": "Kling 2.5 Turbo (pro)",
+    "fit": 27,
+    "top": false,
+    "budget": false,
+    "usd": 0.21
+   },
+   {
+    "id": "ltx-2-5-pro",
+    "label": "LTX-2.5 (pro)",
+    "fit": 23,
+    "top": false,
+    "budget": false,
+    "usd": 1.02
+   },
+   {
+    "id": "wan-2-6",
+    "label": "Wan 2.6",
+    "fit": 21,
+    "top": false,
+    "budget": false,
+    "usd": 0.56
+   },
+   {
+    "id": "ltx-2-5-fast",
+    "label": "LTX-2.5 (fast)",
+    "fit": 16,
+    "top": false,
+    "budget": false,
+    "usd": 0.67
+   }
+  ]
+ },
+ {
+  "id": "action-chase",
+  "label": "Action: car chase",
+  "settings": "8s 16:9 1080p",
+  "dan_scene": "Cinematic",
+  "dan_dialogue": "none",
+  "dan_top": "seedance",
+  "dan_top_shared": "seedance",
+  "ours_top": "minimax-h3",
+  "ours_top_shared": "h3",
+  "top1_agree": false,
+  "dan_top5": [
+   "seedance",
+   "wan",
+   "seedance-2",
+   "kling-omni",
+   "gemini-omni"
+  ],
+  "ours_top5_shared": [
+   "h3",
+   "seedance",
+   "kling",
+   "wan",
+   "seedance-2"
+  ],
+  "ours_top5_all": [
+   "minimax-h3",
+   "seedance-2-5",
+   "kling-3-4k",
+   "wan-3-prime",
+   "kling-3-pro"
+  ],
+  "overlap_top5": 3,
+  "shared_ranked_by_dan": 6,
+  "spearman": -0.08571428571428563,
+  "dan_blocked": [],
+  "ours_blocked_shared": [],
+  "ours_traits": [
+   "fast_motion",
+   "camera_control"
+  ],
+  "dan_cards": [
+   {
+    "id": "seedance",
+    "fit": 10,
+    "share": 0.98,
+    "noAdvantage": false,
+    "reason": "Your top quality pick for this scene."
+   },
+   {
+    "id": "wan",
+    "fit": 8,
+    "share": 0.02,
+    "noAdvantage": false,
+    "reason": "Fits the camera work and cinematic look of this scene."
+   },
+   {
+    "id": "seedance-2",
+    "fit": 9,
+    "share": 0,
+    "noAdvantage": false,
+    "reason": "An alternative when you want quality close to Seedance 2.5."
+   },
+   {
+    "id": "kling-omni",
+    "fit": 7,
+    "share": 0,
+    "noAdvantage": false,
+    "reason": "A close Kling alternative, with a small quality trade-off."
+   },
+   {
+    "id": "gemini-omni",
+    "fit": 7,
+    "share": 0,
+    "noAdvantage": true,
+    "reason": "No clear advantage over the stronger choices for this scene."
+   },
+   {
+    "id": "flux",
+    "fit": 7,
+    "share": 0,
+    "noAdvantage": true,
+    "reason": "No clear advantage over the stronger choices for this scene."
+   },
+   {
+    "id": "h3",
+    "fit": 1,
+    "share": 0,
+    "noAdvantage": true,
+    "reason": "The coordinated action and camera moves favor Seedance for this scene."
+   },
+   {
+    "id": "kling",
+    "fit": 0,
+    "share": 0,
+    "noAdvantage": false,
+    "reason": "No specific reason returned. Evaluate again to retry."
+   }
+  ],
+  "ours_cards": [
+   {
+    "id": "minimax-h3",
+    "label": "MiniMax H3",
+    "fit": 87,
+    "top": true,
+    "budget": false,
+    "usd": 1.04
+   },
+   {
+    "id": "seedance-2-5",
+    "label": "Seedance 2.5",
+    "fit": 86,
+    "top": false,
+    "budget": true,
+    "usd": 0.59
+   },
+   {
+    "id": "kling-3-4k",
+    "label": "Kling 3.0 (4k)",
+    "fit": 86,
+    "top": false,
+    "budget": false,
+    "usd": 0.9
+   },
+   {
+    "id": "wan-3-prime",
+    "label": "Wan 3.0 Prime",
+    "fit": 85,
+    "top": false,
+    "budget": false,
+    "usd": 0.9
+   },
+   {
+    "id": "kling-3-pro",
+    "label": "Kling 3.0 (pro)",
+    "fit": 83,
+    "top": false,
+    "budget": false,
+    "usd": 0.9
+   },
+   {
+    "id": "wan-3",
+    "label": "Wan 3.0",
+    "fit": 82,
+    "top": false,
+    "budget": false,
+    "usd": 1.6
+   },
+   {
+    "id": "seedance-2",
+    "label": "Seedance 2.0",
+    "fit": 82,
+    "top": false,
+    "budget": false,
+    "usd": 7.47
+   },
+   {
+    "id": "kling-o3",
+    "label": "Kling O3",
+    "fit": 78,
+    "top": false,
+    "budget": false,
+    "usd": 0.9
+   },
+   {
+    "id": "kling-3-standard",
+    "label": "Kling 3.0 (standard)",
+    "fit": 77,
+    "top": false,
+    "budget": false,
+    "usd": 0.9
+   },
+   {
+    "id": "kling-3-turbo",
+    "label": "Kling 3.0 (turbo)",
+    "fit": 75,
+    "top": false,
+    "budget": false,
+    "usd": 0.9
+   },
+   {
+    "id": "kling-omni",
+    "label": "Kling Omni",
+    "fit": 68,
+    "top": false,
+    "budget": false,
+    "usd": 0.9
+   },
+   {
+    "id": "cinema-studio-4",
+    "label": "Cinema Studio 4.0",
+    "fit": 65,
+    "top": false,
+    "budget": false,
+    "usd": 0.9
+   },
+   {
+    "id": "kling-2-6-pro",
+    "label": "Kling 2.6 (pro)",
+    "fit": 57,
+    "top": false,
+    "budget": false,
+    "usd": 0.7
+   },
+   {
+    "id": "pixverse-v6",
+    "label": "PixVerse V6",
+    "fit": 49,
+    "top": false,
+    "budget": false,
+    "usd": 0.92
+   },
+   {
+    "id": "happy-horse-1-1",
+    "label": "HappyHorse 1.1",
+    "fit": 43,
+    "top": false,
+    "budget": false,
+    "usd": 0.9
+   },
+   {
+    "id": "hailuo-2-3-standard",
+    "label": "Hailuo 2.3 (standard)",
+    "fit": 41,
+    "top": false,
+    "budget": false,
+    "usd": 1.12
+   },
+   {
+    "id": "wan-2-7",
+    "label": "Wan 2.7",
+    "fit": 39,
+    "top": false,
+    "budget": false,
+    "usd": 0.9
+   },
+   {
+    "id": "ltx-2-5-pro",
+    "label": "LTX-2.5 (pro)",
+    "fit": 38,
+    "top": false,
+    "budget": false,
+    "usd": 1.36
+   },
+   {
+    "id": "grok-video-1-5",
+    "label": "Grok Imagine Video 1.5",
+    "fit": 36,
+    "top": false,
+    "budget": false,
+    "usd": 0.9
+   },
+   {
+    "id": "kling-2-5-turbo-pro",
+    "label": "Kling 2.5 Turbo (pro)",
+    "fit": 33,
+    "top": false,
+    "budget": false,
+    "usd": 0.42
+   },
+   {
+    "id": "happy-horse-1",
+    "label": "Happy Horse 1.0",
+    "fit": 32,
+    "top": false,
+    "budget": false,
+    "usd": 0.9
+   },
+   {
+    "id": "ltx-2-5-fast",
+    "label": "LTX-2.5 (fast)",
+    "fit": 28,
+    "top": false,
+    "budget": false,
+    "usd": 0.9
+   },
+   {
+    "id": "wan-2-6",
+    "label": "Wan 2.6",
+    "fit": 22,
+    "top": false,
+    "budget": false,
+    "usd": 1.12
+   }
+  ]
+ },
+ {
+  "id": "action-fight",
+  "label": "Action: martial-arts fight",
+  "settings": "10s 16:9 1080p",
+  "dan_scene": "Cinematic",
+  "dan_dialogue": "none",
+  "dan_top": "seedance",
+  "dan_top_shared": "seedance",
+  "ours_top": "minimax-h3",
+  "ours_top_shared": "h3",
+  "top1_agree": false,
+  "dan_top5": [
+   "seedance",
+   "wan",
+   "seedance-2",
+   "flux",
+   "gemini-omni"
+  ],
+  "ours_top5_shared": [
+   "h3",
+   "wan",
+   "seedance-2",
+   "seedance",
+   "kling"
+  ],
+  "ours_top5_all": [
+   "minimax-h3",
+   "wan-3-prime",
+   "wan-3",
+   "seedance-2",
+   "seedance-2-5"
+  ],
+  "overlap_top5": 3,
+  "shared_ranked_by_dan": 6,
+  "spearman": 0.1428571428571429,
+  "dan_blocked": [],
+  "ours_blocked_shared": [],
+  "ours_traits": [
+   "fast_motion",
+   "physics",
+   "camera_control"
+  ],
+  "dan_cards": [
+   {
+    "id": "seedance",
+    "fit": 10,
+    "share": 0.99,
+    "noAdvantage": false,
+    "reason": "The coordinated action makes this a good fit for your premium model."
+   },
+   {
+    "id": "wan",
+    "fit": 8,
+    "share": 0.01,
+    "noAdvantage": false,
+    "reason": "Fits the camera work and cinematic look of this scene."
+   },
+   {
+    "id": "seedance-2",
+    "fit": 9,
+    "share": 0,
+    "noAdvantage": false,
+    "reason": "An alternative when you want quality close to Seedance 2.5."
+   },
+   {
+    "id": "flux",
+    "fit": 7,
+    "share": 0,
+    "noAdvantage": true,
+    "reason": "No clear advantage over the stronger choices for this scene."
+   },
+   {
+    "id": "gemini-omni",
+    "fit": 6,
+    "share": 0,
+    "noAdvantage": true,
+    "reason": "No clear advantage over the stronger choices for this scene."
+   },
+   {
+    "id": "kling-omni",
+    "fit": 5,
+    "share": 0,
+    "noAdvantage": false,
+    "reason": "A close Kling alternative, with a small quality trade-off."
+   },
+   {
+    "id": "h3",
+    "fit": 5,
+    "share": 0,
+    "noAdvantage": true,
+    "reason": "The coordinated action and camera moves favor Seedance for this scene."
+   },
+   {
+    "id": "kling",
+    "fit": 0,
+    "share": 0,
+    "noAdvantage": false,
+    "reason": "No specific reason returned. Evaluate again to retry."
+   }
+  ],
+  "ours_cards": [
+   {
+    "id": "minimax-h3",
+    "label": "MiniMax H3",
+    "fit": 90,
+    "top": true,
+    "budget": false,
+    "usd": 1.3
+   },
+   {
+    "id": "wan-3-prime",
+    "label": "Wan 3.0 Prime",
+    "fit": 89,
+    "top": false,
+    "budget": false,
+    "usd": 1.12
+   },
+   {
+    "id": "wan-3",
+    "label": "Wan 3.0",
+    "fit": 88,
+    "top": false,
+    "budget": false,
+    "usd": 2
+   },
+   {
+    "id": "seedance-2",
+    "label": "Seedance 2.0",
+    "fit": 86,
+    "top": false,
+    "budget": false,
+    "usd": 9.33
+   },
+   {
+    "id": "seedance-2-5",
+    "label": "Seedance 2.5",
+    "fit": 76,
+    "top": false,
+    "budget": true,
+    "usd": 0.74
+   },
+   {
+    "id": "kling-3-4k",
+    "label": "Kling 3.0 (4k)",
+    "fit": 74,
+    "top": false,
+    "budget": false,
+    "usd": 1.12
+   },
+   {
+    "id": "kling-3-pro",
+    "label": "Kling 3.0 (pro)",
+    "fit": 69,
+    "top": false,
+    "budget": false,
+    "usd": 1.12
+   },
+   {
+    "id": "kling-o3",
+    "label": "Kling O3",
+    "fit": 66,
+    "top": false,
+    "budget": false,
+    "usd": 1.12
+   },
+   {
+    "id": "cinema-studio-4",
+    "label": "Cinema Studio 4.0",
+    "fit": 65,
+    "top": false,
+    "budget": false,
+    "usd": 1.12
+   },
+   {
+    "id": "kling-3-standard",
+    "label": "Kling 3.0 (standard)",
+    "fit": 61,
+    "top": false,
+    "budget": false,
+    "usd": 1.12
+   },
+   {
+    "id": "kling-3-turbo",
+    "label": "Kling 3.0 (turbo)",
+    "fit": 59,
+    "top": false,
+    "budget": false,
+    "usd": 1.12
+   },
+   {
+    "id": "kling-omni",
+    "label": "Kling Omni",
+    "fit": 55,
+    "top": false,
+    "budget": false,
+    "usd": 1.12
+   },
+   {
+    "id": "kling-2-6-pro",
+    "label": "Kling 2.6 (pro)",
+    "fit": 52,
+    "top": false,
+    "budget": false,
+    "usd": 0.7
+   },
+   {
+    "id": "pixverse-v6",
+    "label": "PixVerse V6",
+    "fit": 49,
+    "top": false,
+    "budget": false,
+    "usd": 1.15
+   },
+   {
+    "id": "happy-horse-1-1",
+    "label": "HappyHorse 1.1",
+    "fit": 45,
+    "top": false,
+    "budget": false,
+    "usd": 1.12
+   },
+   {
+    "id": "ltx-2-5-pro",
+    "label": "LTX-2.5 (pro)",
+    "fit": 37,
+    "top": false,
+    "budget": false,
+    "usd": 1.7
+   },
+   {
+    "id": "grok-video-1-5",
+    "label": "Grok Imagine Video 1.5",
+    "fit": 36,
+    "top": false,
+    "budget": false,
+    "usd": 1.12
+   },
+   {
+    "id": "hailuo-2-3-standard",
+    "label": "Hailuo 2.3 (standard)",
+    "fit": 34,
+    "top": false,
+    "budget": false,
+    "usd": 1.12
+   },
+   {
+    "id": "happy-horse-1",
+    "label": "Happy Horse 1.0",
+    "fit": 32,
+    "top": false,
+    "budget": false,
+    "usd": 1.12
+   },
+   {
+    "id": "kling-2-5-turbo-pro",
+    "label": "Kling 2.5 Turbo (pro)",
+    "fit": 30,
+    "top": false,
+    "budget": false,
+    "usd": 0.42
+   },
+   {
+    "id": "wan-2-7",
+    "label": "Wan 2.7",
+    "fit": 30,
+    "top": false,
+    "budget": false,
+    "usd": 1.12
+   },
+   {
+    "id": "ltx-2-5-fast",
+    "label": "LTX-2.5 (fast)",
+    "fit": 27,
+    "top": false,
+    "budget": false,
+    "usd": 1.12
+   },
+   {
+    "id": "wan-2-6",
+    "label": "Wan 2.6",
+    "fit": 27,
+    "top": false,
+    "budget": false,
+    "usd": 1.12
+   }
+  ]
+ },
+ {
+  "id": "drama-dialogue",
+  "label": "Drama: two-person dialogue",
+  "settings": "10s 16:9 1080p",
+  "dan_scene": "Story scene, Dialogue-heavy, Voice acting",
+  "dan_dialogue": "substantial",
+  "dan_top": "seedance",
+  "dan_top_shared": "seedance",
+  "ours_top": "seedance-2-5",
+  "ours_top_shared": "seedance",
+  "top1_agree": true,
+  "dan_top5": [
+   "seedance",
+   "seedance-2",
+   "flux",
+   "wan",
+   "kling-omni"
+  ],
+  "ours_top5_shared": [
+   "seedance",
+   "seedance-2",
+   "wan",
+   "kling",
+   "kling-omni"
+  ],
+  "ours_top5_all": [
+   "seedance-2-5",
+   "seedance-2",
+   "wan-3-prime",
+   "wan-3",
+   "kling-3-4k"
+  ],
+  "overlap_top5": 4,
+  "shared_ranked_by_dan": 6,
+  "spearman": 0.8285714285714285,
+  "dan_blocked": [],
+  "ours_blocked_shared": [],
+  "ours_traits": [
+   "dialogue",
+   "camera_control"
+  ],
+  "dan_cards": [
+   {
+    "id": "seedance",
+    "fit": 10,
+    "share": 0.98,
+    "noAdvantage": false,
+    "reason": "Your top quality pick for this scene."
+   },
+   {
+    "id": "seedance-2",
+    "fit": 9,
+    "share": 0.01,
+    "noAdvantage": false,
+    "reason": "An alternative when you want quality close to Seedance 2.5."
+   },
+   {
+    "id": "flux",
+    "fit": 7,
+    "share": 0.01,
+    "noAdvantage": true,
+    "reason": "The amount of dialogue favors the Seedance models for this scene."
+   },
+   {
+    "id": "wan",
+    "fit": 8,
+    "share": 0,
+    "noAdvantage": false,
+    "reason": "Fits the camera work and cinematic look of this scene."
+   },
+   {
+    "id": "kling-omni",
+    "fit": 5,
+    "share": 0,
+    "noAdvantage": true,
+    "reason": "The amount of dialogue favors the Seedance models for this scene."
+   },
+   {
+    "id": "h3",
+    "fit": 5,
+    "share": 0,
+    "noAdvantage": true,
+    "reason": "The amount of dialogue favors the Seedance models for this scene."
+   },
+   {
+    "id": "gemini-omni",
+    "fit": 5,
+    "share": 0,
+    "noAdvantage": true,
+    "reason": "The amount of dialogue favors the Seedance models for this scene."
+   },
+   {
+    "id": "kling",
+    "fit": 0,
+    "share": 0,
+    "noAdvantage": false,
+    "reason": "No specific reason returned. Evaluate again to retry."
+   }
+  ],
+  "ours_cards": [
+   {
+    "id": "seedance-2-5",
+    "label": "Seedance 2.5",
+    "fit": 92,
+    "top": true,
+    "budget": false,
+    "usd": 0.74
+   },
+   {
+    "id": "seedance-2",
+    "label": "Seedance 2.0",
+    "fit": 92,
+    "top": false,
+    "budget": false,
+    "usd": 9.33
+   },
+   {
+    "id": "wan-3-prime",
+    "label": "Wan 3.0 Prime",
+    "fit": 90,
+    "top": false,
+    "budget": false,
+    "usd": 1.12
+   },
+   {
+    "id": "wan-3",
+    "label": "Wan 3.0",
+    "fit": 89,
+    "top": false,
+    "budget": false,
+    "usd": 2
+   },
+   {
+    "id": "kling-3-4k",
+    "label": "Kling 3.0 (4k)",
+    "fit": 87,
+    "top": false,
+    "budget": false,
+    "usd": 1.12
+   },
+   {
+    "id": "kling-3-pro",
+    "label": "Kling 3.0 (pro)",
+    "fit": 84,
+    "top": false,
+    "budget": false,
+    "usd": 1.12
+   },
+   {
+    "id": "kling-o3",
+    "label": "Kling O3",
+    "fit": 81,
+    "top": false,
+    "budget": false,
+    "usd": 1.12
+   },
+   {
+    "id": "kling-3-standard",
+    "label": "Kling 3.0 (standard)",
+    "fit": 79,
+    "top": false,
+    "budget": false,
+    "usd": 1.12
+   },
+   {
+    "id": "cinema-studio-4",
+    "label": "Cinema Studio 4.0",
+    "fit": 76,
+    "top": false,
+    "budget": false,
+    "usd": 1.12
+   },
+   {
+    "id": "kling-2-6-pro",
+    "label": "Kling 2.6 (pro)",
+    "fit": 62,
+    "top": false,
+    "budget": false,
+    "usd": 0.7
+   },
+   {
+    "id": "pixverse-v6",
+    "label": "PixVerse V6",
+    "fit": 54,
+    "top": false,
+    "budget": false,
+    "usd": 1.15
+   },
+   {
+    "id": "ltx-2-5-pro",
+    "label": "LTX-2.5 (pro)",
+    "fit": 45,
+    "top": false,
+    "budget": false,
+    "usd": 1.7
+   },
+   {
+    "id": "ltx-2-5-fast",
+    "label": "LTX-2.5 (fast)",
+    "fit": 35,
+    "top": false,
+    "budget": false,
+    "usd": 1.12
+   },
+   {
+    "id": "kling-3-turbo",
+    "label": "Kling 3.0 (turbo)",
+    "fit": 23,
+    "top": false,
+    "budget": false,
+    "usd": 1.12
+   },
+   {
+    "id": "minimax-h3",
+    "label": "MiniMax H3",
+    "fit": 23,
+    "top": false,
+    "budget": false,
+    "usd": 1.3
+   },
+   {
+    "id": "kling-omni",
+    "label": "Kling Omni",
+    "fit": 9,
+    "top": false,
+    "budget": false,
+    "usd": 1.12
+   },
+   {
+    "id": "happy-horse-1-1",
+    "label": "HappyHorse 1.1",
+    "fit": 5,
+    "top": false,
+    "budget": false,
+    "usd": 1.12
+   },
+   {
+    "id": "wan-2-7",
+    "label": "Wan 2.7",
+    "fit": 5,
+    "top": false,
+    "budget": false,
+    "usd": 1.12
+   },
+   {
+    "id": "kling-2-5-turbo-pro",
+    "label": "Kling 2.5 Turbo (pro)",
+    "fit": 3,
+    "top": false,
+    "budget": false,
+    "usd": 0.42
+   },
+   {
+    "id": "happy-horse-1",
+    "label": "Happy Horse 1.0",
+    "fit": 3,
+    "top": false,
+    "budget": false,
+    "usd": 1.12
+   },
+   {
+    "id": "hailuo-2-3-standard",
+    "label": "Hailuo 2.3 (standard)",
+    "fit": 3,
+    "top": false,
+    "budget": false,
+    "usd": 1.12
+   },
+   {
+    "id": "wan-2-6",
+    "label": "Wan 2.6",
+    "fit": 3,
+    "top": false,
+    "budget": false,
+    "usd": 1.12
+   },
+   {
+    "id": "grok-video-1-5",
+    "label": "Grok Imagine Video 1.5",
+    "fit": 3,
+    "top": false,
+    "budget": false,
+    "usd": 1.12
+   }
+  ]
+ },
+ {
+  "id": "drama-monologue",
+  "label": "Drama: emotional monologue",
+  "settings": "8s 16:9 1080p",
+  "dan_scene": "Story scene, Cinematic, Brief dialogue, Voice acting",
+  "dan_dialogue": "brief",
+  "dan_top": "seedance",
+  "dan_top_shared": "seedance",
+  "ours_top": "seedance-2-5",
+  "ours_top_shared": "seedance",
+  "top1_agree": true,
+  "dan_top5": [
+   "seedance",
+   "flux",
+   "seedance-2",
+   "wan",
+   "kling-omni"
+  ],
+  "ours_top5_shared": [
+   "seedance",
+   "seedance-2",
+   "wan",
+   "kling",
+   "kling-omni"
+  ],
+  "ours_top5_all": [
+   "seedance-2-5",
+   "seedance-2",
+   "wan-3-prime",
+   "wan-3",
+   "kling-3-4k"
+  ],
+  "overlap_top5": 4,
+  "shared_ranked_by_dan": 6,
+  "spearman": 0.8285714285714285,
+  "dan_blocked": [],
+  "ours_blocked_shared": [],
+  "ours_traits": [
+   "dialogue",
+   "human_closeup"
+  ],
+  "dan_cards": [
+   {
+    "id": "seedance",
+    "fit": 10,
+    "share": 0.99,
+    "noAdvantage": false,
+    "reason": "Your top quality pick for this scene."
+   },
+   {
+    "id": "flux",
+    "fit": 7,
+    "share": 0.01,
+    "noAdvantage": false,
+    "reason": "A strong voice-acting option for the delivery and emotion you described."
+   },
+   {
+    "id": "seedance-2",
+    "fit": 9,
+    "share": 0,
+    "noAdvantage": false,
+    "reason": "An alternative when you want quality close to Seedance 2.5."
+   },
+   {
+    "id": "wan",
+    "fit": 8,
+    "share": 0,
+    "noAdvantage": false,
+    "reason": "Fits the camera work and cinematic look of this scene."
+   },
+   {
+    "id": "kling-omni",
+    "fit": 7,
+    "share": 0,
+    "noAdvantage": false,
+    "reason": "A close Kling alternative, with a small quality trade-off."
+   },
+   {
+    "id": "gemini-omni",
+    "fit": 7,
+    "share": 0,
+    "noAdvantage": true,
+    "reason": "No clear advantage over the stronger choices for this scene."
+   },
+   {
+    "id": "h3",
+    "fit": 5,
+    "share": 0,
+    "noAdvantage": true,
+    "reason": "The amount of dialogue favors the Seedance models for this scene."
+   },
+   {
+    "id": "kling",
+    "fit": 0,
+    "share": 0,
+    "noAdvantage": false,
+    "reason": "No specific reason returned. Evaluate again to retry."
+   }
+  ],
+  "ours_cards": [
+   {
+    "id": "seedance-2-5",
+    "label": "Seedance 2.5",
+    "fit": 92,
+    "top": true,
+    "budget": false,
+    "usd": 0.59
+   },
+   {
+    "id": "seedance-2",
+    "label": "Seedance 2.0",
+    "fit": 92,
+    "top": false,
+    "budget": false,
+    "usd": 7.47
+   },
+   {
+    "id": "wan-3-prime",
+    "label": "Wan 3.0 Prime",
+    "fit": 91,
+    "top": false,
+    "budget": false,
+    "usd": 0.9
+   },
+   {
+    "id": "wan-3",
+    "label": "Wan 3.0",
+    "fit": 89,
+    "top": false,
+    "budget": false,
+    "usd": 1.6
+   },
+   {
+    "id": "kling-3-4k",
+    "label": "Kling 3.0 (4k)",
+    "fit": 88,
+    "top": false,
+    "budget": false,
+    "usd": 0.9
+   },
+   {
+    "id": "kling-3-pro",
+    "label": "Kling 3.0 (pro)",
+    "fit": 85,
+    "top": false,
+    "budget": false,
+    "usd": 0.9
+   },
+   {
+    "id": "kling-o3",
+    "label": "Kling O3",
+    "fit": 84,
+    "top": false,
+    "budget": false,
+    "usd": 0.9
+   },
+   {
+    "id": "kling-3-standard",
+    "label": "Kling 3.0 (standard)",
+    "fit": 81,
+    "top": false,
+    "budget": false,
+    "usd": 0.9
+   },
+   {
+    "id": "cinema-studio-4",
+    "label": "Cinema Studio 4.0",
+    "fit": 64,
+    "top": false,
+    "budget": false,
+    "usd": 0.9
+   },
+   {
+    "id": "kling-2-6-pro",
+    "label": "Kling 2.6 (pro)",
+    "fit": 60,
+    "top": false,
+    "budget": false,
+    "usd": 0.7
+   },
+   {
+    "id": "pixverse-v6",
+    "label": "PixVerse V6",
+    "fit": 52,
+    "top": false,
+    "budget": false,
+    "usd": 0.92
+   },
+   {
+    "id": "ltx-2-5-pro",
+    "label": "LTX-2.5 (pro)",
+    "fit": 36,
+    "top": false,
+    "budget": false,
+    "usd": 1.36
+   },
+   {
+    "id": "ltx-2-5-fast",
+    "label": "LTX-2.5 (fast)",
+    "fit": 26,
+    "top": false,
+    "budget": false,
+    "usd": 0.9
+   },
+   {
+    "id": "kling-3-turbo",
+    "label": "Kling 3.0 (turbo)",
+    "fit": 25,
+    "top": false,
+    "budget": false,
+    "usd": 0.9
+   },
+   {
+    "id": "minimax-h3",
+    "label": "MiniMax H3",
+    "fit": 24,
+    "top": false,
+    "budget": false,
+    "usd": 1.04
+   },
+   {
+    "id": "kling-omni",
+    "label": "Kling Omni",
+    "fit": 11,
+    "top": false,
+    "budget": false,
+    "usd": 0.9
+   },
+   {
+    "id": "happy-horse-1-1",
+    "label": "HappyHorse 1.1",
+    "fit": 5,
+    "top": false,
+    "budget": false,
+    "usd": 0.9
+   },
+   {
+    "id": "happy-horse-1",
+    "label": "Happy Horse 1.0",
+    "fit": 4,
+    "top": false,
+    "budget": false,
+    "usd": 0.9
+   },
+   {
+    "id": "wan-2-7",
+    "label": "Wan 2.7",
+    "fit": 4,
+    "top": false,
+    "budget": false,
+    "usd": 0.9
+   },
+   {
+    "id": "kling-2-5-turbo-pro",
+    "label": "Kling 2.5 Turbo (pro)",
+    "fit": 3,
+    "top": false,
+    "budget": false,
+    "usd": 0.42
+   },
+   {
+    "id": "grok-video-1-5",
+    "label": "Grok Imagine Video 1.5",
+    "fit": 3,
+    "top": false,
+    "budget": false,
+    "usd": 0.9
+   },
+   {
+    "id": "hailuo-2-3-standard",
+    "label": "Hailuo 2.3 (standard)",
+    "fit": 2,
+    "top": false,
+    "budget": false,
+    "usd": 1.12
+   },
+   {
+    "id": "wan-2-6",
+    "label": "Wan 2.6",
+    "fit": 2,
+    "top": false,
+    "budget": false,
+    "usd": 1.12
+   }
+  ]
+ },
+ {
+  "id": "multishot-sequence",
+  "label": "Complex multi-shot sequence",
+  "settings": "15s 16:9 1080p",
+  "dan_scene": "Story scene",
+  "dan_dialogue": "none",
+  "dan_top": "seedance",
+  "dan_top_shared": "seedance",
+  "ours_top": "seedance-2-5",
+  "ours_top_shared": "seedance",
+  "top1_agree": true,
+  "dan_top5": [
+   "seedance",
+   "kling-omni",
+   "wan",
+   "seedance-2",
+   "flux"
+  ],
+  "ours_top5_shared": [
+   "seedance",
+   "kling",
+   "wan",
+   "seedance-2",
+   "kling-omni"
+  ],
+  "ours_top5_all": [
+   "seedance-2-5",
+   "kling-3-4k",
+   "wan-3-prime",
+   "seedance-2",
+   "kling-3-pro"
+  ],
+  "overlap_top5": 4,
+  "shared_ranked_by_dan": 6,
+  "spearman": 0.2571428571428571,
+  "dan_blocked": [
+   "gemini-omni"
+  ],
+  "ours_blocked_shared": [
+   "kling-omni"
+  ],
+  "ours_traits": [
+   "multi_shot",
+   "human_closeup",
+   "establishing"
+  ],
+  "dan_cards": [
+   {
+    "id": "seedance",
+    "fit": 10,
+    "share": 0.93,
+    "noAdvantage": false,
+    "reason": "Your top quality pick for this scene."
+   },
+   {
+    "id": "kling-omni",
+    "fit": 7,
+    "share": 0.04,
+    "noAdvantage": false,
+    "reason": "A close Kling alternative, with a small quality trade-off."
+   },
+   {
+    "id": "wan",
+    "fit": 8,
+    "share": 0.03,
+    "noAdvantage": false,
+    "reason": "Fits the camera work and cinematic look of this scene."
+   },
+   {
+    "id": "seedance-2",
+    "fit": 9,
+    "share": 0,
+    "noAdvantage": false,
+    "reason": "An alternative when you want quality close to Seedance 2.5."
+   },
+   {
+    "id": "flux",
+    "fit": 7,
+    "share": 0,
+    "noAdvantage": true,
+    "reason": "No clear advantage over the stronger choices for this scene."
+   },
+   {
+    "id": "h3",
+    "fit": 1,
+    "share": 0,
+    "noAdvantage": true,
+    "reason": "A lower-priority alternative for this scene; Seedance is the preferred quality choice."
+   },
+   {
+    "id": "kling",
+    "fit": 0,
+    "share": 0,
+    "noAdvantage": false,
+    "reason": "No specific reason returned. Evaluate again to retry."
+   }
+  ],
+  "ours_cards": [
+   {
+    "id": "seedance-2-5",
+    "label": "Seedance 2.5",
+    "fit": 91,
+    "top": true,
+    "budget": false,
+    "usd": 1.11
+   },
+   {
+    "id": "kling-3-4k",
+    "label": "Kling 3.0 (4k)",
+    "fit": 87,
+    "top": false,
+    "budget": false,
+    "usd": 1.68
+   },
+   {
+    "id": "wan-3-prime",
+    "label": "Wan 3.0 Prime",
+    "fit": 86,
+    "top": false,
+    "budget": false,
+    "usd": 1.68
+   },
+   {
+    "id": "seedance-2",
+    "label": "Seedance 2.0",
+    "fit": 86,
+    "top": false,
+    "budget": false,
+    "usd": 14
+   },
+   {
+    "id": "kling-3-pro",
+    "label": "Kling 3.0 (pro)",
+    "fit": 85,
+    "top": false,
+    "budget": false,
+    "usd": 1.68
+   },
+   {
+    "id": "kling-o3",
+    "label": "Kling O3",
+    "fit": 85,
+    "top": false,
+    "budget": false,
+    "usd": 1.68
+   },
+   {
+    "id": "minimax-h3",
+    "label": "MiniMax H3",
+    "fit": 83,
+    "top": false,
+    "budget": false,
+    "usd": 1.95
+   },
+   {
+    "id": "wan-3",
+    "label": "Wan 3.0",
+    "fit": 83,
+    "top": false,
+    "budget": false,
+    "usd": 3
+   },
+   {
+    "id": "kling-3-standard",
+    "label": "Kling 3.0 (standard)",
+    "fit": 80,
+    "top": false,
+    "budget": false,
+    "usd": 1.68
+   },
+   {
+    "id": "kling-3-turbo",
+    "label": "Kling 3.0 (turbo)",
+    "fit": 78,
+    "top": false,
+    "budget": false,
+    "usd": 1.68
+   },
+   {
+    "id": "cinema-studio-4",
+    "label": "Cinema Studio 4.0",
+    "fit": 58,
+    "top": false,
+    "budget": false,
+    "usd": 1.68
+   },
+   {
+    "id": "happy-horse-1-1",
+    "label": "HappyHorse 1.1",
+    "fit": 43,
+    "top": false,
+    "budget": false,
+    "usd": 1.68
+   },
+   {
+    "id": "wan-2-7",
+    "label": "Wan 2.7",
+    "fit": 40,
+    "top": false,
+    "budget": false,
+    "usd": 1.68
+   },
+   {
+    "id": "happy-horse-1",
+    "label": "Happy Horse 1.0",
+    "fit": 32,
+    "top": false,
+    "budget": false,
+    "usd": 1.68
+   },
+   {
+    "id": "wan-2-6",
+    "label": "Wan 2.6",
+    "fit": 31,
+    "top": false,
+    "budget": false,
+    "usd": 1.68
+   },
+   {
+    "id": "pixverse-v6",
+    "label": "PixVerse V6",
+    "fit": 30,
+    "top": false,
+    "budget": false,
+    "usd": 1.73
+   },
+   {
+    "id": "grok-video-1-5",
+    "label": "Grok Imagine Video 1.5",
+    "fit": 27,
+    "top": false,
+    "budget": false,
+    "usd": 1.68
+   }
+  ]
+ },
+ {
+  "id": "long-oner",
+  "label": "Long continuous take, 25s",
+  "settings": "25s 16:9 1080p",
+  "dan_scene": "Cinematic",
+  "dan_dialogue": "none",
+  "dan_top": "seedance",
+  "dan_top_shared": "seedance",
+  "ours_top": "seedance-2-5",
+  "ours_top_shared": "seedance",
+  "top1_agree": true,
+  "dan_top5": [
+   "seedance",
+   "wan"
+  ],
+  "ours_top5_shared": [
+   "seedance",
+   "wan"
+  ],
+  "ours_top5_all": [
+   "seedance-2-5",
+   "wan-3-prime",
+   "wan-3",
+   "cinema-studio-4"
+  ],
+  "overlap_top5": 2,
+  "shared_ranked_by_dan": 2,
+  "spearman": null,
+  "dan_blocked": [
+   "kling",
+   "kling-omni",
+   "h3",
+   "seedance-2",
+   "gemini-omni",
+   "flux"
+  ],
+  "ours_blocked_shared": [
+   "seedance-2",
+   "kling",
+   "kling-omni",
+   "h3"
+  ],
+  "ours_traits": [
+   "long_take",
+   "crowd",
+   "camera_control"
+  ],
+  "dan_cards": [
+   {
+    "id": "seedance",
+    "fit": 10,
+    "share": 0.96,
+    "noAdvantage": false,
+    "reason": "Your top quality pick for this scene."
+   },
+   {
+    "id": "wan",
+    "fit": 8,
+    "share": 0.03,
+    "noAdvantage": false,
+    "reason": "Fits the camera work and cinematic look of this scene."
+   }
+  ],
+  "ours_cards": [
+   {
+    "id": "seedance-2-5",
+    "label": "Seedance 2.5",
+    "fit": 91,
+    "top": true,
+    "budget": false,
+    "usd": 1.85
+   },
+   {
+    "id": "wan-3-prime",
+    "label": "Wan 3.0 Prime",
+    "fit": 89,
+    "top": false,
+    "budget": false,
+    "usd": 2.8
+   },
+   {
+    "id": "wan-3",
+    "label": "Wan 3.0",
+    "fit": 88,
+    "top": false,
+    "budget": false,
+    "usd": 5
+   },
+   {
+    "id": "cinema-studio-4",
+    "label": "Cinema Studio 4.0",
+    "fit": 69,
+    "top": false,
+    "budget": false,
+    "usd": 2.8
+   }
+  ]
+ },
+ {
+  "id": "anime",
+  "label": "Animation: anime",
+  "settings": "6s 16:9 1080p",
+  "dan_scene": "Anime",
+  "dan_dialogue": "none",
+  "dan_top": "h3",
+  "dan_top_shared": "h3",
+  "ours_top": "minimax-h3",
+  "ours_top_shared": "h3",
+  "top1_agree": true,
+  "dan_top5": [
+   "h3",
+   "seedance",
+   "seedance-2",
+   "wan",
+   "kling-omni"
+  ],
+  "ours_top5_shared": [
+   "h3",
+   "wan",
+   "seedance",
+   "seedance-2",
+   "kling"
+  ],
+  "ours_top5_all": [
+   "minimax-h3",
+   "wan-3-prime",
+   "wan-3",
+   "seedance-2-5",
+   "seedance-2"
+  ],
+  "overlap_top5": 4,
+  "shared_ranked_by_dan": 6,
+  "spearman": 0.7714285714285715,
+  "dan_blocked": [],
+  "ours_blocked_shared": [],
+  "ours_traits": [
+   "stylized"
+  ],
+  "dan_cards": [
+   {
+    "id": "h3",
+    "fit": 10,
+    "share": 0.99,
+    "noAdvantage": false,
+    "reason": "The preferred specialist for this 2D character animation."
+   },
+   {
+    "id": "seedance",
+    "fit": 9,
+    "share": 0.01,
+    "noAdvantage": false,
+    "reason": "A strong alternative for the dialogue, character interaction and shot changes."
+   },
+   {
+    "id": "seedance-2",
+    "fit": 7,
+    "share": 0,
+    "noAdvantage": false,
+    "reason": "Another option for this cartoon scene, below Seedance 2.5 in quality."
+   },
+   {
+    "id": "wan",
+    "fit": 7,
+    "share": 0,
+    "noAdvantage": true,
+    "reason": "No clear advantage over the stronger choices for this scene."
+   },
+   {
+    "id": "kling-omni",
+    "fit": 5,
+    "share": 0,
+    "noAdvantage": true,
+    "reason": "No clear advantage over the stronger choices for this scene."
+   },
+   {
+    "id": "flux",
+    "fit": 5,
+    "share": 0,
+    "noAdvantage": true,
+    "reason": "No clear advantage over the stronger choices for this scene."
+   },
+   {
+    "id": "gemini-omni",
+    "fit": 1,
+    "share": 0,
+    "noAdvantage": true,
+    "reason": "No clear advantage over the stronger choices for this scene."
+   },
+   {
+    "id": "kling",
+    "fit": 0,
+    "share": 0,
+    "noAdvantage": false,
+    "reason": "No specific reason returned. Evaluate again to retry."
+   }
+  ],
+  "ours_cards": [
+   {
+    "id": "minimax-h3",
+    "label": "MiniMax H3",
+    "fit": 91,
+    "top": true,
+    "budget": false,
+    "usd": 0.78
+   },
+   {
+    "id": "wan-3-prime",
+    "label": "Wan 3.0 Prime",
+    "fit": 84,
+    "top": false,
+    "budget": false,
+    "usd": 0.67
+   },
+   {
+    "id": "wan-3",
+    "label": "Wan 3.0",
+    "fit": 83,
+    "top": false,
+    "budget": false,
+    "usd": 1.2
+   },
+   {
+    "id": "seedance-2-5",
+    "label": "Seedance 2.5",
+    "fit": 79,
+    "top": false,
+    "budget": true,
+    "usd": 0.44
+   },
+   {
+    "id": "seedance-2",
+    "label": "Seedance 2.0",
+    "fit": 75,
+    "top": false,
+    "budget": false,
+    "usd": 5.6
+   },
+   {
+    "id": "kling-3-4k",
+    "label": "Kling 3.0 (4k)",
+    "fit": 66,
+    "top": false,
+    "budget": false,
+    "usd": 0.67
+   },
+   {
+    "id": "kling-3-pro",
+    "label": "Kling 3.0 (pro)",
+    "fit": 61,
+    "top": false,
+    "budget": false,
+    "usd": 0.67
+   },
+   {
+    "id": "kling-o3",
+    "label": "Kling O3",
+    "fit": 61,
+    "top": false,
+    "budget": false,
+    "usd": 0.67
+   },
+   {
+    "id": "kling-3-standard",
+    "label": "Kling 3.0 (standard)",
+    "fit": 53,
+    "top": false,
+    "budget": false,
+    "usd": 0.67
+   },
+   {
+    "id": "kling-omni",
+    "label": "Kling Omni",
+    "fit": 53,
+    "top": false,
+    "budget": false,
+    "usd": 0.67
+   },
+   {
+    "id": "kling-3-turbo",
+    "label": "Kling 3.0 (turbo)",
+    "fit": 50,
+    "top": false,
+    "budget": false,
+    "usd": 0.67
+   },
+   {
+    "id": "wan-2-7",
+    "label": "Wan 2.7",
+    "fit": 44,
+    "top": false,
+    "budget": false,
+    "usd": 0.67
+   },
+   {
+    "id": "grok-video-1-5",
+    "label": "Grok Imagine Video 1.5",
+    "fit": 44,
+    "top": false,
+    "budget": false,
+    "usd": 0.67
+   },
+   {
+    "id": "pixverse-v6",
+    "label": "PixVerse V6",
+    "fit": 44,
+    "top": false,
+    "budget": false,
+    "usd": 0.69
+   },
+   {
+    "id": "happy-horse-1-1",
+    "label": "HappyHorse 1.1",
+    "fit": 42,
+    "top": false,
+    "budget": false,
+    "usd": 0.67
+   },
+   {
+    "id": "cinema-studio-4",
+    "label": "Cinema Studio 4.0",
+    "fit": 36,
+    "top": false,
+    "budget": false,
+    "usd": 0.67
+   },
+   {
+    "id": "hailuo-2-3-standard",
+    "label": "Hailuo 2.3 (standard)",
+    "fit": 36,
+    "top": false,
+    "budget": false,
+    "usd": 0.67
+   },
+   {
+    "id": "kling-2-6-pro",
+    "label": "Kling 2.6 (pro)",
+    "fit": 36,
+    "top": false,
+    "budget": false,
+    "usd": 0.7
+   },
+   {
+    "id": "happy-horse-1",
+    "label": "Happy Horse 1.0",
+    "fit": 34,
+    "top": false,
+    "budget": false,
+    "usd": 0.67
+   },
+   {
+    "id": "ltx-2-5-pro",
+    "label": "LTX-2.5 (pro)",
+    "fit": 31,
+    "top": false,
+    "budget": false,
+    "usd": 1.02
+   },
+   {
+    "id": "wan-2-6",
+    "label": "Wan 2.6",
+    "fit": 29,
+    "top": false,
+    "budget": false,
+    "usd": 1.12
+   },
+   {
+    "id": "ltx-2-5-fast",
+    "label": "LTX-2.5 (fast)",
+    "fit": 23,
+    "top": false,
+    "budget": false,
+    "usd": 0.67
+   },
+   {
+    "id": "kling-2-5-turbo-pro",
+    "label": "Kling 2.5 Turbo (pro)",
+    "fit": 21,
+    "top": false,
+    "budget": false,
+    "usd": 0.42
+   }
+  ]
+ },
+ {
+  "id": "pixar-3d",
+  "label": "Animation: 3D cartoon",
+  "settings": "6s 16:9 1080p",
+  "dan_scene": "Animation",
+  "dan_dialogue": "none",
+  "dan_top": "seedance",
+  "dan_top_shared": "seedance",
+  "ours_top": "minimax-h3",
+  "ours_top_shared": "h3",
+  "top1_agree": false,
+  "dan_top5": [
+   "seedance",
+   "wan",
+   "seedance-2",
+   "kling-omni",
+   "flux"
+  ],
+  "ours_top5_shared": [
+   "h3",
+   "wan",
+   "seedance",
+   "seedance-2",
+   "kling"
+  ],
+  "ours_top5_all": [
+   "minimax-h3",
+   "wan-3-prime",
+   "seedance-2-5",
+   "wan-3",
+   "seedance-2"
+  ],
+  "overlap_top5": 3,
+  "shared_ranked_by_dan": 6,
+  "spearman": 0.2571428571428571,
+  "dan_blocked": [],
+  "ours_blocked_shared": [],
+  "ours_traits": [
+   "stylized",
+   "human_closeup"
+  ],
+  "dan_cards": [
+   {
+    "id": "seedance",
+    "fit": 10,
+    "share": 0.83,
+    "noAdvantage": false,
+    "reason": "Your top quality pick for this scene."
+   },
+   {
+    "id": "wan",
+    "fit": 8,
+    "share": 0.17,
+    "noAdvantage": false,
+    "reason": "An alternative for the animated scene and character movement."
+   },
+   {
+    "id": "seedance-2",
+    "fit": 9,
+    "share": 0,
+    "noAdvantage": false,
+    "reason": "An alternative when you want quality close to Seedance 2.5."
+   },
+   {
+    "id": "kling-omni",
+    "fit": 7,
+    "share": 0,
+    "noAdvantage": false,
+    "reason": "A close Kling alternative, with a small quality trade-off."
+   },
+   {
+    "id": "flux",
+    "fit": 7,
+    "share": 0,
+    "noAdvantage": true,
+    "reason": "No clear advantage over the stronger choices for this scene."
+   },
+   {
+    "id": "gemini-omni",
+    "fit": 6,
+    "share": 0,
+    "noAdvantage": true,
+    "reason": "No clear advantage over the stronger choices for this scene."
+   },
+   {
+    "id": "h3",
+    "fit": 5,
+    "share": 0,
+    "noAdvantage": true,
+    "reason": "No clear advantage over the stronger choices for this scene."
+   },
+   {
+    "id": "kling",
+    "fit": 0,
+    "share": 0,
+    "noAdvantage": false,
+    "reason": "No specific reason returned. Evaluate again to retry."
+   }
+  ],
+  "ours_cards": [
+   {
+    "id": "minimax-h3",
+    "label": "MiniMax H3",
+    "fit": 92,
+    "top": true,
+    "budget": false,
+    "usd": 0.78
+   },
+   {
+    "id": "wan-3-prime",
+    "label": "Wan 3.0 Prime",
+    "fit": 87,
+    "top": false,
+    "budget": false,
+    "usd": 0.67
+   },
+   {
+    "id": "seedance-2-5",
+    "label": "Seedance 2.5",
+    "fit": 85,
+    "top": false,
+    "budget": true,
+    "usd": 0.44
+   },
+   {
+    "id": "wan-3",
+    "label": "Wan 3.0",
+    "fit": 85,
+    "top": false,
+    "budget": false,
+    "usd": 1.2
+   },
+   {
+    "id": "seedance-2",
+    "label": "Seedance 2.0",
+    "fit": 82,
+    "top": false,
+    "budget": false,
+    "usd": 5.6
+   },
+   {
+    "id": "kling-3-4k",
+    "label": "Kling 3.0 (4k)",
+    "fit": 77,
+    "top": false,
+    "budget": false,
+    "usd": 0.67
+   },
+   {
+    "id": "kling-3-pro",
+    "label": "Kling 3.0 (pro)",
+    "fit": 73,
+    "top": false,
+    "budget": false,
+    "usd": 0.67
+   },
+   {
+    "id": "kling-o3",
+    "label": "Kling O3",
+    "fit": 73,
+    "top": false,
+    "budget": false,
+    "usd": 0.67
+   },
+   {
+    "id": "kling-3-standard",
+    "label": "Kling 3.0 (standard)",
+    "fit": 66,
+    "top": false,
+    "budget": false,
+    "usd": 0.67
+   },
+   {
+    "id": "kling-3-turbo",
+    "label": "Kling 3.0 (turbo)",
+    "fit": 64,
+    "top": false,
+    "budget": false,
+    "usd": 0.67
+   },
+   {
+    "id": "kling-omni",
+    "label": "Kling Omni",
+    "fit": 63,
+    "top": false,
+    "budget": false,
+    "usd": 0.67
+   },
+   {
+    "id": "kling-2-6-pro",
+    "label": "Kling 2.6 (pro)",
+    "fit": 47,
+    "top": false,
+    "budget": false,
+    "usd": 0.7
+   },
+   {
+    "id": "cinema-studio-4",
+    "label": "Cinema Studio 4.0",
+    "fit": 46,
+    "top": false,
+    "budget": false,
+    "usd": 0.67
+   },
+   {
+    "id": "happy-horse-1-1",
+    "label": "HappyHorse 1.1",
+    "fit": 45,
+    "top": false,
+    "budget": false,
+    "usd": 0.67
+   },
+   {
+    "id": "pixverse-v6",
+    "label": "PixVerse V6",
+    "fit": 45,
+    "top": false,
+    "budget": false,
+    "usd": 0.69
+   },
+   {
+    "id": "wan-2-7",
+    "label": "Wan 2.7",
+    "fit": 43,
+    "top": false,
+    "budget": false,
+    "usd": 0.67
+   },
+   {
+    "id": "grok-video-1-5",
+    "label": "Grok Imagine Video 1.5",
+    "fit": 42,
+    "top": false,
+    "budget": false,
+    "usd": 0.67
+   },
+   {
+    "id": "hailuo-2-3-standard",
+    "label": "Hailuo 2.3 (standard)",
+    "fit": 39,
+    "top": false,
+    "budget": false,
+    "usd": 0.67
+   },
+   {
+    "id": "happy-horse-1",
+    "label": "Happy Horse 1.0",
+    "fit": 35,
+    "top": false,
+    "budget": false,
+    "usd": 0.67
+   },
+   {
+    "id": "ltx-2-5-pro",
+    "label": "LTX-2.5 (pro)",
+    "fit": 31,
+    "top": false,
+    "budget": false,
+    "usd": 1.02
+   },
+   {
+    "id": "wan-2-6",
+    "label": "Wan 2.6",
+    "fit": 27,
+    "top": false,
+    "budget": false,
+    "usd": 1.12
+   },
+   {
+    "id": "kling-2-5-turbo-pro",
+    "label": "Kling 2.5 Turbo (pro)",
+    "fit": 25,
+    "top": false,
+    "budget": false,
+    "usd": 0.42
+   },
+   {
+    "id": "ltx-2-5-fast",
+    "label": "LTX-2.5 (fast)",
+    "fit": 22,
+    "top": false,
+    "budget": false,
+    "usd": 0.67
+   }
+  ]
+ },
+ {
+  "id": "realistic-doc",
+  "label": "Realistic documentary",
+  "settings": "8s 16:9 1080p",
+  "dan_scene": "Cinematic, Realistic",
+  "dan_dialogue": "none",
+  "dan_top": "seedance",
+  "dan_top_shared": "seedance",
+  "ours_top": "seedance-2-5",
+  "ours_top_shared": "seedance",
+  "top1_agree": true,
+  "dan_top5": [
+   "seedance",
+   "wan",
+   "seedance-2",
+   "kling-omni",
+   "flux"
+  ],
+  "ours_top5_shared": [
+   "seedance",
+   "wan",
+   "h3",
+   "seedance-2",
+   "kling"
+  ],
+  "ours_top5_all": [
+   "seedance-2-5",
+   "wan-3-prime",
+   "minimax-h3",
+   "wan-3",
+   "seedance-2"
+  ],
+  "overlap_top5": 3,
+  "shared_ranked_by_dan": 6,
+  "spearman": 0.7142857142857143,
+  "dan_blocked": [],
+  "ours_blocked_shared": [],
+  "ours_traits": [
+   "camera_control"
+  ],
+  "dan_cards": [
+   {
+    "id": "seedance",
+    "fit": 10,
+    "share": 0.99,
+    "noAdvantage": false,
+    "reason": "Your top quality pick for this scene."
+   },
+   {
+    "id": "wan",
+    "fit": 8,
+    "share": 0.01,
+    "noAdvantage": false,
+    "reason": "Fits the camera work and cinematic look of this scene."
+   },
+   {
+    "id": "seedance-2",
+    "fit": 9,
+    "share": 0,
+    "noAdvantage": false,
+    "reason": "An alternative when you want quality close to Seedance 2.5."
+   },
+   {
+    "id": "kling-omni",
+    "fit": 7,
+    "share": 0,
+    "noAdvantage": false,
+    "reason": "A close Kling alternative, with a small quality trade-off."
+   },
+   {
+    "id": "flux",
+    "fit": 7,
+    "share": 0,
+    "noAdvantage": true,
+    "reason": "No clear advantage over the stronger choices for this scene."
+   },
+   {
+    "id": "gemini-omni",
+    "fit": 6,
+    "share": 0,
+    "noAdvantage": true,
+    "reason": "No clear advantage over the stronger choices for this scene."
+   },
+   {
+    "id": "h3",
+    "fit": 1,
+    "share": 0,
+    "noAdvantage": true,
+    "reason": "A lower-priority alternative for this scene; Seedance is the preferred quality choice."
+   },
+   {
+    "id": "kling",
+    "fit": 0,
+    "share": 0,
+    "noAdvantage": false,
+    "reason": "No specific reason returned. Evaluate again to retry."
+   }
+  ],
+  "ours_cards": [
+   {
+    "id": "seedance-2-5",
+    "label": "Seedance 2.5",
+    "fit": 84,
+    "top": true,
+    "budget": false,
+    "usd": 0.59
+   },
+   {
+    "id": "wan-3-prime",
+    "label": "Wan 3.0 Prime",
+    "fit": 83,
+    "top": false,
+    "budget": false,
+    "usd": 0.9
+   },
+   {
+    "id": "minimax-h3",
+    "label": "MiniMax H3",
+    "fit": 83,
+    "top": false,
+    "budget": false,
+    "usd": 1.04
+   },
+   {
+    "id": "wan-3",
+    "label": "Wan 3.0",
+    "fit": 81,
+    "top": false,
+    "budget": false,
+    "usd": 1.6
+   },
+   {
+    "id": "seedance-2",
+    "label": "Seedance 2.0",
+    "fit": 79,
+    "top": false,
+    "budget": false,
+    "usd": 7.47
+   },
+   {
+    "id": "kling-3-4k",
+    "label": "Kling 3.0 (4k)",
+    "fit": 77,
+    "top": false,
+    "budget": false,
+    "usd": 0.9
+   },
+   {
+    "id": "kling-3-pro",
+    "label": "Kling 3.0 (pro)",
+    "fit": 73,
+    "top": false,
+    "budget": false,
+    "usd": 0.9
+   },
+   {
+    "id": "kling-o3",
+    "label": "Kling O3",
+    "fit": 69,
+    "top": false,
+    "budget": false,
+    "usd": 0.9
+   },
+   {
+    "id": "cinema-studio-4",
+    "label": "Cinema Studio 4.0",
+    "fit": 69,
+    "top": false,
+    "budget": false,
+    "usd": 0.9
+   },
+   {
+    "id": "kling-3-standard",
+    "label": "Kling 3.0 (standard)",
+    "fit": 66,
+    "top": false,
+    "budget": false,
+    "usd": 0.9
+   },
+   {
+    "id": "kling-3-turbo",
+    "label": "Kling 3.0 (turbo)",
+    "fit": 64,
+    "top": false,
+    "budget": false,
+    "usd": 0.9
+   },
+   {
+    "id": "kling-omni",
+    "label": "Kling Omni",
+    "fit": 58,
+    "top": false,
+    "budget": false,
+    "usd": 0.9
+   },
+   {
+    "id": "kling-2-6-pro",
+    "label": "Kling 2.6 (pro)",
+    "fit": 44,
+    "top": false,
+    "budget": false,
+    "usd": 0.7
+   },
+   {
+    "id": "pixverse-v6",
+    "label": "PixVerse V6",
+    "fit": 42,
+    "top": false,
+    "budget": false,
+    "usd": 0.92
+   },
+   {
+    "id": "happy-horse-1-1",
+    "label": "HappyHorse 1.1",
+    "fit": 39,
+    "top": false,
+    "budget": false,
+    "usd": 0.9
+   },
+   {
+    "id": "wan-2-7",
+    "label": "Wan 2.7",
+    "fit": 39,
+    "top": false,
+    "budget": false,
+    "usd": 0.9
+   },
+   {
+    "id": "ltx-2-5-pro",
+    "label": "LTX-2.5 (pro)",
+    "fit": 39,
+    "top": false,
+    "budget": false,
+    "usd": 1.36
+   },
+   {
+    "id": "grok-video-1-5",
+    "label": "Grok Imagine Video 1.5",
+    "fit": 31,
+    "top": false,
+    "budget": false,
+    "usd": 0.9
+   },
+   {
+    "id": "hailuo-2-3-standard",
+    "label": "Hailuo 2.3 (standard)",
+    "fit": 31,
+    "top": false,
+    "budget": false,
+    "usd": 1.12
+   },
+   {
+    "id": "happy-horse-1",
+    "label": "Happy Horse 1.0",
+    "fit": 29,
+    "top": false,
+    "budget": false,
+    "usd": 0.9
+   },
+   {
+    "id": "ltx-2-5-fast",
+    "label": "LTX-2.5 (fast)",
+    "fit": 29,
+    "top": false,
+    "budget": false,
+    "usd": 0.9
+   },
+   {
+    "id": "kling-2-5-turbo-pro",
+    "label": "Kling 2.5 Turbo (pro)",
+    "fit": 25,
+    "top": false,
+    "budget": false,
+    "usd": 0.42
+   },
+   {
+    "id": "wan-2-6",
+    "label": "Wan 2.6",
+    "fit": 23,
+    "top": false,
+    "budget": false,
+    "usd": 1.12
+   }
+  ]
+ },
+ {
+  "id": "liquid-physics",
+  "label": "Realistic physics: liquid",
+  "settings": "5s 16:9 1080p",
+  "dan_scene": "Cinematic",
+  "dan_dialogue": "none",
+  "dan_top": "seedance",
+  "dan_top_shared": "seedance",
+  "ours_top": "wan-3-prime",
+  "ours_top_shared": "wan",
+  "top1_agree": false,
+  "dan_top5": [
+   "seedance",
+   "wan",
+   "seedance-2",
+   "kling-omni",
+   "gemini-omni"
+  ],
+  "ours_top5_shared": [
+   "wan",
+   "h3",
+   "seedance-2",
+   "seedance",
+   "kling"
+  ],
+  "ours_top5_all": [
+   "wan-3-prime",
+   "minimax-h3",
+   "wan-3",
+   "seedance-2",
+   "seedance-2-5"
+  ],
+  "overlap_top5": 3,
+  "shared_ranked_by_dan": 6,
+  "spearman": 0.3142857142857143,
+  "dan_blocked": [],
+  "ours_blocked_shared": [],
+  "ours_traits": [
+   "physics"
+  ],
+  "dan_cards": [
+   {
+    "id": "seedance",
+    "fit": 10,
+    "share": 0.99,
+    "noAdvantage": false,
+    "reason": "Your top quality pick for this scene."
+   },
+   {
+    "id": "wan",
+    "fit": 8,
+    "share": 0.01,
+    "noAdvantage": false,
+    "reason": "Fits the camera work and cinematic look of this scene."
+   },
+   {
+    "id": "seedance-2",
+    "fit": 9,
+    "share": 0,
+    "noAdvantage": false,
+    "reason": "An alternative when you want quality close to Seedance 2.5."
+   },
+   {
+    "id": "kling-omni",
+    "fit": 7,
+    "share": 0,
+    "noAdvantage": false,
+    "reason": "A close Kling alternative, with a small quality trade-off."
+   },
+   {
+    "id": "gemini-omni",
+    "fit": 7,
+    "share": 0,
+    "noAdvantage": true,
+    "reason": "No clear advantage over the stronger choices for this scene."
+   },
+   {
+    "id": "flux",
+    "fit": 7,
+    "share": 0,
+    "noAdvantage": true,
+    "reason": "No clear advantage over the stronger choices for this scene."
+   },
+   {
+    "id": "h3",
+    "fit": 1,
+    "share": 0,
+    "noAdvantage": true,
+    "reason": "A lower-priority alternative for this scene; Seedance is the preferred quality choice."
+   },
+   {
+    "id": "kling",
+    "fit": 0,
+    "share": 0,
+    "noAdvantage": false,
+    "reason": "No specific reason returned. Evaluate again to retry."
+   }
+  ],
+  "ours_cards": [
+   {
+    "id": "wan-3-prime",
+    "label": "Wan 3.0 Prime",
+    "fit": 88,
+    "top": true,
+    "budget": false,
+    "usd": 0.56
+   },
+   {
+    "id": "minimax-h3",
+    "label": "MiniMax H3",
+    "fit": 87,
+    "top": false,
+    "budget": false,
+    "usd": 0.65
+   },
+   {
+    "id": "wan-3",
+    "label": "Wan 3.0",
+    "fit": 87,
+    "top": false,
+    "budget": false,
+    "usd": 1
+   },
+   {
+    "id": "seedance-2",
+    "label": "Seedance 2.0",
+    "fit": 83,
+    "top": false,
+    "budget": false,
+    "usd": 4.67
+   },
+   {
+    "id": "seedance-2-5",
+    "label": "Seedance 2.5",
+    "fit": 53,
+    "top": false,
+    "budget": false,
+    "usd": 0.37
+   },
+   {
+    "id": "cinema-studio-4",
+    "label": "Cinema Studio 4.0",
+    "fit": 44,
+    "top": false,
+    "budget": false,
+    "usd": 0.56
+   },
+   {
+    "id": "kling-3-4k",
+    "label": "Kling 3.0 (4k)",
+    "fit": 39,
+    "top": false,
+    "budget": false,
+    "usd": 0.56
+   },
+   {
+    "id": "kling-o3",
+    "label": "Kling O3",
+    "fit": 39,
+    "top": false,
+    "budget": false,
+    "usd": 0.56
+   },
+   {
+    "id": "happy-horse-1-1",
+    "label": "HappyHorse 1.1",
+    "fit": 39,
+    "top": false,
+    "budget": false,
+    "usd": 0.56
+   },
+   {
+    "id": "pixverse-v6",
+    "label": "PixVerse V6",
+    "fit": 39,
+    "top": false,
+    "budget": false,
+    "usd": 0.58
+   },
+   {
+    "id": "kling-3-pro",
+    "label": "Kling 3.0 (pro)",
+    "fit": 34,
+    "top": false,
+    "budget": false,
+    "usd": 0.56
+   },
+   {
+    "id": "kling-omni",
+    "label": "Kling Omni",
+    "fit": 31,
+    "top": false,
+    "budget": false,
+    "usd": 0.56
+   },
+   {
+    "id": "grok-video-1-5",
+    "label": "Grok Imagine Video 1.5",
+    "fit": 31,
+    "top": false,
+    "budget": false,
+    "usd": 0.56
+   },
+   {
+    "id": "kling-2-6-pro",
+    "label": "Kling 2.6 (pro)",
+    "fit": 29,
+    "top": false,
+    "budget": false,
+    "usd": 0.35
+   },
+   {
+    "id": "happy-horse-1",
+    "label": "Happy Horse 1.0",
+    "fit": 29,
+    "top": false,
+    "budget": false,
+    "usd": 0.56
+   },
+   {
+    "id": "kling-3-standard",
+    "label": "Kling 3.0 (standard)",
+    "fit": 27,
+    "top": false,
+    "budget": false,
+    "usd": 0.56
+   },
+   {
+    "id": "wan-2-6",
+    "label": "Wan 2.6",
+    "fit": 27,
+    "top": false,
+    "budget": false,
+    "usd": 0.56
+   },
+   {
+    "id": "kling-3-turbo",
+    "label": "Kling 3.0 (turbo)",
+    "fit": 25,
+    "top": false,
+    "budget": false,
+    "usd": 0.56
+   },
+   {
+    "id": "ltx-2-5-pro",
+    "label": "LTX-2.5 (pro)",
+    "fit": 23,
+    "top": false,
+    "budget": false,
+    "usd": 1.02
+   },
+   {
+    "id": "wan-2-7",
+    "label": "Wan 2.7",
+    "fit": 21,
+    "top": false,
+    "budget": false,
+    "usd": 0.56
+   },
+   {
+    "id": "kling-2-5-turbo-pro",
+    "label": "Kling 2.5 Turbo (pro)",
+    "fit": 17,
+    "top": false,
+    "budget": false,
+    "usd": 0.21
+   },
+   {
+    "id": "ltx-2-5-fast",
+    "label": "LTX-2.5 (fast)",
+    "fit": 16,
+    "top": false,
+    "budget": false,
+    "usd": 0.67
+   },
+   {
+    "id": "hailuo-2-3-standard",
+    "label": "Hailuo 2.3 (standard)",
+    "fit": 13,
+    "top": false,
+    "budget": false,
+    "usd": 0.67
+   }
+  ]
+ },
+ {
+  "id": "product-text",
+  "label": "Product with on-screen text",
+  "settings": "6s 16:9 1080p",
+  "dan_scene": "Product video",
+  "dan_dialogue": "none",
+  "dan_top": "seedance",
+  "dan_top_shared": "seedance",
+  "ours_top": "wan-3-prime",
+  "ours_top_shared": "wan",
+  "top1_agree": false,
+  "dan_top5": [
+   "seedance",
+   "wan",
+   "seedance-2",
+   "kling-omni",
+   "gemini-omni"
+  ],
+  "ours_top5_shared": [
+   "wan",
+   "seedance-2",
+   "seedance",
+   "kling",
+   "kling-omni"
+  ],
+  "ours_top5_all": [
+   "wan-3-prime",
+   "seedance-2",
+   "wan-3",
+   "seedance-2-5",
+   "kling-3-4k"
+  ],
+  "overlap_top5": 4,
+  "shared_ranked_by_dan": 6,
+  "spearman": 0.6571428571428571,
+  "dan_blocked": [],
+  "ours_blocked_shared": [],
+  "ours_traits": [
+   "dialogue",
+   "product"
+  ],
+  "dan_cards": [
+   {
+    "id": "seedance",
+    "fit": 10,
+    "share": 0.96,
+    "noAdvantage": false,
+    "reason": "Your top quality pick for this scene."
+   },
+   {
+    "id": "wan",
+    "fit": 8,
+    "share": 0.04,
+    "noAdvantage": false,
+    "reason": "A strong alternative for the product shot and movement you described."
+   },
+   {
+    "id": "seedance-2",
+    "fit": 9,
+    "share": 0,
+    "noAdvantage": false,
+    "reason": "An alternative when you want quality close to Seedance 2.5."
+   },
+   {
+    "id": "kling-omni",
+    "fit": 7,
+    "share": 0,
+    "noAdvantage": false,
+    "reason": "A close Kling alternative, with a small quality trade-off."
+   },
+   {
+    "id": "gemini-omni",
+    "fit": 7,
+    "share": 0,
+    "noAdvantage": true,
+    "reason": "No clear advantage over the stronger choices for this scene."
+   },
+   {
+    "id": "flux",
+    "fit": 7,
+    "share": 0,
+    "noAdvantage": true,
+    "reason": "No clear advantage over the stronger choices for this scene."
+   },
+   {
+    "id": "h3",
+    "fit": 1,
+    "share": 0,
+    "noAdvantage": true,
+    "reason": "A lower-priority alternative for this scene; Seedance is the preferred quality choice."
+   },
+   {
+    "id": "kling",
+    "fit": 0,
+    "share": 0,
+    "noAdvantage": false,
+    "reason": "No specific reason returned. Evaluate again to retry."
+   }
+  ],
+  "ours_cards": [
+   {
+    "id": "wan-3-prime",
+    "label": "Wan 3.0 Prime",
+    "fit": 90,
+    "top": true,
+    "budget": false,
+    "usd": 0.67
+   },
+   {
+    "id": "seedance-2",
+    "label": "Seedance 2.0",
+    "fit": 90,
+    "top": false,
+    "budget": false,
+    "usd": 5.6
+   },
+   {
+    "id": "wan-3",
+    "label": "Wan 3.0",
+    "fit": 89,
+    "top": false,
+    "budget": false,
+    "usd": 1.2
+   },
+   {
+    "id": "seedance-2-5",
+    "label": "Seedance 2.5",
+    "fit": 85,
+    "top": false,
+    "budget": true,
+    "usd": 0.44
+   },
+   {
+    "id": "kling-3-4k",
+    "label": "Kling 3.0 (4k)",
+    "fit": 82,
+    "top": false,
+    "budget": false,
+    "usd": 0.67
+   },
+   {
+    "id": "kling-3-pro",
+    "label": "Kling 3.0 (pro)",
+    "fit": 79,
+    "top": false,
+    "budget": false,
+    "usd": 0.67
+   },
+   {
+    "id": "kling-o3",
+    "label": "Kling O3",
+    "fit": 77,
+    "top": false,
+    "budget": false,
+    "usd": 0.67
+   },
+   {
+    "id": "kling-3-standard",
+    "label": "Kling 3.0 (standard)",
+    "fit": 72,
+    "top": false,
+    "budget": false,
+    "usd": 0.67
+   },
+   {
+    "id": "cinema-studio-4",
+    "label": "Cinema Studio 4.0",
+    "fit": 64,
+    "top": false,
+    "budget": false,
+    "usd": 0.67
+   },
+   {
+    "id": "pixverse-v6",
+    "label": "PixVerse V6",
+    "fit": 54,
+    "top": false,
+    "budget": false,
+    "usd": 0.69
+   },
+   {
+    "id": "kling-2-6-pro",
+    "label": "Kling 2.6 (pro)",
+    "fit": 50,
+    "top": false,
+    "budget": false,
+    "usd": 0.7
+   },
+   {
+    "id": "ltx-2-5-pro",
+    "label": "LTX-2.5 (pro)",
+    "fit": 39,
+    "top": false,
+    "budget": false,
+    "usd": 1.02
+   },
+   {
+    "id": "ltx-2-5-fast",
+    "label": "LTX-2.5 (fast)",
+    "fit": 29,
+    "top": false,
+    "budget": false,
+    "usd": 0.67
+   },
+   {
+    "id": "minimax-h3",
+    "label": "MiniMax H3",
+    "fit": 25,
+    "top": false,
+    "budget": false,
+    "usd": 0.78
+   },
+   {
+    "id": "kling-3-turbo",
+    "label": "Kling 3.0 (turbo)",
+    "fit": 17,
+    "top": false,
+    "budget": false,
+    "usd": 0.67
+   },
+   {
+    "id": "kling-omni",
+    "label": "Kling Omni",
+    "fit": 8,
+    "top": false,
+    "budget": false,
+    "usd": 0.67
+   },
+   {
+    "id": "happy-horse-1-1",
+    "label": "HappyHorse 1.1",
+    "fit": 5,
+    "top": false,
+    "budget": false,
+    "usd": 0.67
+   },
+   {
+    "id": "wan-2-7",
+    "label": "Wan 2.7",
+    "fit": 5,
+    "top": false,
+    "budget": false,
+    "usd": 0.67
+   },
+   {
+    "id": "happy-horse-1",
+    "label": "Happy Horse 1.0",
+    "fit": 4,
+    "top": false,
+    "budget": false,
+    "usd": 0.67
+   },
+   {
+    "id": "hailuo-2-3-standard",
+    "label": "Hailuo 2.3 (standard)",
+    "fit": 3,
+    "top": false,
+    "budget": false,
+    "usd": 0.67
+   },
+   {
+    "id": "grok-video-1-5",
+    "label": "Grok Imagine Video 1.5",
+    "fit": 3,
+    "top": false,
+    "budget": false,
+    "usd": 0.67
+   },
+   {
+    "id": "kling-2-5-turbo-pro",
+    "label": "Kling 2.5 Turbo (pro)",
+    "fit": 2,
+    "top": false,
+    "budget": false,
+    "usd": 0.42
+   },
+   {
+    "id": "wan-2-6",
+    "label": "Wan 2.6",
+    "fit": 2,
+    "top": false,
+    "budget": false,
+    "usd": 1.12
+   }
+  ]
+ },
+ {
+  "id": "vertical-social",
+  "label": "Vertical social, 9:16",
+  "settings": "8s 9:16 1080p",
+  "dan_scene": "Product video, Realistic",
+  "dan_dialogue": "none",
+  "dan_top": "seedance",
+  "dan_top_shared": "seedance",
+  "ours_top": "minimax-h3",
+  "ours_top_shared": "h3",
+  "top1_agree": false,
+  "dan_top5": [
+   "seedance",
+   "seedance-2",
+   "wan",
+   "kling-omni",
+   "gemini-omni"
+  ],
+  "ours_top5_shared": [
+   "h3",
+   "wan",
+   "seedance-2",
+   "seedance",
+   "kling"
+  ],
+  "ours_top5_all": [
+   "minimax-h3",
+   "wan-3-prime",
+   "wan-3",
+   "seedance-2",
+   "seedance-2-5"
+  ],
+  "overlap_top5": 3,
+  "shared_ranked_by_dan": 6,
+  "spearman": 0.08571428571428574,
+  "dan_blocked": [],
+  "ours_blocked_shared": [],
+  "ours_traits": [
+   "vertical_social",
+   "product"
+  ],
+  "dan_cards": [
+   {
+    "id": "seedance",
+    "fit": 10,
+    "share": 1,
+    "noAdvantage": false,
+    "reason": "Your top quality pick for this scene."
+   },
+   {
+    "id": "seedance-2",
+    "fit": 9,
+    "share": 0,
+    "noAdvantage": false,
+    "reason": "An alternative when you want quality close to Seedance 2.5."
+   },
+   {
+    "id": "wan",
+    "fit": 8,
+    "share": 0,
+    "noAdvantage": false,
+    "reason": "A strong alternative for the product shot and movement you described."
+   },
+   {
+    "id": "kling-omni",
+    "fit": 7,
+    "share": 0,
+    "noAdvantage": false,
+    "reason": "A close Kling alternative, with a small quality trade-off."
+   },
+   {
+    "id": "gemini-omni",
+    "fit": 7,
+    "share": 0,
+    "noAdvantage": true,
+    "reason": "No clear advantage over the stronger choices for this scene."
+   },
+   {
+    "id": "flux",
+    "fit": 7,
+    "share": 0,
+    "noAdvantage": true,
+    "reason": "No clear advantage over the stronger choices for this scene."
+   },
+   {
+    "id": "h3",
+    "fit": 1,
+    "share": 0,
+    "noAdvantage": true,
+    "reason": "A lower-priority alternative for this scene; Seedance is the preferred quality choice."
+   },
+   {
+    "id": "kling",
+    "fit": 0,
+    "share": 0,
+    "noAdvantage": false,
+    "reason": "No specific reason returned. Evaluate again to retry."
+   }
+  ],
+  "ours_cards": [
+   {
+    "id": "minimax-h3",
+    "label": "MiniMax H3",
+    "fit": 85,
+    "top": true,
+    "budget": false,
+    "usd": 1.04
+   },
+   {
+    "id": "wan-3-prime",
+    "label": "Wan 3.0 Prime",
+    "fit": 84,
+    "top": false,
+    "budget": false,
+    "usd": 0.9
+   },
+   {
+    "id": "wan-3",
+    "label": "Wan 3.0",
+    "fit": 82,
+    "top": false,
+    "budget": false,
+    "usd": 1.6
+   },
+   {
+    "id": "seedance-2",
+    "label": "Seedance 2.0",
+    "fit": 79,
+    "top": false,
+    "budget": false,
+    "usd": 7.47
+   },
+   {
+    "id": "seedance-2-5",
+    "label": "Seedance 2.5",
+    "fit": 75,
+    "top": false,
+    "budget": true,
+    "usd": 0.59
+   },
+   {
+    "id": "kling-3-4k",
+    "label": "Kling 3.0 (4k)",
+    "fit": 75,
+    "top": false,
+    "budget": false,
+    "usd": 0.9
+   },
+   {
+    "id": "kling-3-pro",
+    "label": "Kling 3.0 (pro)",
+    "fit": 70,
+    "top": false,
+    "budget": false,
+    "usd": 0.9
+   },
+   {
+    "id": "kling-o3",
+    "label": "Kling O3",
+    "fit": 67,
+    "top": false,
+    "budget": false,
+    "usd": 0.9
+   },
+   {
+    "id": "kling-3-standard",
+    "label": "Kling 3.0 (standard)",
+    "fit": 63,
+    "top": false,
+    "budget": false,
+    "usd": 0.9
+   },
+   {
+    "id": "kling-3-turbo",
+    "label": "Kling 3.0 (turbo)",
+    "fit": 60,
+    "top": false,
+    "budget": false,
+    "usd": 0.9
+   },
+   {
+    "id": "kling-omni",
+    "label": "Kling Omni",
+    "fit": 57,
+    "top": false,
+    "budget": false,
+    "usd": 0.9
+   },
+   {
+    "id": "pixverse-v6",
+    "label": "PixVerse V6",
+    "fit": 55,
+    "top": false,
+    "budget": false,
+    "usd": 0.92
+   },
+   {
+    "id": "happy-horse-1-1",
+    "label": "HappyHorse 1.1",
+    "fit": 45,
+    "top": false,
+    "budget": false,
+    "usd": 0.9
+   },
+   {
+    "id": "kling-2-6-pro",
+    "label": "Kling 2.6 (pro)",
+    "fit": 43,
+    "top": false,
+    "budget": false,
+    "usd": 0.7
+   },
+   {
+    "id": "wan-2-7",
+    "label": "Wan 2.7",
+    "fit": 41,
+    "top": false,
+    "budget": false,
+    "usd": 0.9
+   },
+   {
+    "id": "grok-video-1-5",
+    "label": "Grok Imagine Video 1.5",
+    "fit": 40,
+    "top": false,
+    "budget": false,
+    "usd": 0.9
+   },
+   {
+    "id": "cinema-studio-4",
+    "label": "Cinema Studio 4.0",
+    "fit": 38,
+    "top": false,
+    "budget": false,
+    "usd": 0.9
+   },
+   {
+    "id": "ltx-2-5-pro",
+    "label": "LTX-2.5 (pro)",
+    "fit": 36,
+    "top": false,
+    "budget": false,
+    "usd": 1.36
+   },
+   {
+    "id": "happy-horse-1",
+    "label": "Happy Horse 1.0",
+    "fit": 35,
+    "top": false,
+    "budget": false,
+    "usd": 0.9
+   },
+   {
+    "id": "ltx-2-5-fast",
+    "label": "LTX-2.5 (fast)",
+    "fit": 27,
+    "top": false,
+    "budget": false,
+    "usd": 0.9
+   }
+  ]
+ },
+ {
+  "id": "horror",
+  "label": "Horror atmosphere",
+  "settings": "8s 16:9 720p",
+  "dan_scene": "Cinematic",
+  "dan_dialogue": "none",
+  "dan_top": "seedance",
+  "dan_top_shared": "seedance",
+  "ours_top": "wan-3-prime",
+  "ours_top_shared": "wan",
+  "top1_agree": false,
+  "dan_top5": [
+   "seedance",
+   "wan",
+   "seedance-2",
+   "kling-omni",
+   "flux"
+  ],
+  "ours_top5_shared": [
+   "wan",
+   "seedance",
+   "h3",
+   "seedance-2",
+   "kling"
+  ],
+  "ours_top5_all": [
+   "wan-3-prime",
+   "seedance-2-5",
+   "minimax-h3",
+   "wan-3",
+   "seedance-2"
+  ],
+  "overlap_top5": 3,
+  "shared_ranked_by_dan": 6,
+  "spearman": 0.6571428571428571,
+  "dan_blocked": [],
+  "ours_blocked_shared": [],
+  "ours_traits": [],
+  "dan_cards": [
+   {
+    "id": "seedance",
+    "fit": 10,
+    "share": 0.99,
+    "noAdvantage": false,
+    "reason": "Fits the camera work and cinematic look of this scene."
+   },
+   {
+    "id": "wan",
+    "fit": 8,
+    "share": 0.01,
+    "noAdvantage": false,
+    "reason": "Fits the camera work and cinematic look of this scene."
+   },
+   {
+    "id": "seedance-2",
+    "fit": 9,
+    "share": 0,
+    "noAdvantage": false,
+    "reason": "An alternative when you want quality close to Seedance 2.5."
+   },
+   {
+    "id": "kling-omni",
+    "fit": 7,
+    "share": 0,
+    "noAdvantage": false,
+    "reason": "A close Kling alternative, with a small quality trade-off."
+   },
+   {
+    "id": "flux",
+    "fit": 7,
+    "share": 0,
+    "noAdvantage": true,
+    "reason": "No clear advantage over the stronger choices for this scene."
+   },
+   {
+    "id": "h3",
+    "fit": 6,
+    "share": 0,
+    "noAdvantage": true,
+    "reason": "A lower-priority alternative for this scene; Seedance is the preferred quality choice."
+   },
+   {
+    "id": "gemini-omni",
+    "fit": 6,
+    "share": 0,
+    "noAdvantage": true,
+    "reason": "No clear advantage over the stronger choices for this scene."
+   },
+   {
+    "id": "kling",
+    "fit": 0,
+    "share": 0,
+    "noAdvantage": false,
+    "reason": "No specific reason returned. Evaluate again to retry."
+   }
+  ],
+  "ours_cards": [
+   {
+    "id": "wan-3-prime",
+    "label": "Wan 3.0 Prime",
+    "fit": 75,
+    "top": true,
+    "budget": false,
+    "usd": 0.9
+   },
+   {
+    "id": "seedance-2-5",
+    "label": "Seedance 2.5",
+    "fit": 73,
+    "top": false,
+    "budget": false,
+    "usd": 0.59
+   },
+   {
+    "id": "minimax-h3",
+    "label": "MiniMax H3",
+    "fit": 73,
+    "top": false,
+    "budget": false,
+    "usd": 1.04
+   },
+   {
+    "id": "wan-3",
+    "label": "Wan 3.0",
+    "fit": 73,
+    "top": false,
+    "budget": false,
+    "usd": 1.6
+   },
+   {
+    "id": "seedance-2",
+    "label": "Seedance 2.0",
+    "fit": 69,
+    "top": false,
+    "budget": false,
+    "usd": 7.47
+   },
+   {
+    "id": "kling-3-4k",
+    "label": "Kling 3.0 (4k)",
+    "fit": 61,
+    "top": false,
+    "budget": false,
+    "usd": 0.9
+   },
+   {
+    "id": "cinema-studio-4",
+    "label": "Cinema Studio 4.0",
+    "fit": 58,
+    "top": false,
+    "budget": false,
+    "usd": 0.9
+   },
+   {
+    "id": "kling-3-pro",
+    "label": "Kling 3.0 (pro)",
+    "fit": 56,
+    "top": false,
+    "budget": false,
+    "usd": 0.9
+   },
+   {
+    "id": "kling-o3",
+    "label": "Kling O3",
+    "fit": 56,
+    "top": false,
+    "budget": false,
+    "usd": 0.9
+   },
+   {
+    "id": "kling-3-standard",
+    "label": "Kling 3.0 (standard)",
+    "fit": 47,
+    "top": false,
+    "budget": false,
+    "usd": 0.9
+   },
+   {
+    "id": "kling-omni",
+    "label": "Kling Omni",
+    "fit": 47,
+    "top": false,
+    "budget": false,
+    "usd": 0.9
+   },
+   {
+    "id": "kling-3-turbo",
+    "label": "Kling 3.0 (turbo)",
+    "fit": 44,
+    "top": false,
+    "budget": false,
+    "usd": 0.9
+   },
+   {
+    "id": "kling-2-6-pro",
+    "label": "Kling 2.6 (pro)",
+    "fit": 34,
+    "top": false,
+    "budget": false,
+    "usd": 0.7
+   },
+   {
+    "id": "happy-horse-1-1",
+    "label": "HappyHorse 1.1",
+    "fit": 34,
+    "top": false,
+    "budget": false,
+    "usd": 0.9
+   },
+   {
+    "id": "wan-2-7",
+    "label": "Wan 2.7",
+    "fit": 34,
+    "top": false,
+    "budget": false,
+    "usd": 0.9
+   },
+   {
+    "id": "pixverse-v6",
+    "label": "PixVerse V6",
+    "fit": 34,
+    "top": false,
+    "budget": false,
+    "usd": 0.92
+   },
+   {
+    "id": "grok-video-1-5",
+    "label": "Grok Imagine Video 1.5",
+    "fit": 29,
+    "top": false,
+    "budget": false,
+    "usd": 0.9
+   },
+   {
+    "id": "happy-horse-1",
+    "label": "Happy Horse 1.0",
+    "fit": 27,
+    "top": false,
+    "budget": false,
+    "usd": 0.9
+   },
+   {
+    "id": "ltx-2-5-pro",
+    "label": "LTX-2.5 (pro)",
+    "fit": 25,
+    "top": false,
+    "budget": false,
+    "usd": 1.36
+   },
+   {
+    "id": "hailuo-2-3-standard",
+    "label": "Hailuo 2.3 (standard)",
+    "fit": 23,
+    "top": false,
+    "budget": false,
+    "usd": 1.12
+   },
+   {
+    "id": "kling-2-5-turbo-pro",
+    "label": "Kling 2.5 Turbo (pro)",
+    "fit": 21,
+    "top": false,
+    "budget": false,
+    "usd": 0.42
+   },
+   {
+    "id": "wan-2-6",
+    "label": "Wan 2.6",
+    "fit": 21,
+    "top": false,
+    "budget": false,
+    "usd": 1.12
+   },
+   {
+    "id": "ltx-2-5-fast",
+    "label": "LTX-2.5 (fast)",
+    "fit": 17,
+    "top": false,
+    "budget": false,
+    "usd": 0.9
+   }
+  ]
+ },
+ {
+  "id": "sports",
+  "label": "Sports: fast body motion",
+  "settings": "6s 16:9 1080p",
+  "dan_scene": "Cinematic",
+  "dan_dialogue": "none",
+  "dan_top": "seedance",
+  "dan_top_shared": "seedance",
+  "ours_top": "wan-3-prime",
+  "ours_top_shared": "wan",
+  "top1_agree": false,
+  "dan_top5": [
+   "seedance",
+   "wan",
+   "seedance-2",
+   "kling-omni",
+   "gemini-omni"
+  ],
+  "ours_top5_shared": [
+   "wan",
+   "seedance",
+   "h3",
+   "seedance-2",
+   "kling"
+  ],
+  "ours_top5_all": [
+   "wan-3-prime",
+   "seedance-2-5",
+   "minimax-h3",
+   "wan-3",
+   "seedance-2"
+  ],
+  "overlap_top5": 3,
+  "shared_ranked_by_dan": 6,
+  "spearman": 0.6571428571428571,
+  "dan_blocked": [],
+  "ours_blocked_shared": [],
+  "ours_traits": [],
+  "dan_cards": [
+   {
+    "id": "seedance",
+    "fit": 10,
+    "share": 0.99,
+    "noAdvantage": false,
+    "reason": "The coordinated action makes this a good fit for your premium model."
+   },
+   {
+    "id": "wan",
+    "fit": 8,
+    "share": 0.01,
+    "noAdvantage": false,
+    "reason": "Fits the camera work and cinematic look of this scene."
+   },
+   {
+    "id": "seedance-2",
+    "fit": 9,
+    "share": 0,
+    "noAdvantage": false,
+    "reason": "An alternative when you want quality close to Seedance 2.5."
+   },
+   {
+    "id": "kling-omni",
+    "fit": 7,
+    "share": 0,
+    "noAdvantage": false,
+    "reason": "A close Kling alternative, with a small quality trade-off."
+   },
+   {
+    "id": "gemini-omni",
+    "fit": 7,
+    "share": 0,
+    "noAdvantage": true,
+    "reason": "No clear advantage over the stronger choices for this scene."
+   },
+   {
+    "id": "flux",
+    "fit": 7,
+    "share": 0,
+    "noAdvantage": true,
+    "reason": "No clear advantage over the stronger choices for this scene."
+   },
+   {
+    "id": "h3",
+    "fit": 1,
+    "share": 0,
+    "noAdvantage": true,
+    "reason": "The coordinated action and camera moves favor Seedance for this scene."
+   },
+   {
+    "id": "kling",
+    "fit": 0,
+    "share": 0,
+    "noAdvantage": false,
+    "reason": "No specific reason returned. Evaluate again to retry."
+   }
+  ],
+  "ours_cards": [
+   {
+    "id": "wan-3-prime",
+    "label": "Wan 3.0 Prime",
+    "fit": 75,
+    "top": true,
+    "budget": false,
+    "usd": 0.67
+   },
+   {
+    "id": "seedance-2-5",
+    "label": "Seedance 2.5",
+    "fit": 73,
+    "top": false,
+    "budget": false,
+    "usd": 0.44
+   },
+   {
+    "id": "minimax-h3",
+    "label": "MiniMax H3",
+    "fit": 73,
+    "top": false,
+    "budget": false,
+    "usd": 0.78
+   },
+   {
+    "id": "wan-3",
+    "label": "Wan 3.0",
+    "fit": 73,
+    "top": false,
+    "budget": false,
+    "usd": 1.2
+   },
+   {
+    "id": "seedance-2",
+    "label": "Seedance 2.0",
+    "fit": 69,
+    "top": false,
+    "budget": false,
+    "usd": 5.6
+   },
+   {
+    "id": "kling-3-4k",
+    "label": "Kling 3.0 (4k)",
+    "fit": 61,
+    "top": false,
+    "budget": false,
+    "usd": 0.67
+   },
+   {
+    "id": "kling-3-pro",
+    "label": "Kling 3.0 (pro)",
+    "fit": 56,
+    "top": false,
+    "budget": false,
+    "usd": 0.67
+   },
+   {
+    "id": "kling-o3",
+    "label": "Kling O3",
+    "fit": 56,
+    "top": false,
+    "budget": false,
+    "usd": 0.67
+   },
+   {
+    "id": "kling-3-standard",
+    "label": "Kling 3.0 (standard)",
+    "fit": 47,
+    "top": false,
+    "budget": false,
+    "usd": 0.67
+   },
+   {
+    "id": "kling-omni",
+    "label": "Kling Omni",
+    "fit": 47,
+    "top": false,
+    "budget": false,
+    "usd": 0.67
+   },
+   {
+    "id": "kling-3-turbo",
+    "label": "Kling 3.0 (turbo)",
+    "fit": 44,
+    "top": false,
+    "budget": false,
+    "usd": 0.67
+   },
+   {
+    "id": "cinema-studio-4",
+    "label": "Cinema Studio 4.0",
+    "fit": 36,
+    "top": false,
+    "budget": false,
+    "usd": 0.67
+   },
+   {
+    "id": "happy-horse-1-1",
+    "label": "HappyHorse 1.1",
+    "fit": 34,
+    "top": false,
+    "budget": false,
+    "usd": 0.67
+   },
+   {
+    "id": "wan-2-7",
+    "label": "Wan 2.7",
+    "fit": 34,
+    "top": false,
+    "budget": false,
+    "usd": 0.67
+   },
+   {
+    "id": "pixverse-v6",
+    "label": "PixVerse V6",
+    "fit": 34,
+    "top": false,
+    "budget": false,
+    "usd": 0.69
+   },
+   {
+    "id": "kling-2-6-pro",
+    "label": "Kling 2.6 (pro)",
+    "fit": 34,
+    "top": false,
+    "budget": false,
+    "usd": 0.7
+   },
+   {
+    "id": "grok-video-1-5",
+    "label": "Grok Imagine Video 1.5",
+    "fit": 29,
+    "top": false,
+    "budget": false,
+    "usd": 0.67
+   },
+   {
+    "id": "happy-horse-1",
+    "label": "Happy Horse 1.0",
+    "fit": 27,
+    "top": false,
+    "budget": false,
+    "usd": 0.67
+   },
+   {
+    "id": "hailuo-2-3-standard",
+    "label": "Hailuo 2.3 (standard)",
+    "fit": 27,
+    "top": false,
+    "budget": false,
+    "usd": 0.67
+   },
+   {
+    "id": "ltx-2-5-pro",
+    "label": "LTX-2.5 (pro)",
+    "fit": 25,
+    "top": false,
+    "budget": false,
+    "usd": 1.02
+   },
+   {
+    "id": "kling-2-5-turbo-pro",
+    "label": "Kling 2.5 Turbo (pro)",
+    "fit": 21,
+    "top": false,
+    "budget": false,
+    "usd": 0.42
+   },
+   {
+    "id": "wan-2-6",
+    "label": "Wan 2.6",
+    "fit": 21,
+    "top": false,
+    "budget": false,
+    "usd": 1.12
+   },
+   {
+    "id": "ltx-2-5-fast",
+    "label": "LTX-2.5 (fast)",
+    "fit": 17,
+    "top": false,
+    "budget": false,
+    "usd": 0.67
+   }
+  ]
+ },
+ {
+  "id": "highres-landscape",
+  "label": "High resolution, 4K landscape",
+  "settings": "8s 16:9 4K",
+  "dan_scene": "Cinematic",
+  "dan_dialogue": "none",
+  "dan_top": "seedance",
+  "dan_top_shared": "seedance",
+  "ours_top": "seedance-2",
+  "ours_top_shared": "seedance-2",
+  "top1_agree": false,
+  "dan_top5": [
+   "seedance",
+   "wan",
+   "seedance-2",
+   "kling-omni",
+   "flux"
+  ],
+  "ours_top5_shared": [
+   "seedance-2",
+   "wan",
+   "h3",
+   "seedance",
+   "kling"
+  ],
+  "ours_top5_all": [
+   "seedance-2",
+   "wan-3-prime",
+   "minimax-h3",
+   "wan-3",
+   "seedance-2-5"
+  ],
+  "overlap_top5": 3,
+  "shared_ranked_by_dan": 6,
+  "spearman": 0.37142857142857144,
+  "dan_blocked": [],
+  "ours_blocked_shared": [],
+  "ours_traits": [
+   "establishing"
+  ],
+  "dan_cards": [
+   {
+    "id": "seedance",
+    "fit": 10,
+    "share": 0.97,
+    "noAdvantage": false,
+    "reason": "Your top quality pick for this scene."
+   },
+   {
+    "id": "wan",
+    "fit": 8,
+    "share": 0.03,
+    "noAdvantage": false,
+    "reason": "Fits the camera work and cinematic look of this scene."
+   },
+   {
+    "id": "seedance-2",
+    "fit": 9,
+    "share": 0,
+    "noAdvantage": false,
+    "reason": "An alternative when you want quality close to Seedance 2.5."
+   },
+   {
+    "id": "kling-omni",
+    "fit": 7,
+    "share": 0,
+    "noAdvantage": false,
+    "reason": "A close Kling alternative, with a small quality trade-off."
+   },
+   {
+    "id": "flux",
+    "fit": 7,
+    "share": 0,
+    "noAdvantage": false,
+    "reason": "A fit for the supporting shot and simple movement you described."
+   },
+   {
+    "id": "gemini-omni",
+    "fit": 7,
+    "share": 0,
+    "noAdvantage": true,
+    "reason": "No clear advantage over the stronger choices for this scene."
+   },
+   {
+    "id": "h3",
+    "fit": 6,
+    "share": 0,
+    "noAdvantage": true,
+    "reason": "A lower-priority alternative for this scene; Seedance is the preferred quality choice."
+   },
+   {
+    "id": "kling",
+    "fit": 0,
+    "share": 0,
+    "noAdvantage": false,
+    "reason": "No specific reason returned. Evaluate again to retry."
+   }
+  ],
+  "ours_cards": [
+   {
+    "id": "seedance-2",
+    "label": "Seedance 2.0",
+    "fit": 77,
+    "top": true,
+    "budget": false,
+    "usd": 7.47
+   },
+   {
+    "id": "wan-3-prime",
+    "label": "Wan 3.0 Prime",
+    "fit": 75,
+    "top": false,
+    "budget": true,
+    "usd": 0.9
+   },
+   {
+    "id": "minimax-h3",
+    "label": "MiniMax H3",
+    "fit": 71,
+    "top": false,
+    "budget": false,
+    "usd": 1.04
+   },
+   {
+    "id": "wan-3",
+    "label": "Wan 3.0",
+    "fit": 71,
+    "top": false,
+    "budget": false,
+    "usd": 1.6
+   },
+   {
+    "id": "seedance-2-5",
+    "label": "Seedance 2.5",
+    "fit": 69,
+    "top": false,
+    "budget": false,
+    "usd": 0.59
+   },
+   {
+    "id": "kling-3-4k",
+    "label": "Kling 3.0 (4k)",
+    "fit": 69,
+    "top": false,
+    "budget": false,
+    "usd": 0.9
+   },
+   {
+    "id": "kling-o3",
+    "label": "Kling O3",
+    "fit": 64,
+    "top": false,
+    "budget": false,
+    "usd": 0.9
+   },
+   {
+    "id": "cinema-studio-4",
+    "label": "Cinema Studio 4.0",
+    "fit": 56,
+    "top": false,
+    "budget": false,
+    "usd": 0.9
+   },
+   {
+    "id": "kling-3-pro",
+    "label": "Kling 3.0 (pro)",
+    "fit": 42,
+    "top": false,
+    "budget": false,
+    "usd": 0.9
+   },
+   {
+    "id": "kling-3-standard",
+    "label": "Kling 3.0 (standard)",
+    "fit": 34,
+    "top": false,
+    "budget": false,
+    "usd": 0.9
+   },
+   {
+    "id": "kling-omni",
+    "label": "Kling Omni",
+    "fit": 34,
+    "top": false,
+    "budget": false,
+    "usd": 0.9
+   },
+   {
+    "id": "kling-3-turbo",
+    "label": "Kling 3.0 (turbo)",
+    "fit": 31,
+    "top": false,
+    "budget": false,
+    "usd": 0.9
+   },
+   {
+    "id": "hailuo-2-3-standard",
+    "label": "Hailuo 2.3 (standard)",
+    "fit": 27,
+    "top": false,
+    "budget": false,
+    "usd": 1.12
+   },
+   {
+    "id": "happy-horse-1-1",
+    "label": "HappyHorse 1.1",
+    "fit": 23,
+    "top": false,
+    "budget": false,
+    "usd": 0.9
+   },
+   {
+    "id": "ltx-2-5-fast",
+    "label": "LTX-2.5 (fast)",
+    "fit": 23,
+    "top": false,
+    "budget": false,
+    "usd": 0.9
+   },
+   {
+    "id": "wan-2-7",
+    "label": "Wan 2.7",
+    "fit": 23,
+    "top": false,
+    "budget": false,
+    "usd": 0.9
+   },
+   {
+    "id": "kling-2-6-pro",
+    "label": "Kling 2.6 (pro)",
+    "fit": 21,
+    "top": false,
+    "budget": false,
+    "usd": 0.7
+   },
+   {
+    "id": "pixverse-v6",
+    "label": "PixVerse V6",
+    "fit": 19,
+    "top": false,
+    "budget": false,
+    "usd": 0.92
+   },
+   {
+    "id": "happy-horse-1",
+    "label": "Happy Horse 1.0",
+    "fit": 16,
+    "top": false,
+    "budget": false,
+    "usd": 0.9
+   },
+   {
+    "id": "grok-video-1-5",
+    "label": "Grok Imagine Video 1.5",
+    "fit": 16,
+    "top": false,
+    "budget": false,
+    "usd": 0.9
+   },
+   {
+    "id": "ltx-2-5-pro",
+    "label": "LTX-2.5 (pro)",
+    "fit": 16,
+    "top": false,
+    "budget": false,
+    "usd": 1.36
+   },
+   {
+    "id": "wan-2-6",
+    "label": "Wan 2.6",
+    "fit": 12,
+    "top": false,
+    "budget": false,
+    "usd": 1.12
+   },
+   {
+    "id": "kling-2-5-turbo-pro",
+    "label": "Kling 2.5 Turbo (pro)",
+    "fit": 11,
+    "top": false,
+    "budget": false,
+    "usd": 0.42
+   }
+  ]
+ },
+ {
+  "id": "short-insert",
+  "label": "Very short insert, 3s",
+  "settings": "3s 16:9 720p",
+  "dan_scene": "Cinematic",
+  "dan_dialogue": "none",
+  "dan_top": "wan",
+  "dan_top_shared": "wan",
+  "ours_top": "wan-3-prime",
+  "ours_top_shared": "wan",
+  "top1_agree": true,
+  "dan_top5": [
+   "wan",
+   "kling-omni",
+   "gemini-omni",
+   "kling"
+  ],
+  "ours_top5_shared": [
+   "wan",
+   "seedance",
+   "h3",
+   "kling",
+   "seedance-2"
+  ],
+  "ours_top5_all": [
+   "wan-3-prime",
+   "seedance-2-5",
+   "wan-3",
+   "minimax-h3",
+   "kling-3-4k"
+  ],
+  "overlap_top5": 2,
+  "shared_ranked_by_dan": 3,
+  "spearman": 0.5,
+  "dan_blocked": [
+   "seedance",
+   "h3",
+   "seedance-2",
+   "flux"
+  ],
+  "ours_blocked_shared": [],
+  "ours_traits": [
+   "human_closeup"
+  ],
+  "dan_cards": [
+   {
+    "id": "wan",
+    "fit": 8,
+    "share": 0.63,
+    "noAdvantage": true,
+    "reason": "No clear advantage over the stronger choices for this scene."
+   },
+   {
+    "id": "kling-omni",
+    "fit": 7,
+    "share": 0.31,
+    "noAdvantage": false,
+    "reason": "A close Kling alternative, with a small quality trade-off."
+   },
+   {
+    "id": "gemini-omni",
+    "fit": 7,
+    "share": 0.01,
+    "noAdvantage": true,
+    "reason": "No clear advantage over the stronger choices for this scene."
+   },
+   {
+    "id": "kling",
+    "fit": 0,
+    "share": 0,
+    "noAdvantage": false,
+    "reason": "No specific reason returned. Evaluate again to retry."
+   }
+  ],
+  "ours_cards": [
+   {
+    "id": "wan-3-prime",
+    "label": "Wan 3.0 Prime",
+    "fit": 84,
+    "top": true,
+    "budget": false,
+    "usd": 0.34
+   },
+   {
+    "id": "seedance-2-5",
+    "label": "Seedance 2.5",
+    "fit": 81,
+    "top": false,
+    "budget": false,
+    "usd": 0.3
+   },
+   {
+    "id": "wan-3",
+    "label": "Wan 3.0",
+    "fit": 81,
+    "top": false,
+    "budget": false,
+    "usd": 0.6
+   },
+   {
+    "id": "minimax-h3",
+    "label": "MiniMax H3",
+    "fit": 81,
+    "top": false,
+    "budget": false,
+    "usd": 0.65
+   },
+   {
+    "id": "kling-3-4k",
+    "label": "Kling 3.0 (4k)",
+    "fit": 79,
+    "top": false,
+    "budget": false,
+    "usd": 0.34
+   },
+   {
+    "id": "seedance-2",
+    "label": "Seedance 2.0",
+    "fit": 77,
+    "top": false,
+    "budget": false,
+    "usd": 3.73
+   },
+   {
+    "id": "kling-3-pro",
+    "label": "Kling 3.0 (pro)",
+    "fit": 75,
+    "top": false,
+    "budget": false,
+    "usd": 0.34
+   },
+   {
+    "id": "kling-o3",
+    "label": "Kling O3",
+    "fit": 75,
+    "top": false,
+    "budget": false,
+    "usd": 0.34
+   },
+   {
+    "id": "kling-3-standard",
+    "label": "Kling 3.0 (standard)",
+    "fit": 69,
+    "top": false,
+    "budget": false,
+    "usd": 0.34
+   },
+   {
+    "id": "kling-3-turbo",
+    "label": "Kling 3.0 (turbo)",
+    "fit": 66,
+    "top": false,
+    "budget": false,
+    "usd": 0.34
+   },
+   {
+    "id": "cinema-studio-4",
+    "label": "Cinema Studio 4.0",
+    "fit": 66,
+    "top": false,
+    "budget": false,
+    "usd": 0.45
+   },
+   {
+    "id": "kling-omni",
+    "label": "Kling Omni",
+    "fit": 64,
+    "top": false,
+    "budget": false,
+    "usd": 0.34
+   },
+   {
+    "id": "kling-2-6-pro",
+    "label": "Kling 2.6 (pro)",
+    "fit": 50,
+    "top": false,
+    "budget": false,
+    "usd": 0.35
+   },
+   {
+    "id": "happy-horse-1-1",
+    "label": "HappyHorse 1.1",
+    "fit": 42,
+    "top": false,
+    "budget": false,
+    "usd": 0.34
+   },
+   {
+    "id": "pixverse-v6",
+    "label": "PixVerse V6",
+    "fit": 39,
+    "top": false,
+    "budget": false,
+    "usd": 0.35
+   },
+   {
+    "id": "wan-2-7",
+    "label": "Wan 2.7",
+    "fit": 36,
+    "top": false,
+    "budget": false,
+    "usd": 0.34
+   },
+   {
+    "id": "happy-horse-1",
+    "label": "Happy Horse 1.0",
+    "fit": 31,
+    "top": false,
+    "budget": false,
+    "usd": 0.34
+   },
+   {
+    "id": "grok-video-1-5",
+    "label": "Grok Imagine Video 1.5",
+    "fit": 31,
+    "top": false,
+    "budget": false,
+    "usd": 0.34
+   },
+   {
+    "id": "hailuo-2-3-standard",
+    "label": "Hailuo 2.3 (standard)",
+    "fit": 29,
+    "top": false,
+    "budget": false,
+    "usd": 0.67
+   },
+   {
+    "id": "kling-2-5-turbo-pro",
+    "label": "Kling 2.5 Turbo (pro)",
+    "fit": 27,
+    "top": false,
+    "budget": false,
+    "usd": 0.21
+   },
+   {
+    "id": "ltx-2-5-pro",
+    "label": "LTX-2.5 (pro)",
+    "fit": 23,
+    "top": false,
+    "budget": false,
+    "usd": 1.02
+   },
+   {
+    "id": "wan-2-6",
+    "label": "Wan 2.6",
+    "fit": 21,
+    "top": false,
+    "budget": false,
+    "usd": 0.56
+   },
+   {
+    "id": "ltx-2-5-fast",
+    "label": "LTX-2.5 (fast)",
+    "fit": 16,
+    "top": false,
+    "budget": false,
+    "usd": 0.67
+   }
+  ]
+ }
+]

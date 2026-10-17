@@ -65,17 +65,11 @@ function makeProject() {
         .run(locId, projectId, 'SUBURBAN STREET', 'late-1970s cul-de-sac, wet asphalt');
     db.prepare('INSERT INTO film_props (id, project_id, name, visual_prompt) VALUES (?, ?, ?, ?)')
         .run(propId, projectId, 'Grocery bag', 'brown paper bag, oranges spilling');
-    // buildMusicPrompt is driven by the CUE, not the scene. Without one the
-    // payload is a constant default, and a fingerprint over a constant would
-    // look stable for the wrong reason.
-    const cueId = generateId();
-    db.prepare('INSERT INTO film_music_cues (id, project_id, scene_id, cue_type, title, mood) VALUES (?, ?, ?, ?, ?, ?)')
-        .run(cueId, projectId, sceneId, 'score', 'Main theme', 'calm');
-    return { projectId, sceneId, shotId, charId, locId, propId, cueId };
+    return { projectId, sceneId, shotId, charId, locId, propId };
 }
 
 /**
- * The 12 generated artefact kinds, and — for each — an edit that MUST change
+ * The 11 generated artefact kinds, and — for each — an edit that MUST change
  * its fingerprint. The mutation is the real assertion: a fingerprint that never
  * moves is a checksum of nothing.
  */
@@ -87,9 +81,6 @@ const MUTATIONS = {
     voice: ids => db.prepare('UPDATE film_shots SET scene_card_yaml = ? WHERE id = ?')
         .run(JSON.stringify({ shot_code: '1A', description: 'x', camera: {}, dialogue: [{ character: 'MAYA', line: 'Something else entirely.' }] }), ids.shotId),
     lipsync: ids => MUTATIONS.voice(ids),
-    // The cue is what a music payload is built from; the scene barely features.
-    music: ids => db.prepare('UPDATE film_music_cues SET mood = ?, genre = ? WHERE id = ?')
-        .run('dread', 'horror strings', ids.cueId),
     // SFX comes off the card's declared cues, so changing the action line is
     // correctly invisible to it.
     sfx: ids => db.prepare('UPDATE film_shots SET scene_card_yaml = ? WHERE id = ?')
@@ -121,7 +112,7 @@ test('the registry covers every generated artefact kind', () => {
     for (const plate of ['character_plate', 'location_plate', 'prop_plate', 'scene_card']) {
         assert.ok(kinds.includes(plate), `${plate} is generated but has no fingerprint kind`);
     }
-    assert.strictEqual(kinds.length, 12, `expected 12 artefact kinds, found ${kinds.length}`);
+    assert.strictEqual(kinds.length, 11, `expected 11 artefact kinds, found ${kinds.length}`);
 });
 
 test('every kind produces a stable fingerprint from the same inputs', () => {

@@ -324,7 +324,7 @@ const { state } = Object.fromEntries(['state'].map(n => [n, live(n)]));
         // One piece of a resumable upload: the server's CHUNK_LIMIT.
         if (parts[0] === 'uploads' && parts[1]) return UPLOAD_BODY_LIMITS.chunk;
         const last = parts[parts.length - 1];
-        const carriesFile = parts.length > 1 && (last === 'import' || last === 'media' || last === 'stems');
+        const carriesFile = parts.length > 1 && (last === 'import' || last === 'media');
         return carriesFile ? UPLOAD_BODY_LIMITS.file : UPLOAD_BODY_LIMITS.json;
     }
 

@@ -9,8 +9,6 @@
     "rematchEditCut",
     "renameEdit",
     "deleteEditVersion",
-    "scoreThisEdit",
-    "openScoreSession",
     "EDIT_CHUNK"
   ],
   "modals": []

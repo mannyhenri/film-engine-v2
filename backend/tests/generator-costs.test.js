@@ -66,8 +66,14 @@ test('every generator appears in the comparison for the capability it declares',
             assert.ok(seen.has(provider),
                 `${provider} serves ${capability} and is missing from the comparison`);
         }
-        assert.deepStrictEqual(report.unpriced, [],
-            `${capability}: unpriced generators must be empty or named`);
+        for(const gap of report.unpriced) assert.ok(gap.provider && gap.model && gap.why,
+            `${capability}: an unpriced model must be named with its reason`);
+        for(const adapter of providers.list().filter(a=>(a.capabilities||[]).includes(capability))){
+            const models=rateFor(adapter.id,capability)?.models||{};
+            for(const model of Object.keys(models)) assert.ok(
+                report.rows.some(r=>r.provider===adapter.id&&r.model===model)||report.unpriced.some(r=>r.provider===adapter.id&&r.model===model),
+                `${adapter.id}:${model} is missing from both priced and unpriced sets`);
+        }
     }
 });
 

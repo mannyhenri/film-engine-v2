@@ -40,8 +40,7 @@ const { handlePostProduction } = require('../routes/post-production');
 const { handleAppSettings } = require('../routes/app-settings');
 const { handleProjectStorage } = require('../routes/project-storage');
 const { handleEdits } = require('../routes/edits');
-const { handleMusicMidi } = require('../routes/music-midi');
-const { handleInstruments } = require('../routes/instruments');
+const { handleProductionCuts } = require('../routes/production-cuts');
 const { handleProviders } = require('../routes/providers');
 const { handleContinuity } = require('../routes/continuity');
 const { handleMarketing } = require('../routes/marketing');
@@ -189,19 +188,8 @@ function inputPortSchema(port, def) {
     };
 }
 
-/**
- * Where to go instead, for the nodes that have a purpose-built route.
- *
- * `gen.music` derives its own prompt from the scene and never reads the cue
- * somebody wrote, so reaching for it to generate a written score produces a
- * scene-derived bed. That happened, and the reason it happened is that it was
- * the ONLY generation surface exposed for music.
- */
-const SPENDING_NODE_ALTERNATIVE = Object.freeze({
-    'gen.music': 'Derives its prompt from the SCENE and ignores any written cue — to generate a '
-        + 'cue you authored, use `music_cue_generate`, which reads the cue, persists the asset '
-        + 'and links it back.',
-});
+/** Where to go instead, for the nodes that have a purpose-built route (none since `gen.music` was retired). */
+const SPENDING_NODE_ALTERNATIVE = Object.freeze({});
 
 function describeNodeTool(id, def) {
     const bits = [`Run the \`${id}\` node — ${def.label}.`, `Kind: ${def.kind}.`];
@@ -2112,12 +2100,90 @@ const PRODUCTION_TOOLS = [
         },
         required: ['project_id', 'quality'],
     },
+    // ── Cuts: the director's rough edit (Production's Cut tab, lib/production-cuts.js). All free. ──
+    {
+        name: 'cut_list', handler: handleProductionCuts, method: 'GET',
+        description: 'Every rough cut of the film (Production\'s Cut tab), by name and version. A cut is picked shots in the order they play, footage or not, with sound wired to them. Free.',
+        path: a => `/film/projects/${a.project_id}/cuts`,
+        schema: { project_id: { type: 'string' } }, required: ['project_id'],
+    },
+    {
+        name: 'cut_get', handler: handleProductionCuts, method: 'GET',
+        description: 'One cut laid out: each shot\'s picture (clip, board = its storyboard frame held as a still, or none), where it starts and how long it plays, and each wired sound\'s span. Free.',
+        path: a => `/film/cuts/${a.cut_id}`,
+        schema: { cut_id: { type: 'string' } }, required: ['cut_id'],
+    },
+    {
+        name: 'cut_create', handler: handleProductionCuts, method: 'POST',
+        description: 'Start a rough cut from shots in the order they should play. A shot with no footage plays its storyboard frame. holds: { shot_id: ms } to play a shot longer or shorter than its own length. Free.',
+        path: a => `/film/projects/${a.project_id}/cuts`,
+        body: a => { const { project_id, ...rest } = a || {}; return rest; },
+        schema: { project_id: { type: 'string' }, name: { type: 'string' }, shot_ids: { type: 'array', items: { type: 'string' } }, holds: { type: 'object' } },
+        required: ['project_id', 'shot_ids'],
+    },
+    {
+        name: 'cut_update', handler: handleProductionCuts, method: 'PUT',
+        description: 'Change a cut: its shots and their order, how long shots are held, its name. A sound whose start shot leaves the cut is kept, unplaced. Free.',
+        path: a => `/film/cuts/${a.cut_id}`,
+        body: a => { const { cut_id, ...rest } = a || {}; return rest; },
+        schema: { cut_id: { type: 'string' }, name: { type: 'string' }, shot_ids: { type: 'array', items: { type: 'string' } }, holds: { type: 'object' } },
+        required: ['cut_id'],
+    },
+    {
+        name: 'cut_new_version', handler: handleProductionCuts, method: 'POST',
+        description: 'Copy a cut, sounds and all, as the next version of its name; the old version stays as it was. Free.',
+        path: a => `/film/cuts/${a.cut_id}/versions`, body: () => ({}),
+        schema: { cut_id: { type: 'string' } }, required: ['cut_id'],
+    },
+    {
+        name: 'cut_delete', handler: handleProductionCuts, method: 'DELETE',
+        description: 'Delete a cut and its wired sounds. The shots and sound files are untouched.',
+        path: a => `/film/cuts/${a.cut_id}`,
+        schema: { cut_id: { type: 'string' } }, required: ['cut_id'],
+    },
+    {
+        name: 'cut_sound_add', handler: handleProductionCuts, method: 'POST',
+        description: 'Wire a sound into a cut: kind music | sfx | ambient | dialogue, starting at a shot in the cut plus offset_ms, running to the end of end_shot_id or for its file\'s own length. asset_id is a project audio file of that kind (media_upload or sound_generate makes one); leave it out to wire the node first. Free.',
+        path: a => `/film/cuts/${a.cut_id}/sounds`,
+        body: a => { const { cut_id, ...rest } = a || {}; return rest; },
+        schema: { cut_id: { type: 'string' }, kind: { type: 'string', enum: ['music', 'sfx', 'ambient', 'dialogue'] }, start_shot_id: { type: 'string' },
+            offset_ms: { type: 'number' }, end_shot_id: { type: 'string' }, asset_id: { type: 'string' }, label: { type: 'string' },
+            gain_db: { type: 'number' }, fade_in_ms: { type: 'number' }, fade_out_ms: { type: 'number' } },
+        required: ['cut_id', 'kind', 'start_shot_id'],
+    },
+    {
+        name: 'cut_sound_update', handler: handleProductionCuts, method: 'PUT',
+        description: 'Change a wired sound: its file, start shot and offset, end shot (null: its own length), level and fades. Free.',
+        path: a => `/film/cut-sounds/${a.sound_id}`,
+        body: a => { const { sound_id, ...rest } = a || {}; return rest; },
+        schema: { sound_id: { type: 'string' }, start_shot_id: { type: 'string' }, offset_ms: { type: 'number' }, end_shot_id: { type: ['string', 'null'] },
+            asset_id: { type: ['string', 'null'] }, label: { type: 'string' }, gain_db: { type: 'number' }, fade_in_ms: { type: 'number' }, fade_out_ms: { type: 'number' } },
+        required: ['sound_id'],
+    },
+    {
+        name: 'cut_sound_list', handler: handleProductionCuts, method: 'GET',
+        description: 'The sounds wired into a cut, each with its id, kind, file, start shot and span (the cut, laid out). Free.',
+        path: a => `/film/cuts/${a.cut_id}`,
+        schema: { cut_id: { type: 'string' } }, required: ['cut_id'],
+    },
+    {
+        name: 'cut_sound_delete', handler: handleProductionCuts, method: 'DELETE',
+        description: 'Unwire a sound from a cut. Its file is kept.',
+        path: a => `/film/cut-sounds/${a.sound_id}`,
+        schema: { sound_id: { type: 'string' } }, required: ['sound_id'],
+    },
+    {
+        name: 'cut_send_to_resolve', handler: handleProductionCuts, method: 'POST',
+        description: 'Send one cut to DaVinci Resolve: its shots (clips, and boards held as stills with yellow markers) and its wired sounds, copied into a package and imported as a timeline named after the cut in the film\'s Resolve project. Opens Resolve on this Mac. Free.',
+        path: a => `/film/cuts/${a.cut_id}/send-to-resolve`, body: () => ({}),
+        schema: { cut_id: { type: 'string' } }, required: ['cut_id'],
+    },
     {
         name: 'edit_list',
         handler: handleEdits, method: 'GET',
         description: 'The cuts of this film made in an editor (Premiere), every version, newest first: length, '
             + 'frame rate, whether the XML/EDL it was cut from is imported and how many of its events are '
-            + 'Film Engine shots, and which score sessions are written against each. Free.',
+            + 'Film Engine shots. Free.',
         path: a => `/film/projects/${a.project_id}/edits`,
         schema: { project_id: { type: 'string' } }, required: ['project_id'],
     },
@@ -2186,11 +2252,9 @@ const PRODUCTION_TOOLS = [
     {
         name: 'edit_delete',
         handler: handleEdits, method: 'DELETE',
-        description: 'Remove an edit version. REFUSED while a score session is written against it (the '
-            + 'score would be timed to nothing); `force` removes it anyway and leaves those sessions with no '
-            + 'picture. The files move to "05 Edit/deleted", recoverable.',
-        path: a => `/film/edits/${a.edit_id}${a.force ? '?force=true' : ''}`,
-        schema: { edit_id: { type: 'string' }, force: { type: 'boolean' } },
+        description: 'Remove an edit version. The files move to "05 Edit/deleted", recoverable.',
+        path: a => `/film/edits/${a.edit_id}`,
+        schema: { edit_id: { type: 'string' } },
         required: ['edit_id'],
     },
     {
@@ -3555,270 +3619,38 @@ const PRODUCTION_TOOLS = [
         required: ['shot_id', 'kind', 'points'],
     },
     {
-        name: 'music_midi_get',
-        handler: handleMusicMidi, method: 'GET',
-        description: 'FREE. A cue\u2019s NOTES and the contract for writing them: the cue\u2019s length in milliseconds '
-            + 'and where it came from, the one-frame tolerance, the 128 General MIDI programs, and the plan and '
-            + 'parts already written \u2014 each part marked agent or performed. Read music_brief for what the scene '
-            + 'is, then this, then write with music_midi_write.',
-        path: a => `/film/music-cues/${a.cue_id}/midi`,
-        schema: { cue_id: { type: 'string' } }, required: ['cue_id'],
-    },
-    {
-        name: 'music_midi_write',
-        handler: handleMusicMidi, method: 'PUT',
-        description: 'FREE \u2014 nothing is generated; YOU compose. Write a cue as PARTS OVER A HARMONIC PLAN and it '
-            + 'is stored as a Standard MIDI File with one track per part, which a DAW opens as separate '
-            + 'instruments. First fix the plan: tempo_bpm, meter, key, chord changes and sections, all in '
-            + 'MILLISECONDS from the start of the cue (never beats \u2014 the cut is in milliseconds). Then write one '
-            + 'part per instrument against those chords: { name, instrument, program (General MIDI 0\u2013127) or '
-            + 'drums: true, notes: [{ start_ms, duration_ms, pitch, velocity }] }. Every note must end inside the '
-            + 'cue; a refusal names the part and the note. The director plays melodies themselves: a part they '
-            + 'imported with music_midi_import_part is KEPT through your rewrite unless you name it in '
-            + 'replace_performed, so write the harmony and leave the tune to them when they have played one.',
-        path: a => `/film/music-cues/${a.cue_id}/midi`,
-        body: a => { const { cue_id, ...rest } = a || {}; return rest; },
-        schema: {
-            cue_id: { type: 'string' },
-            plan: { type: 'object', description: '{ tempo_bpm, meter "4/4", key "D minor", chords: [{ start_ms, symbol }], sections: [{ name, start_ms, end_ms }] }' },
-            parts: { type: 'array', description: 'One per instrument: { name, instrument, program | drums, notes: [{ start_ms, duration_ms, pitch, velocity }] }.' },
-            replace_performed: { type: 'array', items: { type: 'string' }, description: 'Names of performed parts you may write over. Omit to keep what the director played.' },
-        },
-        required: ['cue_id', 'plan', 'parts'],
-    },
-    {
-        name: 'music_midi_import_part',
-        handler: handleMusicMidi, method: 'POST',
-        description: 'FREE. Replace ONE part of a cue with a .mid the director PLAYED \u2014 a melody performed in '
-            + 'Ableton, say \u2014 or add it as a new part. Only that part changes; the plan and the other parts '
-            + 'stay, and the original file is kept beside the rebuilt one. With no notes written yet the plan '
-            + 'is taken from the file\u2019s own tempo and meter. A take longer than the cue is refused rather '
-            + 'than cut; trim it in the DAW or shift it with offset_ms.',
-        path: a => `/film/music-cues/${a.cue_id}/midi/parts/${encodeURIComponent(a.part)}/import`,
-        body: a => ({ data: a.file, name: a.name, track: a.track, instrument: a.instrument, program: a.program, drums: a.drums, offset_ms: a.offset_ms }),
-        schema: {
-            cue_id: { type: 'string' },
-            part: { type: 'string', description: 'The part this take replaces or becomes, e.g. "melody".' },
-            file: { type: 'string', description: 'data:audio/midi;base64,...' },
-            name: { type: 'string', description: 'The original file name, kept for the record.' },
-            track: { type: 'string', description: 'Which track of the file to take, by index or name. Omit to take every track with notes.' },
-            instrument: { type: 'string' },
-            program: { type: 'number', description: 'General MIDI program 0\u2013127. Omit to use the file\u2019s own.' },
-            drums: { type: 'boolean' },
-            offset_ms: { type: 'number', description: 'Shift the take later (or earlier, negative) against the cue.' },
-        },
-        required: ['cue_id', 'part', 'file'],
-    },
-    {
-        name: 'music_midi_delete',
-        handler: handleMusicMidi, method: 'DELETE',
-        description: 'Remove a cue\u2019s note file. Files the director played are kept in the project\u2019s music folder.',
-        path: a => `/film/music-cues/${a.cue_id}/midi`,
-        schema: { cue_id: { type: 'string' } }, required: ['cue_id'],
-    },
-    {
-        name: 'instrument_list',
-        handler: handleInstruments, method: 'GET',
-        description: 'FREE. The director\u2019s own instruments \u2014 one sound out of one of their libraries, as a plugin '
-            + 'plus the patch that recalls it. Search with q (name, library, vendor or tag). An instrument marked '
-            + 'unavailable has lost its plugin or its patch and will not play. Use an id from here with '
-            + 'music_midi_render_part.',
-        path: a => `/film/instruments${a.q ? `?q=${encodeURIComponent(a.q)}` : ''}`,
-        schema: { q: { type: 'string', description: 'name, library, vendor or tag' } }, required: [],
-    },
-    {
-        name: 'instrument_get',
-        handler: handleInstruments, method: 'GET',
-        description: 'FREE. One instrument: which plugin plays it, where its patch came from, and whether it can play right now.',
-        path: a => `/film/instruments/${a.instrument_id}`,
-        schema: { instrument_id: { type: 'string' } }, required: ['instrument_id'],
-    },
-    {
-        name: 'instrument_catalogue',
-        handler: handleInstruments, method: 'GET',
-        description: 'FREE, and it stores NOTHING. The director\u2019s own sounds, read live out of Kontakt\u2019s index: '
-            + 'name, the library it came from, its bank, what kind of sound it is and the file it lives in. Search with '
-            + 'q (a name, a library, a tag \u2014 "cello", "Ethereal Earth", "metallic"). This is how you choose a sound '
-            + 'for a part: find it here, then it is captured or played and only THEN does it become a row in Film '
-            + 'Engine\u2019s own instrument library. A sound marked unavailable has lost its file.',
-        path: a => {
-            const q = [];
-            if (a.q) q.push(`q=${encodeURIComponent(a.q)}`);
-            if (a.library) q.push(`library=${encodeURIComponent(a.library)}`);
-            if (a.kind) q.push(`kind=${encodeURIComponent(a.kind)}`);
-            if (a.limit) q.push(`limit=${encodeURIComponent(a.limit)}`);
-            return `/film/instruments/catalogue${q.length ? `?${q.join('&')}` : ''}`;
-        },
-        schema: {
-            q: { type: 'string', description: 'a name, a library or a tag' },
-            library: { type: 'string', description: 'exactly one library, e.g. "Ethereal Earth"' },
-            kind: { type: 'string', description: 'nki (an instrument), nksn (a snapshot), nkt, nksf' },
-            limit: { type: 'number' },
-        },
-        required: [],
-    },
-    {
-        name: 'instrument_scan',
-        handler: handleInstruments, method: 'POST',
-        description: 'FREE, local, and it stores NOTHING. What NKS presets (.nksf) are on this machine, with their '
-            + 'names and libraries. A preset becomes a row in Film Engine only when something PLAYS it \u2014 pass its '
-            + 'preset_path to music_midi_render_part. Kontakt libraries usually ship .nki instruments and snapshots '
-            + 'rather than NKS presets; browse those with instrument_catalogue.',
-        path: () => '/film/instruments/scan',
-        body: a => { const { ...rest } = a || {}; return rest; },
-        schema: {
-            plugin: { type: 'string', description: 'Which plugin plays them. Defaults to Kontakt 8.' },
-            roots: { type: 'array', items: { type: 'string' }, description: 'Folders to search. Defaults to the NI content folders.' },
-            limit: { type: 'number' },
-        },
-        required: [],
-    },
-    {
-        name: 'instrument_update',
-        handler: handleInstruments, method: 'PUT',
-        description: 'Rename an instrument, or re-tag it so it can be found among thousands. Merged, never replaced.',
-        path: a => `/film/instruments/${a.instrument_id}`,
-        body: a => { const { instrument_id, ...rest } = a || {}; return rest; },
-        schema: {
-            instrument_id: { type: 'string' },
-            name: { type: 'string' }, library: { type: 'string' }, vendor: { type: 'string' },
-            tags: { type: 'array', items: { type: 'string' } }, notes: { type: 'string' },
-        },
-        required: ['instrument_id'],
-    },
-    {
-        name: 'instrument_delete',
-        handler: handleInstruments, method: 'DELETE',
-        description: 'Forget an instrument. A captured patch is deleted with it; an NKS preset belongs to the library '
-            + 'and is left where it is. Tracks that used it keep their takes.',
-        path: a => `/film/instruments/${a.instrument_id}`,
-        schema: { instrument_id: { type: 'string' } }, required: ['instrument_id'],
-    },
-    {
-        name: 'music_midi_render_part',
-        handler: handleMusicMidi, method: 'POST',
-        description: 'FREE \u2014 runs on this machine; no provider is billed. Play ONE part of a cue through one of the '
-            + 'director\u2019s own instruments (Kontakt and their libraries) and keep it as that part\u2019s audio. This is how '
-            + 'a composition is built here: write the parts with music_midi_write, give each one an instrument from '
-            + 'instrument_list, render them, and the cue exists part by part. Needs the instrument sidecar running; a '
-            + 'render that comes back silent is refused rather than kept.',
-        path: a => `/film/music-cues/${a.cue_id}/midi/parts/${encodeURIComponent(a.part)}/render`,
-        body: a => ({ instrument_id: a.instrument_id, preset_path: a.preset_path, plugin: a.plugin }),
-        schema: {
-            cue_id: { type: 'string' },
-            part: { type: 'string', description: 'The part to play, by name, from music_midi_get.' },
-            instrument_id: { type: 'string', description: 'From instrument_list \u2014 a sound already in the library.' },
-            preset_path: { type: 'string', description: 'Or an NKS preset from instrument_scan: it joins the library the '
-                + 'moment it plays, so nothing is indexed until it is used.' },
-            plugin: { type: 'string', description: 'Which plugin plays that preset. Defaults to Kontakt 8.' },
-        },
-        required: ['cue_id', 'part'],
-    },
-    {
-        name: 'music_midi_render_plan',
-        handler: handleMusicMidi, method: 'GET',
-        description: 'FREE. What playing a cue\u2019s notes through instruments on this machine would do: the parts, the '
-            + 'SoundFont library and its licence, the length, and anything missing (FluidSynth, a SoundFont, the encoder) '
-            + 'with how to fix it. Read before music_midi_render.',
-        path: a => `/film/music-cues/${a.cue_id}/midi/render/plan`,
-        schema: { cue_id: { type: 'string' } }, required: ['cue_id'],
-    },
-    {
-        name: 'music_midi_render',
-        handler: handleMusicMidi, method: 'POST',
-        description: 'FREE \u2014 runs on this machine; no provider is billed. Play a cue\u2019s written notes through a '
-            + 'SoundFont (FluidSynth) into a 48kHz WAV exactly the cue\u2019s length and make it the cue\u2019s audio. The '
-            + 'render is read back and refused if it is silent, and the sample library\u2019s licence is recorded on it. '
-            + 'Needs notes (music_midi_write, or a played part) and a SoundFont installed; music_midi_render_plan says what is missing.',
-        path: a => `/film/music-cues/${a.cue_id}/midi/render`,
-        schema: { cue_id: { type: 'string' } }, required: ['cue_id'],
-    },
-    {
-        name: 'music_brief',
-        handler: handleMusicGen, method: 'GET',
-        description: 'Everything the engine knows about a scene, for deciding what it should SOUND like: the heading, what happens, who is in it, how many lines of dialogue, how many shots, the film\u2019s genre and the musical clauses of its look — plus the real length of the cut and where that number came from. It returns NO conclusion: what a scene should sound like is a judgement, and you are the model here. Decide the mood, genre, instruments and a reference track, then store them with music_cue_create; a cue somebody wrote always beats the derivation. Watch the dialogue count — a wall-to-wall dialogue scene wants sparse underscore that never becomes melodic, because a melody there fights the words. SPENDS NOTHING.',
-        path: a => `/film/scenes/${a.scene_id}/music/brief`,
-        schema: { scene_id: { type: 'string' } }, required: ['scene_id'],
-    },
-    {
-        name: 'music_capabilities',
-        handler: handleMusicGen, method: 'GET',
-        description: 'Free — spends nothing. What this project\'s music provider can and cannot do, per workflow: compose a whole cue, generate native parts, separate a recording into stems, condition on a reference, condition on the picture, regenerate a selected range. Each is available, planned or unsupported WITH THE REASON, its limits (lengths, models, stem counts), a cost hint from the rate book when one exists, the neutral plan and result schemas, and which other providers could do it. Read it before asking for any of these: a workflow the provider does not serve is refused, never attempted.',
-        path: a => `/film/projects/${a.project_id}/music/capabilities`,
-        schema: { project_id: { type: 'string' } }, required: ['project_id'],
-    },
-    {
         name: 'music_cue_create',
         handler: handleAssets, method: 'POST',
-        description: 'Write the brief for a piece of music \u2014 the direction, not the generation. '
-            + 'WHAT REACHES THE GENERATOR: description (the free text, and the field that matters most), '
-            + 'mood, genre, instruments, tempo_bpm, key_signature and reference_track. `notes` is '
-            + 'production-facing and reaches NOTHING, so do not put the brief there. '
-            + 'In `description`, say what the music DOES against the scene \u2014 "holds under the '
-            + 'dialogue, lifts when she stands, out on the door" \u2014 not only what it sounds like; '
-            + 'the mood and genre already carry that. `reference_track` is sent as a style to match '
-            + '("in the style of X"), which is the clearest single note a director gives. '
-            + 'OMIT duration_ms and the cue is scored to the MEASURED length of that scene\u2019s '
-            + 'footage; set it only to run deliberately past or under the cut. '
-            + 'To shape the cue OVER TIME rather than describing it all at once, write `sections`: '
-            + 'each has a name, a direction and a length of 3\u2013120s, and the generator honours '
-            + 'those lengths. `negative_prompt` says what it must NOT be.',
+        description: 'Write a SOUND cue on a scene — a sound effect or an ambient bed — the direction, not the generation. '
+            + '`description` is the free text that reaches the generator: say what is heard ("a screen door two streets over, '
+            + 'closing slowly"; "the fridge compressor cuts out halfway through"). `notes` is production-facing and reaches '
+            + 'NOTHING. OMIT duration_ms and an ambient bed runs the MEASURED length of the scene’s footage. '
+            + 'Music is not written here: music-making was retired, and music comes in as a file (media_upload to the scene).',
         path: a => `/film/projects/${a.project_id}/music-cues`,
         body: a => { const { project_id, ...rest } = a || {}; return rest; },
         schema: {
             project_id: { type: 'string' },
-            scene_id: { type: 'string', description: 'The scene this cue plays over. Required for the '
+            scene_id: { type: 'string', description: 'The scene this sound plays in. Required for the '
                 + 'length to be measured from real footage.' },
             title: { type: 'string' },
-            cue_type: { type: 'string', enum: ['score', 'source', 'sfx', 'ambient', 'transition'] },
-            description: { type: 'string', description: 'The free text that REACHES the generator. '
-                + 'What the music does against the scene.' },
-            mood: { type: 'string', description: 'Reaches the generator, and sets tempo and instrument '
-                + 'defaults when those are left blank.' },
-            genre: { type: 'string', description: 'Reaches the generator.' },
-            instruments: { type: 'array', items: { type: 'string' },
-                description: 'Reaches the generator. A list, e.g. ["solo cello","brushed kit"].' },
-            tempo_bpm: { type: 'number', description: 'Reaches the generator.' },
-            key_signature: { type: 'string', description: 'Reaches the generator, e.g. "D minor".' },
-            reference_track: { type: 'string', description: 'Reaches the generator as "in the style of X".' },
-            duration_ms: { type: 'number', description: 'OMIT to score the measured length of the '
-                + 'scene\u2019s footage \u2014 that is almost always what you want. Set it only to run '
-                + 'deliberately past or under the cut.' },
+            cue_type: { type: 'string', enum: ['sfx', 'ambient'] },
+            description: { type: 'string', description: 'The free text that REACHES the generator: what is heard.' },
+            duration_ms: { type: 'number', description: 'OMIT to run the measured length of the '
+                + 'scene’s footage. Set it only to run deliberately past or under the cut.' },
             notes: { type: 'string', description: 'Production notes. Reaches NO generator.' },
-            negative_prompt: { type: 'string', description: 'What the cue must NOT be, sent to the '
-                + 'generator as a negative: "vocals, drums, sentimental strings". A note a composer '
-                + 'gives constantly and that had nowhere to live.' },
-            sections: {
-                type: 'array',
-                description: 'Shape the cue OVER TIME instead of describing the whole thing at once. '
-                    + 'Each section gets its own direction and its own length, and the generator '
-                    + 'honours those lengths \u2014 so "sparse under the argument, then it opens out '
-                    + 'when he finally says it" becomes two sections rather than one hopeful sentence. '
-                    + 'A section is 3s to 120s; the cue is the SUM of its sections, so omit '
-                    + 'duration_ms when you write these. Leave this empty and the cue sends one '
-                    + 'prompt for its whole length, exactly as before.',
-                items: {
-                    type: 'object',
-                    properties: {
-                        name: { type: 'string', description: 'How you refer to it, e.g. "under the argument".' },
-                        direction: { type: 'string', description: 'What this part of the cue does.' },
-                        seconds: { type: 'number', description: 'How long this part runs. 3 to 120.' },
-                        negative: { type: 'string', description: 'What this part must not be, e.g. "drums".' },
-                    },
-                },
-            },
+            negative_prompt: { type: 'string', description: 'What the sound must NOT have, sent to the generator as a negative.' },
         },
-        required: ['project_id'],
+        required: ['project_id', 'cue_type'],
     },
     {
         name: 'music_cue_list',
         handler: handleAssets, method: 'GET',
-        description: 'The music briefs on a project, with what each one would be generated from.',
+        description: 'The sound cues (effects and ambient beds) on a project, with what each one would be generated from.',
         path: a => `/film/projects/${a.project_id}/music-cues`
             + (a.cue_type ? `?cue_type=${encodeURIComponent(a.cue_type)}` : ''),
         schema: {
             project_id: { type: 'string' },
-            cue_type: { type: 'string', enum: ['score', 'source', 'sfx', 'ambient', 'transition'] },
+            cue_type: { type: 'string', enum: ['sfx', 'ambient'] },
         },
         required: ['project_id'],
     },
@@ -3828,17 +3660,13 @@ const PRODUCTION_TOOLS = [
         path: a => `/film/music-cues/${a.cue_id}/generate`,
         body: a => { const { cue_id, ...rest } = a || {}; return rest; },
         description:
-            'SPENDS MONEY. Generate the cue you WROTE \u2014 the score, the source music or the '
-            + 'ambient bed on that row \u2014 and store it as an asset linked back to the cue. '
-            + 'ADDRESSED BY CUE, not by scene, because a scene holds several cues at once and a '
-            + 'scene-addressed call has to guess which one you meant. Use this rather than '
-            + '`node_gen_music`: that node derives its own prompt from the scene and never reads '
-            + 'your cue, so a written orchestral score comes back as a scene-derived bed. Read '
-            + '`music_brief` first \u2014 it is free and shows the prompt this will send. An SFX '
-            + 'cue is refused here and named: effects are generated from a shot\u2019s scene card.',
+            'SPENDS MONEY. Generate the sound cue you WROTE — the effect or the ambient bed on that row — '
+            + 'and store it as an asset linked back to the cue. ADDRESSED BY CUE, not by scene, because a scene '
+            + 'holds several cues at once. The free preview is GET on the same path. A music cue left in an old '
+            + 'project is refused: music is no longer generated.',
         schema: {
             cue_id: { type: 'string', description: 'The cue to generate. From music_cue_list.' },
-            direction: { type: 'string', description: 'Ambient only: overrides the cue\u2019s description for this run.' },
+            direction: { type: 'string', description: 'Ambient only: overrides the cue’s description for this run.' },
             negative_prompt: { type: 'string', description: 'What the generation must avoid, for this run.' },
         },
         required: ['cue_id'],
@@ -3846,50 +3674,25 @@ const PRODUCTION_TOOLS = [
     {
         name: 'music_cue_update',
         handler: handleAssets, method: 'PUT',
-        description: 'Revise a cue. MERGED, never replaced \u2014 rewriting one sentence of direction '
-            + 'cannot clear the instruments or the reference. Use this to refine a brief rather than '
-            + 'creating a second cue for the same moment.',
+        description: 'Revise a sound cue. MERGED, never replaced — rewriting one sentence of direction '
+            + 'cannot clear the rest. Use this to refine a cue rather than creating a second one for the same moment.',
         path: a => `/film/music-cues/${a.cue_id}`,
         body: a => { const { cue_id, ...rest } = a || {}; return rest; },
         schema: {
             cue_id: { type: 'string' },
             held: { type: 'boolean', description: 'true HOLDS this node: every batch run skips it and says so, while the film keeps it (conform and export ignore a hold). false releases it. Free.' },
             title: { type: 'string' }, description: { type: 'string' },
-            mood: { type: 'string' }, genre: { type: 'string' },
-            instruments: { type: 'array', items: { type: 'string' } },
-            tempo_bpm: { type: 'number' }, key_signature: { type: 'string' },
-            reference_track: { type: 'string' }, duration_ms: { type: 'number' },
-            cue_type: { type: 'string', enum: ['score', 'source', 'sfx', 'ambient', 'transition'] },
+            duration_ms: { type: 'number' },
+            cue_type: { type: 'string', enum: ['sfx', 'ambient'] },
             notes: { type: 'string' },
-            negative_prompt: { type: 'string', description: 'What the cue must NOT be, sent to the '
-                + 'generator as a negative: "vocals, drums, sentimental strings". A note a composer '
-                + 'gives constantly and that had nowhere to live.' },
-            sections: {
-                type: 'array',
-                description: 'Shape the cue OVER TIME instead of describing the whole thing at once. '
-                    + 'Each section gets its own direction and its own length, and the generator '
-                    + 'honours those lengths \u2014 so "sparse under the argument, then it opens out '
-                    + 'when he finally says it" becomes two sections rather than one hopeful sentence. '
-                    + 'A section is 3s to 120s; the cue is the SUM of its sections, so omit '
-                    + 'duration_ms when you write these. Leave this empty and the cue sends one '
-                    + 'prompt for its whole length, exactly as before.',
-                items: {
-                    type: 'object',
-                    properties: {
-                        name: { type: 'string', description: 'How you refer to it, e.g. "under the argument".' },
-                        direction: { type: 'string', description: 'What this part of the cue does.' },
-                        seconds: { type: 'number', description: 'How long this part runs. 3 to 120.' },
-                        negative: { type: 'string', description: 'What this part must not be, e.g. "drums".' },
-                    },
-                },
-            },
+            negative_prompt: { type: 'string', description: 'What the sound must NOT have, sent to the generator as a negative.' },
         },
         required: ['cue_id'],
     },
     {
         name: 'music_cue_delete',
         handler: handleAssets, method: 'DELETE',
-        description: 'Remove a cue. Any audio generated from it is KEPT \u2014 it is an asset on the '
+        description: 'Remove a sound cue. Any audio generated from it is KEPT — it is an asset on the '
             + 'scene and cost money to make.',
         path: a => `/film/music-cues/${a.cue_id}`,
         schema: { cue_id: { type: 'string' } },
@@ -4935,501 +4738,6 @@ const PRODUCTION_TOOLS = [
     },
 ];
 
-// ── Set 3b: the score session ──────────────────────────────────────────────
-//
-// The agent host is the model here, so a score session an agent cannot reach
-// is one that must be built by hand. Every child kind the HTTP route exposes
-// gets list / create / update / delete, the session gets its nine operations,
-// and all of them dispatch THROUGH handleMusicSessions by the same shim —
-// nothing is reimplemented beside the route. The schemas are DERIVED: each
-// table's fields come from its validator's own defaults, every enum from the
-// contract's VOCABULARY and every bound from RANGES, so the model is told what
-// the database will accept before it tries.
-const { handleMusicSessions, CHILD_KINDS: MUSIC_KINDS } = require('../routes/music-sessions');
-const musicContracts = require('./music-session');
-const musicStems = require('./music-stems');
-const musicRenderer = require('./music-renderer');
-const musicSeparation = require('./music-separation');
-const musicGeneration = require('./music-generation');
-
-const MUSIC_SINGULAR = { tracks: 'track', clips: 'clip', markers: 'marker', 'emotion-ranges': 'emotion', automation: 'automation' };
-const MUSIC_SEED = { film_music_clips: { duration_ms: 1000 }, film_music_emotion_ranges: { end_ms: 1000 },
-    film_music_tracks: { instrument_id: null, notes: null } };
-const MUSIC_WHAT = {
-    tracks: 'a lane with a role (instrument, family, bus, reference, picture) and mixer state: gain, pan, mute, solo, order',
-    clips: 'an immutable asset placed on a track: start_ms and duration_ms in the session clock, source_offset_ms into the file, fades, loop and warp policy, take group and status, and source_kind (generated, native_part, separated, rendered, imported)',
-    markers: 'a moment on the ruler: a shot boundary, a hit, a section, a sync point, cue in/out, or a note, at position_ms',
-    'emotion-ranges': 'a span of the emotional arc with valence (-1..1), arousal, intensity and confidence (0..1), a label, its source and its status — an ai_proposal stays proposed until a person accepts it, and nothing paid rests on a proposal',
-    automation: 'a parameter over time on a track (or one clip): gain, pan, mute, send or filter, as sorted { at_ms, value } points',
-};
-const MUSIC_HELP = {
-    edit_id: 'A cut imported from an editor (edit_list). The score is written against THAT cut: its length is the edit\'s, its brief follows the editor\'s timing, and its stems line up with the edit\'s first frame in Premiere.',
-    instrument_id: 'Which of the director’s own sounds plays this lane, from instrument_list. Set it with the part, then play it with music_track_render.',
-    notes: 'THE PART THIS LANE PLAYS: { program, drums, notes: [{ start_ms, duration_ms, pitch, velocity }] }, in MILLISECONDS, pitch 0-127 with 60 as middle C. Write a melody here and play it with music_track_render.',
-    start_ms: 'Whole milliseconds in the session clock — the cut is in milliseconds, never beats.',
-    duration_ms: 'Whole milliseconds; must be > 0.',
-    source_offset_ms: 'Where in the source file the clip begins. Keep 0 on import to preserve leading silence.',
-    tempo_map: 'List of { at_ms, bpm, numerator, denominator }, sorted, starting at 0. Empty means constant tempo not yet stated.',
-    points: 'List of { at_ms, value }, sorted by at_ms, value inside the parameter\'s own range.',
-    track_id: 'A track of this session.',
-    role: 'Free text inside role_kind: "cello", "strings", "music bus".',
-};
-
-/*
- * Path builders, written out per kind rather than derived from a string:
- * tests/mcp-tools.test.js reads each builder's own source for the argument it
- * forwards, so a builder that reaches `a[idArg]` through a variable reads as
- * a tool whose argument nothing consumes.
- */
-const MUSIC_PATHS = {
-    tracks: {
-        list: a => `/film/music-sessions/${a.session_id}/tracks`,
-        item: a => `/film/music-sessions/${a.session_id}/tracks/${a.track_id}`,
-    },
-    clips: {
-        list: a => `/film/music-sessions/${a.session_id}/clips`,
-        item: a => `/film/music-sessions/${a.session_id}/clips/${a.clip_id}`,
-    },
-    markers: {
-        list: a => `/film/music-sessions/${a.session_id}/markers`,
-        item: a => `/film/music-sessions/${a.session_id}/markers/${a.marker_id}`,
-    },
-    'emotion-ranges': {
-        list: a => `/film/music-sessions/${a.session_id}/emotion-ranges`,
-        item: a => `/film/music-sessions/${a.session_id}/emotion-ranges/${a.emotion_id}`,
-    },
-    automation: {
-        list: a => `/film/music-sessions/${a.session_id}/automation`,
-        item: a => `/film/music-sessions/${a.session_id}/automation/${a.automation_id}`,
-    },
-};
-
-function musicSchemaFor(table, omit) {
-    const seed = musicContracts.VALIDATORS[table](MUSIC_SEED[table] || {});
-    const out = {};
-    for (const key of Object.keys(seed.value)) {
-        if ((omit || []).includes(key)) continue;
-        const vocab = musicContracts.VOCABULARY[`${table}.${key}`];
-        const range = musicContracts.RANGES[`${table}.${key}`];
-        let prop;
-        if (['muted', 'soloed'].includes(key)) prop = { type: 'boolean' };
-        else if (vocab) prop = { type: typeof vocab[0] === 'number' ? 'integer' : 'string', enum: vocab };
-        else if (range) prop = { type: 'number', minimum: range.min, maximum: range.max };
-        else if (/_ms$/.test(key) || key === 'sort_order') prop = { type: 'integer' };
-        else if (['gain_db', 'frame_rate', 'cost_usd'].includes(key)) prop = { type: 'number' };
-        else if (['tempo_map', 'points'].includes(key)) prop = { type: 'array' };
-        else if (table === 'film_music_tracks' && key === 'notes') prop = { type: 'object' };
-        else if (key === 'params') prop = { type: 'object' };
-        else prop = { type: 'string' };
-        if (MUSIC_HELP[key]) prop.description = MUSIC_HELP[key];
-        out[key] = prop;
-    }
-    return out;
-}
-
-function musicSessionTools() {
-    const H = handleMusicSessions;
-    const S = { session_id: { type: 'string' } };
-    const dropIds = (...ids) => a => { const rest = { ...a }; for (const id of ids) delete rest[id]; return rest; };
-    const tools = [
-        {
-            name: 'music_session_list', handler: H, method: 'GET',
-            description: 'Free. The score sessions of a project, each with the picture unit it is attached to (a sequence, or a scene as the fallback) and its lifecycle status.',
-            path: a => `/film/projects/${a.project_id}/music-sessions`,
-            schema: { project_id: { type: 'string' } }, required: ['project_id'],
-        },
-        {
-            name: 'music_session_create', handler: H, method: 'POST',
-            description: 'Creates a score session for an edit made in Premiere (edit_id — the finished cut, the usual choice once there is one), a picture sequence (sequence_id), or a scene (scene_id). Created as a draft and STAMPED with the brief it was written against, so drift is sayable from the first read. Writes one row; spends nothing.',
-            path: a => `/film/projects/${a.project_id}/music-sessions`,
-            body: dropIds('project_id'),
-            schema: { project_id: { type: 'string' }, sequence_id: { type: 'string', description: 'The ordered picture sequence this score is for.' },
-                scene_id: { type: 'string', description: 'Fallback: a scene, when the project has no sequence.' },
-                ...musicSchemaFor('film_music_sessions', ['status', 'sequence_id', 'scene_id', 'script_id']) },
-            required: ['project_id'],
-        },
-        {
-            name: 'music_session_get', handler: H, method: 'GET',
-            description: 'Free. The whole ScoreSession read model: the session, its picture unit, tracks with their clips and automation, emotion ranges, markers, operations, the derived length, and the vocabulary every field accepts. The same shape the page and the bounce read.',
-            path: a => `/film/music-sessions/${a.session_id}`, schema: S, required: ['session_id'],
-        },
-        {
-            name: 'music_session_brief', handler: H, method: 'GET',
-            description: 'Free — spends nothing. The compiled ScoreBrief: the shots in play order with real timings and cameras, the exact screenplay passages, scenes, cast and dialogue density, the look, cues with sections, the accepted emotional arc and existing motifs, with provenance per field and fingerprints. Read it before writing any cue or note; it is the facts, and YOU decide what the music is.',
-            path: a => `/film/music-sessions/${a.session_id}/brief`, schema: S, required: ['session_id'],
-        },
-        {
-            name: 'music_session_drift', handler: H, method: 'GET',
-            description: 'Free; writes nothing. Whether the script or the picture moved since the session was stamped, and which side. A session that reads as drifted was written against something that no longer exists — say so before generating; rebase only when the director agrees.',
-            path: a => `/film/music-sessions/${a.session_id}/drift`, schema: S, required: ['session_id'],
-        },
-        {
-            name: 'music_session_update', handler: H, method: 'PUT',
-            description: 'Changes a session: name, notes, sample rate, frame rate, tempo map, or its lifecycle status. Status moves through the contract (draft → arranging → review → approved; approved can be reopened) and an illegal move is refused naming both states. Merged, not replaced.',
-            path: a => `/film/music-sessions/${a.session_id}`, body: dropIds('session_id'),
-            schema: { ...S, sequence_id: { type: 'string' }, scene_id: { type: 'string' },
-                ...musicSchemaFor('film_music_sessions', ['sequence_id', 'scene_id', 'script_id']) },
-            required: ['session_id'],
-        },
-        {
-            name: 'music_session_delete', handler: H, method: 'DELETE',
-            description: 'Deletes a score session and everything arranged in it: tracks, clips, ranges, markers, automation and the operation lineage. Registered audio assets are NOT deleted — they cost money and are referenced by clips, never owned by them.',
-            path: a => `/film/music-sessions/${a.session_id}`, body: () => ({}), schema: S, required: ['session_id'],
-        },
-        {
-            name: 'music_session_rebase', handler: H, method: 'POST',
-            description: 'The explicit rebase: stamps the session with the brief as it stands now, so drift clears. Writes the fingerprints and the script version; changes no music. Do this only after the director has accepted that the score will be judged against the new picture and script.',
-            path: a => `/film/music-sessions/${a.session_id}/rebase`, body: () => ({}), schema: S, required: ['session_id'],
-        },
-        {
-            name: 'music_session_batch', handler: H, method: 'POST',
-            description: 'Applies an ORDERED list of child edits in one transaction: ops of { op: create|update|delete, kind: tracks|clips|markers|emotion-ranges|automation, id?, data? }. "$n" in an id or a data value names the id produced by op n, so a track and the clips on it are written together. Any refusal rolls back everything and names the op by failed_at.',
-            path: a => `/film/music-sessions/${a.session_id}/batch`, body: a => ({ ops: a.ops }),
-            schema: { ...S, ops: { type: 'array', description: 'The ops, in order. Each: { op, kind, id (update/delete), data (create/update) }.' } },
-            required: ['session_id', 'ops'],
-        },
-    ];
-    tools.push({
-        name: 'music_stem_import', handler: H, method: 'POST',
-        description: 'Imports one or several composer stems into a score session, ALIGNED: every file lands as its own track and clip at the same start_ms with source_offset_ms 0, so leading silence is never trimmed — the alignment IS the leading silence. The bytes decide the format (WAV/BWF, AIFF, FLAC, MP3, M4A; the name is not trusted), the original is stored byte-identical and hashed, and duration, channels, sample rate, bit depth and codec are read from the file. BPM and key are read from tags or the filename as HINTS. normalize_48k writes a 48 kHz 24-bit working copy beside the original and records the resampling (a lossless file already at 48 kHz gets none). Writes one import operation, the assets, a rights row per file (status unknown unless declared) and the tracks and clips, in one transaction: one unreadable file refuses the whole batch and nothing is written. Spends nothing — no provider is called.',
-        path: a => `/film/music-sessions/${a.session_id}/stems`, body: dropIds('session_id'),
-        schema: {
-            ...S,
-            files: { type: 'array', description: 'The stems, in the order their tracks should appear. Each: { name: "drums.wav", data: "data:audio/wav;base64,…", role?: "drums" }. Sniffed by bytes; a name that lies is corrected.' },
-            start_ms: { type: 'integer', minimum: 0, description: 'Where every stem starts in the session clock. Default 0. One number for the whole batch: aligned stems share a start.' },
-            normalize_48k: { type: 'boolean', description: 'Also write a 48 kHz / 24-bit PCM working copy per stem, with lineage. The clip then plays the working copy; the original stays untouched.' },
-            rights: { type: 'object', description: `Who owns these and on what terms: { status: ${musicStems.RIGHTS_STATUSES.join('|')}, owner, source, license_url, territory, expires_on, restrictions, notes }. Omitted is recorded as status "unknown" — never assumed cleared.` },
-        },
-        required: ['session_id', 'files'],
-    });
-    tools.push(
-        {
-            name: 'music_emotion_brief', handler: H, method: 'GET',
-            description: 'Free — spends nothing. Everything needed to propose the emotional arc of a score session: the ScoreBrief (the shots with real timings and cameras, the exact screenplay passages, the cast, the look, the cues written), the arc a person has already accepted, the proposals still waiting, the range schema with the exact bounds the database enforces, the coverage rule and the instructions. YOU are the model: read it, decide the arc, then write it with music_emotion_propose. No tool here calls a server-side model.',
-            path: a => `/film/music-sessions/${a.session_id}/emotion/brief`, schema: S, required: ['session_id'],
-        },
-        {
-            name: 'music_emotion_propose', handler: H, method: 'POST',
-            description: 'Writes your proposed emotional arc as time ranges — each with start_ms, end_ms, a label a composer can act on, valence (−1..1), arousal (0..1), intensity (0..1), confidence (0..1) and a RATIONALE naming what in the picture or screenplay earns it (a range with no rationale is refused). Ranges must not overlap, must sit inside the picture and must cover most of it; bounds and coverage are validated with the field named. Stored as PROPOSED, source ai_proposal, under one proposal id; NOT accepted — nothing paid rests on a proposal until a person accepts it with music_emotion_accept. A new proposal supersedes the last one\'s still-proposed ranges and leaves accepted ones alone. Read music_emotion_brief first.',
-            path: a => `/film/music-sessions/${a.session_id}/emotion/proposals`, body: dropIds('session_id'),
-            schema: { ...S,
-                ranges: { type: 'array', description: 'The ranges, in order: [{ start_ms, end_ms, label, valence, arousal, intensity, confidence, rationale }].' },
-                model: { type: 'string', description: 'Which model reasoned — recorded on the operation.' },
-                notes: { type: 'string', description: 'Anything about the arc as a whole.' } },
-            required: ['session_id', 'ranges'],
-        },
-        {
-            name: 'music_emotion_proposals', handler: H, method: 'GET',
-            description: 'Free. Every emotion proposal made for a session, newest first: its ranges with what became of each (proposed, accepted, rejected), its coverage, which proposal it superseded, and which is current.',
-            path: a => `/film/music-sessions/${a.session_id}/emotion/proposals`, schema: S, required: ['session_id'],
-        },
-        {
-            name: 'music_emotion_accept', handler: H, method: 'POST',
-            description: 'The explicit acceptance — a person\'s decision, never the model\'s default: moves the named ranges of a proposal (all of its proposed ranges when range_ids is omitted) from proposed to accepted, applying edits on the way in (edits: { <range_id>: { label, valence, arousal, intensity, confidence, start_ms, end_ms, rationale } }), and rejects the rest when reject_rest is true. An edit outside the bounds refuses the whole acceptance naming the field. Only accepted ranges reach the brief, the bounce and generation. Call this only when the director has said so.',
-            path: a => `/film/music-sessions/${a.session_id}/emotion/proposals/${a.proposal_id}/accept`, body: dropIds('session_id', 'proposal_id'),
-            schema: { ...S, proposal_id: { type: 'string' },
-                range_ids: { type: 'array', description: 'Which ranges to accept; all of the proposal\'s proposed ranges when omitted.' },
-                edits: { type: 'object', description: 'Corrections per range id, applied as they are accepted.' },
-                reject_rest: { type: 'boolean', description: 'Retire the proposal\'s other still-proposed ranges.' } },
-            required: ['session_id', 'proposal_id'],
-        },
-        {
-            name: 'music_bounce_plan', handler: H, method: 'GET',
-            description: 'Free — writes nothing, renders nothing. What a bounce of this session WOULD do: the audible clips with their resolved gain, pan, fades, loop and automation, every clip left out with its reason (muted, another track soloed, take not selected, a reference track), the delivery stems the chosen mode would group, the fingerprint, the version it would become, and whether the session is unchanged since the last render. Read it before bouncing.',
-            path: a => `/film/music-sessions/${a.session_id}/bounce/plan${a.stems ? '?stems=' + encodeURIComponent(a.stems) : ''}`,
-            schema: { ...S, stems: { type: 'string', enum: musicRenderer.STEM_MODES, description: 'How to group the delivery stems: none (master only), instrument (one per track), family (one per family track the sources route to), bus (one per production bus).' } },
-            required: ['session_id'],
-        },
-        {
-            name: 'music_bounce', handler: H, method: 'POST',
-            description: 'The deterministic bounce: renders the session\'s selected takes, with track and clip gain, pan, fades, loops and gain/mute automation, into a 48 kHz / 24-bit stereo MASTER plus the chosen delivery stems (equal length, one file each), through the local encoder — spends nothing at any provider. Every output is registered as an asset with the render parameters and the operation that made it; earlier versions are kept, never overwritten. A session unchanged since its last bounce is refused (409, UNCHANGED) unless force is true, so the same inputs are not rendered twice by accident. Refused, with the clip named, when a clip\'s file is missing.',
-            path: a => `/film/music-sessions/${a.session_id}/bounce`, body: dropIds('session_id'),
-            schema: { ...S,
-                stems: { type: 'string', enum: musicRenderer.STEM_MODES, description: 'none (master only), instrument, family or bus.' },
-                force: { type: 'boolean', description: 'Render again even though nothing changed since the last bounce; the result is a new version that supersedes it.' } },
-            required: ['session_id'],
-        },
-        {
-            name: 'music_separate_plan', handler: H, method: 'GET',
-            description: 'Free — spends nothing, writes nothing. What separating a clip of a score session WOULD do: the project\'s music provider, the variation (2 stems: vocals + instrumental; 6 stems: vocals, drums, bass, guitar, piano, other), the stems expected back, the recording that would be sent and its length, the placement every stem will take (the source clip\'s own start, offset and length), and a cost hint from the rate book. Refused with the reason when the provider cannot separate, the clip has no audio, or the file is missing. Read it before music_separate.',
-            path: a => `/film/music-sessions/${a.session_id}/separations/plan?clip_id=${encodeURIComponent(a.clip_id)}&stems=${encodeURIComponent(a.stems)}${a.output_format ? '&output_format=' + encodeURIComponent(a.output_format) : ''}`,
-            schema: { ...S, clip_id: { type: 'string', description: 'The clip whose recording would be separated.' },
-                stems: { type: 'integer', enum: Object.keys(musicSeparation.VARIATIONS).map(Number), description: 'How many stems: 2 or 6.' },
-                output_format: { type: 'string', description: 'mp3_<rate>_<kbps>; default mp3_44100_128.' } },
-            required: ['session_id', 'clip_id', 'stems'],
-        },
-        {
-            name: 'music_separate', handler: H, method: 'POST',
-            description: 'COSTS MONEY — sends a clip\'s recording to the project\'s music provider to be split into two or six stems (2: vocals + instrumental; 6: vocals, drums, bass, guitar, piano, other). The result is a DERIVATIVE: each returned stem becomes one asset (with lineage to the source and the operation), one track with a role, and one clip placed exactly where the source clip sits; the source recording, its asset and its clip are never touched, and the stems carry the source\'s rights. Answers at once with a running operation (wait: true to block until it finishes); read it with music_separation_status. A bad archive, a provider error or a stem that cannot be read leaves the operation failed with the reason and NOTHING registered — retry it with music_separation_retry. Read music_separate_plan first, and ask before spending.',
-            path: a => `/film/music-sessions/${a.session_id}/separations`, body: dropIds('session_id'),
-            schema: { ...S, clip_id: { type: 'string', description: 'The clip whose recording is separated.' },
-                stems: { type: 'integer', enum: Object.keys(musicSeparation.VARIATIONS).map(Number), description: 'How many stems: 2 or 6.' },
-                output_format: { type: 'string', description: 'mp3_<rate>_<kbps>; default mp3_44100_128.' },
-                wait: { type: 'boolean', description: 'Block until the separation has finished rather than answering with a running operation.' } },
-            required: ['session_id', 'clip_id', 'stems'],
-        },
-        {
-            name: 'music_separation_status', handler: H, method: 'GET',
-            description: 'Free. One separation: running, complete (with each stem\'s asset, track, clip and served url, and any warnings about stems that were not the ones expected) or failed (with the reason). Nothing is re-sent.',
-            path: a => `/film/music-sessions/${a.session_id}/separations/${a.operation_id}`,
-            schema: { ...S, operation_id: { type: 'string' } }, required: ['session_id', 'operation_id'],
-        },
-        {
-            name: 'music_separation_list', handler: H, method: 'GET',
-            description: 'Free. Every separation of a session, newest first, with its status, stems or failure, and the retry it came from.',
-            path: a => `/film/music-sessions/${a.session_id}/separations`, schema: S, required: ['session_id'],
-        },
-        {
-            name: 'music_separation_retry', handler: H, method: 'POST',
-            description: 'COSTS MONEY — tries a FAILED separation again as a new operation whose parent names the failed one (the failure stays in the lineage). Only a failed separation can be retried; a complete one is refused. Ask before spending.',
-            path: a => `/film/music-sessions/${a.session_id}/separations/${a.operation_id}/retry`, body: dropIds('session_id', 'operation_id'),
-            schema: { ...S, operation_id: { type: 'string' }, wait: { type: 'boolean', description: 'Block until the retry has finished.' } },
-            required: ['session_id', 'operation_id'],
-        },
-        {
-            name: 'music_generate_plan', handler: H, method: 'POST',
-            description: 'Free — spends nothing, writes nothing. What a generation on a score session WOULD do, for any of the five generating workflows: the project\'s music provider and model (or that provider\'s own reason it cannot, e.g. no native parts or no inpainting), the length, how many outputs and of what kind (a whole cue, native parts, an inpainted range — never mistaken for separated stems), the context sent (session tempo and meter, your key, the ACCEPTED emotional arc — never a proposal — and the arc as composition sections where the provider takes them), the cost hint, and the take behaviour. Refuses EMOTION_NOT_ACCEPTED when no arc is accepted unless ignore_emotion. Read it before music_generate.',
-            path: a => `/film/music-sessions/${a.session_id}/generate/plan`, body: dropIds('session_id'),
-            schema: { ...S,
-                workflow: { type: 'string', enum: musicGeneration.GENERATE_WORKFLOWS.slice(), description: 'music_compose (a whole cue), music_parts (the provider\'s native parts), music_reference (conditioned on an audio or melody reference), music_video (conditioned on the picture), music_inpaint (a range of an existing clip regenerated in context).' },
-                prompt: { type: 'string', description: 'The musical direction, in words. The session\'s tempo, meter, the key you give and the ACCEPTED emotional arc are added.' },
-                duration_ms: { type: 'integer', minimum: 1, description: 'Length to make; defaults to the picture the session covers. Not used by inpaint.' },
-                key: { type: 'string', description: 'The key, e.g. "D minor".' },
-                tempo_bpm: { type: 'number', description: 'Overrides the session\'s opening tempo.' },
-                model: { type: 'string', description: 'One of the provider\'s music models.' },
-                track_id: { type: 'string', description: 'Land the take on this track (as a candidate beside what it holds); a new track when omitted.' },
-                start_ms: { type: 'integer', minimum: 0, description: 'Where the take starts on the session clock. Default 0.' },
-                parts: { type: 'array', description: 'music_parts: the parts wanted, by role (e.g. ["strings","drums"]).' },
-                reference_asset_id: { type: 'string', description: 'music_reference: the audio asset to condition on.' },
-                reference_kind: { type: 'string', description: 'music_reference: audio or melody.' },
-                video_asset_id: { type: 'string', description: 'music_video: the clip or the conformed film.' },
-                clip_id: { type: 'string', description: 'music_inpaint: the clip whose range is regenerated; it is kept.' },
-                range: { type: 'object', description: 'music_inpaint: { start_ms, end_ms } measured inside the clip.' },
-                ignore_emotion: { type: 'boolean', description: 'Generate with no accepted arc. Without it an unaccepted arc refuses (EMOTION_NOT_ACCEPTED).' } },
-            required: ['session_id', 'workflow'],
-        },
-        {
-            name: 'music_generate', handler: H, method: 'POST',
-            description: 'COSTS MONEY — generates music on a score session with the project\'s provider: a whole cue, native parts, a reference- or picture-conditioned cue, or an inpainted range. Every output is a NEW file, asset and clip — a candidate take beside what a track already holds (selected only on a new track), labelled by kind; nothing on the session is replaced and every earlier take is kept. The session\'s tempo, meter, your key and the accepted emotional arc travel with the request. A provider error or bytes that are not audio leave a failed operation and nothing registered. Read music_generate_plan first, and ask before spending.',
-            path: a => `/film/music-sessions/${a.session_id}/generate`, body: dropIds('session_id'),
-            schema: { ...S,
-                workflow: { type: 'string', enum: musicGeneration.GENERATE_WORKFLOWS.slice(), description: 'music_compose (a whole cue), music_parts (the provider\'s native parts), music_reference (conditioned on an audio or melody reference), music_video (conditioned on the picture), music_inpaint (a range of an existing clip regenerated in context).' },
-                prompt: { type: 'string', description: 'The musical direction, in words. The session\'s tempo, meter, the key you give and the ACCEPTED emotional arc are added.' },
-                duration_ms: { type: 'integer', minimum: 1, description: 'Length to make; defaults to the picture the session covers. Not used by inpaint.' },
-                key: { type: 'string', description: 'The key, e.g. "D minor".' },
-                tempo_bpm: { type: 'number', description: 'Overrides the session\'s opening tempo.' },
-                model: { type: 'string', description: 'One of the provider\'s music models.' },
-                track_id: { type: 'string', description: 'Land the take on this track (as a candidate beside what it holds); a new track when omitted.' },
-                start_ms: { type: 'integer', minimum: 0, description: 'Where the take starts on the session clock. Default 0.' },
-                parts: { type: 'array', description: 'music_parts: the parts wanted, by role (e.g. ["strings","drums"]).' },
-                reference_asset_id: { type: 'string', description: 'music_reference: the audio asset to condition on.' },
-                reference_kind: { type: 'string', description: 'music_reference: audio or melody.' },
-                video_asset_id: { type: 'string', description: 'music_video: the clip or the conformed film.' },
-                clip_id: { type: 'string', description: 'music_inpaint: the clip whose range is regenerated; it is kept.' },
-                range: { type: 'object', description: 'music_inpaint: { start_ms, end_ms } measured inside the clip.' },
-                ignore_emotion: { type: 'boolean', description: 'Generate with no accepted arc. Without it an unaccepted arc refuses (EMOTION_NOT_ACCEPTED).' } },
-            required: ['session_id', 'workflow'],
-        },
-        {
-            name: 'music_generation_list', handler: H, method: 'GET',
-            description: 'Free. Every generation on a session, newest first: the workflow, provider and model, the context that was sent, each output with its asset, track, clip and take status, or the failure.',
-            path: a => `/film/music-sessions/${a.session_id}/generations`, schema: S, required: ['session_id'],
-        },
-        {
-            name: 'music_job_list', handler: H, method: 'GET',
-            description: 'Free. Every generation and separation on a score session as one PARENT job with its ordered CHILD outputs: each child\'s provider, model and provider job id, cost, attempt, source and context fingerprints, take number and acceptance (read from the take itself: accepted, pending, rejected). A parent\'s status is derived from its children — it is complete only when every expected output is — and a stored status that disagrees is flagged.',
-            path: a => `/film/music-sessions/${a.session_id}/jobs`, schema: S, required: ['session_id'],
-        },
-        {
-            name: 'music_job_get', handler: H, method: 'GET',
-            description: 'Free. One job with its children and the reason when it failed, naming the child.',
-            path: a => `/film/music-sessions/${a.session_id}/jobs/${a.operation_id}`,
-            schema: { ...S, operation_id: { type: 'string' } }, required: ['session_id', 'operation_id'],
-        },
-        {
-            name: 'music_job_poll', handler: H, method: 'POST',
-            description: 'Free — spends nothing. Where a job has got to. A job still marked running that no process owns any more (the server restarted mid-run) is reported INTERRUPTED and its open outputs failed, so it can be retried instead of reading as running for ever.',
-            path: a => `/film/music-sessions/${a.session_id}/jobs/${a.operation_id}/poll`, body: dropIds('session_id', 'operation_id'),
-            schema: { ...S, operation_id: { type: 'string' } }, required: ['session_id', 'operation_id'],
-        },
-        {
-            name: 'music_job_retry', handler: H, method: 'POST',
-            description: 'COSTS MONEY — runs a FAILED job again (a generation with the input it recorded, or a separation of the same clip) as the next attempt, whose parent names the attempt it retries. A running or complete job is refused. Ask before spending.',
-            path: a => `/film/music-sessions/${a.session_id}/jobs/${a.operation_id}/retry`, body: dropIds('session_id', 'operation_id'),
-            schema: { ...S, operation_id: { type: 'string' }, wait: { type: 'boolean', description: 'Separation only: block until the retry has finished.' } },
-            required: ['session_id', 'operation_id'],
-        },
-        {
-            name: 'music_package_build', handler: H, method: 'POST',
-            description: 'Spends nothing — no provider is called; at most the session is rendered locally. Builds the portable, DAW-neutral score package: a versioned manifest (session and operation ids, frame and sample rates, tempo and time-signature map, markers, track and clip placement, accepted emotional arc, rights, provenance, hashes and round-trip matching keys) beside equal-length 48 kHz / 24-bit Broadcast WAV stems aligned at the session start, the master, and the reference picture when the film has a conformed master. Deterministic: an unchanged session builds the same bytes and the existing package is returned.',
-            path: a => `/film/music-sessions/${a.session_id}/package`, body: dropIds('session_id'),
-            schema: { ...S, include_picture: { type: 'boolean', description: 'Carry the conformed film as the reference picture (default true; over 256 MB it is identified by hash instead).' } },
-            required: ['session_id'],
-        },
-        {
-            name: 'music_package_list', handler: H, method: 'GET',
-            description: 'Free. Every score package built from a session, newest first, with its hash, size, stem count and served url.',
-            path: a => `/film/music-sessions/${a.session_id}/packages`, schema: S, required: ['session_id'],
-        },
-        {
-            name: 'music_package_validate', handler: H, method: 'POST',
-            description: 'Free — writes nothing. Checks a score package: the format and version, every manifest section, every listed file present with its hash and size, nothing unlisted, and every stem a WAV at the package\'s sample rate and exactly its length. Answers the verdict with each problem named.',
-            path: a => `/film/projects/${a.project_id}/music-packages/import`, body: a => ({ ...dropIds('project_id')(a), validate_only: true }),
-            schema: { project_id: { type: 'string' }, asset_id: { type: 'string', description: 'A package already on this machine.' }, data: { type: 'string', description: 'Or the archive itself, as a data URI or base64.' } },
-            required: ['project_id'],
-        },
-        {
-            name: 'music_package_import', handler: H, method: 'POST',
-            description: 'Imports a score package — a Film Engine one, or one returned from a DAW with its keys intact. Validated first; a refusal writes nothing. Into session_id (a round trip) every stem finds its track by its matching key and lands as a CANDIDATE take beside what the track holds, never over it; a key whose track is gone gets a new track. Without session_id a new session is made with the tempo map, markers and accepted arc restored and every stem aligned at the start. Stems are stored byte-identical with their hashes and rights.',
-            path: a => `/film/projects/${a.project_id}/music-packages/import`, body: dropIds('project_id'),
-            schema: { project_id: { type: 'string' }, asset_id: { type: 'string' }, data: { type: 'string', description: 'The archive as a data URI or base64.' },
-                session_id: { type: 'string', description: 'Import back into this session: matched stems land as candidate takes.' } },
-            required: ['project_id'],
-        },
-        // ── Ableton, through the DAW contract (MUS-018) ─────────────────────
-        // One tool per operation of DAW_OPERATIONS (lib/daw-registry.js holds
-        // the map). None takes an OSC address or a Live property: the most an
-        // agent reaches is the sidecar's allowlist, through the driver's rules.
-        {
-            name: 'ableton_status', handler: H, method: 'GET',
-            description: 'Free — changes nothing. Is Ableton Live reachable through the local sidecar, which Live version answered, and is it the reviewed one (12.4; AbletonOSC cannot report the 12.4.5 bugfix). A Live that is not the reviewed version can be read and cannot be changed. Unconfigured, it says what to set and where the setup guide is.',
-            path: () => '/film/daw/ableton/status', schema: {}, required: [],
-        },
-        {
-            name: 'ableton_session_read', handler: H, method: 'GET',
-            description: 'Free — changes nothing. The Live set as it is: every track with its owner (film-engine for a track carrying a Film Engine marker ⟨fe:…⟩, live for everything else), its revision and the tempo. Read before planning a push.',
-            path: () => '/film/daw/ableton/session', schema: {}, required: [],
-        },
-        {
-            name: 'ableton_score_push_plan', handler: H, method: 'GET',
-            description: 'Free — changes nothing in Live; at most builds the portable score package locally. What pushing this score session to Ableton would do: the Film Engine tracks it would create and update, the tracks that are not Film Engine\'s and are left alone, every conflict (a Film Engine track edited in Live since the last push), and a plan_fingerprint to push exactly this plan.',
-            path: a => `/film/music-sessions/${a.session_id}/daw/ableton/push/plan`, schema: S, required: ['session_id'],
-        },
-        {
-            name: 'ableton_score_push', handler: H, method: 'POST',
-            description: 'Changes Live — carries out a push plan into Film Engine\'s own tracks in the Live set (created at the end, named with their ⟨fe:…⟩ marker; nothing else in the set is touched) and sets the song tempo. Pass the plan_fingerprint from ableton_score_push_plan; a plan the session or Live has moved past is refused (STALE_PLAN), and every conflict must be decided (overwrite or keep_daw) first. Idempotent: the same plan pushed again returns the recorded result without reaching Live. AbletonOSC cannot place audio from a file, so each acknowledged track names the stem a person drags in at bar 1.1.1. Spends no provider credits.',
-            path: a => `/film/music-sessions/${a.session_id}/daw/ableton/push`, body: dropIds('session_id'),
-            schema: { ...S, plan_fingerprint: { type: 'string', description: 'From ableton_score_push_plan.' },
-                resolutions: { type: 'object', description: 'fe_key → "overwrite" or "keep_daw", one per conflict in the plan.' },
-                idempotency_key: { type: 'string', description: 'Retry a push whose outcome is unknown (a timeout) with the key it reported; it cannot apply twice.' } },
-            required: ['session_id', 'plan_fingerprint'],
-        },
-        {
-            name: 'ableton_mix_pull_plan', handler: H, method: 'GET',
-            description: 'Free — changes nothing. What Live has rendered that could come back into the session, with hashes, and which already has. AbletonOSC exports no render, so from Live this is empty with the reason: export stems from Live and bring them back with music_package_import.',
-            path: a => `/film/music-sessions/${a.session_id}/daw/ableton/pull/plan`, schema: S, required: ['session_id'],
-        },
-        {
-            name: 'ableton_mix_pull', handler: H, method: 'POST',
-            description: 'Changes the session, not Live — brings one render back from Live as an immutable package, imported only after its sha256 hash matches what was advertised and every stem is aligned, landing as CANDIDATE takes beside what the tracks hold. Idempotent per render hash. From Ableton this is refused with the reason (AbletonOSC exports nothing in Live); use music_package_import for stems exported by hand.',
-            path: a => `/film/music-sessions/${a.session_id}/daw/ableton/pull`, body: dropIds('session_id'),
-            schema: { ...S, item_id: { type: 'string', description: 'From ableton_mix_pull_plan.' }, idempotency_key: { type: 'string' } },
-            required: ['session_id', 'item_id'],
-        },
-        {
-            name: 'ableton_transport', handler: H, method: 'POST',
-            description: 'Changes Live\'s transport — play, stop, or locate to a position in milliseconds (converted to beats at Live\'s tempo). Supervised: pass supervised: true ONLY when a person asked for it in this conversation; an agent never starts or moves Live on its own, and without it the call is refused. Recorded in the session\'s audit.',
-            path: a => `/film/music-sessions/${a.session_id}/daw/ableton/transport`, body: dropIds('session_id'),
-            schema: { ...S, command: { type: 'string', enum: ['play', 'stop', 'locate'] }, position_ms: { type: 'integer', minimum: 0, description: 'locate only.' },
-                supervised: { type: 'boolean', description: 'true only when a person asked for this.' } },
-            required: ['session_id', 'command'],
-        },
-        {
-            name: 'music_session_approve', handler: H, method: 'POST',
-            description: 'Spends nothing. Approves a score session by SELECTING a bounce as its mix — the newest complete one, or bounce_operation_id. Only a session in review (or already approved, to reselect) can be approved, and a bounce rendered before the session last changed is refused as STALE_MIX (ignore_stale overrides). From then on the timeline, playback, audio mix, pipeline, NLE exports and the conformed master consume that one mix at the start of the session\'s picture, and the scene music under it is dropped. Only a person\'s decision should drive this: ask before approving.',
-            path: a => `/film/music-sessions/${a.session_id}/approve`, body: dropIds('session_id'),
-            schema: { ...S, bounce_operation_id: { type: 'string', description: 'Which bounce to approve (from music_bounce_list); default the newest complete one.' },
-                ignore_stale: { type: 'boolean', description: 'Approve a bounce made before the session last changed.' },
-                ignore_rights: { type: 'boolean', description: 'Approve over a rights block (recorded). Only when a person decided to.' } },
-            required: ['session_id'],
-        },
-        {
-            name: 'music_session_unapprove', handler: H, method: 'POST',
-            description: 'Spends nothing. Takes an approval back: the session returns to review, its mix is no longer consumed by anything, and the scene music it replaced comes back.',
-            path: a => `/film/music-sessions/${a.session_id}/unapprove`, body: dropIds('session_id'), schema: S, required: ['session_id'],
-        },
-        {
-            name: 'music_score_lineage', handler: H, method: 'GET',
-            description: 'Free. Every clip of a score session and its mix (the approved one, else the current bounce), each walked to its sources: origin (original, generated, licensed, public_domain, unknown — or derived from its sources), rights status (a derivative carries the most encumbered of its sources), owner, provider, model, operation and hash. Names every issue and the rights policy in force at approval and final export. Nothing is assigned: a generated file is generated, not cleared.',
-            path: a => `/film/music-sessions/${a.session_id}/lineage`, schema: S, required: ['session_id'],
-        },
-        {
-            name: 'music_health', handler: H, method: 'GET',
-            description: 'Free. The score workstation\'s operations, by area — render (bounces), generation, separation, package, DAW push/pull, stem import, records — with counts per status, what is running, what is STALLED (a job no process owns, or a render running far past its ceiling) and the recent failures, each with its session and how to recover. Also whether the encoder is available (and where it came from) and, per DAW adapter, whether it is configured and why not; probe: true also asks each configured DAW whether it answers. Scope with project_id or session_id. Nothing in it carries a token, a key or an absolute path: error text is kept with paths cut to their file names.',
-            path: a => `/film/music-sessions/health${(() => { const q = ['project_id', 'session_id'].filter(k => a[k]).map(k => `${k}=${encodeURIComponent(a[k])}`); if (a.probe) q.push('probe=true'); return q.length ? `?${q.join('&')}` : ''; })()}`,
-            schema: { project_id: { type: 'string' }, session_id: { type: 'string' }, probe: { type: 'boolean', description: 'Also ask each configured DAW whether it answers (a network call with a short ceiling).' } },
-            required: [],
-        },
-        {
-            name: 'music_score_report', handler: H, method: 'GET',
-            description: 'Free. Which approved score mixes the film consumes and where each sits on the timeline, and every session that is not consumed and why: unapproved, stale (still used, but the session or the picture moved since), missing (no mix or no file), unplaced, overlapping another approved session, or shadowed by a finished project mix.',
-            path: a => `/film/projects/${a.project_id}/music-score`, schema: { project_id: { type: 'string' } }, required: ['project_id'],
-        },
-        {
-            name: 'music_daw_audit', handler: H, method: 'GET',
-            description: 'Free — needs no DAW connection. Every push, pull and transport a session has sent to a DAW, newest first: the operation, request id, idempotency key, outcome, duration and the error when it failed. A failed push whose outcome is unknown (a timeout) says so and names the key to retry it with.',
-            path: a => `/film/music-sessions/${a.session_id}/daw/${a.adapter || 'ableton'}/audit`,
-            schema: { ...S, adapter: { type: 'string', description: 'Which DAW adapter (default ableton).' } }, required: ['session_id'],
-        },
-        {
-            name: 'music_bounce_list', handler: H, method: 'GET',
-            description: 'Free. Every bounce of a session, newest version first: status, fingerprint, what it superseded, the master and each stem with its served url, what was left out and why. The newest complete one is marked current.',
-            path: a => `/film/music-sessions/${a.session_id}/bounces`, schema: S, required: ['session_id'],
-        },
-    );
-    tools.push({
-        name: 'music_track_render', handler: H, method: 'POST',
-        description: 'FREE \u2014 it runs on this machine and no provider is billed. Play a score track\u2019s own '
-            + 'notes through its own instrument, and land the audio as a take in that track\u2019s lane. THIS IS '
-            + 'WHERE A SCORE IS COMPOSED from the director\u2019s own sample libraries: give a track notes '
-            + '(music_track_update with notes: { program, notes: [{ start_ms, duration_ms, pitch, velocity }] }) and '
-            + 'an instrument_id from instrument_list, then play it. On a track that already holds a take the new one '
-            + 'arrives as a CANDIDATE, so what plays keeps playing until somebody selects it. A render that comes '
-            + 'back silent is refused rather than kept, and a refusal names its stage.',
-        path: a => `/film/music-sessions/${a.session_id}/tracks/${a.track_id}/render`,
-        body: () => ({}),
-        schema: { ...S, track_id: { type: 'string', description: 'The track to play, from music_track_list.' } },
-        required: ['session_id', 'track_id'],
-    });
-
-    for (const [kind, spec] of Object.entries(MUSIC_KINDS)) {
-        const one = MUSIC_SINGULAR[kind];
-        const idArg = `${one}_id`;
-        const what = MUSIC_WHAT[kind];
-        const fields = musicSchemaFor(spec.table, ['session_id']);
-        const paths = MUSIC_PATHS[kind];
-        if (!paths) throw new Error(`mcp-tools: no path builders for music child kind '${kind}'`);
-        const kindPath = paths.list;
-        const itemPath = paths.item;
-        tools.push(
-            {
-                name: `music_${one}_list`, handler: H, method: 'GET',
-                description: `Free. The ${kind.replace('-', ' ')} of a session, each ${what.split(':')[0]}.`,
-                path: kindPath, schema: S, required: ['session_id'],
-            },
-            {
-                name: `music_${one}_create`, handler: H, method: 'POST',
-                description: `Creates ${what}. Validated against the same vocabulary the database enforces; a refusal names the field. Writes one row; spends nothing.`,
-                path: kindPath, body: dropIds('session_id'),
-                schema: { ...S, ...fields }, required: ['session_id', ...(spec.owner === 'track' ? ['track_id'] : [])],
-            },
-            {
-                name: `music_${one}_update`, handler: H, method: 'PUT',
-                description: `Changes ${kind === 'emotion-ranges' ? 'an emotion range' : `a ${one}`}: ${what.split(':')[0]}. Merged, not replaced, so one field can be corrected without restating the rest. A row that belongs to another session is not found.`,
-                path: itemPath, body: dropIds('session_id', idArg),
-                schema: { ...S, [idArg]: { type: 'string' }, ...fields }, required: ['session_id', idArg],
-            },
-            {
-                name: `music_${one}_delete`, handler: H, method: 'DELETE',
-                description: `Deletes ${kind === 'emotion-ranges' ? 'an emotion range' : `a ${one}`} from its session${kind === 'tracks' ? ', and the clips and automation on it' : ''}. Removes the arrangement row only; any asset it referenced stays registered.`,
-                path: itemPath, body: () => ({}), schema: { ...S, [idArg]: { type: 'string' } }, required: ['session_id', idArg],
-            },
-        );
-    }
-    return tools;
-}
-PRODUCTION_TOOLS.push(...musicSessionTools());
-
 /*
  * `route` names the router function each flow tool reaches, for the test that
  * holds every shipped route to a tool. It is NOT `handler`: dispatch passes
@@ -6114,7 +5422,7 @@ const BATCH_TOOLS = [
             'What footage and sound can be uploaded from outside, what formats each accepts, whether it '
             + 'belongs to a shot or a scene, and the size limit. Free. Read this before media_upload: '
             + 'posting a scene-wide music bed at a shot is refused, because attaching a whole scene\u2019s '
-            + 'score to one shot would look like it worked.',
+            + 'music to one shot would look like it worked.',
         schema: {},
         required: [],
         async run() {

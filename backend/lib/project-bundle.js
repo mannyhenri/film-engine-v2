@@ -79,7 +79,8 @@ const EXPORT_TABLES = [
     { table: 'film_script_elements', key: 'id', filter: 'script_id IN (SELECT id FROM film_scripts WHERE project_id = ?)' },
     { table: 'render_ledger', key: 'id', filter: 'shot_id IN (SELECT id FROM film_shots WHERE scene_id IN (SELECT id FROM film_scenes WHERE project_id = ?))' },
     { table: 'film_screenplay_comments', key: 'id', filter: 'script_id IN (SELECT id FROM film_scripts WHERE project_id = ?)' },
-    // The score (MUS-021): the sequences sessions sit on, then every session table, parents first.
+    // The sequences, then the retired score's tables (MUS-021; carried as data so an old project
+    // round-trips whole, never read by Film Engine since music-making was retired), parents first.
     { table: 'film_sequences', key: 'id', filter: 'project_id = ?' },
     // Cuts made in an editor, before the sessions written against them.
     { table: 'film_edits', key: 'id', filter: 'project_id = ?' },
@@ -177,8 +178,6 @@ function exportProject(projectId) {
         const buf = fs.readFileSync(path.join(stagingDir, rel));
         return { path: rel.split(path.sep).join('/'), size: buf.length, sha256: crypto.createHash('sha256').update(buf).digest('hex') };
     });
-    // Which sessions' latest bounce was their current mix, so the import can keep it current.
-    manifest.music_sessions = (manifest.tables.film_music_sessions || []).map(scoreState);
 
     // Write manifest
     fs.writeFileSync(path.join(stagingDir, 'manifest.json'), JSON.stringify(manifest, null, 2));
@@ -360,16 +359,13 @@ function importProject(archiveBuffer) {
     db.prepare('UPDATE film_projects SET assets_dir = ? WHERE id = ?').run(destRoot, newProjectId);
     folders.scaffold(destRoot, importedTitle);
 
-    // A bounce that was its session's current mix stays current under the new ids.
-    stats.restamped_bounces = restampBounces(manifest.music_sessions, idMap);
-
     // Return the newly created project
     const project = db.prepare('SELECT * FROM film_projects WHERE id = ?').get(newProjectId);
 
     return { project, stats, id_map: { old: oldProjectId, new: newProjectId } };
 }
 
-// ── The helpers the score needed (MUS-021) ─────────────────────────────────
+// ── Strict tables: their references must resolve on import ─────────────────
 
 const { PATH_COLUMNS, tailOf } = require('./data-paths');
 const SCORE_TABLES = new Set(['film_sequences', 'film_music_sessions', 'film_music_tracks', 'film_music_clips', 'film_music_emotion_ranges',
@@ -511,45 +507,6 @@ function enforceReferences(inserted, stats) {
             (stats.cleared_references ||= []).push({ table, rowid: v.rowid, parent: v.parent, action: nullable ? 'cleared' : 'dropped' });
         }
     }
-}
-
-/**
- * For each stems mode a session has a complete bounce in, the fingerprint the
- * session would bounce to NOW. A bounce whose recorded fingerprint equals it
- * was current when exported, and is re-stamped on import against the new ids.
- */
-function scoreState(session) {
-    const out = { id: session.id, current: [] };
-    try {
-        const renderer = require('./music-renderer');
-        const modes = [...new Set(renderer.listBounces(db, session.id).filter(b => b.status === 'complete').map(b => b.stems_mode || 'none'))];
-        for (const mode of modes) {
-            const plan = renderer.planBounce(db, session.id, { stems: mode });
-            if (plan && plan.ok !== false && plan.fingerprint) out.current.push({ stems_mode: mode, fingerprint: plan.fingerprint });
-        }
-    } catch (_) { /* a session that cannot be planned carries nothing to re-stamp */ }
-    return out;
-}
-
-function restampBounces(states, idMap) {
-    let n = 0;
-    const renderer = require('./music-renderer');
-    for (const st of states || []) {
-        const sid = idMap[st.id];
-        for (const c of st.current || []) {
-            let fp = null;
-            try { fp = renderer.planBounce(db, sid, { stems: c.stems_mode }).fingerprint; } catch (_) { fp = null; }
-            if (!fp) continue;
-            for (const op of db.prepare("SELECT id, params_json FROM film_music_operations WHERE session_id = ? AND kind = 'bounce'").all(sid)) {
-                let p; try { p = JSON.parse(op.params_json || '{}'); } catch (_) { continue; }
-                if (p.fingerprint !== c.fingerprint || (p.stems_mode || 'none') !== c.stems_mode) continue;
-                p.fingerprint = fp;
-                db.prepare('UPDATE film_music_operations SET params_json = ? WHERE id = ?').run(JSON.stringify(p), op.id);
-                n++;
-            }
-        }
-    }
-    return n;
 }
 
 module.exports = {

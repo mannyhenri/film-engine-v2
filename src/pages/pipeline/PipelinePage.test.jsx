@@ -26,7 +26,7 @@ describe('Pipeline', () => {
         const { calls, status } = await openPage();
         expect(calls.map(c => c.path)).toEqual(['/projects/p1/status-board', '/projects/p1/consistency/audit', '/projects/p1/pipeline', '/projects/p1/providers']);
         expect(status).toEqual(['Loading pipeline...', '3 shot(s) in pipeline']);
-        expect(document.getElementById('pipelineProviders').textContent).toMatch(/^Providers → LLM: claude, image: flux, video: veo, voice: gridlight, music: gridlight · change$/);
+        expect(document.getElementById('pipelineProviders').textContent).toMatch(/^Providers → LLM: claude, image: flux, video: veo, voice: gridlight, effects: gridlight · change$/);
     });
 
     it('lists active runs, the history and the shots, a not-ready shot marked', async () => {

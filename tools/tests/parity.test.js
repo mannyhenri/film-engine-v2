@@ -28,8 +28,10 @@ const ported = plan.rounds.slice(0, plan.currentRound).flat().filter(p => !REACT
 const LOADERS = loaderMap(src.app);
 const pageIds = [...new Set([...src.html.matchAll(/id="page-([a-z0-9]+)"/g)].map(m => m[1]))];
 
-test('the source registry: 37 pages, each with a loader', () => {
-    assert.strictEqual(pageIds.length, 37);
+// 37 in the original, less the pages the user retired (tools/split-lib.js RETIRED).
+const RETIRED_PAGES = Object.values(require('../split-lib').RETIRED).flatMap(f => f.pages);
+test(`the source registry: ${37 - RETIRED_PAGES.length} pages (37, less ${RETIRED_PAGES.length} retired), each with a loader`, () => {
+    assert.strictEqual(pageIds.length, 37 - RETIRED_PAGES.length);
     assert.deepStrictEqual([...pageIds].sort(), Object.keys(LOADERS).sort());
     assert.deepStrictEqual([...ported, ...Object.keys(REACT), ...plan.rounds.slice(plan.currentRound).flat()].sort(), [...pageIds].sort());
 });

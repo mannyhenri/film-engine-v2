@@ -30,7 +30,7 @@ for (const k of Object.values(MEDIA_KINDS)) {
 /** A human label per type, from the registry's own capability names. */
 const KIND_LABEL = {
     audio_dialogue: 'Dialogue',
-    audio_music: 'Score',
+    audio_music: 'Music',
     audio_sfx: 'Effect',
     audio_ambient: 'Room tone',
 };
@@ -198,7 +198,8 @@ async function generateSound(req, res, projectId) {
     if (!prompt) return json(res, 400, { error: 'A prompt is required — say what the sound is.' });
 
     const kind = String(body.kind || 'sfx');
-    const KINDS = { sfx: 'audio_sfx', ambient: 'audio_ambient', music: 'audio_music' };
+    // Effects and room tone. Music is never generated (music-making was retired); it comes in as a file.
+    const KINDS = { sfx: 'audio_sfx', ambient: 'audio_ambient' };
     if (!KINDS[kind]) {
         return json(res, 400, { error: `Unknown kind "${kind}"`, valid: Object.keys(KINDS) });
     }
@@ -231,7 +232,7 @@ async function generateSound(req, res, projectId) {
     const seconds = Math.max(0.5, Math.min(30, Number(body.duration_s) || 5));
 
     const { resolveGenerator } = require('../lib/providers');
-    const capability = kind === 'music' ? 'music' : kind;
+    const capability = kind;
     let provider;
     try {
         // The project's own config plus what was chosen on the dialog. This

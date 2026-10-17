@@ -26,7 +26,6 @@ function EditCard({ e, act }) {
             <div className="flex-between">
                 <h3 style={{ margin: 0 }}>v{e.version} · {e.name || ''}{e.is_latest && <> <span className="badge">latest</span></>}</h3>
                 <div className="btn-row" style={{ margin: 0 }}>
-                    <button className="btn btn-primary btn-sm" onClick={() => act.scoreThisEdit(e.id, e.version)}>Score this edit</button>
                     <label className="btn btn-secondary btn-sm" style={{ cursor: 'pointer', margin: 0 }}>{c ? 'Replace XML / EDL' : 'Add XML / EDL'}
                         <input type="file" accept=".xml,.edl,application/xml,text/xml,text/plain" style={{ display: 'none' }} onChange={ev => act.importEditCut(e.id, ev.target)} />
                     </label>
@@ -45,13 +44,8 @@ function EditCard({ e, act }) {
                     {` (${c.summary.by.file} by file, ${c.summary.by.code} by shot code)`}
                     {c.summary.unmatched ? ` · not ours: ${ELLIPSIS(c.summary.unmatched_names, 6)}` : ''}
                     {c.summary.shots_not_in_cut.length ? ` · shots not in this cut: ${ELLIPSIS(c.summary.shots_not_in_cut, 8)}` : ''}
-                </> : 'No cut yet — add the XML or EDL this edit was exported with, so the score knows which shot plays where.'}
+                </> : 'No cut yet — add the XML or EDL this edit was exported with, so Film Engine knows which shot plays where.'}
             </div>
-            {e.sessions.length > 0 && (
-                <div className="text-sm" style={{ marginTop: 4 }}>Scored in: {e.sessions.map((x, i) => (
-                    <span key={x.id}>{i > 0 && ', '}<a href="#" onClick={ev => act.openScoreSession(ev, x.id)}>{x.name || 'untitled'}</a> ({x.status})</span>
-                ))}</div>
-            )}
             {e.file_path && <div className="text-sm text-muted" style={{ marginTop: 4, userSelect: 'all' }}>{e.file_path}</div>}
             {c && c.events.length > 0 && (
                 <details style={{ marginTop: 8 }}><summary className="text-sm">The cut, event by event</summary>
@@ -167,29 +161,11 @@ export default function EditsPage() {
     async function deleteEditVersion(editId, version) {
         if (!window.confirm(`Delete edit v${version}?\n\nThe files move to 05 Edit/deleted, so they can be recovered by hand.`)) return;
         try { await legacy.api(`/edits/${editId}`, { method: 'DELETE' }); loadEditsPage(); legacy.setStatus(`Edit v${version} deleted`); }
-        catch (err) {
-            // Refused while a score is written against it: say so, and offer the choice.
-            if (/written against this edit/.test(err.message) && window.confirm(err.message + '\n\nDelete anyway and leave those scores with no picture?')) {
-                try { await legacy.api(`/edits/${editId}?force=true`, { method: 'DELETE' }); loadEditsPage(); } catch (e2) { legacy.setStatus('Could not delete: ' + e2.message); }
-            } else legacy.setStatus('Not deleted: ' + err.message);
-        }
+        catch (err) { legacy.setStatus('Not deleted: ' + err.message); }
     }
-
-    /** Open a score session timed to this edit, and go to it. */
-    async function scoreThisEdit(editId, version) {
-        try {
-            const out = await legacy.api(`/projects/${legacy.state.currentProject.id}/music-sessions`, {
-                method: 'POST', body: JSON.stringify({ edit_id: editId, name: `Score — edit v${version}` }),
-            });
-            legacy.MW.session = out.session;
-            legacy.navigateTo('musicws');
-        } catch (err) { legacy.setStatus('Could not open a score for this edit: ' + err.message); }
-    }
-
-    function openScoreSession(e, sessionId) { e.preventDefault(); legacy.MW.session = { id: sessionId }; legacy.navigateTo('musicws'); }
 
     const list = useListControls(SURFACE, view.edits || null);
-    const actions = { scoreThisEdit, importEditCut, rematchEditCut, renameEdit, deleteEditVersion, openScoreSession };
+    const actions = { importEditCut, rematchEditCut, renameEdit, deleteEditVersion };
 
     return (
         <div className="page" id="page-edits">
@@ -206,8 +182,6 @@ export default function EditsPage() {
                 {' '}<strong>Final Cut Pro XML</strong> (File &rarr; Export &rarr; Final Cut Pro XML) or an <strong>EDL</strong>
                 {' '}it was cut from, so Film Engine knows which shot plays where. Every import is a new version &mdash;
                 nothing is overwritten &mdash; and the files are kept in the project&rsquo;s <em>05 Edit</em> folder.
-                {' '}<strong>Score this edit</strong> opens a score session timed to the cut, whose stems drop onto the
-                Premiere sequence at 00:00.
             </p>
             <div id="editImportProgress" className="text-sm" style={{ margin: '8px 0' }}>{progress}</div>
             {view.edits && view.edits.length > 0 && <ListControlsBar list={list} />}

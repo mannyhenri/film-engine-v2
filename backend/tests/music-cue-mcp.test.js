@@ -1,5 +1,6 @@
 /**
- * An agent can write the music direction, not only press generate.
+ * An agent can write the sound direction, not only press generate.
+ * (Cues are sound effects and ambient beds since music-making was retired on 2026-10-14.)
  *
  * "Is the place for music notes also available on MCP so I can instruct Claude
  * to add the notes?"
@@ -36,7 +37,7 @@ require('../db/schema').ensureSchema();
 const { listTools, ALL_ROUTE_TOOLS } = require('../lib/mcp-tools');
 const { handleAssets } = require('../routes/assets');
 
-/** Every cue field the music prompt actually reads. */
+/** Every cue field the sound prompt builder (lib/music-prompt.js) actually reads. */
 function fieldsTheGeneratorReads() {
     const src = fs.readFileSync(path.join(__dirname, '..', 'lib', 'music-prompt.js'), 'utf8');
     const DERIVED = new Set(['duration_s', 'category', 'sound', 'seed']);
@@ -108,11 +109,15 @@ test('the cue length is optional, and says what blank means', () => {
 });
 
 test('the routes those tools need actually exist', async () => {
+    // A cue is a sound effect or an ambient bed: music-making was retired on 2026-10-14.
+    const refused = await call('POST', ['film', 'projects', PROJECT, 'music-cues'],
+        { cue_type: 'score', title: 'Main titles', description: 'A slow build.' });
+    assert.strictEqual(refused.status, 400, 'a music cue was accepted after music-making was retired');
+
     const created = await call('POST', ['film', 'projects', PROJECT, 'music-cues'],
-        { title: 'Diner, under the dialogue', mood: 'melancholic',
-          description: 'Holds under the dialogue, lifts when she stands.',
-          reference_track: 'Blade Runner end titles',
-          instruments: ['solo cello', 'brushed kit'] });
+        { cue_type: 'sfx', title: 'Diner, under the dialogue',
+          description: 'A screen door two streets over, closing slowly.',
+          notes: 'Lands on the cut to the window.' });
     assert.strictEqual(created.status, 201, JSON.stringify(created.body).slice(0, 140));
     // createMusicCue returns the bare row, and update matches it.
     const id = created.body.id;
@@ -121,7 +126,9 @@ test('the routes those tools need actually exist', async () => {
         { description: 'Out on the door, not the line before it.' });
     assert.strictEqual(updated.status, 200, 'a cue cannot be changed, so notes can only be written once');
     assert.match(updated.body.description, /Out on the door/);
-    assert.strictEqual(updated.body.mood, 'melancholic',
+    assert.strictEqual(updated.body.title, 'Diner, under the dialogue',
+        'updating the description replaced the rest of the cue');
+    assert.strictEqual(updated.body.notes, 'Lands on the cut to the window.',
         'updating the description replaced the rest of the cue');
 
     const removed = await call('DELETE', ['film', 'music-cues', id]);

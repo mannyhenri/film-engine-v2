@@ -6,17 +6,21 @@ by name and errs toward more reach, which only keeps more in core.
 
 | category | declarations |
 |---|---|
-| (a) one owner, and every core caller moves with it: can move into that owner's engine | 0 |
+| (a) one owner, and every core caller moves with it: can move into that owner's engine | 1 |
 | (a2) as (a), but a caller that stays NAMES it (onclick, window[name]): moves if the owner provides it | 0 |
 | (e) one owner, but a caller that stays in core calls it in code: held in core until that caller moves | 1 |
-| (b) two or more owners: stays core, or a shared module | 16 |
-| (c) reached by nobody this can see: dead, or reached only by a name built at run time | 22 |
+| (b) two or more owners: stays core, or a shared module | 14 |
+| (c) reached by nobody this can see: dead, or reached only by a name built at run time | 21 |
 | (d) load-time core (startup statements, shell.js, production-graph.js and what they reach) | 202 |
-| total | 241 |
+| total | 239 |
 
 Measured as one owner (`GROUPS` in the tool): component:ScreenplayDialogs as page:screenplay (the Screenplay's seven dialogs: their handlers call the screenplay engine, and the component imports from it).
 
 ## (a) By owner
+
+### page:edits (1)
+
+`mwTime`
 
 ## (b) By owner set
 
@@ -25,18 +29,16 @@ their shared declarations together into one engine; the rest stays core or becom
 
 | owners | declarations |
 |---|---|
-| component:CompositeWorkbench + component:DepthWorkbench + lib:previz-workspace + page:music + page:playback + page:previs + page:productiongraph | 1 |
+| component:CompositeWorkbench + component:DepthWorkbench + lib:previz-workspace + page:playback + page:previs + page:productiongraph | 1 |
 | component:SceneDrift + page:scenes + page:storyboard | 1 |
 | component:VideoPipeline + page:budget + page:playback + page:productiongraph | 1 |
 | lib:previz-workspace + page:previs + page:storyboard | 1 |
 | page:dashboard + page:productiongraph + page:storyboard | 1 |
-| page:edits + page:music | 1 |
-| page:edits + page:music + page:musicws | 1 |
 | page:edits + page:settings | 1 |
 | page:exportpage + page:projects | 1 |
 | page:exportpage + page:videoshots | 1 |
-| page:music + page:pipeline + page:previs + page:storyboard + page:videoshots | 1 |
 | page:music + page:previs + page:videoshots | 1 |
+| page:pipeline + page:previs + page:storyboard + page:videoshots | 1 |
 | page:playback + page:previs | 1 |
 | page:previs + page:screenplay | 1 |
 | page:projects + page:settings | 1 |
@@ -54,12 +56,10 @@ their shared declarations together into one engine; the rest stays core or becom
 | `DRIFT` | component:SceneDrift, page:scenes, page:storyboard |
 | `fmtBytes` | page:edits, page:settings |
 | `importBundle` | page:exportpage, page:projects |
-| `mediaUrl` | component:CompositeWorkbench, component:DepthWorkbench, lib:previz-workspace, page:music, page:playback, page:previs, page:productiongraph |
-| `MW` | page:edits, page:music, page:musicws |
-| `mwTime` | page:edits, page:music |
+| `mediaUrl` | component:CompositeWorkbench, component:DepthWorkbench, lib:previz-workspace, page:playback, page:previs, page:productiongraph |
 | `openFrameViewer` | page:dashboard, page:productiongraph, page:storyboard |
 | `pb` | page:playback, page:previs |
-| `streamSSEPost` | page:music, page:pipeline, page:previs, page:storyboard, page:videoshots |
+| `streamSSEPost` | page:pipeline, page:previs, page:storyboard, page:videoshots |
 | `usd` | component:VideoPipeline, page:budget, page:playback, page:productiongraph |
 | `WORLD` | lib:previz-workspace, page:previs, page:storyboard |
 
@@ -79,9 +79,9 @@ assembles). Checked against the original app (liveInOriginal): each was dead the
 over its behaviour is named (TAKEN_OVER).
 
 Dead in the original too, KEPT because film-engine's backend tests read them (split-lib KEPT_FOR_TESTS: the registries
-the tests check against, and dead UI they still assert exists; the user decided on 2026-10-04 to keep them with their tests) (19):
+the tests check against, and dead UI they still assert exists; the user decided on 2026-10-04 to keep them with their tests) (18):
 
-`acceptPlate`, `addScreenplayComment`, `clearCommentHighlights`, `commentsVisible`, `DAW_ACTIONS`, `deleteLocationView`, `ELEMENT_TYPES`, `ENTITY_FIELDS`, `generateLocationImage`, `generatePropImage`, `inspectEntity`, `loadScreenplayComments`, `PV_MODES`, `refineLocationView`, `renderCharacterViewsInto`, `renderCommentHighlights`, `renderLocationViews`, `screenplayComments`, `worldOccupancy`
+`acceptPlate`, `addScreenplayComment`, `clearCommentHighlights`, `commentsVisible`, `deleteLocationView`, `ELEMENT_TYPES`, `ENTITY_FIELDS`, `generateLocationImage`, `generatePropImage`, `inspectEntity`, `loadScreenplayComments`, `PV_MODES`, `refineLocationView`, `renderCharacterViewsInto`, `renderCommentHighlights`, `renderLocationViews`, `screenplayComments`, `worldOccupancy`
 
 Dead in the original too and unclassified (0): remove (split-lib REMOVED) or keep with a reason.
 

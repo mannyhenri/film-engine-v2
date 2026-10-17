@@ -196,7 +196,7 @@ export default function PipelinePage() {
                 <h3 className="mb-8">Run scene → final</h3>
                 <p className="text-sm text-muted mb-8" id="pipelineProviders">{p && <>
                     Providers → LLM: <strong>{p.llm || 'gridlight'}</strong>, image: <strong>{p.image || 'gridlight'}</strong>, video: <strong>{p.video || 'gridlight'}</strong>,
-                    {' '}voice: <strong>{p.voice || 'gridlight'}</strong>, music: <strong>{p.music || 'gridlight'}</strong>
+                    {' '}voice: <strong>{p.voice || 'gridlight'}</strong>, effects: <strong>{p.sfx || 'gridlight'}</strong>
                     {' · '}<a style={{ cursor: 'pointer', color: 'var(--gl-accent,#818cf8)' }} onClick={() => legacy.navigateTo('settings')}>change</a>
                 </>}</p>
                 <div id="pipelineReadiness" className="mb-8"><Readiness audit={audit} /></div>

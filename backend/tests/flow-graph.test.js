@@ -36,8 +36,13 @@ const TAXONOMY = JSON.parse(fs.readFileSync(
 
 // ── The runtime registry and the documented taxonomy must not drift ─────
 
+// Music generation was retired (2026-10-14): `gen.music` is gone from the runtime registry on purpose,
+// whether or not the planning document still lists it. Every other node must still match exactly.
+const RETIRED_NODES = new Set(['gen.music']);
+
 test('the node-type registry matches the documented taxonomy exactly', () => {
-    const documented = TAXONOMY.nodes.map(n => n.id).sort();
+    const documented = TAXONOMY.nodes.map(n => n.id).filter(id => !RETIRED_NODES.has(id)).sort();
+    for (const id of RETIRED_NODES) assert.ok(!NODE_TYPES[id], `${id} was retired but is still registered`);
     const runtime = Object.keys(NODE_TYPES).sort();
     assert.deepStrictEqual(runtime, documented,
         'lib/flow-node-types.js and flows-canvas-node-taxonomy.json disagree on which nodes exist');
@@ -250,8 +255,8 @@ test('validateGraph rejects two edges feeding one input port', () => {
 });
 
 test('collector ports accept fan-in; every other port does not', () => {
-    // A final mix genuinely takes music AND sfx AND ambient on one audio input:
-    // the real 9-step pipeline converges three audio sources on assembly. Those
+    // A final mix genuinely takes sfx AND ambient (and dialogue) on one audio input:
+    // the real 8-step pipeline converges several audio sources on assembly. Those
     // ports are declared multi; everything else stays single so the executor
     // never has to arbitrate between two values for one slot.
     const collectors = Object.entries(NODE_TYPES)
@@ -261,7 +266,7 @@ test('collector ports accept fan-in; every other port does not', () => {
     // Fan-in into a declared collector is legal.
     const ok = validateGraph({
         nodes: [
-            { id: 'm', type: 'gen.music' },
+            { id: 'm', type: 'gen.ambient' },
             { id: 's', type: 'gen.sfx' },
             { id: 'asm', type: 'out.assembly' },
         ],

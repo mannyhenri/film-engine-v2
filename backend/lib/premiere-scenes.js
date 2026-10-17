@@ -14,7 +14,6 @@
  *     Scene_01_INT-DINER-NIGHT/
  *       Video/1A.mp4 …            each shot's SELECTED clip (the conform's own rule)
  *       Sound/1A_dialogue_1.mp3 … the shot's dialogue and effects, the scene's beds
- *     Score/                      an approved score, when there is one
  *
  * The XML points at the copies, as file URLs, so it opens online on this
  * machine; moved elsewhere, Premiere's Locate finds them by the same folders.
@@ -89,23 +88,17 @@ function planPremiereScenes(db, project, shots, assets) {
             missing.push({ asset_id: null, shot_code: sh.shot_code, kind: 'video', reason: 'this shot has no clip yet' });
         }
     }
-    // Sound: a shot's own lines and effects, then each scene's beds, then a score.
+    // Sound: a shot's own lines and effects, then each scene's beds.
     const counts = new Map();
     for (const a of assets) {
         if (!SOUND.includes(a.asset_type)) continue;
-        let sceneId = a.shot_id ? shotScene.get(a.shot_id) : a.scene_id;
-        let rel;
+        const sceneId = a.shot_id ? shotScene.get(a.shot_id) : a.scene_id;
         const label = a.asset_type.replace('audio_', '');
-        if (a.lay_on_shot_id) {                            // an approved score (MUS-020)
-            rel = `Score/${path.basename(a.file_path || a.id)}`;
-            sceneId = null;
-        } else {
-            if (!sceneId || !shotScene.size || ![...shotScene.values()].includes(sceneId)) continue;
-            const code = a.shot_id ? (shots.find(s => s.id === a.shot_id) || {}).shot_code : 'scene';
-            const key = `${sceneId}|${code}|${label}`;
-            const n = (counts.get(key) || 0) + 1; counts.set(key, n);
-            rel = `${folderOf(sceneId)}/Sound/${code}_${label}_${n}.${extOf(a)}`;
-        }
+        if (!sceneId || !shotScene.size || ![...shotScene.values()].includes(sceneId)) continue;
+        const code = a.shot_id ? (shots.find(s => s.id === a.shot_id) || {}).shot_code : 'scene';
+        const key = `${sceneId}|${code}|${label}`;
+        const n = (counts.get(key) || 0) + 1; counts.set(key, n);
+        const rel = `${folderOf(sceneId)}/Sound/${code}_${label}_${n}.${extOf(a)}`;
         add(a, rel, label, sceneId, null);
         if (sceneId && scenes.has(sceneId)) scenes.get(sceneId).sound.push(rel);
     }

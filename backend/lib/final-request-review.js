@@ -39,7 +39,7 @@ function quoteFor(snapshot,payload) {
  if(snapshot.provider==='runway'&&metadata.mode==='multi_shot_video')pricingModel=fields.ratio==='1920:1080'?'multi_shot_video_1080p':'multi_shot_video_720p';
  try {rate=require('./provider-pricing').rateFor(snapshot.provider,snapshot.capability,pricingModel);}catch(_){}
  const count=Number(fields.n??fields.batch_size??fields.num_images??fields.num_outputs??1);
- let duration=Number(fields.duration_seconds??fields.duration??fields.duration_s??(fields.music_length_ms!==undefined?fields.music_length_ms/1000:metadata.durationSeconds??metadata.duration_s));
+ let duration=Number(fields.duration_seconds??fields.duration??fields.duration_s??metadata.durationSeconds??metadata.duration_s);
  const sections=fields.composition_plan?.sections||fields.composition_plan?.chunks;
  if(Array.isArray(sections)&&sections.length)duration=sections.reduce((total,section)=>total+Number(section.duration_ms)/1000,0);
  if(snapshot.provider==='seedance'&&['upscale','video-edit'].includes(metadata.workflow))duration=Number(metadata.source_seconds);
@@ -60,12 +60,13 @@ function quoteFor(snapshot,payload) {
    else nativeQuote={source:policy.source};
   }else nativeQuote={};
  }
- const amount=nativeQuote?(Number.isFinite(nativeQuote.credits)?Number((nativeQuote.credits*.01).toFixed(6)):null):known?Number((perUSD*quantity).toFixed(6)):null;
+ const apiQuote=snapshot.provider==='higgsfield'?require('./higgsfield-pricing').quoteConfiguration(metadata.endpoint||String(snapshot.endpoint||'').replace(/^https:\/\/api.higgsfield.ai\//,''),{...fields,duration_seconds:duration}):null;
+ const amount=apiQuote?(apiQuote.available&&Number.isFinite(quantity)&&quantity>0?Number((apiQuote.list_rate*quantity).toFixed(6)):null):nativeQuote?(Number.isFinite(nativeQuote.credits)?Number((nativeQuote.credits*.01).toFixed(6)):null):known?Number((perUSD*quantity).toFixed(6)):null;
  const credits=nativeQuote?(Number.isFinite(nativeQuote.credits)?nativeQuote.credits:null):known&&rate?.native_unit==='credit'?quantity*(rate.native_per_unit||1):null;
  // Shared by initial metering and free recovery. A native credit estimate is
  // still an estimate; only an actual provider receipt may confirm its charge.
  const billing={model:pricingModel,unit:rate?.unit||null,quantity:Number.isFinite(quantity)&&quantity>0?quantity:null,...(Number.isFinite(nativeQuote?.credits)?{native_charged:nativeQuote.credits}:{})};
- return {kind:'estimate',amount,currency:amount!==null?'USD':null,credits,unit:rate?.unit||null,billing,source:nativeQuote?.source||rate?.source||null,pricing_digest:hash(canonical({rate,pricingModel,quantity:Number.isFinite(quantity)?quantity:null,nativeQuote})),note:amount!==null?'Local rate estimate; the provider reports the actual charge separately.':'Price is unknown; explicit cost consent is required.'};
+ return {kind:'estimate',amount,currency:amount!==null?'USD':null,credits,unit:rate?.unit||null,billing,source:apiQuote?.source||nativeQuote?.source||rate?.source||null,pricing_digest:hash(canonical({rate,pricingModel,quantity:Number.isFinite(quantity)?quantity:null,nativeQuote,apiQuote})),note:apiQuote?.reason||(amount!==null?'Local rate estimate; the provider reports the actual charge separately.':'Price is unknown; explicit cost consent is required.')};
 }
 function sourcePaths(payload) {
  const paths=new Set();

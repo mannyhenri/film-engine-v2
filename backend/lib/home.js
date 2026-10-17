@@ -221,7 +221,7 @@ function buildRunning(db, projectId) {
     const TABLES = [
         { table: 'film_video_jobs', label: 'Video' },
         { table: 'film_voice_jobs', label: 'Voice' },
-        { table: 'film_music_jobs', label: 'Score' },
+        { table: 'film_music_jobs', label: 'Sound' },
         { table: 'film_post_jobs', label: 'Post' },
     ];
     for (const t of TABLES) {

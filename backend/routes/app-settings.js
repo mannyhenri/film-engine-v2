@@ -45,11 +45,6 @@ const SETTINGS = {
      * port.
      */
     /*
-     * THE MUSIC RIGHTS POLICY (MUS-022): what each rights status does at
-     * approval and at final export — allow, warn or block. Blank is the stated
-     * default in lib/music-rights.js; a value replaces only the parts it names.
-     */
-    /*
      * WHERE NEW PROJECTS GO. The folder a new project's own folder is made
      * inside, offered as the default when a project is started and changeable
      * there. Blank is `~/Film Engine` (lib/project-folders.js).
@@ -94,13 +89,6 @@ const SETTINGS = {
     backup_projects: {
         description: 'Also write each project\u2019s rows as JSON beside the snapshot, so one film can be restored alone. Media is not copied: it lives in each project\u2019s own folder.',
         default: false,
-    },
-    music_rights_policy: {
-        description: 'JSON: what each music rights status does at each gate, e.g. {"approval":{"unknown":"warn"},"final_export":{"restricted":"block"}}. Statuses: cleared, unknown, restricted, expired, blocked; actions: allow, warn, block. Blank keeps the stated default (unknown and restricted warn; expired blocks final export; blocked blocks both).',
-        default: '',
-        validate: v => require('../lib/music-rights').validatePolicy(v),
-        // A value the validator accepts, so anything probing every setting can write a real one.
-        example: '{"approval":{"unknown":"warn"}}',
     },
     gridlight_enabled: {
         description: 'Turn on the local Gridlight endpoints. Off by default: until it is enabled, '

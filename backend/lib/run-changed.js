@@ -29,7 +29,7 @@ const PERSON_STAGES = Object.freeze({
  *
  * @param {object} input
  * @param {object} input.report      impact() output (shots[].stages[])
- * @param {object} input.scenes      graphStates().scenes: { sceneId: { music, ambient } }
+ * @param {object} input.scenes      graphStates().scenes: { sceneId: { ambient } }
  * @param {boolean} [input.boardLocked]
  * @param {Set<string>} [input.held] shot or scene ids that batch runs skip
  */
@@ -98,7 +98,7 @@ function buildRunChangedPlan(input) {
 /**
  * What is held: shot ids, and `<scene id>:<step>` for a scene step whose cue
  * is held — the cue that step would generate from, asked of music-gen's own
- * selector (lib/graph-hold cueHeldFor), so a scene with a held score still
+ * selector (lib/graph-hold cueHeldFor), so a scene with held effects still
  * gets its ambient bed.
  */
 function heldIds(db, projectId) {
@@ -108,7 +108,7 @@ function heldIds(db, projectId) {
         WHERE sc.project_id = ? AND sh.held_at IS NOT NULL`).all(projectId)) out.add(r.id);
     const scenes = new Set(hold.heldCues(db, projectId).map(c => c.scene_id).filter(Boolean));
     for (const sceneId of scenes) {
-        for (const step of ['music', 'ambient', 'sfx']) if (hold.cueHeldFor(db, sceneId, step)) out.add(`${sceneId}:${step}`);
+        for (const step of ['ambient', 'sfx']) if (hold.cueHeldFor(db, sceneId, step)) out.add(`${sceneId}:${step}`);
     }
     return out;
 }

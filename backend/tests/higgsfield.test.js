@@ -116,10 +116,10 @@ test('a chosen option outside the schema is dropped with why, inside it is sent'
     assert.ok(r.dropped.some(d => d.field === 'nonsense'));
 });
 
-test('the key is the ID and the secret joined by a colon', () => {
+test('the key is taken as copied; the older ID and secret joined by a colon still work', () => {
     const was = process.env.HF_CREDENTIALS;
-    process.env.HF_CREDENTIALS = 'just-a-secret';
-    assert.match(hf.credential().error, /KEY_ID:KEY_SECRET/);
+    process.env.HF_CREDENTIALS = 'just-a-copied-key';
+    assert.deepStrictEqual(hf.credential(), { ok: true, header: 'Key just-a-copied-key' });
     process.env.HF_CREDENTIALS = 'kid:ksecret';
     assert.deepStrictEqual(hf.credential(), { ok: true, header: 'Key kid:ksecret' });
     if (was === undefined) delete process.env.HF_CREDENTIALS; else process.env.HF_CREDENTIALS = was;
@@ -141,50 +141,29 @@ function stubFetch(script) {
     return { calls, restore: () => { global.fetch = real; } };
 }
 
-test('a generation uploads its pictures, submits with the key and an idempotency key, polls, and downloads', async () => {
+test('Higgsfield remains manual-only: previews do not authorize a paid transport', async () => {
     process.env.HF_CREDENTIALS = 'kid:ksecret';
-    let polls = 0;
-    const handles = [];
-    const s = stubFetch((url, init) => {
-        if (url.endsWith('/files/generate-upload-url')) return { status: 200, body: { upload_url: 'https://store.example/put', public_url: 'https://cdn.example/in.png', upload_headers: { 'Content-Type': 'image/png', 'x-amz-tagging': 'retention=temporary' } } };
-        if (url === 'https://store.example/put') return { status: 200, body: {} };
-        if (url.endsWith('/bytedance/seedance-2.5/image-to-video')) return { status: 200, body: { status: 'queued', request_id: 'r-1', status_url: 'https://api.higgsfield.ai/requests/r-1/status' } };
-        if (url.endsWith('/requests/r-1/status')) return { status: 200, body: ++polls < 3 ? { status: 'in_progress', request_id: 'r-1' } : { status: 'completed', request_id: 'r-1', video: { url: 'https://cdn.example/out.mp4' } } };
-        if (url === 'https://cdn.example/out.mp4') return { status: 200, body: Buffer.from('mp4-bytes') };
-        return { status: 404, body: { detail: 'unexpected ' + url } };
-    });
+    const s=stubFetch(()=>({status:500,body:{detail:'no network expected'}}));
     try {
-        const out = await hf.generate('video', { model: 'seedance-2-5', motion_prompt: 'she turns', init_image: IMG, duration_s: 5 },
-            { onHandle: h => handles.push(h) });
-        assert.ok(out.ok, out.error);
-        assert.strictEqual(out.data.toString(), 'mp4-bytes');
-        assert.deepStrictEqual(handles, ['r-1'], 'the request id was not written down before polling');
-        const submit = s.calls.find(c => c.url.endsWith('/image-to-video'));
-        assert.strictEqual(submit.init.headers.Authorization, 'Key kid:ksecret');
-        assert.match(submit.init.headers['Idempotency-Key'], /^[0-9a-f-]{36}$/);
-        assert.strictEqual(JSON.parse(submit.init.body).image_url, 'https://cdn.example/in.png', 'the picture was not uploaded first');
-        const put = s.calls.find(c => c.url === 'https://store.example/put');
-        assert.ok(!put.init.headers.Authorization, 'the API key was sent to the storage URL');
-        assert.strictEqual(put.init.headers['x-amz-tagging'], 'retention=temporary');
-    } finally { s.restore(); delete process.env.HF_CREDENTIALS; }
+        const store=require('../lib/final-request-review').store();
+        for(const [capability,model] of [['video','seedance-2-5'],['image','soul-2']]){
+            const review=await store.preview({provider:'higgsfield',capability,payload:{model,prompt:'Manual request'}});
+            assert.throws(()=>store.approve(review.id,{fingerprint:review.fingerprint,human_confirmed:true,cost_unknown_ack:true}),/Manual generation only/);
+        }
+        assert.equal(s.calls.length,0,'a manual preview made a network request');
+    } finally {s.restore();delete process.env.HF_CREDENTIALS;}
 });
 
-test('a moderated or failed request is said as such, and a 5xx submission is retried with the SAME idempotency key', async () => {
-    process.env.HF_CREDENTIALS = 'kid:ksecret';
-    let submits = 0;
-    const s = stubFetch(url => {
-        if (url.endsWith('/higgsfield-ai/soul/v2/standard')) return ++submits === 1 ? { status: 500, body: { detail: 'boom' } } : { status: 200, body: { status: 'queued', request_id: 'r-2' } };
-        if (url.endsWith('/requests/r-2/status')) return { status: 200, body: { status: 'nsfw', request_id: 'r-2' } };
-        return { status: 404, body: {} };
-    });
+test('generation without a final approval is refused without uploading or submitting', async () => {
+    process.env.HF_CREDENTIALS='kid:ksecret';
+    const s=stubFetch(()=>({status:500,body:{detail:'no network expected'}}));
     try {
-        const out = await hf.generate('image', { model: 'soul-2', prompt: 'x' }, {});
-        assert.strictEqual(out.ok, false);
-        assert.match(out.error, /moderation/);
-        const keys = s.calls.filter(c => c.url.endsWith('/soul/v2/standard')).map(c => c.init.headers['Idempotency-Key']);
-        assert.strictEqual(keys.length, 2);
-        assert.strictEqual(keys[0], keys[1], 'the retry used a new idempotency key and could buy twice');
-    } finally { s.restore(); delete process.env.HF_CREDENTIALS; }
+        for(const capability of ['video','image']){
+            const out=await hf.generate(capability,{prompt:'x'},{});
+            assert.equal(out.ok,false);assert.match(out.error,/approved final provider request/);
+        }
+        assert.equal(s.calls.length,0);
+    } finally {s.restore();delete process.env.HF_CREDENTIALS;}
 });
 
 test('the key check is free and tells a good key from a bad one', async () => {

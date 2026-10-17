@@ -94,7 +94,7 @@ function handlePipeline(req, res, urlParts, query) {
 // orchestrated run is provider-aware end-to-end.
 const STEP_CAPABILITY = {
     keyframe: 'image', video: 'video', voice: 'voice', lipsync: 'lipsync',
-    music: 'music', sfx: 'sfx', ambient: 'ambient', post: 'post',
+    sfx: 'sfx', ambient: 'ambient', post: 'post',
 };
 
 
@@ -168,7 +168,7 @@ async function persistStepResult(stepId, capability, result, ctx) {
         // kind registry, so no second mapping is introduced here.
         const KIND_FOR_CAPABILITY = {
             image: 'keyframe', video: 'video', voice: 'voice', lipsync: 'lipsync',
-            music: 'music', sfx: 'sfx', ambient: 'ambient', post: 'post',
+            sfx: 'sfx', ambient: 'ambient', post: 'post',
         };
         require('../lib/artefact-fingerprint')
             .stampAsset(assetId, KIND_FOR_CAPABILITY[capability], { shotId: (shot && shot.id) || null });
@@ -352,7 +352,7 @@ async function executeStep(stepId, shot, scene, project, options = {}) {
 }
 
 /*
- * A scene's score is not a property of one shot.
+ * A scene's ambient bed is not a property of one shot.
  *
  * Every step in PIPELINE_STEPS declares a `scope`, and this file used to
  * contain no reading of it: the runners walked shots and ran the whole plan on
@@ -447,7 +447,6 @@ const CONFORM_STATES = {
     missing_clip:  { permanent: true },    // a file that is not on disk
     invalid_clip:  { permanent: true },    // a file that does not decode
     failed:        { permanent: false },   // the encoder crashed or timed out
-    rights_blocked: { permanent: true },   // the rights policy refuses the score; a retry meets the same register
 };
 
 /**
@@ -579,20 +578,12 @@ function preflightProjectSteps(projectSteps, body, willRun) {
 async function runShotPlan(plan, { shot, scene, project, done, opts, hooks }) {
     const h = hooks || {};
     const completed = [], failed = [], skipped = [], failures = [];
-    const covered = coveredFor(project);
 
     for (let i = 0; i < plan.length; i++) {
         const step = plan[i];
 
         const stop = h.shouldStop && h.shouldStop();
         if (stop) return { completed, failed, skipped, failures, stopped: stop };
-
-        const scored = scoreGate(step.id, scene, covered);
-        if (!scored.run) {
-            skipped.push({ step_id: step.id, reason: scored.reason });
-            if (h.onSkip) h.onSkip(step, scored.reason, i);
-            continue;
-        }
 
         // The cue a scene step would generate from is held: left alone (PGN-017).
         const heldCue = SCENE_SCOPED.has(step.id) && scene
@@ -632,24 +623,6 @@ async function runShotPlan(plan, { shot, scene, project, done, opts, hooks }) {
     }
 
     return { completed, failed, skipped, failures, stopped: null };
-}
-
-/**
- * An approved score is the music of the scenes it covers (MUS-020). The
- * scene music step would generate a second score to be layered under it, so
- * for a covered scene it is skipped, and the skip names the session. Ambience
- * and effects are not music and still run.
- */
-const SCORE_REPLACES_STEPS = new Set(['music']);
-function scoreGate(stepId, scene, covered) {
-    if (!SCORE_REPLACES_STEPS.has(stepId) || !scene || !covered) return { run: true };
-    const sc = covered.get(scene.id);
-    if (!sc) return { run: true };
-    return { run: false, reason: `the approved score "${sc.name}" is this scene's music; no second score is generated under it — unapprove the session to score the scene on its own` };
-}
-function coveredFor(project) {
-    if (!project || !project.id) return new Map();
-    try { return require('../lib/music-approval').coveredScenes(db, project.id); } catch (_) { return new Map(); }
 }
 
 /**
@@ -1256,4 +1229,4 @@ function getLatestSchedule(req, res, projectId) {
     json(res, 200, { ...run, schedule, residency });
 }
 
-module.exports = { handlePipeline, persistStepResult, executeStep, STEP_CAPABILITY, CONFORM_STATES, runStatus, scoreGate, preflightProjectSteps };
+module.exports = { handlePipeline, persistStepResult, executeStep, STEP_CAPABILITY, CONFORM_STATES, runStatus, preflightProjectSteps };

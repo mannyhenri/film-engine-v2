@@ -1039,9 +1039,57 @@ const { AI_PATH, WALK, WORLD, state } = Object.fromEntries(['AI_PATH', 'WALK', '
         return { name: t.name || 'subject', x: t.position[0] * k, y: (t.position[1] || 0) * k, z: t.position[2] * k, h };
     }
 
+    /*
+     * NOBODY STAGED: FRAME WHAT THE CAMERA IS LOOKING AT. Scouting a set with a
+     * client, the framing and angle buttons answered "stage the subject first"
+     * instead of moving the camera. With no one staged they now frame a
+     * stand-in: a person of 1.7 m standing where the camera's line of sight
+     * meets the set (pulled off a wall), on the floor below that point. It is
+     * kept while the camera stays where a framing put it, so WS then CU then
+     * Low angle all work on the same spot instead of creeping into the wall.
+     */
+    function worldImpliedSubject() {
+        const pose = worldCameraPose();
+        if (!pose) return null;
+        const keep = WORLD.impliedSubject;
+        const sig = JSON.stringify([pose.eye.map(n => +n.toFixed(3)), (pose.target || []).map(n => +n.toFixed(3))]);
+        if (keep && keep.sig === sig && keep.versionId === (WORLD.version && WORLD.version.id)) return keep.subject;
+        const [ex, ey, ez] = pose.eye;
+        let dx = pose.target[0] - ex, dy = pose.target[1] - ey, dz = pose.target[2] - ez;
+        const dl = Math.hypot(dx, dy, dz) || 1;
+        dx /= dl; dy /= dl; dz /= dl;
+        const T = window.THREE, root = MESHLOOK.root;
+        const cast = (o, d, far) => {
+            if (!T || !root) return null;
+            const rc = new T.Raycaster(new T.Vector3(...o), new T.Vector3(...d), 0.05, far);
+            const hit = rc.intersectObject(root, true).find(h => h.object && h.object.isMesh && h.object.visible);
+            return hit || null;
+        };
+        // How far the stand-in stands: where the view meets the set, 0.4 m short
+        // of a wall, between 0.8 m and 12 m; 3 m when the view meets nothing.
+        const hit = cast([ex, ey, ez], [dx, dy, dz], 40);
+        const flatLen = Math.hypot(dx, dz) || 1;
+        let reach = hit ? Math.hypot(hit.point.x - ex, hit.point.z - ez) - 0.4 : 3;
+        if (!(reach > 0.8)) reach = 0.8;
+        reach = Math.min(12, reach);
+        const x = ex + (dx / flatLen) * reach, z = ez + (dz / flatLen) * reach;
+        const ground = cast([x, ey, z], [0, -1, 0], 30);
+        const y = ground ? ground.point.y : ey - 1.6;
+        const subject = { name: 'what the camera sees', x, y, z, h: 1.7, implied: true };
+        WORLD.impliedSubject = { sig: null, versionId: WORLD.version && WORLD.version.id, subject };
+        return subject;
+    }
+
+    /** After a framing moves the camera, keep its stand-in for the next button. */
+    function worldImpliedSubjectKeep() {
+        const keep = WORLD.impliedSubject, pose = worldCameraPose();
+        if (!keep || !pose) return;
+        keep.sig = JSON.stringify([pose.eye.map(n => +n.toFixed(3)), (pose.target || []).map(n => +n.toFixed(3))]);
+    }
+
     /** What the camera frames now, named: the nearest framing by coverage at the subject. */
     function worldShotNow() {
-        const c = worldOperateCamera(), t = worldShotSubject();
+        const c = worldOperateCamera(), t = worldShotSubject() || (WORLD.impliedSubject && WORLD.impliedSubject.subject);
         if (!c || !t || !Array.isArray(c.position)) return {};
         const k = worldOperateScale();
         const d = Math.hypot(c.position[0] * k - t.x, c.position[2] * k - t.z);
@@ -1072,9 +1120,9 @@ const { AI_PATH, WALK, WORLD, state } = Object.fromEntries(['AI_PATH', 'WALK', '
      * middle of the body for a full shot.
      */
     function worldShotPlace(framingId, angleId, dutch) {
-        const t = worldShotSubject();
-        if (!t) return setStatus('Stage the subject first (Plan → + Add people), and mark who the shot is on', true);
         worldWalkEnsure();
+        const t = worldShotSubject() || worldImpliedSubject();
+        if (!t) return setStatus('Open the 3D view of a set first: the framing is measured on what the camera sees.');
         const c = worldWalkCamera();
         if (!c) return;
         const k = worldOperateScale();
@@ -1105,6 +1153,10 @@ const { AI_PATH, WALK, WORLD, state } = Object.fromEntries(['AI_PATH', 'WALK', '
         c.rotation = [yaw, Math.max(-85, Math.min(85, tilt)), roll];
         WALK.moved = true;
         worldWalkRepaint();
+        if (t.implied) {
+            worldImpliedSubjectKeep();
+            setStatus(`${F.label}, ${A.label.toLowerCase()}: framed on a person-sized spot where the camera was looking. Stage someone on the Plan to frame them instead.`);
+        }
         worldWalkKeep();
     }
 
@@ -1117,7 +1169,7 @@ const { AI_PATH, WALK, WORLD, state } = Object.fromEntries(['AI_PATH', 'WALK', '
      */
     function worldShotOnHtml() {
         const subs = stageSubjects();
-        if (!subs.length) return '<p class="we-hint">Nobody is staged yet: add people or objects on the Plan view, then choose who the shot is on.</p>';
+        if (!subs.length) return '<p class="we-hint">Nobody is staged yet, so framing and angle work on what the camera is looking at. Add people on the Plan view to frame them.</p>';
         const cur = Math.max(0, subs.findIndex(x => x.isTarget));
         return `<div class="we-oprow"><span class="we-oplabel">Shot on</span>
             <select class="we-shoton" onchange="worldShotOn(Number(this.value))">${subs.map((x, i) =>
@@ -1213,7 +1265,7 @@ const { AI_PATH, WALK, WORLD, state } = Object.fromEntries(['AI_PATH', 'WALK', '
         try {
             await api(`/shots/${shotId}/previs/director`, { method: 'PUT',
                 body: JSON.stringify({ lighting: next }) });
-        } catch (err) { return setStatus('Lighting not saved: ' + err.message, true); }
+        } catch (err) { return setStatus('Lighting not saved: ' + err.message); }
         if (WORLD.shotId === shotId && WORLD.selectionRevision === selection) await worldRefreshBlocking(shotId, selection);
         worldMeshRequestRender();
     }
@@ -1578,7 +1630,7 @@ const { AI_PATH, WALK, WORLD, state } = Object.fromEntries(['AI_PATH', 'WALK', '
         try {
             await api(`/shots/${shotId}/previs/apply`, { method: 'POST', body: '{}' });
             setStatus('Applied to the shot — generation now sends it');
-        } catch (err) { setStatus('Could not apply: ' + err.message, true); }
+        } catch (err) { setStatus('Could not apply: ' + err.message); }
         if (WORLD.shotId === shotId && WORLD.selectionRevision === selection) await worldRefreshBlocking(shotId, selection);
     }
 
@@ -1597,7 +1649,7 @@ const { AI_PATH, WALK, WORLD, state } = Object.fromEntries(['AI_PATH', 'WALK', '
             await api(`/shots/${shotId}/previs/${route}`,
                 { method: 'POST', body: JSON.stringify({ decisions: [id] }) });
             setStatus(`${d.label} ${route === 'lock' ? 'locked' : 'unlocked'}`);
-        } catch (err) { setStatus(err.message, true); }
+        } catch (err) { setStatus(err.message); }
         if (WORLD.shotId === shotId && WORLD.selectionRevision === selection) await worldRefreshBlocking(shotId, selection);
     }
 
@@ -1613,7 +1665,7 @@ const { AI_PATH, WALK, WORLD, state } = Object.fromEntries(['AI_PATH', 'WALK', '
             await api(`/shots/${shotId}/previs/${lock ? 'lock' : 'unlock'}`,
                 { method: 'POST', body: JSON.stringify({ all: true }) });
             setStatus(lock ? 'Shot locked — production will send exactly these decisions' : 'Shot unlocked');
-        } catch (err) { setStatus(err.message, true); }
+        } catch (err) { setStatus(err.message); }
         if (WORLD.shotId === shotId && WORLD.selectionRevision === selection) await worldRefreshBlocking(shotId, selection);
     }
 
@@ -1850,7 +1902,7 @@ const { AI_PATH, WALK, WORLD, state } = Object.fromEntries(['AI_PATH', 'WALK', '
         if (!host || !frame) return;
         const ratio = worldFrameRatio(state.currentProject || {}) || (16 / 9);
         const box = host.getBoundingClientRect();
-        const w = Math.max(160, box.width - 24), h = Math.max(90, box.height - 24);
+        const w = Math.max(160, box.width - 12), h = Math.max(90, box.height - 12);   // 6px a side: the picture fills its view
         const fw = w / h > ratio ? h * ratio : w;
         frame.style.width = Math.round(fw) + 'px';
         frame.style.height = Math.round(fw / ratio) + 'px';
@@ -1937,7 +1989,7 @@ const { AI_PATH, WALK, WORLD, state } = Object.fromEntries(['AI_PATH', 'WALK', '
             WORLD.geometry = geometry; WORLD.geometryFor = versionId;
             return geometry;
         }).catch(err => {
-            if (selection === WORLD.selectionRevision && WORLD.version?.id === versionId) setStatus('Geometry view: ' + err.message, true);
+            if (selection === WORLD.selectionRevision && WORLD.version?.id === versionId) setStatus('Geometry view: ' + err.message);
             return null;
         }).finally(() => {
             if (WORLD.geometryLoading?.promise === promise) WORLD.geometryLoading = null;
@@ -2182,8 +2234,17 @@ const { AI_PATH, WALK, WORLD, state } = Object.fromEntries(['AI_PATH', 'WALK', '
             if (!o.isLight) return;
             if (o.isDirectionalLight) { hasSun = true; o.intensity = Math.min(2.5, (o.intensity / 683) * 0.45); }
             else if (o.isPointLight || o.isSpotLight) {
-                o.intensity = Math.min(3, (o.intensity * 16 * Math.PI * Math.PI / 683) / 60);
+                /*
+                 * A lamp needs a reach. With none (glTF leaves `range` unset)
+                 * this renderer's lights do not fall off at all, so every
+                 * street lamp in Bromwich lit the whole town at full strength
+                 * and the set read as blown-out white. The reach grows with
+                 * the lamp's power: about 12 m for a 2,400 cd street lamp.
+                 */
+                const cd = o.intensity;
+                o.intensity = Math.min(1.5, (cd * 16 * Math.PI * Math.PI / 683) / 60);
                 o.decay = 2;
+                if (!(o.distance > 0)) o.distance = Math.max(4, Math.min(30, Math.sqrt(Math.max(cd, 0)) / 4));
             }
         });
         return hasSun;
@@ -2576,7 +2637,7 @@ const { AI_PATH, WALK, WORLD, state } = Object.fromEntries(['AI_PATH', 'WALK', '
         if (!c || !WALK.from || !WORLD.shotId) return;
         const f = Number(WORLD.version && WORLD.version.scale_factor);
         if (!(Number.isFinite(f) && f > 0)) {
-            return setStatus('Calibrate this world first: a camera cannot be kept in metres in a world with no unit.', true);
+            return setStatus('Calibrate this world first: a camera cannot be kept in metres in a world with no unit.');
         }
         const d = i => (c.position[i] - WALK.from.position[i]) * f;
         const r = i => (c.rotation[i] || 0) - (WALK.from.rotation[i] || 0);
@@ -2603,7 +2664,7 @@ const { AI_PATH, WALK, WORLD, state } = Object.fromEntries(['AI_PATH', 'WALK', '
             // Say why — "cannot be shot" alone sends the director hunting.
             const why = err.data && Array.isArray(err.data.failures)
                 ? err.data.failures.map(f => f.detail || f.check).join('; ') : '';
-            return setStatus('That camera was refused: ' + (why || err.message) + ' — press "Put it back" or move it again.', true);
+            return setStatus('That camera was refused: ' + (why || err.message) + ' — press "Put it back" or move it again.');
         }
         await worldRefreshBlocking(shotId, selection);
     }
@@ -3047,7 +3108,7 @@ const { AI_PATH, WALK, WORLD, state } = Object.fromEntries(['AI_PATH', 'WALK', '
         clearTimeout(STAGE.timer);
         stageSyncLook();
         STAGE.timer = setTimeout(async () => {
-            if (!WORLD.shotId) return setStatus('Pick a shot to stage in', true);
+            if (!WORLD.shotId) return setStatus('Pick a shot to stage in');
             try {
                 // refresh: false — the plan repaints itself, and a reload mid-drag would drop the piece being moved.
                 const r = await api(`/shots/${WORLD.shotId}/previs/subjects`,
@@ -3059,7 +3120,7 @@ const { AI_PATH, WALK, WORLD, state } = Object.fromEntries(['AI_PATH', 'WALK', '
                     const g = await api(`/shots/${WORLD.shotId}/previs`);
                     if (g && g.lighting) { WORLD.blocking.lighting = g.lighting; worldPaintFrame(); worldMeshRequestRender(); }
                 } catch (_) { /* the rig catches up on the next load */ }
-            } catch (err) { setStatus('Staging not saved: ' + err.message, true); }
+            } catch (err) { setStatus('Staging not saved: ' + err.message); }
         }, 350);
     }
 
@@ -3128,7 +3189,7 @@ const { AI_PATH, WALK, WORLD, state } = Object.fromEntries(['AI_PATH', 'WALK', '
 
     async function setEditStart() {
         const vid = WORLD.version && WORLD.version.id;
-        if (!vid) return setStatus('This shot has no set yet: build or pin one first.', true);
+        if (!vid) return setStatus('This shot has no set yet: build or pin one first.');
         try {
             const b = await api(`/set-builds?world_version_id=${encodeURIComponent(vid)}`);
             const objects = (b && b.layout && b.layout.objects) || [];
@@ -3200,7 +3261,7 @@ const { AI_PATH, WALK, WORLD, state } = Object.fromEntries(['AI_PATH', 'WALK', '
             setStatus(`Set rebuilt as version ${out.version.version}${WORLD.shotId ? ', and this shot is on it' : ''}. Earlier versions stay.`);
         } catch (err) {
             SETEDIT.busy = false;
-            setStatus('The set was not rebuilt: ' + err.message, true);
+            setStatus('The set was not rebuilt: ' + err.message);
         }
         stageRenderBar(); worldPaintFrame();
     }
@@ -3223,7 +3284,7 @@ const { AI_PATH, WALK, WORLD, state } = Object.fromEntries(['AI_PATH', 'WALK', '
 
     async function stageOpenAdd(tab) {
         if (!STAGE.library) {
-            try { STAGE.library = await api('/previs-library'); } catch (err) { return setStatus(err.message, true); }
+            try { STAGE.library = await api('/previs-library'); } catch (err) { return setStatus(err.message); }
         }
         let models = [];
         try {
@@ -3260,7 +3321,7 @@ const { AI_PATH, WALK, WORLD, state } = Object.fromEntries(['AI_PATH', 'WALK', '
 
     async function stageAdd(source, id) {
         if (source === 'lib' && !STAGE.library) {
-            try { STAGE.library = await api('/previs-library'); } catch (err) { return setStatus(err.message, true); }
+            try { STAGE.library = await api('/previs-library'); } catch (err) { return setStatus(err.message); }
         }
         const subs = stageSubjects();
         const live = worldCameraPose();
@@ -3471,7 +3532,7 @@ const { AI_PATH, WALK, WORLD, state } = Object.fromEntries(['AI_PATH', 'WALK', '
     async function stageFollow() {
         const i = STAGE.sel, su = stageSubjects()[i];
         if (!su || (!WORLD.scout && !WORLD.shotId)) return;
-        if (!stageHasPath(su) || su.path.length < 2) return setStatus('Give her a path first: two keys at least', true);
+        if (!stageHasPath(su) || su.path.length < 2) return setStatus('Give her a path first: two keys at least');
         const num = (id, d) => { const v = Number((document.getElementById(id) || {}).value); return Number.isFinite(v) && v > 0 ? v : d; };
         if ((WORLD.keys || []).length && !confirm('Replace this shot\'s camera keys with a follow?')) return;
         try {
@@ -3487,7 +3548,7 @@ const { AI_PATH, WALK, WORLD, state } = Object.fromEntries(['AI_PATH', 'WALK', '
             }
             worldConsoleRender();
             setStatus(`The camera follows ${su.name || 'her'}: ${(WORLD.keys || []).length} keys. Play the move to see it.`);
-        } catch (err) { setStatus('Follow not set: ' + err.message, true); }
+        } catch (err) { setStatus('Follow not set: ' + err.message); }
     }
 
     /**
@@ -3631,26 +3692,26 @@ const { AI_PATH, WALK, WORLD, state } = Object.fromEntries(['AI_PATH', 'WALK', '
 
     /* ── THE MOVE, RENDERED: a previz video, free and local (Blender) ───── */
     async function previzVideoExport(btn) {
-        if (!WORLD.shotId) return setStatus('Open a shot first', true);
+        if (!WORLD.shotId) return setStatus('Open a shot first');
         const label = btn ? btn.textContent : '';
         const done = () => { if (btn) { btn.disabled = false; btn.textContent = label; } };
         if (btn) { btn.disabled = true; btn.textContent = 'Starting…'; }
         try {
             await api(`/shots/${WORLD.shotId}/previs/render-video`, { method: 'POST', body: '{}' });
-        } catch (err) { done(); return setStatus('Previz video not started: ' + err.message, true); }
+        } catch (err) { done(); return setStatus('Previz video not started: ' + err.message); }
         const shot = WORLD.shotId;
         const poll = async () => {
             let r;
-            try { r = await api(`/shots/${shot}/previs/videos`); } catch (err) { done(); return setStatus(err.message, true); }
+            try { r = await api(`/shots/${shot}/previs/videos`); } catch (err) { done(); return setStatus(err.message); }
             const job = r && r.job;
             if (job && (job.status === 'running' || job.status === 'encoding')) {
                 if (btn) btn.textContent = job.status === 'encoding' ? 'Encoding…' : `Rendering ${job.frame}/${job.frames}`;
                 return setTimeout(poll, 1000);
             }
             done();
-            if (job && job.status === 'failed') return setStatus('Previz video failed: ' + job.error, true);
+            if (job && job.status === 'failed') return setStatus('Previz video failed: ' + job.error);
             const v = r && r.videos && r.videos[0];
-            if (!v) return setStatus('The previz video was not registered', true);
+            if (!v) return setStatus('The previz video was not registered');
             const url = mediaUrl(v.url);
             showModalHtml('previzVideoModal', `<h3>Previz · v${esc(String(v.version))}</h3>
                 <video src="${esc(url)}" controls autoplay style="width:100%;max-height:70vh;background:#000"></video>
@@ -3856,7 +3917,7 @@ const { AI_PATH, WALK, WORLD, state } = Object.fromEntries(['AI_PATH', 'WALK', '
         WORLD.archived = [];
         if (WORLD.showArchived && state.currentProject) {
             try { WORLD.archived = (await api(`/projects/${state.currentProject.id}/worlds?archived=only`)).worlds || []; }
-            catch (err) { setStatus('Could not read archived sets: ' + err.message, true); }
+            catch (err) { setStatus('Could not read archived sets: ' + err.message); }
         }
         worldSyncPanelShots(state.currentPage);
     }
@@ -3868,7 +3929,7 @@ const { AI_PATH, WALK, WORLD, state } = Object.fromEntries(['AI_PATH', 'WALK', '
             await worldLoadScoutable(state.currentProject.id);
             worldConsoleRender();
             setStatus('Set restored. Its versions are preserved.');
-        } catch (err) { setStatus('Could not restore set: ' + err.message, true); }
+        } catch (err) { setStatus('Could not restore set: ' + err.message); }
     }
 
     function worldSyncPanelShots(page) {
@@ -3959,6 +4020,9 @@ const { AI_PATH, WALK, WORLD, state } = Object.fromEntries(['AI_PATH', 'WALK', '
         }).join('') || (allLegs.length
             // The design's own label for a lane with nothing in it.
             ? '<div class="we-clip-empty">HOLD</div>'
+            // Keys are a move too (drawn as markers on this lane): "no legs" read as if nothing was set.
+            : (WORLD.keys || []).length >= 2 ? `<div class="we-clip-empty">keyed move · ${(WORLD.keys || []).length} keys</div>`
+            : (WORLD.keys || []).length === 1 ? '<div class="we-clip-empty">1 key — move the camera and add another</div>'
             : '<div class="we-clip-empty">no legs — add one to build a move</div>');
 
         const keys = (WORLD.keys || []).map((k, i) =>
@@ -4047,7 +4111,7 @@ const { AI_PATH, WALK, WORLD, state } = Object.fromEntries(['AI_PATH', 'WALK', '
      */
     function worldAddKey() {
         const cam = worldWalkCamera() || ((WORLD.blocking && WORLD.blocking.blocking && WORLD.blocking.blocking.camera) || null);
-        if (!cam || !Array.isArray(cam.position)) return setStatus('Open a shot with a camera first', true);
+        if (!cam || !Array.isArray(cam.position)) return setStatus('Open a shot with a camera first');
         const t = WORLD.t || 0;
         const key = {
             t,
@@ -4058,11 +4122,33 @@ const { AI_PATH, WALK, WORLD, state } = Object.fromEntries(['AI_PATH', 'WALK', '
             // at this boundary silently rewrites every authored move.
             rotationUnit: 'degrees',
         };
+        /*
+         * KEY, MOVE THE CAMERA, KEY: the second press must make a move.
+         *
+         * The dock has no playhead of its own, so both presses landed at the same moment and the second replaced
+         * the first: one key, no move, and Play did nothing. A key pressed again at the moment the last one was
+         * added (the playhead not moved since) is the NEXT key: it goes to the end of the move, and keys already
+         * at the end are spaced back evenly to make room. A key at a moment the director moved the playhead to
+         * still replaces the one there, which is how a key is corrected.
+         */
+        let keys = (WORLD.keys || []).slice();
+        const there = keys.find(k => Math.abs((k.t || 0) - t) <= 1e-3);
+        const same = there && there.position.every((v, i) => Math.abs(v - key.position[i]) < 1e-4)
+            && (there.rotation || [0, 0, 0]).every((v, i) => Math.abs(v - key.rotation[i]) < 1e-3) && there.focalMm === key.focalMm;
+        if (there && !same && WORLD.lastKeyT != null && Math.abs(WORLD.lastKeyT - t) <= 1e-3) {
+            const last = Math.max(...keys.map(k => k.t || 0));
+            if (last < 1 - 1e-3) key.t = 1;
+            else { const n = keys.length; keys = keys.map(k => Object.assign({}, k, { t: (k.t || 0) * n / (n + 1) })); key.t = 1; }
+        }
         // A key at the same moment replaces the one there, rather than stacking.
-        WORLD.keys = (WORLD.keys || []).filter(k => Math.abs((k.t || 0) - t) > 1e-3).concat([key]).sort((a, b) => a.t - b.t);
+        WORLD.keys = keys.filter(k => Math.abs((k.t || 0) - key.t) > 1e-3).concat([key]).sort((a, b) => a.t - b.t);
+        WORLD.t = key.t;
+        WORLD.lastKeyT = key.t;
         worldTimelineSave();
         worldConsoleRender();
-        setStatus(`Key ${WORLD.keys.length} at ${Math.round(t * 100)}% — move the camera and the playhead, then add the next`);
+        setStatus(WORLD.keys.length < 2
+            ? `Key 1 at ${Math.round(key.t * 100)}% — move the camera, then press + Key again for where it ends`
+            : `Key ${WORLD.keys.findIndex(k => k === key) + 1} of ${WORLD.keys.length} at ${Math.round(key.t * 100)}% — press Play to see the move`);
     }
 
     /*
@@ -4092,12 +4178,15 @@ const { AI_PATH, WALK, WORLD, state } = Object.fromEntries(['AI_PATH', 'WALK', '
     }
 
     function worldPreviewCamera() {
-        if (WORLD.previewT == null || WALK.on) return null;
+        // Play shows the move even while walking: the walk camera is where the director stands between plays.
+        if (WORLD.previewT == null || (WALK.on && !WORLD.playing)) return null;
         return worldPoseAtT(WORLD.previewT);
     }
 
     function worldSeekTo(t) {
         WORLD.t = Math.max(0, Math.min(1, Number(t) || 0));
+        // A playhead the director moved: the next + Key lands here, not at the end (worldAddKey).
+        if (!WORLD.playing) WORLD.lastKeyT = null;
         STAGE.pending = null;
         stageLookPose();
         WORLD.previewT = worldPoseAtT(WORLD.t) ? WORLD.t : null;
@@ -4117,7 +4206,12 @@ const { AI_PATH, WALK, WORLD, state } = Object.fromEntries(['AI_PATH', 'WALK', '
      */
     function worldPlayMove() {
         if (WORLD.playing) { WORLD.playing = false; return; }
+        const kb = WORLD.blocking && WORLD.blocking.blocking;
+        if (!(kb && Array.isArray(kb.path) && kb.path.length >= 2) && !(WORLD.moves || []).length && (WORLD.keys || []).length < 2) {
+            return setStatus((WORLD.keys || []).length ? 'One key holds the camera still: move the camera and press + Key again to make a move' : 'No move yet: press + Key, move the camera, and press + Key again');
+        }
         WORLD.playing = true;
+        WORLD.lastKeyT = null;
         const started = Date.now();
         const dur = WORLD.durationMs || 4000;
         const step = () => {
@@ -4200,7 +4294,7 @@ const { AI_PATH, WALK, WORLD, state } = Object.fromEntries(['AI_PATH', 'WALK', '
                 WORLD.blocking = Object.assign({}, WORLD.blocking || {}, { blocking: out.blocking });
                 if (walked) WORLD.blocking.blocking.camera = walked;
             }
-        } catch (err) { setStatus(err.message, true); }
+        } catch (err) { setStatus(err.message); }
     }
 
     /*
@@ -4217,7 +4311,7 @@ const { AI_PATH, WALK, WORLD, state } = Object.fromEntries(['AI_PATH', 'WALK', '
      */
     async function worldRenderPlate() {
         const src = document.getElementById('weFrameCanvas');
-        if (!src || !WORLD.shotId) return setStatus('Open a shot first', true);
+        if (!src || !WORLD.shotId) return setStatus('Open a shot first');
         try {
             // Re-paint without the overlays, then restore what the director had.
             // Thirds and a horizon line baked into a plate are composition
@@ -4266,7 +4360,7 @@ const { AI_PATH, WALK, WORLD, state } = Object.fromEntries(['AI_PATH', 'WALK', '
             setStatus(`Stored — ${kb}. `
                 + 'It now leads this shot\'s references on every generation path.');
             worldConsoleRender();
-        } catch (err) { setStatus(err.message, true); }
+        } catch (err) { setStatus(err.message); }
     }
 
     function worldToggleOverlayMenu() {
@@ -4662,22 +4756,22 @@ const { AI_PATH, WALK, WORLD, state } = Object.fromEntries(['AI_PATH', 'WALK', '
         try {
             window.webkit.messageHandlers.roomScan.postMessage(JSON.stringify({
                 url: `/locations/${locationId}/room-scan/import`, apiBase: '', location: name || '' }));
-        } catch (err) { setStatus('The scanner is not available: ' + err.message, true); }
+        } catch (err) { setStatus('The scanner is not available: ' + err.message); }
     }
 
     async function roomScanImport(locationId, input) {
         const file = input.files && input.files[0];
         if (!file) return;
         try { checkUploadSize(file, `/locations/${locationId}/room-scan/import`); }
-        catch (err) { input.value = ''; return setStatus(err.message, true); }
+        catch (err) { input.value = ''; return setStatus(err.message); }
         let structure;
-        try { structure = JSON.parse(await file.text()); } catch (_) { return setStatus('That file is not JSON', true); }
+        try { structure = JSON.parse(await file.text()); } catch (_) { return setStatus('That file is not JSON'); }
         setStatus('Building the scan in Blender…');
         try {
             const r = await api(`/locations/${locationId}/room-scan/import`, { method: 'POST',
                 body: JSON.stringify({ structure, name: file.name }) });
             window.roomScanDone(JSON.stringify({ ok: true, rooms: 1, response: JSON.stringify(r) }));
-        } catch (err) { setStatus('Scan not built: ' + err.message, true); }
+        } catch (err) { setStatus('Scan not built: ' + err.message); }
         input.value = '';
     }
 
@@ -4688,7 +4782,7 @@ const { AI_PATH, WALK, WORLD, state } = Object.fromEntries(['AI_PATH', 'WALK', '
             setStatus(`Set finished: ${r.world.name} v${r.version.version}, and kept as a 3D model. Pin a shot to it to walk it.`);
             await setBuildOpen();
         } catch (err) {
-            setStatus(err.message, true);
+            setStatus(err.message);
             if (btn) { btn.disabled = false; btn.textContent = 'Finish → world + 3D asset'; }
         }
     }
@@ -4717,12 +4811,12 @@ const { AI_PATH, WALK, WORLD, state } = Object.fromEntries(['AI_PATH', 'WALK', '
      * written against.
      */
     async function worldScoreComplexity() {
-        if (!WORLD.shotId) return setStatus('Open a shot first', true);
+        if (!WORLD.shotId) return setStatus('Open a shot first');
         try {
             const r = await api(`/shots/${WORLD.shotId}/complexity`);
             WORLD.risk = r;
             worldPaintRisk(r);
-        } catch (err) { setStatus(err.message, true); }
+        } catch (err) { setStatus(err.message); }
     }
 
     function worldPaintRisk(r) {
@@ -4766,7 +4860,7 @@ const { AI_PATH, WALK, WORLD, state } = Object.fromEntries(['AI_PATH', 'WALK', '
             // first edit.
             WORLD.risk = r;
             worldPaintRisk(r);
-        } catch (err) { setStatus(err.message, true); }
+        } catch (err) { setStatus(err.message); }
     }
 
     /*
@@ -4777,7 +4871,7 @@ const { AI_PATH, WALK, WORLD, state } = Object.fromEntries(['AI_PATH', 'WALK', '
      * and an output that does not exist yet is named with its reason.
      */
     async function worldCheckExport() {
-        if (!WORLD.shotId) return setStatus('Open a shot first', true);
+        if (!WORLD.shotId) return setStatus('Open a shot first');
         try {
             const x = await api(`/shots/${WORLD.shotId}/world-export`);
             const state = document.getElementById('weExportState');
@@ -4803,7 +4897,7 @@ const { AI_PATH, WALK, WORLD, state } = Object.fromEntries(['AI_PATH', 'WALK', '
                        <strong>${esc(x.provenance.world_name || '—')}</strong> v${esc(String(x.provenance.world_version))}
                        · ${esc(x.provenance.scale_state)}.</p>`;
             }
-        } catch (err) { setStatus(err.message, true); }
+        } catch (err) { setStatus(err.message); }
     }
 
     /*
@@ -4886,7 +4980,7 @@ const { AI_PATH, WALK, WORLD, state } = Object.fromEntries(['AI_PATH', 'WALK', '
             img.onload = () => { WMATCH.img = img; wmPaint(); };
             // A reference that will not decode says so rather than leaving an
             // empty canvas that looks like the tool is broken.
-            img.onerror = () => setStatus('That file could not be read as an image', true);
+            img.onerror = () => setStatus('That file could not be read as an image');
             img.src = reader.result;
         };
         reader.readAsDataURL(file);
@@ -4978,7 +5072,7 @@ const { AI_PATH, WALK, WORLD, state } = Object.fromEntries(['AI_PATH', 'WALK', '
     }
 
     async function wmSolve() {
-        if (!WORLD.shotId) return setStatus('Open a shot first', true);
+        if (!WORLD.shotId) return setStatus('Open a shot first');
         const btn = document.getElementById('wmApplyBtn');
         // Disarmed BEFORE the request: a gate whose purpose is inspection
         // before applying must never stay armed across a failed inspection.
@@ -4990,7 +5084,7 @@ const { AI_PATH, WALK, WORLD, state } = Object.fromEntries(['AI_PATH', 'WALK', '
             WMATCH.solved = res;
             document.getElementById('wmReport').innerHTML = wmReportHtml(res);
             if (btn) btn.disabled = !Object.keys(res.proposal.changes || {}).length;
-        } catch (err) { setStatus(err.message, true); }
+        } catch (err) { setStatus(err.message); }
     }
 
     function wmReportHtml(res) {
@@ -5040,7 +5134,7 @@ const { AI_PATH, WALK, WORLD, state } = Object.fromEntries(['AI_PATH', 'WALK', '
             closeModal('worldMatchModal');
             // The console re-reads the shot, so the matched camera is what it shows.
             await worldRailSelect(WORLD.shotId);
-        } catch (err) { setStatus(err.message, true); }
+        } catch (err) { setStatus(err.message); }
     }
 
     /*
@@ -5098,7 +5192,7 @@ const { AI_PATH, WALK, WORLD, state } = Object.fromEntries(['AI_PATH', 'WALK', '
 
     async function worldCreate() {
         const name = (document.getElementById('worldCreateName') || {}).value || '';
-        if (!name.trim()) return setStatus('A world needs a name', true);
+        if (!name.trim()) return setStatus('A world needs a name');
         try {
             const res = await api(`/projects/${state.currentProject.id}/worlds`,
                 { method: 'POST', body: JSON.stringify({ name: name.trim() }) });
@@ -5106,7 +5200,7 @@ const { AI_PATH, WALK, WORLD, state } = Object.fromEntries(['AI_PATH', 'WALK', '
             closeModal('worldCreateModal');
             worldConsoleRender();
             setStatus(`World "${res.world.name}" created — generating it is a separate, paid step`);
-        } catch (err) { setStatus(err.message, true); }
+        } catch (err) { setStatus(err.message); }
     }
 
     /*
@@ -5485,6 +5579,8 @@ export {
     SHOT_FRAMINGS,
     SHOT_ANGLES,
     worldShotSubject,
+    worldImpliedSubject,
+    worldImpliedSubjectKeep,
     worldShotNow,
     worldShotPlace,
     worldShotOnHtml,

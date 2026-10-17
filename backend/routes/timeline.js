@@ -123,14 +123,14 @@ function loadTimeline(projectId) {
     /*
      * EVERY cue, with the audio IT produced — not one per kind.
      *
-     * This mapped all five cue types down to two and kept the first of each, so
-     * a scene with three sound effects contributed one bed, and `source`,
-     * `transition` and `sfx` could never be heard however they were generated.
+     * This mapped the cue types down to one per kind and kept the first of each,
+     * so a scene with three sound effects contributed one bed.
      *
      * The link each cue already carries is what makes several of a kind
      * possible: `generated_asset_id` points at the audio THAT cue produced, so
-     * two scores in one scene are two files rather than one row winning a
-     * tie-break. A cue with no link falls back to the scene's newest asset of
+     * two effects in one scene are two files rather than one row winning a
+     * tie-break. Sound cues only: music cues were retired (2026-10-14), and a
+     * scene's music is its newest music file. A cue with no link falls back to the scene's newest asset of
      * its type, so beds made before the link existed still play rather than
      * vanishing the day this shipped.
      */
@@ -144,11 +144,11 @@ function loadTimeline(projectId) {
     const cues = {};
     for (const row of db.prepare(`
         SELECT c.* FROM film_music_cues c
-        WHERE c.project_id = ? AND c.scene_id IS NOT NULL
+        WHERE c.project_id = ? AND c.scene_id IS NOT NULL AND c.cue_type IN ('sfx', 'ambient')
         ORDER BY c.start_ms, c.created_at, c.id
     `).all(projectId)) {
         const linked = row.generated_asset_id ? cueAssets[row.generated_asset_id] : null;
-        const fallback = (sceneAssets[row.scene_id] || {})[ASSET_TYPE_FOR[row.cue_type] || 'audio_music'];
+        const fallback = (sceneAssets[row.scene_id] || {})[ASSET_TYPE_FOR[row.cue_type]];
         const asset = linked || fallback || null;
         if (!asset || !asset.file_path) continue;
         (cues[row.scene_id] ||= []).push({ ...row, asset });
@@ -192,12 +192,6 @@ function loadTimeline(projectId) {
      * reads the timeline cannot come to different answers about the same move.
      */
     require('../lib/shot-motion').attachTracks(db, projectId, timeline);
-    /*
-     * The approved score (MUS-020): laid once at the start of its picture's
-     * first shot, with the scene music it replaces taken out, so playback and
-     * everything else reading this timeline hears it exactly once.
-     */
-    require('../lib/music-approval').applyToTimeline(db, projectId, timeline);
     return timeline;
 }
 

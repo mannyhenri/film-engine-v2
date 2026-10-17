@@ -6,7 +6,6 @@
   "/IDs/ID/plate/import",
   "/ambient/generate",
   "/backups/folder/run",
-  "/batch",
   "/characters/ID/explore",
   "/characters/ID/expressions/ID/generate",
   "/characters/ID/refsheet",
@@ -40,10 +39,6 @@
   "/models/ID/rig",
   "/models/batch/stream",
   "/music-cues/ID/generate",
-  "/music-sessions/ID/batch",
-  "/music-sessions/ID/generate",
-  "/music/batch/stream",
-  "/music/generate",
   "/pipeline/run",
   "/pipeline/run/stream",
   "/plate/generate",
@@ -52,7 +47,6 @@
   "/previz-workspace/explore",
   "/projects/ID/inbetweens",
   "/projects/ID/models/batch/stream",
-  "/projects/ID/music/batch/stream",
   "/projects/ID/pipeline/run",
   "/projects/ID/production-graph/nodes/ID/run-to-here",
   "/projects/ID/production-graph/run-changed",
@@ -66,7 +60,6 @@
   "/props/ID/plate/plate-preview",
   "/refsheet/generate",
   "/scenes/ID/ambient/generate",
-  "/scenes/ID/music/generate",
   "/scenes/ID/pipeline/run",
   "/sequences/ID/generate",
   "/sequences/ID/generate-native",
@@ -102,7 +95,6 @@
   "/IDs/ID/plate/import",
   "/ambient/generate",
   "/backups/folder/run",
-  "/batch",
   "/characters/ID/explore",
   "/characters/ID/expressions/ID/generate",
   "/characters/ID/refsheet",
@@ -127,10 +119,6 @@
   "/models/ID/rig",
   "/models/batch/stream",
   "/music-cues/ID/generate",
-  "/music-sessions/ID/batch",
-  "/music-sessions/ID/generate",
-  "/music/batch/stream",
-  "/music/generate",
   "/pipeline/run",
   "/pipeline/run/stream",
   "/plate/generate",
@@ -138,7 +126,6 @@
   "/post/upscale",
   "/previz-workspace/explore",
   "/projects/ID/inbetweens",
-  "/projects/ID/music/batch/stream",
   "/projects/ID/production-graph/nodes/ID/run-to-here",
   "/projects/ID/production-graph/run-changed",
   "/projects/ID/sounds/generate",
@@ -148,7 +135,6 @@
   "/props/ID/plate/plate-preview",
   "/refsheet/generate",
   "/scenes/ID/ambient/generate",
-  "/scenes/ID/music/generate",
   "/sequences/ID/inbetweens/approve",
   "/sequences/ID/stations/ID/ID",
   "/sequences/ID/stitch",
@@ -207,23 +193,11 @@
    "method": "POST"
   },
   {
-   "path": "/music-sessions/ID/batch",
-   "method": "POST"
-  },
-  {
-   "path": "/music-sessions/ID/generate",
-   "method": "POST"
-  },
-  {
    "path": "/previz-workspace/explore",
    "method": "POST"
   },
   {
    "path": "/projects/ID/inbetweens",
-   "method": "POST"
-  },
-  {
-   "path": "/projects/ID/music/batch/stream",
    "method": "POST"
   },
   {
@@ -248,10 +222,6 @@
   },
   {
    "path": "/scenes/ID/ambient/generate",
-   "method": "POST"
-  },
-  {
-   "path": "/scenes/ID/music/generate",
    "method": "POST"
   },
   {
@@ -314,11 +284,6 @@
   },
   {
    "path": "/ambient/generate",
-   "method": "POST",
-   "reason": "not a route"
-  },
-  {
-   "path": "/batch",
    "method": "POST",
    "reason": "not a route"
   },
@@ -394,16 +359,6 @@
   },
   {
    "path": "/models/",
-   "method": "POST",
-   "reason": "not a route"
-  },
-  {
-   "path": "/music/batch/stream",
-   "method": "POST",
-   "reason": "not a route"
-  },
-  {
-   "path": "/music/generate",
    "method": "POST",
    "reason": "not a route"
   },

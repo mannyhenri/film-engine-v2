@@ -26,7 +26,6 @@ const COST_PER_CALL = {
     image: 0.04,
     video: 0.50,
     voice: 0.03,
-    music: 0.10,
     sfx: 0.02,
     ambient: 0.05,
     lipsync: 0.20,

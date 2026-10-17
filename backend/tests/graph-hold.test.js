@@ -31,7 +31,7 @@ db.prepare("INSERT INTO film_projects (id, title) VALUES (?, 'Hold')").run(P);
 db.prepare("INSERT INTO film_scenes (id, project_id, scene_number) VALUES (?, ?, 1)").run(SC, P);
 db.prepare("INSERT INTO film_shots (id, scene_id, shot_code, scene_card_yaml) VALUES (?, ?, '1A', '{}')").run(SH, SC);
 db.prepare("INSERT INTO film_sequences (id, project_id, name, shot_ids) VALUES (?, ?, 'Walk', ?)").run(SEQ, P, JSON.stringify([SH]));
-db.prepare("INSERT INTO film_music_cues (id, project_id, scene_id, cue_type) VALUES (?, ?, ?, 'score')").run(CUE, P, SC);
+db.prepare("INSERT INTO film_music_cues (id, project_id, scene_id, cue_type) VALUES (?, ?, ?, 'sfx')").run(CUE, P, SC);
 const IDS = { shot: SH, sequence: SEQ, sound: CUE };
 
 const heldAt = h => db.prepare(`SELECT held_at FROM ${h.table} WHERE id = ?`).get(IDS[h.node]).held_at;

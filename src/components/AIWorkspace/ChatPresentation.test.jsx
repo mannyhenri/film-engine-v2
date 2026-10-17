@@ -38,6 +38,18 @@ describe.each(Object.entries(SURFACES))('%s chat surface',(name,surface)=>{
   const buttons=[...conversation().querySelectorAll('button')];expect(buttons.length).toBeGreaterThan(0);
   for(const b of buttons)expect(styledButtonSelectors.some(s=>{try{return b.matches(s);}catch{return false;}}),`${b.textContent} has no chat button style`).toBe(true);
  });
+ it('draws the options (⋯) and Send (↑) icons as centred SVG, never a font glyph that sits on its baseline',async()=>{
+  await surface.open([]);
+  const css=fs.readFileSync(require('node:path').join(__dirname,'AIChatLayout.css'),'utf8');
+  for(const [name,cls] of [['AI options','ai-options-button'],['Send','ai-chat-send']]){
+   const b=screen.getByRole('button',{name,exact:true});
+   expect(b.querySelector('svg'),name).toBeTruthy();
+   expect(b.textContent.trim(),`${name} carries no text glyph`).toBe('');
+   const rule=new RegExp(`\\.${cls}\\{([^}]*)\\}`).exec(css);
+   expect(rule,`${cls} has a rule`).toBeTruthy();
+   for(const d of ['display:inline-flex','align-items:center','justify-content:center'])expect(rule[1],`${cls}: ${d}`).toContain(d);
+  }
+ });
 });
 // Every direct edit target the project chat can propose.
 const TARGETS={scene:{block:'fountain',proposal:{kind:'replace',scene_index:0,text:'INT. KITCHEN - NIGHT\n\nRevised.'},button:'Review & apply'},image:{block:'image-prompt',proposal:{kind:'node_prompt',node_key:'shot:a',recipe_kind:'image',text:'New image prompt'},button:/Apply/},video:{block:'video-prompt',proposal:{kind:'node_prompt',node_key:'shot:a',recipe_kind:'video',text:'New video prompt'},button:/Apply/}};

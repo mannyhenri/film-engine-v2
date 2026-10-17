@@ -100,11 +100,11 @@ function nodeRecipe(req, res, projectId, nodeKey, kind) {
     } catch (error) { return recipeError(res, error); }
 }
 
-async function draftStarter(req, res, projectId, nodeKey, kind) {
+async function draftStarter(req, res, projectId, nodeKey, kind, provider) {
     try {
         if (!['image','video'].includes(kind)) return json(res, 400, { error:'Recipe kind must be image or video' });
         recipes.nodeOwner(db, projectId, nodeKey);
-        const starter = await require('../lib/production-draft-request').starterDraft(db, projectId, nodeKey, kind);
+        const starter = await require('../lib/production-draft-request').starterDraft(db, projectId, nodeKey, kind, provider && /^[a-z0-9-]+$/.test(provider) ? { provider } : {});
         return json(res, 200, starter);
     } catch (error) { return recipeError(res, error); }
 }
@@ -162,7 +162,7 @@ function handleProductionGraph(req, res, parts, query) {
             if (req.method !== 'GET') return json(res, 405, { error:'Method not allowed' });
             let key;
             try { key = decodeURIComponent(parts[5]); } catch (_) { return json(res, 400, { error:'Invalid node key' }); }
-            return draftStarter(req, res, parts[2], key, query?.kind || 'image');
+            return draftStarter(req, res, parts[2], key, query?.kind || 'image', query?.provider);
         }
         if (parts[4] === 'nodes' && parts[5] && !parts[7] && ['draft', 'audio'].includes(parts[6])) {
             if (req.method !== 'GET' && req.method !== 'PUT') return json(res, 405, { error: 'Method not allowed' });

@@ -1,8 +1,8 @@
 /**
- * Asset registry & music cues
+ * Asset registry & sound cues
  * POST/GET /film/projects/:id/assets
  * GET/DELETE /film/assets/:id
- * POST/GET /film/projects/:id/music-cues
+ * POST/GET /film/projects/:id/music-cues   (sound effects and ambient beds; music cues were retired)
  * POST/GET /film/projects/:id/color-presets
  */
 const { db, generateId } = require('../db/database');
@@ -19,8 +19,15 @@ const VALID_ASSET_TYPES = [
     'lut', 'other'
 ];
 
-const VALID_CUE_TYPES = ['score', 'source', 'sfx', 'ambient', 'transition'];
-const RIGHT_ORIGINS = require('../lib/music-rights').ORIGINS;
+/*
+ * The kinds of cue a scene can carry. The table also held music (score, source,
+ * transition) until music-making was retired on 2026-10-14; those rows stay in
+ * old projects, unlisted and never generated.
+ */
+const VALID_CUE_TYPES = ['sfx', 'ambient'];
+const RETIRED_CUE_TYPES = ['score', 'source', 'transition'];
+// Where a file's rights come from, for the rights register.
+const RIGHT_ORIGINS = Object.freeze(['original', 'generated', 'licensed', 'public_domain', 'unknown']);
 const VALID_PRESET_TYPES = ['lut', 'film_grain', 'color_grade', 'look', 'composite'];
 
 function handleAssets(req, res, urlParts, query) {
@@ -46,13 +53,6 @@ function handleAssets(req, res, urlParts, query) {
         if (!UUID_RE.test(projectId)) return badReq(res, 'Invalid project ID');
         if (req.method === 'GET') return listMusicCues(req, res, projectId, query);
         if (req.method === 'POST') return createMusicCue(req, res, projectId);
-    }
-
-    // /film/projects/:id/music-rights
-    if (urlParts[1] === 'projects' && urlParts[3] === 'music-rights' && req.method === 'GET') {
-        const projectId = urlParts[2];
-        if (!UUID_RE.test(projectId)) return badReq(res, 'Invalid project ID');
-        return getMusicRightsSummary(req, res, projectId);
     }
 
     // /film/projects/:id/rights
@@ -90,20 +90,11 @@ function handleAssets(req, res, urlParts, query) {
      * /film/music-cues/:id — change or remove a cue.
      *
      * Only POST and GET existed, so a cue's DIRECTION could be written once
-     * and never revised — and an agent could generate music while being unable
-     * to write the brief for it, which is the wrong way round when the
-     * connected model is the writer.
+     * and never revised.
      */
     if (urlParts[1] === 'music-cues' && urlParts[2] && !urlParts[3]) {
         if (req.method === 'PUT') return updateMusicCue(req, res, urlParts[2]);
         if (req.method === 'DELETE') return deleteMusicCue(res, urlParts[2]);
-    }
-
-    // /film/music-cues/:id/rights — update license fields
-    if (urlParts[1] === 'music-cues' && urlParts[2] && urlParts[3] === 'rights' && req.method === 'PUT') {
-        const cueId = urlParts[2];
-        if (!UUID_RE.test(cueId)) return badReq(res, 'Invalid cue ID');
-        return updateMusicRights(req, res, cueId);
     }
 
     // /film/projects/:id/color-presets
@@ -223,8 +214,9 @@ function deleteAsset(req, res, assetId) {
 // --- Music Cues ---
 
 function listMusicCues(req, res, projectId, query) {
-    let sql = 'SELECT * FROM film_music_cues WHERE project_id = ?';
-    const params = [projectId];
+    // Sound cues only: a retired music cue in an old project is not listed.
+    let sql = `SELECT * FROM film_music_cues WHERE project_id = ? AND cue_type IN (${VALID_CUE_TYPES.map(() => '?').join(', ')})`;
+    const params = [projectId, ...VALID_CUE_TYPES];
 
     if (query.scene_id && UUID_RE.test(query.scene_id)) {
         sql += ' AND scene_id = ?';
@@ -240,26 +232,6 @@ function listMusicCues(req, res, projectId, query) {
     const rows = db.prepare(sql).all(...params);
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ music_cues: rows, count: rows.length }));
-}
-
-/**
- * Sections as the generator will accept them, or a refusal.
- *
- * The provider's limits are hard — 3s to 120s a section, and the whole cue
- * capped — and each one is otherwise a paid request that fails. Checked at the
- * write, where it is free and where the director is looking at what they typed,
- * rather than at generation time in front of a failed job.
- */
-function normalizeCueSections(input) {
-    if (input === undefined || input === null || input === '') return [];
-    const { validateSections } = require('../lib/music-sections');
-    const checked = validateSections(Array.isArray(input) ? input : []);
-    if (!checked.valid) {
-        const err = new Error('These sections cannot be generated as written');
-        err.errors = checked.errors;
-        throw err;
-    }
-    return checked.sections;
 }
 
 /**
@@ -294,11 +266,18 @@ function cueWiring(body, projectId) {
     return { fields: { shot_id: null, sequence_id: null } };
 }
 
+/** Why a cue type is refused, or null. A music kind says it was retired and where music goes now. */
+function cueTypeRefusal(cueType) {
+    if (VALID_CUE_TYPES.includes(cueType)) return null;
+    if (RETIRED_CUE_TYPES.includes(cueType)) return `A ${cueType} cue is music, and music cues were retired: bring the music in as a file (upload it to the scene) instead.`;
+    return `cue_type must be one of: ${VALID_CUE_TYPES.join(', ')}`;
+}
+
 function createMusicCue(req, res, projectId) {
     const body = req.body;
-    const cueType = VALID_CUE_TYPES.includes(body.cue_type) ? body.cue_type : 'score';
-    try { normalizeCueSections(body.sections); }
-    catch (err) { return json(res, 400, { error: err.message, errors: err.errors || [] }); }
+    const refused = cueTypeRefusal(body.cue_type);
+    if (refused) return json(res, 400, { error: refused });
+    const cueType = body.cue_type;
 
     const id = generateId();
     const now = new Date().toISOString();
@@ -316,12 +295,9 @@ function createMusicCue(req, res, projectId) {
         cueType,
         (body.title || '').slice(0, 200),
         (body.description || '').slice(0, 2000),
-        (body.mood || '').slice(0, 100),
-        (body.genre || '').slice(0, 100),
-        body.tempo_bpm || 0,
-        (body.key_signature || '').slice(0, 20),
-        JSON.stringify(body.instruments || []),
-        (body.reference_track || '').slice(0, 500),
+        // The musical columns (mood, genre, tempo, key, instruments, reference) stay in the table for old
+        // projects; a sound cue writes none of them.
+        '', '', 0, '', '[]', '',
         body.start_ms || 0,
         body.duration_ms || 0,
         body.volume_db || 0.0,
@@ -329,7 +305,7 @@ function createMusicCue(req, res, projectId) {
         body.fade_out_ms || 0,
         (body.notes || '').slice(0, 2000),
         (body.negative_prompt || '').slice(0, 1000),
-        JSON.stringify(normalizeCueSections(body.sections)),
+        '[]',
         now
     );
 
@@ -348,102 +324,6 @@ function createMusicCue(req, res, projectId) {
 
     const row = db.prepare('SELECT * FROM film_music_cues WHERE id = ?').get(id);
     res.writeHead(201, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify(row));
-}
-
-// --- Music Rights ---
-
-const VALID_LICENSE_STATUSES = ['unknown', 'pending', 'licensed', 'expired', 'rejected', 'public_domain', 'original'];
-const VALID_LICENSE_TYPES = ['sync', 'master', 'blanket', 'creative_commons', 'public_domain', 'original', 'work_for_hire'];
-
-function getMusicRightsSummary(req, res, projectId) {
-    const cues = db.prepare(
-        'SELECT * FROM film_music_cues WHERE project_id = ? ORDER BY title'
-    ).all(projectId);
-
-    const byStatus = {};
-    let totalCost = 0;
-    for (const cue of cues) {
-        const status = cue.license_status || 'unknown';
-        byStatus[status] = (byStatus[status] || 0) + 1;
-        totalCost += cue.license_cost || 0;
-    }
-
-    const needsAttention = cues.filter(c =>
-        !c.license_status || c.license_status === 'unknown' || c.license_status === 'pending'
-    );
-
-    res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({
-        total_cues: cues.length,
-        by_status: byStatus,
-        total_license_cost: totalCost,
-        needs_attention: needsAttention,
-        cues,
-        /*
-         * The validator's OWN vocabulary, served rather than left for a page to
-         * retype — the rule `GET /film/card-vocabulary` already sets. An editor
-         * built from a typed-out list works exactly once: until somebody adds a
-         * status, at which point the page offers values the route refuses and
-         * the refusal reads as a bug in saving.
-         */
-        vocabulary: { license_status: VALID_LICENSE_STATUSES, license_type: VALID_LICENSE_TYPES },
-    }));
-}
-
-function updateMusicRights(req, res, cueId) {
-    const body = req.body;
-    const fields = [];
-    const values = [];
-
-    if (body.license_status !== undefined) {
-        if (!VALID_LICENSE_STATUSES.includes(body.license_status)) {
-            return badReq(res, `Invalid license_status. Valid: ${VALID_LICENSE_STATUSES.join(', ')}`);
-        }
-        fields.push('license_status = ?');
-        values.push(body.license_status);
-    }
-    if (body.license_type !== undefined) {
-        if (body.license_type && !VALID_LICENSE_TYPES.includes(body.license_type)) {
-            return badReq(res, `Invalid license_type. Valid: ${VALID_LICENSE_TYPES.join(', ')}`);
-        }
-        fields.push('license_type = ?');
-        values.push(body.license_type);
-    }
-    if (body.license_holder !== undefined) {
-        fields.push('license_holder = ?');
-        values.push((body.license_holder || '').slice(0, 500));
-    }
-    if (body.license_cost !== undefined) {
-        fields.push('license_cost = ?');
-        values.push(Number(body.license_cost) || 0);
-    }
-    if (body.license_expiry !== undefined) {
-        fields.push('license_expiry = ?');
-        values.push((body.license_expiry || '').slice(0, 50));
-    }
-    if (body.license_territory !== undefined) {
-        fields.push('license_territory = ?');
-        values.push((body.license_territory || '').slice(0, 200));
-    }
-
-    if (fields.length === 0) {
-        return badReq(res, 'No valid license fields to update');
-    }
-
-    values.push(cueId);
-    const result = db.prepare(
-        `UPDATE film_music_cues SET ${fields.join(', ')} WHERE id = ?`
-    ).run(...values);
-
-    if (result.changes === 0) {
-        res.writeHead(404, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'Music cue not found' }));
-        return;
-    }
-
-    const row = db.prepare('SELECT * FROM film_music_cues WHERE id = ?').get(cueId);
-    res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify(row));
 }
 
@@ -684,12 +564,8 @@ function createColorPreset(req, res, projectId) {
 
 
 /**
- * Change a cue. MERGED, never replaced.
- *
- * A cue is a whole brief — mood, instruments, the reference, the description —
- * and refining one sentence of direction must not clear the rest. The scene
- * card and the provider config both learned this; a swap here would drop the
- * instruments every time somebody rewrote a note.
+ * Change a cue. MERGED, never replaced: refining one sentence of direction
+ * must not clear the rest.
  */
 function updateMusicCue(req, res, cueId) {
     const existing = db.prepare('SELECT * FROM film_music_cues WHERE id = ?').get(cueId);
@@ -699,14 +575,13 @@ function updateMusicCue(req, res, cueId) {
     const fields = [];
     const values = [];
 
-    const TEXT = { title: 200, description: 2000, mood: 100, genre: 100,
-        key_signature: 20, reference_track: 500, notes: 2000 };
+    const TEXT = { title: 200, description: 2000, notes: 2000 };
     for (const [field, max] of Object.entries(TEXT)) {
         if (body[field] === undefined) continue;
         fields.push(`${field} = ?`);
         values.push(String(body[field]).slice(0, max));
     }
-    for (const field of ['tempo_bpm', 'start_ms', 'duration_ms', 'fade_in_ms', 'fade_out_ms']) {
+    for (const field of ['start_ms', 'duration_ms', 'fade_in_ms', 'fade_out_ms']) {
         if (body[field] === undefined) continue;
         const n = Number(body[field]);
         if (!Number.isFinite(n) || n < 0) return json(res, 400, { error: `${field} must be a positive number` });
@@ -714,32 +589,14 @@ function updateMusicCue(req, res, cueId) {
         values.push(n);
     }
     if (body.cue_type !== undefined) {
-        if (!VALID_CUE_TYPES.includes(body.cue_type)) {
-            return json(res, 400, { error: `cue_type must be one of: ${VALID_CUE_TYPES.join(', ')}` });
-        }
+        const refused = cueTypeRefusal(body.cue_type);
+        if (refused) return json(res, 400, { error: refused });
         fields.push('cue_type = ?');
         values.push(body.cue_type);
     }
     if (body.negative_prompt !== undefined) {
         fields.push('negative_prompt = ?');
         values.push(String(body.negative_prompt).slice(0, 1000));
-    }
-    if (body.sections !== undefined) {
-        let sections;
-        try { sections = normalizeCueSections(body.sections); }
-        catch (err) { return json(res, 400, { error: err.message, errors: err.errors || [] }); }
-        fields.push('sections_json = ?');
-        values.push(JSON.stringify(sections));
-    }
-    if (body.instruments !== undefined) {
-        // Stored as JSON, and accepted either as a list or as the comma string
-        // a person types — a raw string stored whole becomes one instrument
-        // called "solo cello, brushed kit".
-        const list = Array.isArray(body.instruments)
-            ? body.instruments
-            : String(body.instruments).split(',').map(x => x.trim()).filter(Boolean);
-        fields.push('instruments = ?');
-        values.push(JSON.stringify(list));
     }
 
     const wired = cueWiring(body, existing.project_id);

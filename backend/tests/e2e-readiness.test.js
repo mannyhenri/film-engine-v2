@@ -162,7 +162,7 @@ test('every capability the E2E path needs is one the provider layer knows', () =
     const needed = [...new Set([...Object.values(STEP_CAPABILITY), 'llm'])];
     const unknown = needed.filter(c => !CAPABILITIES.includes(c));
     assert.deepStrictEqual(unknown, [], `capabilities unknown to the provider layer: ${unknown.join(', ')}`);
-    assert.strictEqual(needed.length, 9, 'the E2E path needs 9 capabilities; that changed');
+    assert.strictEqual(needed.length, 8, 'the E2E path needs 8 capabilities; that changed');
 });
 
 // ── Finishing in the NLE ────────────────────────────────────────────────────

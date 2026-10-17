@@ -8,13 +8,13 @@ const {
 
 describe('pipeline-engine', () => {
     describe('PIPELINE_STEPS', () => {
-        it('has 9 steps', () => {
-            assert.equal(PIPELINE_STEPS.length, 9);
+        it('has 8 steps', () => {
+            assert.equal(PIPELINE_STEPS.length, 8);
         });
 
         it('has correct step IDs', () => {
             const ids = PIPELINE_STEPS.map(s => s.id);
-            assert.deepEqual(ids, ['keyframe', 'video', 'voice', 'lipsync', 'music', 'sfx', 'ambient', 'post', 'assembly']);
+            assert.deepEqual(ids, ['keyframe', 'video', 'voice', 'lipsync', 'sfx', 'ambient', 'post', 'assembly']);
         });
 
         it('all steps have required fields', () => {
@@ -42,7 +42,7 @@ describe('pipeline-engine', () => {
             const ids = next.map(s => s.id);
             assert.ok(ids.includes('keyframe'));
             assert.ok(ids.includes('voice'));
-            assert.ok(ids.includes('music'));
+            assert.ok(!ids.includes('music')); // music generation was retired
             assert.ok(ids.includes('sfx'));
             assert.ok(ids.includes('ambient'));
             assert.ok(!ids.includes('video')); // depends on keyframe
@@ -67,17 +67,19 @@ describe('pipeline-engine', () => {
             assert.ok(ids.includes('post'));
         });
 
-        it('unlocks assembly after post + music + sfx + ambient', () => {
-            const next = getNextSteps(['keyframe', 'video', 'voice', 'lipsync', 'post', 'music', 'sfx', 'ambient']);
+        it('unlocks assembly after post + sfx + ambient', () => {
+            const next = getNextSteps(['keyframe', 'video', 'voice', 'lipsync', 'post', 'sfx', 'ambient']);
             const ids = next.map(s => s.id);
             assert.ok(ids.includes('assembly'));
+            const early = getNextSteps(['keyframe', 'video', 'voice', 'lipsync', 'post', 'sfx']).map(s => s.id);
+            assert.ok(!early.includes('assembly'), 'assembly ran before the ambient bed');
         });
 
         it('excludes skipped steps', () => {
-            const next = getNextSteps([], ['voice', 'music']);
+            const next = getNextSteps([], ['voice', 'sfx']);
             const ids = next.map(s => s.id);
             assert.ok(!ids.includes('voice'));
-            assert.ok(!ids.includes('music'));
+            assert.ok(!ids.includes('sfx'));
         });
 
         it('treats skipped dependencies as satisfied', () => {
@@ -111,9 +113,9 @@ describe('pipeline-engine', () => {
     describe('buildStepPlan', () => {
         it('returns all steps with no options', () => {
             const plan = buildStepPlan();
-            assert.equal(plan.length, 9);
+            assert.equal(plan.length, 8);
             assert.equal(plan[0].id, 'keyframe');
-            assert.equal(plan[8].id, 'assembly');
+            assert.equal(plan[7].id, 'assembly');
         });
 
         it('skips specified steps', () => {
@@ -121,13 +123,13 @@ describe('pipeline-engine', () => {
             const ids = plan.map(s => s.id);
             assert.ok(!ids.includes('voice'));
             assert.ok(!ids.includes('lipsync'));
-            assert.equal(plan.length, 7);
+            assert.equal(plan.length, 6);
         });
 
         it('starts from a specific step', () => {
-            const plan = buildStepPlan({ start_from: 'music' });
-            assert.equal(plan[0].id, 'music');
-            assert.ok(plan.length < 9);
+            const plan = buildStepPlan({ start_from: 'sfx' });
+            assert.equal(plan[0].id, 'sfx');
+            assert.ok(plan.length < 8);
         });
 
         it('filters to only specified steps', () => {
@@ -182,8 +184,8 @@ describe('pipeline-engine', () => {
         });
 
         it('merges with user-specified skips', () => {
-            const skips = autoSkipSteps({}, { skip_steps: ['music'] });
-            assert.ok(skips.includes('music'));
+            const skips = autoSkipSteps({}, { skip_steps: ['sfx'] });
+            assert.ok(skips.includes('sfx'));
             assert.ok(skips.includes('voice'));
             assert.ok(skips.includes('lipsync'));
         });

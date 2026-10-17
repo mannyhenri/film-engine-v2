@@ -1,6 +1,7 @@
 /**
- * Integration tests for the music/SFX/ambient generation route
- * (routes/music-gen.js).
+ * Integration tests for the SFX/ambient generation route (routes/music-gen.js).
+ * AI music generation was retired on 2026-10-14; the route still serves sound
+ * effects, ambient beds, the job list and the /film/music file server.
  *
  * Spins up the real server (temp DB) pointed at an in-process mock Gridlight
  * gateway, exercising the full proxy path: route → gridlight-client → mock →
@@ -119,21 +120,13 @@ describe('Music Generation Integration (mock Gridlight)', () => {
     });
 
     it('rejects an invalid scene id with 400', async () => {
-        const res = await request('/film/scenes/not-a-uuid/music/generate', { method: 'POST', body: {} });
+        const res = await request('/film/scenes/not-a-uuid/ambient/generate', { method: 'POST', body: {} });
         assert.equal(res.status, 400);
     });
 
     it('returns 404 for an unknown scene', async () => {
-        const res = await request('/film/scenes/11111111-1111-4111-8111-111111111111/music/generate', { method: 'POST', body: {} });
+        const res = await request('/film/scenes/11111111-1111-4111-8111-111111111111/ambient/generate', { method: 'POST', body: {} });
         assert.equal(res.status, 404);
-    });
-
-    it('generates a music score for a scene (inline binary)', async () => {
-        mockMode = 'binary';
-        const res = await request(`/film/scenes/${sceneId}/music/generate`, { method: 'POST', body: { mood: 'tense' } });
-        assert.equal(res.status, 200);
-        assert.equal(res.data.status, 'complete');
-        assert.match(res.data.music_url, /^\/film\/music\/.+_score\.wav$/);
     });
 
     it('generates ambient audio for a scene', async () => {
@@ -153,21 +146,12 @@ describe('Music Generation Integration (mock Gridlight)', () => {
     });
 
     it('serves a generated audio file with an audio mime type', async () => {
-        const gen = await request(`/film/scenes/${sceneId}/music/generate`, { method: 'POST', body: {} });
-        const served = await request(gen.data.music_url);
+        mockMode = 'binary';
+        const gen = await request(`/film/scenes/${sceneId}/ambient/generate`, { method: 'POST', body: {} });
+        const served = await request(gen.data.ambient_url);
         assert.equal(served.status, 200);
         assert.match(served.headers['content-type'], /audio\/wav/);
         assert.match(served.raw, /FAKE-WAV-DATA/);
-    });
-
-    it('batch-streams music for all scenes', async () => {
-        mockMode = 'binary';
-        const res = await request(`/film/projects/${projectId}/music/batch/stream`, { method: 'POST', body: {} });
-        assert.equal(res.status, 200);
-        assert.match(res.raw, /"type":"status"/);
-        assert.match(res.raw, /"type":"scene_start"/);
-        assert.match(res.raw, /"type":"result"/);
-        assert.match(res.raw, /"type":"done"/);
     });
 
     it('lists project music jobs', async () => {
@@ -179,11 +163,11 @@ describe('Music Generation Integration (mock Gridlight)', () => {
 
     it('marks the job failed on an upstream 500', async () => {
         mockMode = 'error500';
-        const res = await request(`/film/scenes/${sceneId}/music/generate`, { method: 'POST', body: {} });
+        const res = await request(`/film/scenes/${sceneId}/ambient/generate`, { method: 'POST', body: {} });
         assert.ok(res.status >= 400, `expected error status, got ${res.status}`);
         const list = await request(`/film/projects/${projectId}/music/jobs`);
         const jobs = list.data.jobs || list.data.music_jobs || [];
-        assert.ok(jobs.some(j => j.status === 'failed'), 'expected a failed music job');
+        assert.ok(jobs.some(j => j.status === 'failed'), 'expected a failed ambient job');
     });
 
     it('rejects a traversal filename on the serve route', async () => {

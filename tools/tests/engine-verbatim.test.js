@@ -133,7 +133,22 @@ const CHANGED = {
         "pgTiles": "approved timeline uses selected media and a five-second image fallback with explicit missing selections",
         "pgRenderPlayback": "approved playback shows independent source sounds and availability",
         "pgPlayCurrent": "approved playback follows selected video or the exact five-second image fallback",
-        "pgSyncAudio": "approved playback applies explicit full-source offsets, trims, gain and mute independently of conditioning"
+        "pgSyncAudio": "approved playback applies explicit full-source offsets, trims, gain and mute independently of conditioning",
+        "PG_KIND": "music-making retired by the user (2026-10-14, tools/split-lib.js RETIRED): a sound node is an effect or room tone; the music kind is gone",
+        "PG_ADD_CUE_TYPES": "music-making retired by the user (2026-10-14, tools/split-lib.js RETIRED): the palette adds effect and room-tone cues only",
+        "pgRunPending": "music-making retired by the user (2026-10-14, tools/split-lib.js RETIRED): pending sounds confirm under their own kind's capability, not music's",
+        "pgDrawerSound": "music-making retired by the user (2026-10-14, tools/split-lib.js RETIRED): no Mood/Genre for a music kind, no link to the Score workspace",
+        "pgGenerateSound": "music-making retired by the user (2026-10-14, tools/split-lib.js RETIRED): an unknown kind falls back to an effect, not to music",
+        "pgEnsureSide": "music-making retired by the user (2026-10-14, tools/split-lib.js RETIRED): the palette has no Music node",
+        "pgDuplicate": "music-making retired by the user (2026-10-14, tools/split-lib.js RETIRED): a duplicated sound carries no mood or genre (sound cues have none)",
+        "pgDropTarget": "music-making retired by the user (2026-10-14, tools/split-lib.js RETIRED): a file dropped on a sound uploads under its own kind, not as music"
+    },
+    "src/components/MediaInput/engine.js": {
+        "uploadLimitFor": "music-making retired by the user (2026-10-14, tools/split-lib.js RETIRED): no score session takes a batch of stems, so `stems` is not a file-carrying path (mirrors backend/lib/body-limit.js)"
+    },
+    "src/pages/music/engine.js": {
+        "loadMusic": "music-making retired by the user (2026-10-14, tools/split-lib.js RETIRED): each scene shows its ambient bed (generate or upload) and the music brought in for it (upload only); no score row, score direction or cue sheet",
+        "runSoundGenerate": "music-making retired by the user (2026-10-14, tools/split-lib.js RETIRED): the sound dialog has no Score kind, so the capability is the kind itself"
     }
 };
 // New exported helpers are declared separately; a reference declaration is never waived here.

@@ -77,17 +77,6 @@ const STEP_EXTERNAL_DEPENDENCY = {
  * no other way to exercise the blocked path.
  */
 const DEPENDENCY_CHECKS = {
-    /*
-     * Not a STEP dependency: the music step needs it only on a project whose
-     * music resolves to the local renderer (GRD-3995), so it is consulted from
-     * checkCapability through ADAPTER_DEPENDENCY rather than declared on the
-     * step, where it would block every project's music stage.
-     */
-    fluidsynth: {
-        what: 'a MIDI renderer, a SoundFont whose licence is known, and an encoder, to play a cue\u2019s notes through instruments',
-        resolve: () => require('./instrument-render').availability(),
-        check: resolve => checkInstrumentDependency(resolve),
-    },
     ffmpeg: {
         what: 'an encoder to join the shot masters into one film',
         resolve: () => require('./ffmpeg').resolveFfmpeg(),
@@ -95,20 +84,8 @@ const DEPENDENCY_CHECKS = {
     },
 };
 
-/** Which provider runs on something this machine must have installed. */
-const ADAPTER_DEPENDENCY = { fluidsynth: 'fluidsynth' };
-
-/** The local renderer's verdict, in the shape checkConformDependency returns. */
-function checkInstrumentDependency(resolve = () => require('./instrument-render').availability()) {
-    let av;
-    try { av = resolve(); } catch (err) {
-        return { verdict: 'blocked', reasons: [`instrument probe failed: ${err.message}`], fixes: ['reinstall FluidSynth and check FILM_SOUNDFONT'] };
-    }
-    if (!av || !av.ok) {
-        return { verdict: 'blocked', reasons: (av && av.reasons) || ['the instrument renderer is not available'], fixes: (av && av.fixes) || [] };
-    }
-    return { verdict: 'go', reasons: [`FluidSynth is available with ${av.soundfont.library} (${av.soundfont.license}).`], fixes: [] };
-}
+/** Which provider runs on something this machine must have installed (none since the local MIDI renderer was retired). */
+const ADAPTER_DEPENDENCY = {};
 
 /** The verdict for one declared dependency. Never throws. */
 function checkDependency(dependency, resolvers) {

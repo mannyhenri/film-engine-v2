@@ -72,6 +72,8 @@
     "SHOT_FRAMINGS",
     "SHOT_ANGLES",
     "worldShotSubject",
+    "worldImpliedSubject",
+    "worldImpliedSubjectKeep",
     "worldShotNow",
     "worldShotPlace",
     "worldShotOnHtml",

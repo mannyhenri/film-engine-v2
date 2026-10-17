@@ -15,8 +15,7 @@ const CUT = {
     ],
 };
 const EDIT = { id: 'e1', version: 2, name: 'Rough <cut>', is_latest: 1, duration_ms: 65000, frame_rate: 23.976, width: 1920, height: 1080,
-    has_audio: 1, size_bytes: 2048, available: 1, video_url: '/film/edits/e1/video', file_path: '/x/05 Edit/v2.mp4', cut: CUT,
-    sessions: [{ id: 's9', name: 'Score A', status: 'draft' }] };
+    has_audio: 1, size_bytes: 2048, available: 1, video_url: '/film/edits/e1/video', file_path: '/x/05 Edit/v2.mp4', cut: CUT };
 
 async function openPage(routes = {}) {
     const legacy = installLegacy({ routes: { 'GET /projects/p1/edits': { edits: [EDIT] }, ...routes } });
@@ -27,7 +26,7 @@ async function openPage(routes = {}) {
 afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 
 describe('Edit', () => {
-    it('answers to the loader navigateTo calls and shows each version: facts, picture, cut, scores, events', async () => {
+    it('answers to the loader navigateTo calls and shows each version: facts, picture, cut, events', async () => {
         const { calls } = await openPage();
         expect(calls[0]).toEqual({ method: 'GET', path: '/projects/p1/edits', body: undefined });
         expect(document.querySelector('[data-edit-id="e1"] h3').textContent).toBe('v2 · Rough <cut> latest');
@@ -35,7 +34,9 @@ describe('Edit', () => {
         expect(document.querySelector('video').getAttribute('src')).toBe('http://api.test/film/edits/e1/video');
         const cutLine = document.querySelector('[data-edit-id="e1"] video').nextElementSibling.textContent;
         expect(cutLine).toBe('3 events in “Main <seq>”, 2 of them Film Engine shots (1 by file, 1 by shot code) · not ours: stock.mov · shots not in this cut: 2B');
-        expect(screen.getByText('Score A')).toBeTruthy();
+        // The score was retired with the Score workstation (tools/split-lib.js RETIRED): no button, no score list.
+        expect(screen.queryByRole('button', { name: 'Score this edit' })).toBeNull();
+        expect(document.querySelector('[data-edit-id="e1"]').textContent).not.toMatch(/Scored in/);
         expect(screen.getByText('Replace XML / EDL')).toBeTruthy();
         expect(screen.getByText('Re-match shots')).toBeTruthy();
         const rows = [...document.querySelectorAll('details tr')].map(r => r.textContent);
@@ -52,7 +53,7 @@ describe('Edit', () => {
         expect(screen.getByText(/No edit yet\./)).toBeTruthy();
         await openPage({ 'GET /projects/p1/edits': () => { throw new Error('offline'); } });
         expect(screen.getByText('The edits could not be read: offline')).toBeTruthy();
-        await openPage({ 'GET /projects/p1/edits': { edits: [{ ...EDIT, available: 0, cut: null, sessions: [] }] } });
+        await openPage({ 'GET /projects/p1/edits': { edits: [{ ...EDIT, available: 0, cut: null }] } });
         expect(screen.getByText('The picture file is missing from the project folder.')).toBeTruthy();
         expect(screen.getByText(/No cut yet/)).toBeTruthy();
         expect(screen.getByText('Add XML / EDL')).toBeTruthy();
@@ -113,18 +114,11 @@ describe('Edit', () => {
         expect(fake.closeModal).toHaveBeenCalledWith('editRenameModal');
     });
 
-    it('deletes after asking; refused because a score is written against it, offers to force', async () => {
-        const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true);
-        let first = true;
-        const { calls, status } = await openPage({
-            'DELETE /edits/e1': () => { if (first) { first = false; throw new Error('2 scores are written against this edit'); } return {}; },
-            'DELETE /edits/e1?force=true': {},
-        });
+    it('deletes after asking, and nothing else (no score can hold an edit any more)', async () => {
+        vi.spyOn(window, 'confirm').mockReturnValue(true);
+        const { calls, status } = await openPage({ 'DELETE /edits/e1': {} });
         await act(async () => { fireEvent.click(screen.getByText('Delete')); });
-        expect(calls.map(c => `${c.method} ${c.path}`).slice(1, 3)).toEqual(['DELETE /edits/e1', 'DELETE /edits/e1?force=true']);
-        expect(confirm.mock.calls[1][0]).toMatch(/Delete anyway and leave those scores with no picture\?/);
-        confirm.mockReturnValue(true);
-        await act(async () => { fireEvent.click(screen.getByText('Delete')); });
+        expect(calls.map(c => `${c.method} ${c.path}`).slice(1)).toEqual(['DELETE /edits/e1', 'GET /projects/p1/edits']);
         expect(status).toContain('Edit v2 deleted');
     });
 
@@ -138,13 +132,4 @@ describe('Edit', () => {
         expect(confirm).toHaveBeenCalledTimes(2);
     });
 
-    it('Score this edit opens a session timed to the cut and goes to the workstation; a listed score opens too', async () => {
-        const { calls, fake } = await openPage({ 'POST /projects/p1/music-sessions': { session: { id: 's10' } } });
-        await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Score this edit' })); });
-        expect(calls[1]).toEqual({ method: 'POST', path: '/projects/p1/music-sessions', body: { edit_id: 'e1', name: 'Score — edit v2' } });
-        expect(fake.MW.session).toEqual({ id: 's10' });
-        expect(fake.navigateTo).toHaveBeenCalledWith('musicws');
-        fireEvent.click(screen.getByText('Score A'));
-        expect(fake.MW.session).toEqual({ id: 's9' });
-    });
 });

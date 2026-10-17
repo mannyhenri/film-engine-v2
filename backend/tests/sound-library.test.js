@@ -45,11 +45,17 @@ function cueTypes() {
 
 const TYPES = cueTypes();
 
-test('the cue vocabulary is read from the schema, and it is more than two', () => {
-    assert.ok(TYPES.includes('score') && TYPES.includes('ambient'),
-        `the two types that already worked are missing: ${TYPES.join(', ')}`);
-    assert.ok(TYPES.length > 2,
-        'the schema declares only two cue types, so there is nothing to categorise');
+/*
+ * Music-making was retired on 2026-10-14: a cue is now a sound effect or an
+ * ambient bed. The table keeps its wider CHECK (no migration), so the kept
+ * kinds are asserted to still be in it rather than the whole list being used.
+ */
+const SOUND_TYPES = ['sfx', 'ambient'];
+
+test('the cue vocabulary is read from the schema, and it still holds sfx and ambient', () => {
+    for (const t of SOUND_TYPES) {
+        assert.ok(TYPES.includes(t), `the schema no longer accepts cue type "${t}": ${TYPES.join(', ')}`);
+    }
 });
 
 test('a scene can hold MANY cues of the same type — nothing selects just one', () => {
@@ -65,19 +71,6 @@ test('a scene can hold MANY cues of the same type — nothing selects just one',
         collapses.push('routes/music-gen.js: cueOfKind takes LIMIT 1, so a scene has one cue per type');
     }
     /*
-     * The page must render EVERY cue. It must NOT be asserted by the absence of
-     * a single-cue lookup: two of those remain deliberately, because the
-     * scene-level "score this scene" and the ambient direction box each act on
-     * one cue and have to pick, exactly as the route does. The first version of
-     * this check matched those and reported working code as broken.
-     */
-    if (!/cuesByScene\[c\.scene_id\] \|\|= \[\]\)\.push\(c\)/.test(UI)) {
-        collapses.push('src/index.html: the page does not collect every cue per scene');
-    }
-    if (!/mine\.filter\(c => c\.cue_type === cat\.type\)/.test(UI)) {
-        collapses.push('src/index.html: the sound sheet does not render one row per cue of a category');
-    }
-    /*
      * The THIRD site, and asserted by RUNNING it rather than by grepping.
      * The first version matched the literal [['music',...],['ambient',...]],
      * which is still present on purpose: the object-keyed shape is honoured for
@@ -90,7 +83,7 @@ test('a scene can hold MANY cues of the same type — nothing selects just one',
         s1: [
             { id: 'a', cue_type: 'sfx', start_ms: 0, asset: { file_path: '/x/1.wav' } },
             { id: 'b', cue_type: 'sfx', start_ms: 2000, asset: { file_path: '/x/2.wav' } },
-            { id: 'c', cue_type: 'score', start_ms: 0, asset: { file_path: '/x/3.wav' } },
+            { id: 'c', cue_type: 'ambient', start_ms: 0, asset: { file_path: '/x/3.wav' } },
         ],
     });
     if (three.length !== 3) {
@@ -99,10 +92,13 @@ test('a scene can hold MANY cues of the same type — nothing selects just one',
     if (!three.some(b => b.kind === 'sfx')) {
         collapses.push('lib/timeline.js: an sfx cue produced no bed, so it can never be heard');
     }
+    if (!three.some(b => b.kind === 'ambient')) {
+        collapses.push('lib/timeline.js: an ambient cue produced no bed, so it can never be heard');
+    }
     assert.deepStrictEqual(collapses, [], '\n  ' + collapses.join('\n  ') + '\n');
 });
 
-test('no cue type is REFUSED by the generator', () => {
+test('no sound cue type is REFUSED by the generator', () => {
     /*
      * Corrected while writing this. I first counted "2 of 5 generatable" from
      * mentions of CUE_KIND_FOR, which is not the dispatch. Reading
@@ -117,7 +113,7 @@ test('no cue type is REFUSED by the generator', () => {
      * sound cue and wants that sound.
      */
     const refused = [];
-    for (const t of TYPES) {
+    for (const t of SOUND_TYPES) {
         const at = ROUTE.indexOf("cue.cue_type === '" + t + "'");
         if (at < 0) continue;                       // no branch: falls through to a builder
         const block = ROUTE.slice(at, at + 1400);
@@ -130,7 +126,7 @@ test('no cue type is REFUSED by the generator', () => {
         + 'app offers, stores and displays but will not produce audio for is a category with '
         + 'nothing in it');
 });
-test('every cue type can take an UPLOADED file as its audio', () => {
+test('a sound cue can take an UPLOADED file as its audio', () => {
     // media_upload lands a file as an ASSET. Becoming a CUE's audio — so it
     // mixes, plays back and exports like a generated one — is the thing a
     // director means by "add manually".
@@ -154,36 +150,4 @@ test('every cue type can take an UPLOADED file as its audio', () => {
         "no route attaches an uploaded file to a cue. media_upload lands audio as an ASSET; "
         + "until it can become a CUE's audio it never reaches the mix, the playback or the "
         + "export, so \"add manually\" produces a file nobody hears.");
-});
-
-test('the sound surface renders every cue individually, in the sheet design', () => {
-    /*
-     * "Use the same designs as the character plates." The three subject sheets
-     * are built from `ss-region` blocks inside `ss-col` columns; a fourth sheet
-     * for sound should be the same furniture, not a new idiom.
-     */
-    const gaps = [];
-    if (!/function renderSoundSheet/.test(UI)) gaps.push('there is no sound sheet renderer');
-    if (!/ssSection\('snd-' \+ cat\.type/.test(UI)) gaps.push('the sound sheet does not build ssSection regions');
-    /*
-     * The region ids are COMPUTED — `ssSection('snd-' + cat.type, ...)` — so the
-     * literal "snd-score" appears nowhere in the source. Grepping for it
-     * reported a working sheet as missing every category, which is the
-     * grep-versus-runtime failure this codebase has paid for before. The list
-     * the page declares is read instead, and compared against the schema.
-     */
-    const block = /const SOUND_CATEGORIES = \[([\s\S]*?)\];/.exec(UI);
-    assert.ok(block, 'SOUND_CATEGORIES is gone — the sheet has no category list to read');
-    const declared = [...block[1].matchAll(/type: '([a-z]+)'/g)].map(m => m[1]);
-    /*
-     * Scoped to the SOUND_CATEGORIES block, and that scoping is the point. The
-     * first version searched the whole page for `{ type: 'x', label:` — which
-     * is also the shape of the SCREENPLAY ELEMENT types, where 'transition'
-     * appears again. Deleting the sound category left the screenplay one, the
-     * check passed, and a mutation proved it was reading the wrong list.
-     */
-    for (const t of TYPES) {
-        if (!declared.includes(t)) gaps.push(`the sound sheet has no category for cue type "${t}"`);
-    }
-    assert.deepStrictEqual(gaps, [], '\n  ' + gaps.join('\n  ') + '\n');
 });

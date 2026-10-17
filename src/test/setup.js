@@ -31,7 +31,6 @@ export function installLegacy({ routes = {}, project = { id: 'p1' } } = {}) {
         DRIFT: { shots: {}, scenes: [] },
         loadScreenplayDrift: vi.fn(async () => {}),
         updateSceneStatusIcons: vi.fn(),
-        MW: {},
         mwTime: (ms) => `${Math.floor((ms || 0) / 60000)}:${String(Math.floor(((ms || 0) % 60000) / 1000)).padStart(2, '0')}`,
         fmtBytes: (n) => `${n} B`,
         checkUploadSize: vi.fn(),

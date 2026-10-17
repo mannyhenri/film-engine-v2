@@ -1,11 +1,13 @@
-import { useLayoutEffect } from 'react';
+import { useCallback, useLayoutEffect, useState } from 'react';
 import { usePageLoader } from '../../lib/usePageLoader.js';
+import { legacy } from '../../lib/legacy.js';
 import * as E from './engine.js';
 import Lists from './lists.jsx';
 import './production-lineage.css';
 import StoryboardPrint from '../../components/StoryboardPrint/StoryboardPrint.jsx';
 import DepthWorkbench from '../../components/DepthWorkbench/DepthWorkbench.jsx';
 import CompositeWorkbench from '../../components/CompositeWorkbench/CompositeWorkbench.jsx';
+import ProductionStudio from './studio/ProductionStudio.jsx';
 
 /*
  * The Production graph, as React: the page's frame is rendered once, and the engine (engine.js, moved verbatim
@@ -20,7 +22,34 @@ import CompositeWorkbench from '../../components/CompositeWorkbench/CompositeWor
 export const ENGINE = Object.entries(E).filter(([, v]) => typeof v === 'function');
 
 export default function ProductionGraphPage() {
-    usePageLoader('loadProductionGraph', E.loadProductionGraph);
+    // Generate and Cut are the page now. The old graph has no tab (the user removed it); its markup stays mounted and
+    // hidden, because its engine draws by id, loads the graph both tabs read, and core calls into it.
+    const [view, setView] = useState('generate');
+    /*
+     * ONE read of the production graph feeds both: the engine's load (deduplicated per film, guarded against a
+     * film switch) and then the studio, which is handed the graph the engine just accepted. A second fetch here
+     * would double every page open and race the engine's own project-switch guard.
+     */
+    const [graph, setGraph] = useState(null);
+    const load = useCallback(async (...args) => {
+        const out = await E.loadProductionGraph(...args);
+        const g = legacy.PG && legacy.PG.graph;
+        const pid = legacy.state.currentProject && legacy.state.currentProject.id;
+        if (g && Array.isArray(g.nodes) && (!g.project_id || g.project_id === pid)) setGraph(g);
+        return out;
+    }, []);
+    const reload = useCallback(() => load(true), [load]);
+    // Switching tab re-reads what the engine holds, so a change made through it since is picked up.
+    const changeView = useCallback((id) => {
+        setView(id);
+        const g = legacy.PG && legacy.PG.graph;
+        if (g && Array.isArray(g.nodes)) setGraph(g);
+    }, []);
+    usePageLoader('loadProductionGraph', load);
+    // The graph's side panel (shot outline, node palette; pgEnsureSide puts it in the app's phase list) belonged to
+    // the classic graph only: studio.css hides it unless this says "graph", which no tab does any more.
+    useLayoutEffect(() => { document.documentElement.dataset.pgView = view; }, [view]);
+    useLayoutEffect(() => () => { delete document.documentElement.dataset.pgView; }, []);
     // What core calls by name (react.json provides): the side panel the flag draws, Flows' way back, the in-between modals.
     usePageLoader('pgNode', E.pgNode);
     usePageLoader('pgShots', E.pgShots);
@@ -33,17 +62,21 @@ export default function ProductionGraphPage() {
     usePageLoader('pgSideClick', E.pgSideClick);
     useLayoutEffect(() => {
         const prior = {};
-        for (const [name, fn] of ENGINE) { prior[name] = window[name]; window[name] = fn; }
+        for (const [name, fn] of ENGINE) { if (name === 'loadProductionGraph') continue; prior[name] = window[name]; window[name] = fn; } // the loader is the page's (above)
         return () => {
-            E.pgDispose();
-            for (const [name] of ENGINE) { if (prior[name] === undefined) delete window[name]; else window[name] = prior[name]; }
+            // A remount before the legacy core has run (boot, App.boot.test.jsx) has no PG to dispose; throwing here
+            // would take the page's boundary down with it.
+            try { E.pgDispose(); } catch (_) { /* nothing was mounted against a core */ }
+            for (const [name] of ENGINE) { if (name === 'loadProductionGraph') continue; if (prior[name] === undefined) delete window[name]; else window[name] = prior[name]; }
         };
     }, []);
     return (
         <div className="page" id="page-productiongraph">
+            <ProductionStudio graph={graph} reload={reload} onTabChange={changeView} />
+            <div className="pg-classic" hidden>
             <Lists />
             <div className="pg-header">
-                <h2>Production</h2>
+                <h2>Graph</h2>
                 <span className="pg-meta" id="pgMeta"></span>
                 <span className="pg-legend" id="pgLegend"></span>
                 <div className="pg-chips" id="pgScenes"></div>
@@ -85,6 +118,7 @@ export default function ProductionGraphPage() {
                 </aside>
             </div>
             <div className="pg-menu" id="pgMenu" hidden></div>
+            </div>
         </div>
     );
 }

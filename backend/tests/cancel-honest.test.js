@@ -22,6 +22,7 @@ const fs = require('fs');
 process.env.FILM_DATA_DIR = path.join(os.tmpdir(), 'film-engine-cx-' + crypto.randomUUID().slice(0, 8));
 process.env.RUNWAY_API_KEY = 'test-key-123456';
 process.env.TOPAZ_API_KEY = 'test-key-123456';
+process.env.HF_CREDENTIALS = 'test-key-123456';
 require('../db/schema').ensureSchema();
 const { db, generateId } = require('../db/database');
 const providers = require('../lib/providers');

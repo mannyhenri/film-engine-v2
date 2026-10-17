@@ -57,6 +57,78 @@ for o in sc.objects:
     # scrollwork, rugs, signage and other authored detail from the preview.
     # Keep the source object types and the saved native file intact.
     o.select_set(o.type in ('MESH', 'CURVE', 'SURFACE', 'FONT', 'CAMERA', 'LIGHT'))
+
+
+# ── WHAT THE STAGE CAN DRAW ─────────────────────────────────────────────────
+#
+# Everything below changes only this headless session; the .blend is never saved.
+#
+# A procedural colour (noise into a colour ramp, a mix of two of them) has no
+# glTF form, so the exporter left those materials with no colour at all and the
+# stage drew them white: two thirds of Horton Mansion. Each one gets the colour
+# its pattern averages to, else the colour the material shows in Blender's
+# solid view. An image texture is left alone: glTF carries it.
+
+def _rgba(v):
+    return [float(v[0]), float(v[1]), float(v[2]), float(v[3]) if len(v) > 3 else 1.0]
+
+
+def _socket_colour(sock, depth=0):
+    if not sock.is_linked:
+        v = sock.default_value
+        return _rgba(v) if hasattr(v, '__len__') else [float(v)] * 3 + [1.0]
+    return _node_colour(sock.links[0].from_node, depth + 1)
+
+
+def _node_colour(node, depth=0):
+    if depth > 12:
+        return None
+    t = node.type
+    if t == 'RGB':
+        return _rgba(node.outputs[0].default_value)
+    if t == 'VALTORGB':
+        els = node.color_ramp.elements
+        return [sum(e.color[i] for e in els) / len(els) for i in range(4)] if len(els) else None
+    if t in ('MIX_RGB', 'MIX'):
+        cols = [s for s in node.inputs if s.type == 'RGBA' and s.enabled]
+        fac = next((s for s in node.inputs if s.name == 'Factor' or s.name == 'Fac'), None)
+        f = 0.5 if fac is None or fac.is_linked else max(0.0, min(1.0, float(fac.default_value)))
+        if len(cols) >= 2:
+            a, b = _socket_colour(cols[0], depth), _socket_colour(cols[1], depth)
+            if a and b:
+                return [a[i] * (1 - f) + b[i] * f for i in range(4)]
+            return a or b
+    if t in ('HUE_SAT', 'BRIGHTCONTRAST', 'GAMMA', 'INVERT', 'CURVE_RGB'):
+        col = next((s for s in node.inputs if s.type == 'RGBA'), None)
+        return _socket_colour(col, depth) if col else None
+    return None
+
+
+def _uses_image(node, depth=0):
+    if node.type == 'TEX_IMAGE':
+        return True
+    if depth > 12:
+        return False
+    return any(_uses_image(l.from_node, depth + 1) for s in node.inputs if s.is_linked for l in s.links)
+
+
+flattened = []
+for m in bpy.data.materials:
+    if not (m.use_nodes and m.node_tree):
+        continue
+    for n in m.node_tree.nodes:
+        if n.type != 'BSDF_PRINCIPLED':
+            continue
+        base = n.inputs.get('Base Color')
+        if not base or not base.is_linked or _uses_image(base.links[0].from_node):
+            continue
+        col = _node_colour(base.links[0].from_node) or _rgba(m.diffuse_color)
+        for link in list(base.links):
+            m.node_tree.links.remove(link)
+        base.default_value = (col[0], col[1], col[2], 1.0)
+        flattened.append(m.name)
+result['flattened_materials'] = flattened
+
 bpy.ops.export_scene.gltf(filepath=glb, export_format='GLB', use_selection=True, export_yup=True, export_apply=True,
                           export_cameras=True, export_lights=True, export_extras=True, export_draco_mesh_compression_enable=False)
 result['glb'] = glb

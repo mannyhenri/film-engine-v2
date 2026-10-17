@@ -38,7 +38,7 @@ function promptOf(body={}){
 test('every real generation route reaches a manual review with its full prompt and assets; no vendor call, no row left behind',async()=>{
  const fixtures=require('./fixtures/manual-route-fixtures');
  const demo=await call('POST','/projects/demo',{});const project=JSON.parse(demo.text).project_id;assert.ok(project,'demo project');
- db.prepare('UPDATE film_projects SET provider_config=? WHERE id=?').run(JSON.stringify({image:'muapi',video:'runway',voice:'elevenlabs',sfx:'elevenlabs',ambient:'elevenlabs',music:'elevenlabs',model3d:'meshy',post:'magnific',world:'worldlabs'}),project);
+ db.prepare('UPDATE film_projects SET provider_config=? WHERE id=?').run(JSON.stringify({image:'muapi',video:'runway',voice:'elevenlabs',sfx:'elevenlabs',ambient:'elevenlabs',model3d:'meshy',post:'magnific',world:'worldlabs'}),project);
  const first=sql=>{try{return db.prepare(sql).get(project)?.id;}catch(_){return null;}};
  const ids={projects:project,shots:first('SELECT s.id FROM film_shots s JOIN film_scenes sc ON s.scene_id=sc.id WHERE sc.project_id=? LIMIT 1'),scenes:first('SELECT id FROM film_scenes WHERE project_id=? LIMIT 1'),
   characters:first('SELECT id FROM film_characters WHERE project_id=? LIMIT 1'),locations:first('SELECT id FROM film_locations WHERE project_id=? LIMIT 1'),props:first('SELECT id FROM film_props WHERE project_id=? LIMIT 1')};
@@ -65,7 +65,7 @@ test('every real generation route reaches a manual review with its full prompt a
    const allIds=[...new Set([...out.text.matchAll(/FINAL_REQUEST_REVIEW_REQUIRED:([A-Za-z0-9_-]+)/g)].map(m=>m[1]))];
    if(/batch/.test(c.path)){
     batchCounts[key(c)]=allIds.length;
-    // Every item, counted from the project itself: each dialogue line for voice, every scene for music.
+    // Every item, counted from the project itself: each dialogue line for voice, every scene otherwise.
     const {extractDialogue}=require('../lib/dialogue-builder');
     const shots=db.prepare('SELECT s.scene_card_yaml FROM film_shots s JOIN film_scenes sc ON s.scene_id=sc.id WHERE sc.project_id=?').all(project);
     const lines=shots.reduce((n,s)=>{try{return n+extractDialogue(JSON.parse(s.scene_card_yaml||'{}')).length;}catch(_){return n;}},0);
@@ -107,7 +107,7 @@ test('every planner-prepared generation path reaches a manual review with its fu
  const fixtures=require('./fixtures/manual-route-fixtures');
  assert.equal(typeof fixtures.plannerCases,'function','fixtures.plannerCases exists');
  const demo=await call('POST','/projects/demo',{});const project=JSON.parse(demo.text).project_id;
- db.prepare('UPDATE film_projects SET provider_config=? WHERE id=?').run(JSON.stringify({image:'muapi',video:'runway',voice:'elevenlabs',sfx:'elevenlabs',ambient:'elevenlabs',music:'elevenlabs',model3d:'meshy',post:'magnific',world:'worldlabs'}),project);
+ db.prepare('UPDATE film_projects SET provider_config=? WHERE id=?').run(JSON.stringify({image:'muapi',video:'runway',voice:'elevenlabs',sfx:'elevenlabs',ambient:'elevenlabs',model3d:'meshy',post:'magnific',world:'worldlabs'}),project);
  const first=sql=>{try{return db.prepare(sql).get(project)?.id;}catch(_){return null;}};
  const ids={projects:project,shots:first('SELECT s.id FROM film_shots s JOIN film_scenes sc ON s.scene_id=sc.id WHERE sc.project_id=? LIMIT 1'),scenes:first('SELECT id FROM film_scenes WHERE project_id=? LIMIT 1'),
   characters:first('SELECT id FROM film_characters WHERE project_id=? LIMIT 1'),locations:first('SELECT id FROM film_locations WHERE project_id=? LIMIT 1'),props:first('SELECT id FROM film_props WHERE project_id=? LIMIT 1')};
@@ -152,7 +152,7 @@ test('a kept Gridlight generation runs end to end: saved result, no review, only
   await call('PUT','/settings',{gridlight_enabled:'1'});
   try{require('../lib/providers').refreshLocalGateway?.();}catch(_){}
   const project=JSON.parse((await call('POST','/projects/demo',{})).text).project_id;
-  db.prepare('UPDATE film_projects SET provider_config=? WHERE id=?').run(JSON.stringify({sfx:'gridlight',ambient:'gridlight',music:'gridlight'}),project);
+  db.prepare('UPDATE film_projects SET provider_config=? WHERE id=?').run(JSON.stringify({sfx:'gridlight',ambient:'gridlight'}),project);
   const before=db.prepare('SELECT COUNT(*) n FROM film_final_request_reviews').get().n;
   const out=await call('POST',`/projects/${project}/sounds/generate`,{prompt:'Rain on a tin roof',provider:'gridlight'});
   assert.equal(out.status,200,out.text.slice(0,200));

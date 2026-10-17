@@ -122,6 +122,15 @@ body.fe-status .main { bottom:calc(var(--fe-gap) + 26px); }
   width:34px; height:34px; flex:0 0 auto; border:none; border-radius:9px;
   background:transparent; color:#c8c8d0; cursor:pointer; padding:0; }
 .fe-burger:hover { background:#1d1d20; }
+/* Hide / show the side panel (desktop). --fe-panel to zero moves the page and the status bar over with it. */
+.fe-panel-toggle { display:flex; align-items:center; justify-content:center; width:34px; height:34px; flex:0 0 auto;
+  border:none; border-radius:9px; background:transparent; color:#8e8e97; cursor:pointer; padding:0; }
+.fe-panel-toggle:hover { background:#1d1d20; color:#f4f4f5; }
+.fe-panel-toggle[aria-pressed="true"] { color:#9db4ff; }
+@media (min-width:701px) {
+  body.fe-panel-off { --fe-panel:0px; }
+  body.fe-panel-off .fe-panel { display:none; }
+}
 
 @media (max-width:700px) {
   :root { --fe-panel:0px; --fe-gap:6px; }
@@ -149,6 +158,7 @@ body.fe-status .main { bottom:calc(var(--fe-gap) + 26px); }
   .fe-scrim { position:fixed; inset:0; z-index:350; background:rgba(0,0,0,.55); }
   body.fe-drawer .fe-scrim { display:block; }
   .fe-burger { display:flex; }
+  .fe-panel-toggle { display:none; }
 
   /* The phase track is MOVED here by applyShellMode(), not re-rendered:
      it is the primary navigation and a second copy is how two navigations
@@ -621,7 +631,9 @@ body.pv-shots-in-panel .pv-grid { grid-template-columns:minmax(0,1fr) 360px; }
 .pv-grid, body.pv-shots-in-panel .pv-grid { flex:1; min-height:0; display:grid; grid-template-columns:minmax(0,1fr) 352px;
   gap:0; background:#0c0d11; }
 .pv-stage { padding:12px; gap:10px; }
-.pv-view { min-height:0; border-radius:14px; border-color:#23252d; background:#000; }
+/* The view comes first: it grows into the stage and never falls below most of it; the dock, the timeline and
+   the footer below are capped and give way to it (tools/tests/previz-view-first.test.js). */
+.pv-view { min-height:60%; border-radius:14px; border-color:#23252d; background:#000; }
 .pv-inspector { width:352px; border-radius:0; border-width:0 0 0 1px; background:#121319; }
 .pv-tabs { padding:10px 12px; border-color:#22242c; }
 .pv-tab { height:38px; border-radius:9px; }
@@ -659,21 +671,21 @@ body.pv-shots-in-panel .pv-grid { grid-template-columns:minmax(0,1fr) 360px; }
 .pv-menu-action { height:34px; border:1px solid #2c2f39; border-radius:8px; background:#181a20; color:#c9cbd5; cursor:pointer; }
 .pv-menu-action.active { border-color:#3fbf9b; color:#6ee4c1; background:#12302a; }
 .pv-move { position:relative; }
-.pv-movedock { height:68px; display:flex; align-items:center; gap:12px; padding:0 14px; border:1px solid #23252d;
+.pv-movedock { height:52px; display:flex; align-items:center; gap:10px; padding:0 10px; border:1px solid #23252d;
   border-radius:14px; background:#121319; }
-.pv-play { width:44px; height:44px; flex:none; border:0; border-radius:50%; background:#2e3343; color:#fff; cursor:pointer; }
+.pv-play { width:36px; height:36px; flex:none; border:0; border-radius:50%; background:#2e3343; color:#fff; cursor:pointer; }
 .pv-time { color:#f1f1f5; font:600 13px 'SF Mono',ui-monospace,monospace; white-space:nowrap; }
 .pv-time span { color:#9ea0ad; font-weight:400; }
 .pv-move-summary { flex:1; min-width:80px; height:30px; position:relative; display:flex; align-items:center; padding:0 12px;
   overflow:hidden; border:1px solid #262933; border-radius:8px; background:#181a20; color:#9ea0ad; font-size:12px; }
 .pv-playhead { position:absolute; left:0; top:-4px; bottom:-4px; width:2px; background:#8fa8ff; }
 .pv-path-hidden { position:absolute; width:1px; height:1px; opacity:0; pointer-events:none; }
-.pv-timeline-drawer { position:relative; height:330px; overflow:auto; border:1px solid #23252d; border-radius:14px; background:#121319; }
-.pv-timeline-drawer .we-timeline { border:0; border-radius:0; background:transparent; padding:14px; }
+/* The open timeline takes a share of the stage (at most 26%) and scrolls inside it, rather than a fixed 330px
+   taken out of the picture. */
+.pv-timeline-open .pv-move { flex:0 1 auto; max-height:26%; min-height:120px; display:flex; flex-direction:column; }
+.pv-timeline-drawer { position:relative; flex:1 1 auto; min-height:0; overflow:auto; border:1px solid #23252d; border-radius:14px; background:#121319; }
+.pv-timeline-drawer .we-timeline { border:0; border-radius:0; background:transparent; padding:8px 12px; }
 .pv-timeline-close { position:absolute; z-index:4; top:8px; right:8px; }
-.pv-timeline-open .pv-grid { grid-template-columns:minmax(0,1fr); }
-.pv-timeline-open .pv-inspector { display:none; }
-.pv-timeline-open .pv-view { min-height:220px; }
 body.pv-hide-right .pv-grid, body.pv-hide-right.pv-shots-in-panel .pv-grid,
 body.pv-hide-right.pv-hide-left .pv-grid { grid-template-columns:minmax(0,1fr) !important; }
 body.pv-hide-left:not(.pv-hide-right) .pv-grid { grid-template-columns:minmax(0,1fr) 352px !important; }

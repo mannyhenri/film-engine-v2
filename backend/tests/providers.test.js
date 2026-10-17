@@ -28,6 +28,9 @@ describe('providers/base', () => {
         assert.ok(CAPABILITIES.includes('llm'));
         assert.ok(CAPABILITIES.includes('video'));
         assert.ok(CAPABILITIES.includes('voice'));
+        assert.ok(CAPABILITIES.includes('sfx'));
+        assert.ok(CAPABILITIES.includes('ambient'));
+        assert.ok(!CAPABILITIES.includes('music'), 'the retired music capability is still declared');
         assert.equal(DEFAULT_PROVIDER, 'gridlight');
     });
 });
@@ -37,7 +40,8 @@ describe('providers/gridlight-adapter', () => {
         assert.equal(endpointFor('image'), '/image');
         assert.equal(endpointFor('llm'), '/chat/intelligent');
         assert.equal(endpointFor('video'), '/video');
-        assert.equal(endpointFor('music'), '/music');
+        // The music capability was retired on 2026-10-14; sfx and ambient keep the gateway's /music endpoint.
+        assert.equal(endpointFor('music'), null);
         assert.equal(endpointFor('sfx'), '/music');
         assert.equal(endpointFor('ambient'), '/music');
         assert.equal(endpointFor('voice'), '/voice');

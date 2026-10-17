@@ -239,7 +239,7 @@ test('every generate() call site obtains its adapter from the registry', () => {
             const rel = path.relative(path.join(__dirname, '..'), file);
 
             // Obtaining an adapter from the registry's resolve path is metered.
-            const resolves = /resolveGenerator\s*\(|\bresolve\s*\(\s*['"]|providers\.(resolve|metered)/.test(src);
+            const resolves = /resolveGenerator\s*\(|\bresolve\s*\(\s*['"]|providers\.(resolve|metered)|require\(['"]\.\/providers['"]\)\.metered\(/.test(src);
             // Being HANDED one is fine too — whoever resolved it metered it.
             // lib/reference-plates.js is the real instance: one plate generator
             // shared by locations and props, with the adapter injected.

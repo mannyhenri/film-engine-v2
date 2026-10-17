@@ -67,15 +67,12 @@ const NAV_FLOW = {
 
     production: {
         label: 'Production',
-        // musiccues sits beside music because it is where a cue's DIRECTION is
-        // written — the description that reaches the generator — and the two
-        // pages are one job. It was not in the requested list and dropping it
-        // would have removed the only surface where music direction can be
-        // written, which is a capability loss rather than a tidy-up.
+        // Music Cues and the Score workstation were retired with music-making on
+        // 2026-10-14; Music & Sound keeps the sound library and the scene beds.
         // `productiongraph` is the node graph that replaces the eight below it. The
         // `production_graph` setting decides which the menu shows; every one
         // stays in the build and reachable by URL until the graph has parity.
-        pages: ['productiongraph', 'shotboard', 'videoshots', 'music', 'musiccues', 'musicws', 'playback',
+        pages: ['productiongraph', 'shotboard', 'videoshots', 'music', 'playback',
             'pipeline', 'flows'],
     },
 
@@ -87,7 +84,7 @@ const NAV_FLOW = {
         // neither had a page, so every field they accept could only be written
         // by curl or by an agent.
         // `edits` leads: the cut comes back from the editor before anything is
-        // delivered, and a score is written against it.
+        // delivered.
         pages: ['edits', 'exportpage', 'titles', 'subtitles', 'rights', 'marketing', 'assets',
             'jobsqueue', 'renderhistory'],
     },

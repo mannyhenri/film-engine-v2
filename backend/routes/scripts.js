@@ -536,6 +536,9 @@ function syncScenesWithScreenplay(projectId, parsedFountain) {
             db.prepare('UPDATE film_scenes SET scene_number = ? WHERE id = ?')
                 .run(newScenes[i].scene_number, match.id);
         }
+        // Heading and action match, but the dialogue is not in fpOf: a line rewritten in place still
+        // moves the scene's hash. stampScene is a no-op when nothing moved.
+        stampScene(match.id);
         report.scenes_unchanged++;
     }
 

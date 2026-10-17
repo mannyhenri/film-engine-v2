@@ -27,7 +27,7 @@ const { agentPresence } = require('../lib/agent-presence');
  */
 function aiEndpoints() {
     const out = [];
-    for (const mod of ['screenplay-ai', 'text-convert', 'breakdown']) {
+    for (const mod of ['screenplay-ai', 'text-convert', 'breakdown', 'production-studio']) {
         try {
             const m = require(`./${mod}`);
             for (const e of (m.MCP_ALTERNATIVE || [])) out.push(e);

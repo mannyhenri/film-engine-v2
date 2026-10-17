@@ -28,7 +28,20 @@ function readSource(file) {
     const html = text.slice(bodyAt + '<body>'.length, scripts[0].at);
     const [three, gltf, app, productionGraph, shell] = scripts.map(s => s.code);
     if (!/production-graph-js/.test(scripts[3].attrs) || !/fe-redesign-js/.test(scripts[4].attrs)) throw new Error('script order changed in source');
-    return { text, styles, html, three, gltf, app, productionGraph, shell };
+    // What the user retired (RETIRED, below) is cut here, as the source is read: every reader sees the app without it,
+    // `text` too (the whole page, put back together from the retired parts, for readers of the page's own markup).
+    const out = retire({ styles, html, three, gltf, app, productionGraph, shell });
+    const keys = ['three', 'gltf', 'app', 'productionGraph', 'shell'];
+    const htmlAt = bodyAt + '<body>'.length;
+    let whole = text.slice(0, htmlAt) + out.html;
+    let at = scripts[0].at;
+    scripts.forEach((sc, i) => {
+        const codeAt = sc.at + `<script${sc.attrs}>`.length;
+        whole += text.slice(at, codeAt) + out[keys[i]];
+        at = codeAt + sc.code.length;
+    });
+    out.text = whole + text.slice(at);
+    return out;
 }
 
 /** navigateTo's loaders map: page -> the functions its loader calls. */
@@ -217,13 +230,13 @@ const REMOVED = {
     REVISION_COLORS: UNREAD, TAB_CYCLE: UNREAD,
 };
 /*
- * Dead in the original app too, and KEPT, because film-engine's backend tests read them: the four registries are the
- * lists those tests check against (DAW_ACTIONS, ELEMENT_TYPES, PV_MODES, worldOccupancy), and the rest is dead UI the
+ * Dead in the original app too, and KEPT, because film-engine's backend tests read them: the three registries are the
+ * lists those tests check against (ELEMENT_TYPES, PV_MODES, worldOccupancy), and the rest is dead UI the
  * tests still assert exists (the entity inspector and its location-views panel, two image generators). Removing them
  * is a separate decision, with their tests. Listed so the next look at core's dead code starts here. A test can hold
  * code by NAME or by a line of its TEXT (tools/tests/removed.test.js checks both).
  */
-const KEPT_FOR_TESTS = ['DAW_ACTIONS', 'ELEMENT_TYPES', 'PV_MODES', 'worldOccupancy', 'inspectEntity', 'renderCharacterViewsInto',
+const KEPT_FOR_TESTS = ['ELEMENT_TYPES', 'PV_MODES', 'worldOccupancy', 'inspectEntity', 'renderCharacterViewsInto',
     'renderLocationViews', 'deleteLocationView', 'refineLocationView', 'acceptPlate', 'generateLocationImage', 'generatePropImage',
     'ENTITY_FIELDS', // read by inspectEntity, kept
     // The inline screenplay comments UI: screenplay-pagination pins two of its lines (an element_index built from bodyBlocks).
@@ -245,4 +258,245 @@ function replacedBy(react = {}, components = {}) {
     return { replaced, mounts };
 }
 
-module.exports = { REMOVED, KEPT_FOR_TESTS, replacedBy, LOAD_TIME_CALLS, cutScript, loadTimeCalls, replacedStatement, parse, readSource, loaderMap, topLevelFunctions, topLevelElements, innerOf, words };
+/*
+ * RETIRED FEATURES: whole features the user took out of Film Engine. Unlike REMOVED (dead code), these were live in
+ * the original app, so they are cut from the reference as it is READ (readSource): every reader (the split, the
+ * assembled test page, the parity and verbatim tests, core ownership) sees the app without them, and a build cannot
+ * bring them back. A retired page loses its markup, its sidebar button, its loader, its guide entry and its place in
+ * every list that names it; a retired name loses its top-level declaration; a retired modal its markup; `text` makes
+ * the few wording changes the removal needs in what stays (each must match exactly once, or reading fails).
+ * tools/tests/retired.test.js holds what is left of the app to none of it.
+ */
+const RETIRED = {
+    music: {
+        why: 'Music-making removed by the user on 2026-10-14: the Score workstation, Music Cues and AI score generation. '
+            + 'The sound library (SFX, ambient) and imported music files stay.',
+        pages: ['musicws', 'musiccues'],
+        modals: ['musicCueModal'],
+        // Style rules every selector of which names one of these classes (the workstation's, the cue sheet's).
+        cssClasses: [/^mw-/, 'cue-card', 'cue-icon', 'snd-actions', 'snd-cards', 'snd-empty', 'snd-grid'],
+        names: [
+            // Music Cues: the cue list, the cue form, its sections and its rights
+            'loadMusicCues', 'CUE_RIGHTS_VOCAB', 'cueRightsTag', 'openCueRights', 'saveCueRights', 'CUE_SECTIONS', 'cueRenderSections',
+            'cueAddSection', 'cueRemoveSection', 'cueClearSections', 'cueSectionEdit', 'createMusicCue', 'SOUND_CATEGORIES',
+            // the Score workstation
+            'loadMusicWorkstation', 'MW', 'MW_TRACK_TABS', 'MW_KIND_TABLE', 'mwLoadSession', 'mwPickSession', 'mwFindRow', 'mwTrackOf',
+            'mwLengthMs', 'mwX', 'mwMs', 'mwRender', 'mwSessionListHtml', 'mwStatusHtml', 'mwApprovalHtml', 'mwApprove', 'mwUnapprove',
+            'mwDriftHtml', 'mwMoveToEdit', 'mwPictureHtml', 'mwPictureSound', 'mwPictureFollow', 'mwRebase', 'mwContextHtml',
+            'mwProviderHtml', 'mwRulerHtml', 'mwEmotionHtml', 'mwTrackHtml', 'mwToggleTrack', 'mwTrackTab', 'mwTrackPlayHtml',
+            'mwPlayTrack', 'mwTrackDetailsHtml', 'mwTrackSections', 'MW_ROW_H', 'MW_BLACK', 'MW_PITCH_NAMES', 'mwPitchName', 'mwNotesOf',
+            'mwRollRange', 'mwTempoBpm', 'mwSnapMs', 'mwSnap', 'mwPartPaneHtml', 'mwRollHtml', 'mwSetProgram', 'mwRollPointerDown',
+            'mwRollDelete', 'mwSaveNotes', 'mwPreviewPitch', 'mwHear', 'mwClipHtml', 'mwEnumOptions', 'mwControl', 'mwInspectorHtml',
+            'mwInstrumentControl', 'mwTrackOfAutomation', 'mwTakeGroupHtml', 'mwChooseTake', 'mwAddClipFromAsset',
+            'mwAddClipFromAssetSubmit', 'mwFieldChanged', 'mwSave', 'mwNote', 'mwRepaint', 'mwSelect', 'mwShowTrack', 'mwCreate',
+            'mwDelete', 'mwCreateSession', 'mwCreateSessionSubmit', 'mwSeek', 'mwZoom', 'mwClipPointerDown', 'mwDragOver', 'mwDrop',
+            'mwImportFiles', 'mwHeard', 'mwClipLevel', 'mwBuffer', 'mwTogglePlay', 'mwPlay', 'mwStopSources', 'mwPause', 'mwStop',
+            'mwRestartAudio',
+            // its DAW (Ableton) panel
+            'DAW_ACTIONS', 'DAW_ADAPTER', 'dawState', 'dawBase', 'dawPaint', 'dawCanChange', 'dawUndecided', 'dawConnectionHtml',
+            'dawPortableHtml', 'dawSessionHtml', 'dawPushHtml', 'dawResultHtml', 'dawPullHtml', 'dawTransportHtml', 'dawAuditHtml',
+            'dawPanelHtml', 'dawRefresh', 'dawRun', 'dawReadSession', 'dawPlanPush', 'dawResolve', 'dawPush', 'dawPlanPull', 'dawPull',
+            'dawTransport', 'dawExportPackage', 'dawImportPackage',
+            // its AI score actions
+            'SCORE_AI_ACTIONS', 'scoreAiCapability', 'scoreAiNeed', 'scoreAiPanelHtml', 'scoreAiSelectedClip', 'scoreAiInputs',
+            'scoreAiGenerate', 'scoreAiCompose', 'scoreAiSection', 'scoreAiParts', 'scoreAiReference', 'scoreAiVideo', 'scoreAiInpaint',
+            'scoreAiRegenerate', 'scoreAiSeparate', 'scoreAiAudition', 'scoreAiApprove', 'scoreAiEmotion', 'scoreAiAcceptProposal',
+            'scoreAiRejectProposal', 'scoreAiUsd', 'scoreAiPlanHtml', 'scoreAiSeparationPlanHtml', 'scoreAiRetryHtml', 'scoreAiJobsHtml',
+            'scoreAiPoll', 'scoreAiRetry',
+            // Music & Sound: the cue sheet, its notes and instruments, and generating a score
+            'soundCueCard', 'openCueMidi', 'renderCueInstruments', 'playCuePart', 'uploadCueMidiPart', 'renderSoundSheet',
+            'generateCueAudio', 'addSoundCue', 'deleteSoundCue', 'generateScoreFor', 'saveScoreDirection', 'generateAllMusic',
+            // Edit: "Score this edit"
+            'scoreThisEdit', 'openScoreSession',
+        ],
+        text: [
+            ['html', '\n                <button class="btn btn-primary" onclick="generateAllMusic()">Generate All (score + ambient)</button>', ''],
+            ['html', /\n {12}<div id="musicProgress"[\s\S]*?\n {12}<\/div>(?=\n)/, ''],
+            ['html', '<h3 style="margin:0 0 2px;">Cues</h3>', '<h3 style="margin:0 0 2px;">Scenes</h3>'],
+            ['html', 'What the music should be, per scene — the brief a score is generated from.', 'Each scene’s ambient bed, the music you bring in for it, and its direction.'],
+            ['html', '\n                                <option value="music">Score</option>', ''],
+            ['html', 'data-tooltip="Generate score, ambient, and SFX per scene"', 'data-tooltip="Sound effects and ambient beds, per scene and in the library"'],
+            ['html', ', which shot plays where, and a score timed to the edit"', ', and which shot plays where"'],
+            ['html', /\n {16}<strong>Score this edit<\/strong> opens a score session timed to the cut, whose stems drop onto the\n {16}Premiere sequence at 00:00\./, ''],
+            ['app', "tooltip: 'Generate score, ambient beds, and sound effects per scene or shot'", "tooltip: 'Ambient beds and sound effects per scene or shot, and the music you bring in'"],
+            ['app', "purpose: 'The audio half of the film. Generates original score, location ambience, and spot effects from what each scene is doing emotionally and where it takes place.'",
+                "purpose: 'The audio half of the film. Generates location ambience and spot effects from what each scene is doing and where it takes place, and holds the music you bring in.'"],
+            ['app', "          'Score generation driven by scene mood',\n", ''],
+            ['app', "pro: 'Composer + sound design + re-recording mixer'", "pro: 'Sound design + re-recording mixer'"],
+            ['app', "            'Music Cues': 'Score, sound effect, and ambient audio cues tied to specific scenes with mood, tempo, and instrumentation metadata.',\n", ''],
+            // The Edit page's guide entry: no score is written against a cut any more.
+            ['app', "which shot plays where, and a score timed to the edit'", "and which shot plays where'"],
+            ['app', ", and a score can be written against the cut rather than the assembly.", "."],
+            ['app', "'Name what the cut uses that Film Engine did not make: titles, stock, pickups',\n          'Open a score session timed to the edit, whose stems line up at 00:00 in Premiere'\n",
+                "'Name what the cut uses that Film Engine did not make: titles, stock, pickups'\n"],
+            ['app', "pro: 'Assistant editor + music editor'", "pro: 'Assistant editor'"],
+            ['productionGraph', " * reachable by URL either way; the Score workspace stays in the menu too,\n * because the graph opens it rather than replacing it.", " * reachable by URL either way."],
+            // Playback's switch plays the music each scene brings in; there is no score any more.
+            ['html', 'title="Play each scene\'s score under its shots">', 'title="Play each scene\'s music under its shots">'],
+            ['html', 'onchange="pbBedsToggled()"> Score\n', 'onchange="pbBedsToggled()"> Music\n'],
+            ['html', 'Off, Production is its separate pages. The Score workspace stays\n                            in the menu either way, and every old page is still reachable by its address.',
+                'Off, Production is its separate pages.\n                            Every old page is still reachable by its address.'],
+        ],
+    },
+};
+
+const RETIRED_PAGES = new Set(Object.values(RETIRED).flatMap(f => f.pages));
+const RETIRED_NAMES = new Set(Object.values(RETIRED).flatMap(f => f.names));
+const RETIRED_MODALS = new Set(Object.values(RETIRED).flatMap(f => f.modals));
+
+/** Cut spans [start, end) out of a string, last first (spans never overlap). */
+function cutSpans(text, spans) {
+    for (const [s, e] of [...spans].sort((a, b) => b[0] - a[0])) text = text.slice(0, s) + text.slice(e);
+    return text;
+}
+
+/** Every node of an acorn tree under `node`, depth first. */
+function* nodesOf(node) {
+    if (!node || typeof node.type !== 'string') return;
+    yield node;
+    for (const v of Object.values(node)) {
+        if (Array.isArray(v)) for (const x of v) yield* nodesOf(x);
+        else if (v && typeof v === 'object' && typeof v.type === 'string') yield* nodesOf(v);
+    }
+}
+
+/**
+ * A script without the retired: top-level declarations whose every name is retired (with the comments before them),
+ * object properties keyed by a retired page, and array items that are a retired page's id.
+ */
+function retireScript(code) {
+    const ast = parse(code);
+    const spans = [];
+    let prev = 0;
+    const kept = [];
+    for (const n of ast.body) {
+        const names = n.type === 'FunctionDeclaration' ? [n.id.name]
+            : n.type === 'VariableDeclaration' ? n.declarations.map(d => d.id.type === 'Identifier' ? d.id.name : null) : [];
+        if (names.length && names.every(x => RETIRED_NAMES.has(x))) spans.push([prev, n.end]);
+        else {
+            if (names.some(x => RETIRED_NAMES.has(x))) throw new Error(`retired and kept names share one declaration: ${names.join(', ')}`);
+            kept.push(n);
+        }
+        prev = n.end;
+    }
+    const pageOf = (n) => n && ((n.type === 'Identifier' && n.name) || (n.type === 'Literal' && typeof n.value === 'string' && n.value));
+    // An item of a list: from the end of the one before it (its comma and the gap) to its own end, or for the first,
+    // from its start to the next one's start.
+    const listCut = (items, i) => (i > 0 ? [items[i - 1].end, items[i].end] : [items[i].start, items[i + 1] ? items[i + 1].start : items[i].end]);
+    for (const top of kept) {
+        for (const n of nodesOf(top)) {
+            if (n.type === 'ObjectExpression') {
+                const ps = n.properties;
+                ps.forEach((p, i) => { if (p.type === 'Property' && !p.computed && RETIRED_PAGES.has(pageOf(p.key))) spans.push(listCut(ps, i)); });
+            } else if (n.type === 'ArrayExpression') {
+                const es = n.elements;
+                es.forEach((e, i) => { if (e && e.type === 'Literal' && RETIRED_PAGES.has(e.value)) spans.push(listCut(es, i)); });
+            }
+        }
+    }
+    // Two neighbours cut from one list overlap at the comma between them: merge.
+    const merged = [];
+    for (const s of spans.sort((a, b) => a[0] - b[0])) {
+        const last = merged[merged.length - 1];
+        if (last && s[0] <= last[1]) last[1] = Math.max(last[1], s[1]); else merged.push([...s]);
+    }
+    return cutSpans(code, merged);
+}
+
+/** Where the element whose start tag begins at `at` ends (just after its end tag). */
+function elementEnd(html, at) {
+    const tagRe = /<!--[\s\S]*?-->|<(\/?)([a-zA-Z][\w-]*)((?:\s+[^\s=>\/]+(?:\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>"']+))?)*)\s*(\/?)>/g;
+    const VOID = new Set(['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'source', 'track', 'wbr']);
+    tagRe.lastIndex = at;
+    let depth = 0, m;
+    while ((m = tagRe.exec(html))) {
+        if (m[0].startsWith('<!--')) continue;
+        if (m[1]) { if (--depth === 0) return tagRe.lastIndex; continue; }
+        if (VOID.has(m[2].toLowerCase()) || m[4]) { if (depth === 0) return tagRe.lastIndex; continue; }
+        depth++;
+    }
+    throw new Error('unbalanced markup from ' + at);
+}
+
+/** The markup without the retired pages, their sidebar buttons and the retired modals (with the blank line before each). */
+function retireHtml(html) {
+    const spans = [];
+    const elementAt = (at) => [html.lastIndexOf('\n', at), elementEnd(html, at)];
+    for (const p of RETIRED_PAGES) {
+        const page = html.indexOf(`<div class="page" id="page-${p}">`);
+        if (page < 0) throw new Error(`retired page ${p} is not in the source`);
+        spans.push(elementAt(page));
+        let at = 0, buttons = 0;
+        while ((at = html.indexOf(`data-page="${p}"`, at)) >= 0) { spans.push(elementAt(html.lastIndexOf('<button', at))); at += 1; buttons++; }
+        if (!buttons) throw new Error(`retired page ${p} has no sidebar button in the source`);
+    }
+    for (const m of RETIRED_MODALS) {
+        const at = html.search(new RegExp(`<div class="modal-overlay" id="${m}"`));
+        if (at < 0) throw new Error(`retired modal ${m} is not in the source`);
+        spans.push(elementAt(at));
+    }
+    return cutSpans(html, spans);
+}
+
+/** The few wording changes in what stays; each must match exactly once. */
+function retireText(src) {
+    for (const f of Object.values(RETIRED)) {
+        for (const [part, before, after] of f.text || []) {
+            const n = typeof before === 'string' ? src[part].split(before).length - 1 : (src[part].match(new RegExp(before.source, 'g')) || []).length;
+            if (n !== 1) throw new Error(`retired text in ${part} matched ${n} times (expected once): ${String(before).slice(0, 80)}`);
+            src[part] = src[part].replace(before, after);
+        }
+    }
+    return src;
+}
+
+/**
+ * A stylesheet without the rules that style only retired markup: a rule goes when EVERY selector in it names a
+ * retired class; an @media block emptied that way goes too. Comments and everything else stay as they are.
+ */
+function retireCss(css) {
+    const patterns = Object.values(RETIRED).flatMap(f => f.cssClasses || []);
+    if (!patterns.length) return css;
+    const retiredClass = (c) => patterns.some(p => (p instanceof RegExp ? p.test(c) : p === c));
+    const onlyRetired = (selectors) => {
+        const list = selectors.replace(/\/\*[\s\S]*?\*\//g, '').split(',').map(x => x.trim()).filter(Boolean);
+        return list.length > 0 && list.every(sel => [...sel.matchAll(/\.([\w-]+)/g)].some(m => retiredClass(m[1])));
+    };
+    // Rules of a block body [from, to): returns the text with retired rules cut, and whether anything is left.
+    const block = (from, to) => {
+        let out = '', at = from, i = from;
+        while (i < to) {
+            if (css.startsWith('/*', i)) { const e = css.indexOf('*/', i + 2); i = e < 0 ? to : e + 2; continue; }
+            if (css[i] === '{') {
+                // The prelude runs from the end of the previous rule (or comment) to here.
+                let p = i; while (p > at && css[p - 1] !== '}' && css[p - 1] !== ';' && !(css[p - 1] === '/' && css[p - 2] === '*')) p--;
+                const prelude = css.slice(p, i);
+                let depth = 1, j = i + 1;
+                while (j < to && depth) { if (css.startsWith('/*', j)) { const e = css.indexOf('*/', j + 2); j = e < 0 ? to : e + 2; continue; } if (css[j] === '{') depth++; else if (css[j] === '}') depth--; j++; }
+                const lineStart = css.lastIndexOf('\n', p + prelude.search(/\S|$/)) + 1;
+                if (/^\s*@media/.test(prelude)) {
+                    const inner = block(i + 1, j - 1);
+                    if (inner.empty) { out += css.slice(at, Math.max(at, lineStart - 1)); at = j; }
+                    else { out += css.slice(at, i + 1) + inner.text + '}'; at = j; }
+                } else if (!/^\s*@/.test(prelude) && onlyRetired(prelude)) {
+                    out += css.slice(at, Math.max(at, lineStart - 1)); at = j;
+                }
+                i = j; continue;
+            }
+            i++;
+        }
+        out += css.slice(at, to);
+        return { text: out, empty: !out.replace(/\/\*[\s\S]*?\*\//g, '').trim() };
+    };
+    return block(0, css.length).text;
+}
+
+function retire(src) {
+    retireText(src);
+    if (src.styles) src.styles = src.styles.map(st => ({ ...st, css: retireCss(st.css) }));
+    src.html = retireHtml(src.html);
+    for (const k of ['app', 'productionGraph', 'shell']) src[k] = retireScript(src[k]);
+    return src;
+}
+
+module.exports = { RETIRED, REMOVED, KEPT_FOR_TESTS, replacedBy, LOAD_TIME_CALLS, cutScript, loadTimeCalls, replacedStatement, parse, readSource, loaderMap, topLevelFunctions, topLevelElements, innerOf, words };

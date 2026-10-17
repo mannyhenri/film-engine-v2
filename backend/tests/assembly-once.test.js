@@ -168,7 +168,7 @@ test('the deliverable step is project-scoped in the registry, and there is one',
     assert.ok(PROJECT_SCOPED.includes('assembly'),
         `assembly is scoped '${PIPELINE_STEPS.find(s => s.id === 'assembly').scope}' — the film is not a property of one shot`);
     assert.ok(PROJECT_SCOPED.length >= 1);
-    assert.ok(GENERATIVE.length >= 8, 'the generative set lost steps; the skip list would be wrong');
+    assert.ok(GENERATIVE.length >= 7, 'the generative set lost steps; the skip list would be wrong');
 });
 
 test('the router exposes exactly the entry points this suite derives', () => {

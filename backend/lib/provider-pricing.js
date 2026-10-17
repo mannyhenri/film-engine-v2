@@ -398,38 +398,12 @@ const RATE_BOOK = {
      */
     'higgsfield:image': {
         unit: 'image', native_unit: 'image', native_per_unit: 1,
-        usd_per_native: 0.0032,
-        models: {
-            'soul-standard':                  { usd_per_native: 0.0032 },
-            'soul-2':                         { usd_per_native: 0.0032 },
-            'soul-cinema':                    { usd_per_native: 0.0032 },
-            'marketing-studio-image':         { usd_per_native: 0.0059 },
-            'marketing-studio-image-flare':   { usd_per_native: 0.0059 },
-            'marketing-studio-image-sunburst':{ usd_per_native: 0.0059 },
-        },
-        source: 'https://higgsfield.ai/blog/higgsfield-api',
-        checked: '2026-10-01',
-        note: 'Higgsfield\'s own API price table (post of 16 Sep 2026): Soul 2 and Soul Cinema $0.0032 per image, Marketing Studio $0.0059. Other image models (Recraft, Qwen, Ideogram, Grok, Z-Image) are not in that table and are held at the Soul rate until the console says otherwise. Pay-as-you-go USD, failed and moderated requests refunded.',
+        // Filled from the live catalog snapshot below, for every registered model.
+        models: {},
     },
     'higgsfield:video': {
         unit: 'second', native_unit: 'second', native_per_unit: 1,
-        usd_per_native: 0.112,
-        models: {
-            'kling-2-5-turbo-pro':      { usd_per_native: 0.042 },
-            'kling-2-5-turbo-standard': { usd_per_native: 0.042 },
-            'kling-2-6-pro':            { usd_per_native: 0.07 },
-            'seedance-2-5':             { usd_per_native: 0.0738 },
-            'kling-3-pro':              { usd_per_native: 0.112 },
-            'kling-3-standard':         { usd_per_native: 0.112 },
-            'pixverse-v6':              { usd_per_native: 0.115 },
-            'minimax-h3':               { usd_per_native: 0.13 },
-            'ltx-2-5-pro':              { usd_per_native: 0.17 },
-            'wan-3':                    { usd_per_native: 0.20 },
-            'seedance-2':               { usd_per_native: 0.9332 },
-        },
-        source: 'https://higgsfield.ai/blog/higgsfield-api',
-        checked: '2026-10-01',
-        note: 'Per second, from Higgsfield\'s own API price table (16 Sep 2026). Models not in that table are held at the Kling 3.0 rate, $0.112/s. A later third-party check (27 Sep 2026, omidsaffari.com) read Seedance 2.5 at $0.2056/s for 480p and $0.4622/s for 720p, far above the table\'s $0.0738: confirm in the Higgsfield console before budgeting against Seedance 2.5 there.',
+        models: {},
     },
     'midjourney:image': {
         unit: 'image', native_unit: 'gpu_minute', native_per_unit: 1,
@@ -596,7 +570,7 @@ const RATE_BOOK = {
     },
 
     // ── ElevenLabs ────────────────────────────────────────────────────────
-    // Speech bills per character; sound and music bill per second of output.
+    // Speech bills per character; sound bills per second of output.
     'elevenlabs:voice': {
         unit: 'character', native_unit: 'credit', native_per_unit: 1, usd_per_native: 0.0001,
         models: {
@@ -621,24 +595,6 @@ const RATE_BOOK = {
         checked: '2026-08-22',
         note: 'Ambient is a looping sound-effect bed, billed as sound generation. The bed is at most 30s regardless of the shot length it is tiled across, so cost does not scale with shot duration.',
     },
-    'elevenlabs:music': {
-        unit: 'second', native_unit: 'credit', native_per_unit: 15, usd_per_native: 0.00016667,
-        source: 'https://elevenlabs.io/pricing/api',
-        checked: '2026-08-22',
-        note: '$0.15 per minute on the API — about 900 credits per minute, i.e. 15 credits per second.',
-    },
-
-    // ── FluidSynth ────────────────────────────────────────────────────────
-    // Instruments on this machine: a cue's notes rendered through a SoundFont.
-    // Zero DELIBERATELY, flagged self_hosted, so a free render reads as local
-    // rather than as a pair somebody forgot to price.
-    'fluidsynth:music': {
-        unit: 'second', native_unit: 'second', native_per_unit: 1, usd_per_native: 0,
-        self_hosted: true,
-        source: 'https://www.fluidsynth.org/',
-        checked: '2026-09-13',
-        note: 'Runs locally (LGPL). No per-render charge; the sample library carries its own licence, recorded on each render.',
-    },
 
     // ── Gridlight ─────────────────────────────────────────────────────────
     // A local/self-hosted gateway. It bills nothing per call; the cost is the
@@ -654,6 +610,18 @@ const RATE_BOOK = {
         note: 'Self-hosted gateway: no per-call charge. Compute cost is the GPU it runs on, recorded as gpu_seconds rather than as a provider rate.',
     },
 };
+
+// Higgsfield prices are sourced from every current catalog mode, never an unrelated family fallback.
+const higgsfieldRates = require('./higgsfield-pricing').registryRates(require('./providers/higgsfield').MODELS);
+for (const [cap, models] of Object.entries(higgsfieldRates)) {
+    const entry = RATE_BOOK[`higgsfield:${cap}`];
+    entry.models = models;
+    entry.checked = require('./providers/higgsfield-prices.json').checked;
+    entry.source = require('./providers/higgsfield-prices.json').source;
+    entry.note = 'Per-model conservative catalog estimates. Website subscription credits are separate from API USD. Exact configuration/account quotes take priority.';
+    entry.inferred = true;
+    entry.usd_per_native = Math.max(...Object.values(models).map(m => m.usd_per_native || 0));
+}
 
 /**
  * The published rate for a pair, with a model override applied.
@@ -679,7 +647,7 @@ function rateFor(provider, capability, model, overrides) {
     // Component-priced entries (input/output tokens) have no single rate, so
     // the higher of the two stands in — an estimate that leans expensive fails
     // closed, which is the safe direction for a budget guard.
-    rate.usd_per_unit = rate.components
+    rate.usd_per_unit = provider==='higgsfield' && rate.usd_per_native===null ? null : rate.components
         ? Math.max(rate.components.input, rate.components.output)
         : (rate.native_per_unit || 1) * (rate.usd_per_native || 0);
 
@@ -721,6 +689,11 @@ function priceUsage({ provider, capability, model, unit, quantity, parts, native
     }
 
     const qty = Math.max(0, Number(quantity) || 0);
+    if(provider==='higgsfield' && parts?.higgsfield_endpoint && !Object.keys(lookupOverride(provider,capability,model,overrides)).length){
+        const quote=require('./higgsfield-pricing').quoteConfiguration(parts.higgsfield_endpoint,parts.configuration);
+        if(quote.available){rate.usd_per_unit=quote.list_rate;rate.usd_per_native=quote.list_rate;rate.inferred=!quote.exact;}
+    }
+    if(provider==='higgsfield' && rate.usd_per_native===null) return {amount_usd:0,native_unit:rate.native_unit,native_quantity:qty,unit_rate:null,priced:false,reason:rate.note,source:rate.source};
     let amount;
 
     if (rate.components && parts) {

@@ -46,7 +46,7 @@ test('backend/ matches film-engine backend/ at the pinned commit, file by file',
 // that hold copies is either listed there or named in plan.v2OwnFiles, so a stale copy and a new
 // v2 file cannot hide each other.
 const COPY_DIRS = ['reference', 'docs/plans', 'docs/adr', 'scripts', 'src/vendor', 'src/assets', 'design_handoff_character_card', 'design_handoff_world_engine_previz'];
-const COPY_FILES = ['docs/claude-desktop-guide.md', 'docs/ableton-sidecar.md'];
+const COPY_FILES = ['docs/claude-desktop-guide.md'];
 
 test('every file copied from film-engine outside backend/ matches it at the pinned commit', () => {
     const copied = plan.copiedFromSource || {};

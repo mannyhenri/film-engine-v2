@@ -166,18 +166,10 @@ const ENTITY_ROUTES = [
     { kind: 'annotation', file: 'annotations.js', verbs: { POST: 'shot_annotate', DELETE: 'annotation_delete' } },
     { kind: 'mood board', file: 'mood-board.js', verbs: { POST: 'mood_board_add', DELETE: 'mood_board_remove' } },
     { kind: 'consistency', file: 'consistency.js', verbs: { POST: 'consistency_create', DELETE: 'consistency_delete' } },
-    // A cue carries the music DIRECTION. An agent that can generate music and 
-    // cannot write the brief for it has the wrong half of the job.
+    // A cue carries the sound DIRECTION (effects and ambient beds). An agent
+    // that can generate a bed and cannot write the brief for it has the wrong
+    // half of the job.
     { kind: 'music cue', file: 'assets.js', verbs: { POST: 'music_cue_create', PUT: 'music_cue_update', DELETE: 'music_cue_delete' } },
-    // A score session is where the soundtrack is arranged. The agent host is
-    // the model, so a session it cannot create, change or remove is a
-    // soundtrack that has to be built by hand.
-    // A cue's notes. The agent composes them; a note list it cannot write or
-    // remove is a score that has to be typed into a DAW by hand.
-    // The director's own instruments: a plugin and the patch that recalls a sound.
-    { kind: 'instrument', file: 'instruments.js', verbs: { POST: 'instrument_scan', PUT: 'instrument_update', DELETE: 'instrument_delete' } },
-    { kind: 'cue notes', file: 'music-midi.js', verbs: { PUT: 'music_midi_write', POST: 'music_midi_import_part', DELETE: 'music_midi_delete' } },
-    { kind: 'score session', file: 'music-sessions.js', verbs: { POST: 'music_session_create', PUT: 'music_session_update', DELETE: 'music_session_delete' } },
 ];
 
 test('every entity route an agent should reach has a tool', () => {

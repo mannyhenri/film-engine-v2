@@ -39,6 +39,8 @@ const { db } = require('../db/database');
 const catalog = require('../lib/model-catalog');
 const providers = require('../lib/providers');
 const { CAPABILITIES } = require('../lib/providers/base');
+/** Mirrors lib/model-catalog.js RETIRED_CAPABILITIES: valid in a catalog, served by no provider. */
+const RETIRED_CAPABILITIES = ['music'];
 
 const GL_CATALOG = '/Users/mannyhenri/code/gl-dev-media/gateway/src/model-catalog.json';
 
@@ -340,6 +342,14 @@ test('every model resolves through the provider registry under its own capabilit
     try {
         for (const m of c.models) {
             for (const cap of m.capabilities) {
+                // Music generation was retired (2026-10-14): a catalog authored in Gridlight may still
+                // list it, so it validates, but it is no longer a Film Engine capability and resolves to
+                // no provider (lib/model-catalog.js RETIRED_CAPABILITIES).
+                if (RETIRED_CAPABILITIES.includes(cap)) {
+                    assert.ok(!CAPABILITIES.includes(cap), `${cap} is retired and still a Film Engine capability`);
+                    assert.equal(providers.resolveId(cap), null, `a provider still serves the retired ${cap}`);
+                    continue;
+                }
                 assert.ok(CAPABILITIES.includes(cap), `${cap} is not a Film Engine capability`);
                 const r = providers.resolveCatalogModel(cap, m.id);
                 assert.ok(r, `${m.id} does not resolve for ${cap}`);

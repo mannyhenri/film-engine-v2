@@ -32,7 +32,7 @@ db.prepare("INSERT INTO film_projects (id, title) VALUES (?, 'Drop')").run(P);
 db.prepare("INSERT INTO film_projects (id, title) VALUES (?, 'Other')").run(OTHER);
 db.prepare("INSERT INTO film_scenes (id, project_id, scene_number) VALUES (?, ?, 1)").run(SC, P);
 db.prepare("INSERT INTO film_shots (id, scene_id, shot_code) VALUES (?, ?, '1A')").run(SH, SC);
-db.prepare("INSERT INTO film_music_cues (id, project_id, scene_id, cue_type) VALUES (?, ?, ?, 'score')").run(CUE, P, SC);
+db.prepare("INSERT INTO film_music_cues (id, project_id, scene_id, cue_type) VALUES (?, ?, ?, 'ambient')").run(CUE, P, SC);
 
 const dir = path.join(process.env.FILM_DATA_DIR, 'files');
 fs.mkdirSync(dir, { recursive: true });
@@ -52,7 +52,7 @@ const CASES = [
     { name: 'a frame', a: asset(P, 'storyboard', Buffer.from('frame-bytes-1'), { shot_id: SH, scene_id: SC }), node: `shot:${SH}`, kind: 'frame', parent: `shot:${SH}` },
     { name: "a shot's clip", a: asset(P, 'video_raw', Buffer.from('clip-bytes-12'), { shot_id: SH, scene_id: SC }), node: 'ver:', kind: 'video', parent: `shot:${SH}` },
     { name: "a sequence's clip", a: asset(P, 'video_final', Buffer.from('seq-clip-byte'), { metadata: { sequence_id: SEQ } }), node: 'ver:', kind: 'video', parent: `seq:${SEQ}` },
-    { name: "a cue's sound", a: asset(P, 'audio_music', Buffer.from('cue-sound-byt'), { scene_id: SC, metadata: { cue_id: CUE } }), node: 'ver:', kind: 'audio', parent: `sound:${CUE}` },
+    { name: "a cue's sound", a: asset(P, 'audio_ambient', Buffer.from('cue-sound-byt'), { scene_id: SC, metadata: { cue_id: CUE } }), node: 'ver:', kind: 'audio', parent: `sound:${CUE}` },
 ];
 
 test('every family the graph draws is matched by its bytes to its own node, with its recipe', () => {

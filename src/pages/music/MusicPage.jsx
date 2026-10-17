@@ -4,7 +4,7 @@ import * as E from './engine.js';
 import Lists from './lists.jsx';
 
 /*
- * Music & Sound, as React: the sound library and the cue sheet. This page OWNS the music engine (engine.js, the legacy music chunk moved), shared with Music Cues and the Score: it registers every engine function on window while mounted, because the engine draws HTML with inline handlers that call them by name, and core calls the DAW panel's and the score's functions by name (react.json provides).
+ * Music & Sound, as React: the sound library, and each scene's ambient bed and imported music. This page OWNS the music engine (engine.js, the legacy music chunk moved): it registers every engine function on window while mounted, because the engine draws HTML with inline handlers that call them by name, and the sound dialog calls its preview and generate by name (react.json provides). Music-making (Music Cues, the Score, score generation) was retired by the user (tools/split-lib.js RETIRED).
  *
  * The frame is GENERATED from the legacy markup by tools/make-react-page.js (tools/html-to-jsx.js); its test holds it
  * to the reference markup element by element. Regenerate it rather than editing the frame by hand.
@@ -14,21 +14,7 @@ export const ENGINE = Object.entries(E).filter(([, v]) => typeof v === 'function
 export default function MusicPage() {
     usePageLoader('loadMusic', E.loadMusic);
     // What legacy code calls by name (react.json provides).
-    usePageLoader('mwSave', E.mwSave);
-    usePageLoader('dawRefresh', E.dawRefresh);
-    usePageLoader('dawReadSession', E.dawReadSession);
-    usePageLoader('dawPlanPush', E.dawPlanPush);
-    usePageLoader('dawPush', E.dawPush);
-    usePageLoader('dawPlanPull', E.dawPlanPull);
-    usePageLoader('dawPull', E.dawPull);
-    usePageLoader('dawTransport', E.dawTransport);
-    usePageLoader('dawExportPackage', E.dawExportPackage);
-    usePageLoader('dawImportPackage', E.dawImportPackage);
-    usePageLoader('mwTogglePlay', E.mwTogglePlay);
-    usePageLoader('cueClearSections', E.cueClearSections);
     usePageLoader('soundGenPreview', E.soundGenPreview);
-    usePageLoader('cueAddSection', E.cueAddSection);
-    usePageLoader('createMusicCue', E.createMusicCue);
     usePageLoader('runSoundGenerate', E.runSoundGenerate);
 
     useLayoutEffect(() => {
@@ -48,24 +34,6 @@ export default function MusicPage() {
                 <h2>
                     {"Music & Sound"}
                 </h2>
-                {' '}
-                <button className="btn btn-primary" onClick={(event) => E.generateAllMusic()}>
-                    Generate All (score + ambient)
-                </button>
-                {' '}
-            </div>
-            {' '}
-            <div id="musicProgress" style={{ "display": "none" }} className="mb-16">
-                {' '}
-                <div className="text-sm text-muted mb-8" id="musicProgressLabel">
-                    Starting...
-                </div>
-                {' '}
-                <div style={{ "background": "var(--gl-bg-surface)", "borderRadius": "var(--gl-radius-md)", "height": "10px", "overflow": "hidden" }}>
-                    {' '}
-                    <div id="musicProgressBar" style={{ "height": "100%", "width": "0%", "background": "var(--gl-accent,#6366f1)", "transition": "width .2s" }}></div>
-                    {' '}
-                </div>
                 {' '}
             </div>
             {' '}
@@ -107,11 +75,11 @@ export default function MusicPage() {
             <div className="entity-grid" id="soundLibGrid" style={{ "gridTemplateColumns": "repeat(auto-fill,minmax(280px,1fr))", "marginBottom": "28px" }}></div>
             {' '}
             <h3 style={{ "margin": "0 0 2px" }}>
-                Cues
+                Scenes
             </h3>
             {' '}
             <p className="text-sm text-muted" style={{ "margin": "0 0 10px" }}>
-                What the music should be, per scene — the brief a score is generated from.
+                Each scene’s ambient bed, the music you bring in for it, and its direction.
             </p>
             {' '}
             <div className="entity-grid" id="musicGrid" style={{ "gridTemplateColumns": "repeat(auto-fill,minmax(300px,1fr))" }}></div>

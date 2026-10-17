@@ -8,8 +8,8 @@ const manual=require('../lib/manual-generation');
 const {REVIEW_PROVIDER_MODULES}=require('../lib/final-provider-request');
 const {createFinalRequestStore,authorizeWithStore}=require('../lib/final-request-review');
 
-// Kept on purpose (the user's ruling): their own Gridlight gateway, local tools, LLM text.
-const KEPT=new Set(['gridlight','fluidsynth','anthropic']);
+// Kept on purpose (the user's ruling): their own Gridlight gateway, LLM text. (FluidSynth went with music generation.)
+const KEPT=new Set(['gridlight','anthropic']);
 const reviewProviders=Object.keys(REVIEW_PROVIDER_MODULES||{});
 
 function fixture(provider){
@@ -242,7 +242,7 @@ test('every kept provider without a review builder (Gridlight, local tools) gene
   assert.equal(reviews(),before,`${adapter.id}/${capability} created no review`);
   checked++;
  }
- assert.ok(checked>=9,'gridlight and local capabilities were exercised: '+checked);
+ assert.ok(checked>=8,'gridlight and local capabilities were exercised: '+checked);
 });
 
 test('the direct path is closed to unregistered ids and to every manual vendor, whatever the capability',async()=>{

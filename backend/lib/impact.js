@@ -200,7 +200,7 @@ function impact(projectId) {
  * The report answers "what should I redo, in order"; the graph needs "what
  * state is THIS thing in". Both come from one walk so they cannot disagree.
  *
- * Scene-scoped sound (music, ambient) belongs to no shot, so the per-shot walk
+ * Scene-scoped sound (the ambient bed) belongs to no shot, so the per-shot walk
  * never sees it. It is read here with the same rule: a stamped asset whose
  * inputs moved is redo, and one under a scene whose screenplay moved is
  * waiting, because the card it is written from is behind.

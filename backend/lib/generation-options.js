@@ -159,16 +159,6 @@ function audioControls(capability, providerId) {
             notes: ['The bed\'s length is the scene\'s: it is generated as a loop and laid across the cut.'],
         };
     }
-    if (capability === 'music') {
-        return {
-            source: SOURCES.elevenlabs,
-            controls: [
-                { key: 'vocals', label: 'Vocals', type: 'toggle', field: 'vocals', default: false,
-                    note: 'Off by default: film cues are underscore, and sung words fight dialogue.' },
-            ],
-            notes: ['The length is the cue\'s or the measured cut\'s. Sections, when written, replace the vocal switch.'],
-        };
-    }
     return null;
 }
 
@@ -201,7 +191,7 @@ function controlsFor(capability, providerId, model) {
     if (cap === 'video') return require('./model-options').optionsFor(id, model);
     let out = null;
     if (cap === 'image') out = imageControls(id, model);
-    else if (['voice', 'sfx', 'ambient', 'music'].includes(cap)) out = audioControls(cap, id);
+    else if (['voice', 'sfx', 'ambient'].includes(cap)) out = audioControls(cap, id);
     else if (cap === 'model3d') out = meshControls(id);
     if (!out) return null;
     return { provider: id, model: model || null, capability: cap,

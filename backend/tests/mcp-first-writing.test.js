@@ -78,7 +78,7 @@ test('the set of server-side-LLM modules is what we think it is', () => {
     // passes vacuously.
     const mods = llmModules();
     assert.ok(mods.length >= 3, `only ${mods.length} LLM modules found — the scan is broken`);
-    assert.deepStrictEqual(mods.sort(), ['breakdown.js', 'screenplay-ai.js', 'text-convert.js'],
+    assert.deepStrictEqual(mods.sort(), ['breakdown.js', 'production-studio.js', 'screenplay-ai.js', 'text-convert.js'],
         'a route module started calling a server-side LLM without being considered here');
 });
 

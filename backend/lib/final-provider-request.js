@@ -65,12 +65,11 @@ function builder(provider, capability, payload) {
   return {...m.buildVideoRequest({...p,video_url:source}),source_seconds:Number(p.source_seconds)||Number(p.duration_ms)/1000||Number(p.duration_s)||null,source_fps:Number(p.source_fps)||24};
  }
  if(provider==='elevenlabs') {
-  const allowed={voice:['eleven_multilingual_v2','eleven_flash_v2_5','eleven_turbo_v2_5','eleven_v3'],sfx:['elevenlabs-sound-effects','eleven_text_to_sound_v2'],ambient:['eleven_text_to_sound_v2'],music:['music_v1','music_v2']};
-  // The adapter sends its own default for a model it does not serve (scene cues
+  const allowed={voice:['eleven_multilingual_v2','eleven_flash_v2_5','eleven_turbo_v2_5','eleven_v3'],sfx:['elevenlabs-sound-effects','eleven_text_to_sound_v2'],ambient:['eleven_text_to_sound_v2']};
+  // The adapter sends its own default for a model it does not serve (scene beds
   // are composed with local MusicGen names); the review shows that same request.
   if(p.model && !allowed[capability]?.includes(p.model))p={...p,model:undefined};
-  if(capability==='music' && p.workflow==='music_separate') { const raw=p.file?.bytes;const bytes=Buffer.isBuffer(raw)?raw:Buffer.from(raw?.data || raw || []);return m.buildStemSeparationRequest({...p,file:{...p.file,bytes}}); }
-  const builds={voice:m.buildVoiceRequest,sfx:m.buildSfxRequest,ambient:m.buildAmbientRequest,music:m.buildMusicRequest};
+  const builds={voice:m.buildVoiceRequest,sfx:m.buildSfxRequest,ambient:m.buildAmbientRequest};
   if(!builds[capability])throw new Error('Unsupported ElevenLabs capability');return builds[capability](p);
  }
  if(provider==='worldlabs') return m.buildRequest(p);
@@ -113,7 +112,6 @@ async function resolveFinalRequest(provider, capability, payload) {
   // Edited wire options replace the measured metadata as well as the body.
   if(Number.isFinite(req.body.duration)){req.duration_s=req.body.duration;req.durationSeconds=req.body.duration;}
   if(Number.isFinite(req.body.duration_seconds)){req.duration_s=req.body.duration_seconds;req.durationSeconds=req.body.duration_seconds;}
-  if(Number.isFinite(req.body.music_length_ms))req.durationSeconds=req.body.music_length_ms/1000;
   if(req.body.resolution)req.resolution=req.body.resolution;
   if(Object.prototype.hasOwnProperty.call(req,'estimatedCredits'))req.estimatedCredits=null;
   if(Object.prototype.hasOwnProperty.call(req,'estimated_usd'))req.estimated_usd=null;
@@ -285,8 +283,21 @@ async function finishGeneration(opts,run) {
   catch(error) { if(owns())require('./final-request-review').store().uncertain(opts.finalRequest.id,error.message); throw error; }
  });
 }
+/*
+ * Reference pictures the PIPELINE attached (the shot's cast and location plates) on a model with no reference input:
+ * set aside and recorded, as a composed negative is, rather than refusing the whole request. Only inherited inputs
+ * reach here; a saved Production draft is the director's own, skips this, and its adapter still refuses.
+ */
+const REFS_REFUSED=/takes no reference images/;
 function normalizeInheritedInputs(provider,capability,payload) {
- const request=builder(provider,capability,payload), result={...payload};
+ let built;
+ try { built=builder(provider,capability,payload); }
+ catch(error) {
+  if(!REFS_REFUSED.test(String(error && error.message)) || !Array.isArray(payload.reference_images) || !payload.reference_images.length) throw error;
+  const {reference_images,...rest}=payload;
+  return normalizeInheritedInputs(provider,capability,{...rest,__not_sent_input_fields:[...(payload.__not_sent_input_fields || []),'reference_images'].filter((key,index,all)=>all.indexOf(key)===index)});
+ }
+ const request=built, result={...payload};
  const ignored=require('./final-request-validation').unsupportedInheritedFields(capability,payload,request,provider);
  for(const key of ignored)delete result[key];
  if(ignored.length)result.__not_sent_input_fields=[...(payload.__not_sent_input_fields || []),...ignored].filter((key,index,all)=>all.indexOf(key)===index);

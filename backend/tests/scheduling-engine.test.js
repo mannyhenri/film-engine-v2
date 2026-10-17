@@ -26,7 +26,7 @@ describe('scheduling-engine', () => {
 
     describe('STEP_MODELS', () => {
         it('maps all pipeline steps', () => {
-            const steps = ['keyframe', 'video', 'voice', 'lipsync', 'music', 'sfx', 'ambient', 'post'];
+            const steps = ['keyframe', 'video', 'voice', 'lipsync', 'sfx', 'ambient', 'post'];
             for (const s of steps) {
                 assert.ok(STEP_MODELS[s], `Missing model for step ${s}`);
             }
@@ -36,7 +36,7 @@ describe('scheduling-engine', () => {
     describe('buildSchedule', () => {
         const sampleShots = [
             { shot_id: 'a', shot_code: 'SC1A', steps: ['keyframe', 'video', 'voice'] },
-            { shot_id: 'b', shot_code: 'SC1B', steps: ['keyframe', 'video', 'music'] },
+            { shot_id: 'b', shot_code: 'SC1B', steps: ['keyframe', 'video', 'sfx'] },
         ];
 
         it('returns phases grouped by model', () => {
@@ -118,7 +118,7 @@ describe('scheduling-engine', () => {
 
         it('evicts models exceeding budget', () => {
             const shots = [
-                { shot_id: 'a', shot_code: 'SC1A', steps: ['keyframe', 'video', 'voice', 'lipsync', 'music', 'post'] },
+                { shot_id: 'a', shot_code: 'SC1A', steps: ['keyframe', 'video', 'voice', 'lipsync', 'sfx', 'post'] },
             ];
             const schedule = buildSchedule(shots);
             // Very small budget should force evictions

@@ -85,13 +85,13 @@ asset('video_raw', { shot: S.A, file: path.join(vdir, '1A.mp4') });
 db.prepare("INSERT INTO film_sequences (id, project_id, name, shot_ids) VALUES (?, ?, 'Walk', ?)").run(SEQ, P, JSON.stringify([S.A, S.B]));
 db.prepare("INSERT INTO film_sequences (id, project_id, name, shot_ids, start_frame_ref) VALUES (?, ?, 'Out', ?, ?)")
     .run(SEQ2, P, JSON.stringify([S.D]), JSON.stringify({ sequence_id: SEQ, mode: 'shot_image' }));
-// A score cue with one generated version: a sound node and an audio version.
-db.prepare("INSERT INTO film_music_cues (id, project_id, scene_id, cue_type, title) VALUES (?, ?, ?, 'score', 'Diner theme')").run(CUE, P, SC);
+// An ambient cue with one generated version: a sound node and an audio version.
+db.prepare("INSERT INTO film_music_cues (id, project_id, scene_id, cue_type, title) VALUES (?, ?, ?, 'ambient', 'Diner room tone')").run(CUE, P, SC);
 // In-betweens between A and B, so the in-betweens node is drawn too.
 db.prepare(`INSERT INTO film_inbetweens (id, project_id, from_shot_id, to_shot_id, gap_ms, frames_json) VALUES (?, ?, ?, ?, 4000, '[{"at_ms":2000,"direction":""}]')`)
     .run(generateId(), P, S.A, S.B);
-const MUSIC = asset('audio_music', { scene: SC, file: path.join(mdir, 'theme.mp3'), meta: { cue_id: CUE } });
-db.prepare('UPDATE film_music_cues SET generated_asset_id = ? WHERE id = ?').run(MUSIC, CUE);
+const BED = asset('audio_ambient', { scene: SC, file: path.join(mdir, 'room-tone.mp3'), meta: { cue_id: CUE } });
+db.prepare('UPDATE film_music_cues SET generated_asset_id = ? WHERE id = ?').run(BED, CUE);
 // A job running on 1C, heard from just now.
 db.prepare(`INSERT INTO film_generation_jobs (id, project_id, shot_id, provider, capability, request_id, status, meta,
     percent, phase, started_at, heartbeat_at, collectable) VALUES (?, ?, ?, 'meshy', 'image', 'req-1', 'pending', ?, 40, 'rendering',
@@ -197,7 +197,7 @@ const STAGE_TABLE = (() => {
 
 test('every impact stage is placed by the Stage-to-node table, on a node type that exists', () => {
     const stages = impact.chain().map(s => s.id).filter(s => s !== 'scene_card');
-    assert.ok(stages.length >= 8, `only ${stages.length} stages`);
+    assert.ok(stages.length >= 7, `only ${stages.length} stages`);
     assert.deepEqual(stages.filter(s => !STAGE_TABLE[s]), [], 'a stage the impact report walks has no place on the graph');
     for (const s of stages) {
         const text = STAGE_TABLE[s];
@@ -209,9 +209,9 @@ test('every impact stage is placed by the Stage-to-node table, on a node type th
 test('every node-placed stage that goes behind moves the node the table names', () => {
     const f = pg.NODE_IMPACT;
     const base = () => ({ shots: { X: { scene_card: 'current', keyframe: 'current', video: 'current', voice: 'current', lipsync: 'current', sfx: 'current', post: 'current' } },
-        scenes: { Y: { music: 'current', ambient: 'current' } }, assets: {}, why: {} });
+        scenes: { Y: { ambient: 'current' } }, assets: {}, why: {} });
     const shotN = { type: 'shot', id: 'X', scene_id: 'Y', frames: [{ asset_id: 'F', selected: true }] };
-    const CUE_FOR = { music: 'score', ambient: 'ambient', sfx: 'sfx' };
+    const CUE_FOR = { ambient: 'ambient', sfx: 'sfx' };
     const stuck = [];
     let checked = 0;
     for (const stage of impact.chain().map(s => s.id)) {

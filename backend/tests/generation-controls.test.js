@@ -52,7 +52,6 @@ const PAID_CAPABILITY = {
     generateSequence: 'video',
     generateModelFor: 'model3d',
     generateAllModels: 'model3d',
-    generateScoreFor: 'music',
     generateAmbientFor: 'ambient',
     refineFrame: 'image',
     generateLocationImage: 'image',
@@ -208,13 +207,12 @@ test('images can be asked for at a specific size, up to 2K', () => {
 test('every capability behind a paid action reads an override in its route', () => {
     /*
      * Derived from the ROUTE SOURCE, because a translator nothing calls is the
-     * same as no translator. Music, ambient and model3d read none at all: their
+     * same as no translator. Ambient and model3d read none at all: their
      * confirmations offered a prompt and no choice whatever.
      */
     const ROUTE_FOR = {
         image: ['storyboard.js', 'locations.js', 'characters.js'],
         video: ['video-gen.js'],
-        music: ['music-gen.js'],
         ambient: ['music-gen.js'],
         model3d: ['threed.js'],
     };

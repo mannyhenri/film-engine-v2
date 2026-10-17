@@ -223,12 +223,17 @@ async function plannedDraft(db, targetId, body, capability, targetType) {
     return { ...plan, payload: normalized.payload };
 }
 /** Free and read-only: preserve the composed request as an explicit editing recipe. */
-async function starterDraft(db, projectId, nodeKey, kind = 'image') {
+/**
+ * The recipe the pipeline would send for this node, as an editable draft.
+ * `opts.provider` composes it for that provider instead of the project's default
+ * (the Generate tab asks for Higgsfield's request whatever the project is set to).
+ */
+async function starterDraft(db, projectId, nodeKey, kind = 'image', opts = {}) {
     if (!['image','video'].includes(kind)) fail('Starter kind must be image or video', 400);
     const owner = recipes.nodeOwner(db, projectId, nodeKey);
     if (owner.type === 'sequence' && kind === 'image') fail('Storyboard generation belongs to a shot; this sequence has no image generation route', 400);
     let item;
-    if (owner.type === 'shot') item = await require('./final-request-plans')[kind === 'image' ? 'boardItem' : 'videoItem'](owner.id, {});
+    if (owner.type === 'shot') item = await require('./final-request-plans')[kind === 'image' ? 'boardItem' : 'videoItem'](owner.id, opts.provider ? { provider: String(opts.provider) } : {});
     else {
         const planned = await require('../routes/sequences').realSequenceRequests(owner.id, {}, true);
         if (planned.items.length !== 1) fail('This sequence currently plans several paid segments. Choose an explicit single video recipe or review each segment separately.');
@@ -247,6 +252,31 @@ async function starterDraft(db, projectId, nodeKey, kind = 'image') {
         prompt: fullPrompt, ...(item.payload.negative_prompt ? { negative_prompt: item.payload.negative_prompt } : {}), settings, reference_images: [], audio_references: [] };
     if (Array.isArray(snapshot.body.shots)) recipe.prompt_format = 'native_shots_json';
     const unresolved = [], used = new Set();
+    let bySha = null;
+    function projectPicturesBySha() {
+        if (bySha) return bySha;
+        bySha = new Map();
+        const add = (sha, row) => { const list = bySha.get(sha) || []; if (!list.includes(row)) bySha.set(sha, [...list, row]); };
+        for (const row of db.prepare("SELECT * FROM film_assets WHERE project_id=? AND (mime_type LIKE 'image/%' OR asset_type IN ('keyframe','storyboard','reference_image','character_sheet'))").all(projectId)) {
+            let sha, st; try { sha = hash(fs.readFileSync(row.file_path)); st = fs.statSync(row.file_path); } catch (_) { continue; }
+            add(sha, row);
+            /*
+             * The copies sent in its place: resized for video (.thumbs, lib/thumbnails.js videoKeyframeFor) or shrunk to
+             * fit inline (.sendable, lib/reference-images.js shrinkToFit). Each is named after the original's CURRENT
+             * identity (name, mtime, size), so it is that original; a copy of an older version names another identity.
+             */
+            const stem = `${path.basename(row.file_path)}.${st.mtimeMs.toFixed(0)}.${st.size}.`;
+            for (const dirname of ['.thumbs', '.sendable']) {
+                const dir = path.join(path.dirname(row.file_path), dirname);
+                let names = []; try { names = fs.readdirSync(dir); } catch (_) { continue; }
+                for (const name of names) {
+                    if (!name.startsWith(stem) || /\.tmp\./.test(name)) continue;
+                    try { add(hash(fs.readFileSync(path.join(dir, name))), row); } catch (_) {}
+                }
+            }
+        }
+        return bySha;
+    }
     function identify(ref, index) {
         let asset = (ref.asset_id || ref.source_asset_id) && db.prepare('SELECT * FROM film_assets WHERE id=? AND project_id=?').get(ref.asset_id || ref.source_asset_id, projectId);
         const sourcePath = ref.source_path || ref.path;
@@ -265,6 +295,12 @@ async function starterDraft(db, projectId, nodeKey, kind = 'image') {
                 }
             }
             if (candidates.length === 1) asset = candidates[0];
+        }
+        if (!asset && !sourcePath && ref.sha256) {
+            // The pipeline sends a shot's frame and its cast, location and prop plates as bytes with no file reference.
+            // Its exact bytes ARE an identity: one project picture with that content is the source, two is ambiguous.
+            const matches = projectPicturesBySha().get(ref.sha256) || [];
+            if (matches.length === 1) asset = matches[0];
         }
         let look = ref.moodboard_entry_id && db.prepare('SELECT * FROM film_mood_board WHERE id=? AND project_id=?').get(ref.moodboard_entry_id, projectId);
         if (!asset && !look && sourcePath) {

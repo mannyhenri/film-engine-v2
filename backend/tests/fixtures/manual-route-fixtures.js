@@ -5,8 +5,7 @@
  * review (the answer names FINAL_REQUEST_REVIEW_REQUIRED:<id>), and the paths in
  * the inventory that are not manual-vendor generation at all, each with why.
  *
- * Rows are made through the real routes (imports, card edits, cue and session
- * creation). The db is written directly only where no route can produce the
+ * Rows are made through the real routes (imports, card edits, cue creation). The db is written directly only where no route can produce the
  * state (a stamped, stale frame: only a generation stamps one).
  *
  * Every media file is made locally (a PNG encoded here, an MP4 from the local
@@ -105,8 +104,7 @@ module.exports = {
         /*
          * The demo writes each card's dialogue as one string ("KAI: Nakamura. ...")
          * where every reader expects a list of { character, line }: extractDialogue
-         * (lib/dialogue-builder.js:21) finds no lines in it, and the score-session
-         * context (lib/music-context.js:176) throws on it. PUT /shots/:id cannot
+         * (lib/dialogue-builder.js:21) finds no lines in it. PUT /shots/:id cannot
          * repair it: it re-validates the whole card, and the demo's cards fail
          * validation (no shot_code, lighting as a string) on fields the route
          * cannot edit. So the list is written to the card directly.
@@ -128,7 +126,6 @@ module.exports = {
         // 15 · Already reaching the review.
         add('POST', '/projects/ID/sounds/generate', `/projects/${project}/sounds/generate`, { prompt: 'Rain drumming on a tin roof, distant thunder' });
         add('POST', '/scenes/ID/ambient/generate', `/scenes/${ids.scenes}/ambient/generate`, {});
-        add('POST', '/scenes/ID/music/generate', `/scenes/${ids.scenes}/music/generate`, {});
         add('POST', '/shots/ID/storyboard/angles', `/shots/${shotA.id}/storyboard/angles`, {});
 
         // 2 · Marketing: a planned poster with its own prompt.
@@ -136,19 +133,10 @@ module.exports = {
             prompt: 'Teaser poster: a lone figure under a flickering neon sign in rain-slick streets, title NEON REQUIEM', aspect_ratio: '2:3' }), 'marketing create');
         add('POST', '/marketing/ID/generate', `/marketing/${poster.id}/generate`, {});
 
-        // 4 · A score cue written on the first scene.
-        const cue = ok(await call('POST', `/projects/${project}/music-cues`, { scene_id: ids.scenes, cue_type: 'score', title: 'Opening pulse',
-            description: 'Low analog synth pulse under rain, slowly building tension', mood: 'tense', genre: 'synthwave', duration_ms: 30000 }), 'music cue create');
+        // 4 · A sound-effect cue written on the first scene (music cues were retired on 2026-10-14).
+        const cue = ok(await call('POST', `/projects/${project}/music-cues`, { scene_id: ids.scenes, cue_type: 'sfx', title: 'Screen door',
+            description: 'A screen door banging shut two streets over, in the rain', duration_ms: 4000 }), 'sound cue create');
         add('POST', '/music-cues/ID/generate', `/music-cues/${cue.id}/generate`, {});
-
-        // 6 · A score session generating a composition.
-        const session = ok(await call('POST', `/projects/${project}/music-sessions`, { name: 'Main titles', scene_id: ids.scenes }), 'music session create');
-        const sessionId = session.id || (session.session && session.session.id);
-        add('POST', '/music-sessions/ID/generate', `/music-sessions/${sessionId}/generate`, {
-            workflow: 'music_compose', prompt: 'Brooding synthwave main title, slow build, rain ambience', duration_ms: 30000, ignore_emotion: true });
-
-        // 7 · The project music batch (SSE): its stream names the review per scene.
-        add('POST', '/projects/ID/music/batch/stream', `/projects/${project}/music/batch/stream`, {});
 
         // 8, 9 · Dialogue: the demo's own lines, as a list (above).
         add('POST', '/shots/ID/voice/generate', `/shots/${firstWithDialogue}/voice/generate`, {});
@@ -380,7 +368,6 @@ module.exports = {
         { path: '/shots/ID/lipsync/generate', method: 'POST', reason: 'kept Gridlight: only lib/providers/gridlight-adapter.js:43 declares lipsync, and routes/lipsync.js:32-36 falls back to get(\'gridlight\')' },
         { path: '/previz-workspace/explore', method: 'POST', reason: 'local: exploreWorkspace evaluates cameras with lib/cinematography against the set (routes/previz-workspace.js:13-25, 35); no provider' },
         { path: '/projects/ID/inbetweens', method: 'POST', reason: 'plans only: create inserts a film_inbetweens span of evenly timed empty frames (routes/inbetweens.js:123-144); generation is POST /inbetweens/:id/generate' },
-        { path: '/music-sessions/ID/batch', method: 'POST', reason: 'editorial: runBatch applies create/update/delete ops on session children in one transaction (routes/music-sessions.js:418-456); no provider' },
         { path: '/models/batch/stream', method: 'POST', reason: 'not a route: a fragment of /projects/:id/models/batch/stream (src/index.html:22046); /film/models/batch/stream is refused as "Invalid asset ID" (routes/threed.js:175-176)' },
         { path: '/shots/ID/post/upscale/previewID', method: 'POST', reason: 'not a route: a fragment of the GET preview `/shots/${shotId}/post/upscale/preview${q}` (src/components/VideoPipeline/engine.js:465; routes/post-production.js:57)' },
     ],

@@ -1,8 +1,8 @@
 /**
- * An edit made in Premiere comes home: kept by version, read into a cut list,
- * and scored against.
+ * An edit made in Premiere comes home: kept by version and read into a cut list.
+ * (Scoring against an edit went with music-making on 2026-10-14.)
  *
- * Set-based three ways, because each failed partially in the design:
+ * Set-based, because each failed partially in the design:
  *
  *   FORMATS   every format `CUT_FORMATS` names is read, round-tripped through
  *             this engine's OWN exporter for that format, so a cut exported to
@@ -11,10 +11,6 @@
  *             passes any test written against one.
  *   MATCHES   every way an event is matched to a shot (by file, by shot code)
  *             and the event that is no shot at all.
- *   CONSUMERS every part of the score that reads a session's picture — the
- *             brief, the read model, the bounce, the package, approval and
- *             drift. A session on an edit whose brief follows the cut while its
- *             bounce is as long as the assembly is stems that do not line up.
  */
 
 const test = require('node:test');
@@ -223,96 +219,28 @@ test('what is not a picture is refused, and leaves nothing behind', async () => 
     assert.strictEqual(db.prepare('SELECT COUNT(*) AS n FROM film_edits WHERE project_id = ?').get(f.pid).n, 0);
 });
 
-// ── CONSUMERS: every reader of a session's picture follows the edit ─────────
-
-const CONSUMERS = Object.freeze(['brief', 'read_model', 'bounce', 'package_picture', 'approval', 'drift']);
-
-test('a score written against an edit: every consumer of its picture follows the cut, not the assembly', async () => {
-    const f = await film('Scored Cut');
+test('an edit imported with its cut keeps the XML, and deleting it moves its files aside, recoverable', async () => {
+    const f = await film('Cut Kept');
     const assets = db.prepare("SELECT * FROM film_assets WHERE project_id = ? AND asset_type = 'video_raw'").all(f.pid);
-    // The editor's cut: 1B then 1A, with a title card the project did not make.
+    // The editor's cut: 1B then 1A.
     const edited = [{ ...f.shots[1], duration_ms: 1500 }, { ...f.shots[0], duration_ms: 2500 }];
-    const xml = EXPORTERS.xmeml({ title: 'Scored' }, edited, assets);
-    const imp = await callTool('edit_import', { project_id: f.pid, data: dataUri(movie('scored.mp4', 5), 'video/mp4'), cut: xml });
+    const xml = EXPORTERS.xmeml({ title: 'Kept' }, edited, assets);
+    const imp = await callTool('edit_import', { project_id: f.pid, data: dataUri(movie('kept.mp4', 5), 'video/mp4'), cut: xml });
     assert.strictEqual(imp._status, 201, JSON.stringify(imp.body));
     const edit = imp.body.edit;
-    assert.ok(fs.existsSync(path.join(fileStorage.projectRoot(f.pid), '05 Edit', 'edit_v1_cut.xml')), 'the XML the cut was read from is not kept');
+    const xmlPath = path.join(fileStorage.projectRoot(f.pid), '05 Edit', 'edit_v1_cut.xml');
+    assert.ok(fs.existsSync(xmlPath), 'the XML the cut was read from is not kept');
+    assert.deepStrictEqual(edit.cut.events.filter(e => e.shot_code).map(e => e.shot_code), ['1B', '1A'],
+        'the cut does not land on the shots it was exported from');
 
-    const created = await callTool('music_session_create', { project_id: f.pid, edit_id: edit.id, name: 'Score to the cut' });
-    assert.strictEqual(created._status, 201, JSON.stringify(created.body));
-    const sid = created.body.session.id;
-    const seen = {};
-
-    // brief
-    const brief = (await callTool('music_session_brief', { session_id: sid })).body;
-    const pic = brief.brief.picture;
-    assert.strictEqual(pic.kind, 'edit');
-    assert.strictEqual(pic.total_ms, edit.duration_ms, 'the brief is not as long as the edit');
-    assert.deepStrictEqual(pic.shots.map(s => [s.shot_code, s.start_ms, s.duration_ms]), [['1B', 0, 1500], ['1A', 1500, 2500]]);
-    assert.strictEqual(brief.brief.dialogue.lines, 1, 'the cut\'s dialogue is not the cut\'s shots');
-    assert.strictEqual(brief.brief.length.ms, edit.duration_ms);
-    seen.brief = true;
-
-    // read model
-    const model = (await callTool('music_session_get', { session_id: sid })).body;
-    assert.strictEqual(model.picture.kind, 'edit');
-    assert.ok(model.picture.edit.video_url.startsWith(`/film/edits/${f.pid}/`));
-    assert.strictEqual(model.duration_ms, edit.duration_ms, 'an empty session on an edit must already be the edit\'s length');
-    seen.read_model = true;
-
-    // bounce: a one-second cue still bounces to the whole edit, so stems line up at both ends
-    const bed = wav('cue.wav', 1);
-    const bedPath = fileStorage.saveFile(f.pid, 'music', 'cue.wav', fs.readFileSync(bed));
-    const bedAsset = generateId();
-    db.prepare(`INSERT INTO film_assets (id, project_id, asset_type, file_name, file_path, duration_ms) VALUES (?, ?, 'audio_music', 'cue.wav', ?, 1000)`).run(bedAsset, f.pid, bedPath);
-    const track = await callTool('music_track_create', { session_id: sid, name: 'Strings', role: 'strings' });
-    assert.ok(track._status < 300, JSON.stringify(track.body));
-    const trackId = (track.body.track || track.body.row || track.body).id;
-    const clip = await callTool('music_clip_create', { session_id: sid, track_id: trackId, asset_id: bedAsset, start_ms: 500, duration_ms: 1000 });
-    assert.ok(clip._status < 300, JSON.stringify(clip.body));
-    const bounce = await callTool('music_bounce', { session_id: sid });
-    assert.ok(bounce._status < 300, JSON.stringify(bounce.body));
-    const master = db.prepare("SELECT duration_ms, file_path FROM film_assets WHERE id = ?").get((bounce.body.master || (bounce.body.bounce || {}).master || {}).asset_id);
-    const measured = require('../lib/ffmpeg').inspectMedia(master.file_path);
-    assert.ok(Math.abs(measured.durationSeconds * 1000 - edit.duration_ms) < 50,
-        `the bounce is ${measured.durationSeconds}s against a ${edit.duration_ms}ms edit — its stems would not line up in Premiere`);
-    seen.bounce = true;
-
-    // package: the reference picture is the edit, not the conformed assembly
-    const pkg = await callTool('music_package_build', { session_id: sid });
-    assert.ok(pkg._status < 300, JSON.stringify(pkg.body));
-    const manifest = require('../lib/music-package').listPackages(db, sid)[0];
-    const pkgAsset = db.prepare('SELECT file_path FROM film_assets WHERE id = ?').get(manifest.asset_id);
-    const zip = fs.readFileSync(pkgAsset.file_path);
-    assert.ok(zip.includes(Buffer.from('picture/reference.mp4')), 'the package does not carry the edit as its reference picture');
-    assert.match(zip.toString('latin1'), new RegExp(`"edit_id":\\s*"${edit.id}"`), 'the package does not say which edit the score is timed to');
-    seen.package_picture = true;
-
-    // approval: delivered with the edit, never laid on the assembly
-    db.prepare("UPDATE film_music_sessions SET status = 'approved', approved_mix_asset_id = (SELECT id FROM film_assets WHERE file_path = ?) WHERE id = ?").run(master.file_path, sid);
-    const { approvedScores } = require('../lib/music-approval');
-    const scores = approvedScores(db, f.pid);
-    assert.strictEqual(scores.scores.length, 0, 'a score timed to the editor\'s cut was placed on the assembly');
-    assert.deepStrictEqual(scores.reports.map(r => r.state), ['on_edit']);
-    db.prepare("UPDATE film_music_sessions SET status = 'review', approved_mix_asset_id = NULL WHERE id = ?").run(sid);
-    seen.approval = true;
-
-    // drift: a newer cut is said, and applied only when asked
-    const v2 = await callTool('edit_import', { project_id: f.pid, data: dataUri(movie('scored2.mp4', 6), 'video/mp4') });
-    const drift = (await callTool('music_session_drift', { session_id: sid })).body;
-    assert.deepStrictEqual(drift.newer_edit && [drift.newer_edit.version, drift.newer_edit.written_against], [2, 1]);
-    assert.strictEqual((await callTool('music_session_get', { session_id: sid })).body.picture.edit.version, 1, 'a newer cut moved the score by itself');
-    const moved = await callTool('music_session_update', { session_id: sid, edit_id: v2.body.edit.id });
-    assert.ok(moved._status < 300, JSON.stringify(moved.body));
-    assert.strictEqual((await callTool('music_session_drift', { session_id: sid })).body.newer_edit, null);
-    seen.drift = true;
-
-    assert.deepStrictEqual(Object.keys(seen).sort(), [...CONSUMERS].sort(), 'a consumer of the picture was not exercised');
-
-    // An edit a score is written against is not deleted out from under it.
-    const del = await callTool('edit_delete', { edit_id: v2.body.edit.id });
-    assert.strictEqual(del._status, 409);
-    assert.match(del.body.error, /Score to the cut/);
+    // Nothing holds an edit any more: deleting it is not refused, and its files are kept aside.
+    const del = await callTool('edit_delete', { edit_id: edit.id });
+    assert.strictEqual(del._status, 200, JSON.stringify(del.body));
+    assert.strictEqual(del.body.deleted, true);
+    assert.ok(del.body.recoverable.length >= 1 && del.body.recoverable.every(p => fs.existsSync(p)),
+        'the deleted edit\'s files were not moved to deleted/');
+    assert.ok(!fs.existsSync(edit.file_path), 'the picture is still where it was');
+    assert.strictEqual(db.prepare('SELECT COUNT(*) AS n FROM film_edits WHERE id = ?').get(edit.id).n, 0);
 });
 
 test('edit_cut_rematch picks up a shot added after the cut was imported', async () => {
@@ -362,29 +290,24 @@ test('05 Edit sits between the clips and the sound; old folders are renamed and 
     assert.strictEqual(require('../lib/project-storage').upgradeLayouts().renamed.filter(x => x.project_id === pid).length, 0);
 });
 
-test('a bundle carries the edits and the score keeps pointing at its own edit', async () => {
+test('a bundle carries the edits', async () => {
     const f = await film('Bundled Edit');
     const imp = await callTool('edit_import', { project_id: f.pid, data: dataUri(movie('b.mp4', 2), 'video/mp4') });
-    const s = await callTool('music_session_create', { project_id: f.pid, edit_id: imp.body.edit.id, name: 'Carried' });
-    assert.strictEqual(s._status, 201, JSON.stringify(s.body));
     const bundle = require('../lib/project-bundle');
     const out = bundle.importProject(fs.readFileSync(bundle.exportProject(f.pid).archivePath));
     const np = out.project.id;
     const e = db.prepare('SELECT * FROM film_edits WHERE project_id = ?').get(np);
     assert.ok(e && e.id !== imp.body.edit.id, 'the edit did not travel, or kept its old id');
-    const session = db.prepare('SELECT edit_id FROM film_music_sessions WHERE project_id = ?').get(np);
-    assert.strictEqual(session.edit_id, e.id, 'the score points at the source project\'s edit');
     const asset = db.prepare('SELECT file_path FROM film_assets WHERE id = ?').get(e.asset_id);
     assert.strictEqual(asset.file_path, path.join(out.project.assets_dir, '05 Edit', 'edit_v1.mp4'));
     assert.ok(fs.existsSync(asset.file_path));
 });
 
-test('every edit route has an MCP tool, and a session can be created on an edit', () => {
+test('every edit route has an MCP tool', () => {
     const tools = new Map(listTools().map(t => [t.name, t]));
     for (const n of ['edit_list', 'edit_get', 'edit_import', 'edit_cut_import', 'edit_cut_rematch', 'edit_update', 'edit_delete']) {
         assert.ok(tools.has(n), `${n} is missing`);
     }
-    assert.ok(tools.get('music_session_create').inputSchema.properties.edit_id, 'music_session_create cannot name an edit');
     // Derived: every method the edits router dispatches is reached by a tool.
     const src = fs.readFileSync(path.join(ROOT, 'routes', 'edits.js'), 'utf8');
     const methods = new Set([...src.matchAll(/req\.method === '([A-Z]+)'/g)].map(m => m[1]));
@@ -393,20 +316,14 @@ test('every edit route has an MCP tool, and a session can be created on an edit'
     for (const m of methods) assert.ok(toolMethods.has(m), `the edits router takes ${m} and no tool sends it`);
 });
 
-test('the page: an Edit page in Post, the score monitor follows the playhead, and a session can be opened on an edit', () => {
+test('the page: an Edit page in Post', () => {
     const page = fs.readFileSync(path.join(ROOT, '..', 'src', 'index.html'), 'utf8');
     assert.match(page, /data-page="edits" onclick="navigateTo\('edits'\)"/);
     assert.match(page, /id="page-edits"/);
     assert.match(page, /edits: loadEditsPage,/);
-    for (const fn of ['loadEditsPage', 'importEditFile', 'importEditCut', 'rematchEditCut', 'scoreThisEdit', 'deleteEditVersion',
-        'mwPictureHtml', 'mwPictureFollow', 'mwMoveToEdit']) {
+    for (const fn of ['loadEditsPage', 'importEditFile', 'importEditCut', 'rematchEditCut', 'deleteEditVersion']) {
         assert.ok(new RegExp(`function ${fn}\\(`).test(page), `${fn} is not defined`);
     }
     const body = fn => page.slice(page.indexOf(`function ${fn}(`), page.indexOf('\n    }\n', page.indexOf(`function ${fn}(`)));
-    assert.match(body('mwPlay'), /mwPictureFollow\(true\)/, 'the picture does not play with the score');
-    assert.match(body('mwPause'), /mwPictureFollow\(false\)/, 'the picture keeps playing when the score stops');
-    assert.match(body('mwCreateSession'), /\/edits'/, 'a new score session cannot be put on an edit');
-    assert.match(body('mwCreateSessionSubmit'), /body\.edit_id = id/);
     assert.match(body('importEditFile'), /X-Upload-Offset/, 'a large edit is sent in one request, which dies on the first dropped connection');
-    assert.match(body('mwDriftHtml'), /newer_edit/, 'a newer cut is never mentioned on the score');
 });

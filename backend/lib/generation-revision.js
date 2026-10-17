@@ -42,7 +42,7 @@ function generationRevision(db, shotId, extraAssetIds = []) {
     }
     const fileDigest = file => {
         if (!file) return null;
-        try { return hash(fs.readFileSync(file)); } catch (_) { return 'unreadable'; }
+        try { return require('./file-strings').fileSha256(file); } catch (_) { return 'unreadable'; }   // the same sha256, read once per version
     };
     decisions.assets = [...new Map(assets.map(r => [r.id, r])).values()]
         .sort((a,b) => a.id.localeCompare(b.id)).map(r => ({ ...r, bytes: fileDigest(r.file_path) }));

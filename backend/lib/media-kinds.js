@@ -15,7 +15,9 @@
  *
  * `scope` is NOT declared here — it is read from PIPELINE_STEPS below, because
  * the orchestrator already owns the answer and an importer that disagreed would
- * attach a scene-wide music bed to a single shot.
+ * attach a scene-wide bed to a single shot. The one exception is music: it is
+ * brought in, never generated (music-making was retired on 2026-10-14), so no
+ * step owns it and its scene scope is stated with its storage.
  */
 
 const { PIPELINE_STEPS } = require('./pipeline-engine');
@@ -27,7 +29,7 @@ const { PIPELINE_STEPS } = require('./pipeline-engine');
  */
 const STEP_FOR_CAPABILITY = Object.freeze({
     image: 'keyframe', video: 'video', voice: 'voice', lipsync: 'lipsync',
-    music: 'music', sfx: 'sfx', ambient: 'ambient', post: 'post',
+    sfx: 'sfx', ambient: 'ambient', post: 'post',
 });
 
 /** What each capability writes, and what a person could hand us instead. */
@@ -36,7 +38,7 @@ const STORAGE = Object.freeze({
     video: { assetType: 'video_raw', ext: 'mp4', subdir: 'video', serveDir: 'videos', media: 'video' },
     voice: { assetType: 'audio_dialogue', ext: 'wav', subdir: 'audio', serveDir: 'audio', media: 'audio' },
     lipsync: { assetType: 'video_synced', ext: 'mp4', subdir: 'video', serveDir: 'videos', media: 'video' },
-    music: { assetType: 'audio_music', ext: 'wav', subdir: 'music', serveDir: 'music', media: 'audio' },
+    music: { assetType: 'audio_music', ext: 'wav', subdir: 'music', serveDir: 'music', media: 'audio', scope: 'scene' },
     sfx: { assetType: 'audio_sfx', ext: 'wav', subdir: 'music', serveDir: 'music', media: 'audio' },
     ambient: { assetType: 'audio_ambient', ext: 'wav', subdir: 'music', serveDir: 'music', media: 'audio' },
     post: { assetType: 'video_final', ext: 'mp4', subdir: 'video', serveDir: 'videos', media: 'video' },
@@ -48,9 +50,9 @@ const MEDIA_KINDS = Object.freeze(Object.fromEntries(
     Object.entries(STORAGE).map(([capability, spec]) => [capability, Object.freeze({
         ...spec,
         capability,
-        step: STEP_FOR_CAPABILITY[capability],
-        // The orchestrator's own answer, never a second one.
-        scope: SCOPE.get(STEP_FOR_CAPABILITY[capability]) || 'shot',
+        step: STEP_FOR_CAPABILITY[capability] || null,
+        // The orchestrator's own answer, never a second one (music, with no step, states its own).
+        scope: spec.scope || SCOPE.get(STEP_FOR_CAPABILITY[capability]) || 'shot',
     })])
 ));
 

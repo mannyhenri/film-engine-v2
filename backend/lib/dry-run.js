@@ -36,7 +36,7 @@ const REQUEST_BUILDERS = {
     seedance: m => ({ video: m.buildVideoRequest }),
     elevenlabs: m => ({
         voice: m.buildVoiceRequest, sfx: m.buildSfxRequest,
-        music: m.buildMusicRequest, ambient: m.buildAmbientRequest,
+        ambient: m.buildAmbientRequest,
     }),
     anthropic: m => ({ llm: m.buildMessagesRequest }),
     gridlight: () => ({}),
@@ -172,6 +172,7 @@ function costFor(providerId, capability, model, payload) {
         const rate = rateFor(providerId, capability, model);
         if (!rate) return null;
         const usd = rate.usd_per_unit !== undefined ? rate.usd_per_unit : rate.usd_per_native;
+        if (usd === null || !Number.isFinite(usd)) return null;
         const seconds = Number((payload || {}).duration_s || (payload || {}).duration) || null;
         const qty = rate.unit === 'second' && seconds ? seconds : 1;
         return {

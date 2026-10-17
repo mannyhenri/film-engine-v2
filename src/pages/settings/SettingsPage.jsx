@@ -571,7 +571,7 @@ export default function SettingsPage() {
                                     <input type="checkbox" id="settingsProductionGraph" style={{ width: 'auto', margin: 0 }} onChange={() => legacy.saveProductionGraphFlag()} />
                                     <span>Show Production as one graph</span></label>
                                 {why(<>Shots, sequences, sound and every version on one canvas, with a drawer for each and the cut playing underneath. Off, Production is its separate pages.
-                                    The Score workspace stays in the menu either way, and every old page is still reachable by its address.</>)}
+                                    Every old page is still reachable by its address.</>)}
                             </div>
                         </div>
                     </div>

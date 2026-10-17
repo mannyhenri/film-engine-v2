@@ -2,10 +2,12 @@
  * The reference page (reference/fb8c770/src/index.html), for tests that hold a React page to the legacy markup it
  * was generated from: a page's slice of the reference, and a strict walk of what a person sees of a DOM tree.
  */
-import fs from 'fs';
 import path from 'path';
+import { createRequire } from 'module';
 
-const REF = fs.readFileSync(path.resolve(__dirname, '../../reference/fb8c770/src/index.html'), 'utf8');
+// As the split reads it (tools/split-lib.js readSource): without what the user retired (RETIRED).
+const { readSource } = createRequire(import.meta.url)('../../tools/split-lib.js');
+const REF = readSource(path.resolve(__dirname, '../../reference/fb8c770/src/index.html')).text;
 
 /** The legacy markup of one page: its `<div class="page" id="page-<id>">` element, and nothing after it. */
 export function legacyMarkup(id) {

@@ -2299,6 +2299,13 @@ const { AI_PATH, TYPEWRITER, state } = Object.fromEntries(['AI_PATH', 'TYPEWRITE
         block.classList.add('sp-' + elementType);
 
         editorDirty = true;
+        // A type change is an edit, and it fires no `input` event, so nothing
+        // else schedules the save. Without this, a line changed from a heading
+        // to Action stayed a heading in the stored version, and came back as one
+        // on the next load.
+        triggerAutoSave();
+        // A heading made or unmade changes the scene list.
+        triggerSceneNavUpdate();
     }
 
     // Move cursor to the start of a block

@@ -10,7 +10,7 @@ const { execFileSync, spawnSync } = require('child_process');
  * THE MASTER CARRIES THE FILM'S OWN SOUND.
  *
  * The conform kept only the sound inside the clips, so a film whose dialogue,
- * score and ambience were generated here was assembled SILENT: the files played
+ * music and ambience were brought in or generated here was assembled SILENT: the files played
  * in Playback and reached the NLE lanes, and none of them reached the master.
  *
  * Every assertion that matters is MEASURED from the file, because a filter
@@ -82,7 +82,7 @@ function dialogue(f, shotIndex, secs) {
         .run(generateId(), f.projectId, f.ids[shotIndex], p, name, secs * 1000);
 }
 function cue(f, cueType, secs, extra = {}) {
-    const assetType = { music: 'audio_music', ambient: 'audio_ambient', sfx: 'audio_sfx' }[BED_KIND_FOR[cueType]];
+    const assetType = { ambient: 'audio_ambient', sfx: 'audio_sfx' }[BED_KIND_FOR[cueType]];
     const p = tone(`${f.projectId.slice(0, 6)}_${cueType}_${generateId().slice(0, 4)}.wav`, 440, secs);
     const assetId = generateId();
     db.prepare("INSERT INTO film_assets (id, project_id, scene_id, asset_type, file_path, file_name, format, duration_ms) VALUES (?, ?, ?, ?, ?, ?, 'wav', ?)")
@@ -91,14 +91,21 @@ function cue(f, cueType, secs, extra = {}) {
         VALUES (?, ?, ?, ?, ?, ?, ?, 0, 0, ?)`)
         .run(generateId(), f.projectId, f.sceneId, cueType, cueType, extra.start_ms || 0, extra.volume_db || 0, assetId);
 }
+/** Music brought in for the scene: a file (asset_type audio_music), never a cue. */
+function musicFile(f, secs) {
+    const p = tone(`${f.projectId.slice(0, 6)}_music_${generateId().slice(0, 4)}.wav`, 550, secs);
+    db.prepare("INSERT INTO film_assets (id, project_id, scene_id, asset_type, file_path, file_name, format, duration_ms) VALUES (?, ?, ?, 'audio_music', ?, ?, 'wav', ?)")
+        .run(generateId(), f.projectId, f.sceneId, p, path.basename(p), secs * 1000);
+}
 
-test('every kind a scene cue sheet plays is laid into the plan, and dialogue too', () => {
+test('every kind a scene cue sheet plays is laid into the plan, with the imported music and dialogue too', () => {
     const kinds = [...new Set(Object.values(BED_KIND_FOR))];
-    assert.ok(kinds.length >= 3, `the cue-sheet kinds were not read: ${kinds}`);
+    assert.ok(kinds.length >= 2, `the cue-sheet kinds were not read: ${kinds}`);
     const f = film();
     for (const [cueType, kind] of Object.entries(BED_KIND_FOR)) {
         if (kinds.includes(kind)) { cue(f, cueType, 4); kinds.splice(kinds.indexOf(kind), 1); }
     }
+    musicFile(f, 4);
     dialogue(f, 1, 1);
     // A shot's own effect, as POST /shots/:id/sfx/generate stores it.
     const fx = tone(`${f.projectId.slice(0, 6)}_1A_sfx.wav`, 700, 1);
@@ -107,7 +114,7 @@ test('every kind a scene cue sheet plays is laid into the plan, and dialogue too
     const plan = conform.planConform(f.projectId);
     assert.ok(plan.ok, plan.error);
     const laid = new Set(plan.sound.placements.map(p => p.kind));
-    for (const kind of [...new Set(Object.values(BED_KIND_FOR)), 'dialogue', 'shot_sfx']) {
+    for (const kind of [...new Set(Object.values(BED_KIND_FOR)), 'music', 'dialogue', 'shot_sfx']) {
         assert.ok(laid.has(kind), `${kind} is generated for this film and never reaches the master`);
     }
     const line = plan.sound.placements.find(p => p.kind === 'dialogue');
@@ -150,7 +157,8 @@ test('a clip that carries its own sound is not talked over by its generated dial
 test('a finished project mix is the soundtrack: nothing is laid over it', () => {
     const f = film();
     dialogue(f, 1, 1);
-    cue(f, 'score', 4);
+    cue(f, 'ambient', 4);
+    musicFile(f, 4);
     const mix = tone(`${f.projectId.slice(0, 6)}_mix.wav`, 330, 4);
     db.prepare("INSERT INTO film_assets (id, project_id, asset_type, file_path, file_name, format, duration_ms, metadata) VALUES (?, ?, 'audio_mix', ?, ?, 'wav', 4000, '{}')")
         .run(generateId(), f.projectId, mix, path.basename(mix));

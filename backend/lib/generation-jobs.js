@@ -179,7 +179,6 @@ function meterPlan(provider, capability, payload, snapshot, result) {
     const input={...snapshot?.metadata,...body,model:snapshot?.model};
     const duration=body.duration_seconds ?? body.duration_s ?? body.duration ?? snapshot?.metadata?.durationSeconds;
     if(duration!==undefined)input.duration_s=input.duration_seconds=input.duration=Number(duration);
-    if(body.music_length_ms!==undefined)input.duration_ms=Number(body.music_length_ms);
     const sections=body.composition_plan?.sections || body.composition_plan?.chunks;
     if(Array.isArray(sections)&&sections.length)input.duration_ms=sections.reduce((sum,section)=>sum+Number(section.duration_ms),0);
     const usage=require('./providers').get(provider)?.meter?.(capability,input,result);

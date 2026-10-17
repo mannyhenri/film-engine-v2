@@ -4,9 +4,9 @@ import { installLegacy } from '../../test/setup.js';
 import { legacyMarkup, legacyHandlers, domWalk, frameChildren } from '../../test/reference.js';
 
 /*
- * The three music pages share one engine (engine.js, owned by Music & Sound). Set-based over the three: each frame
- * is the reference markup element by element, each legacy handler calls the same function with the same arguments,
- * each loader is registered, and while the owner is mounted every engine function is on window.
+ * Music & Sound and its engine (engine.js; Music Cues and the Score were retired, tools/split-lib.js RETIRED). Set-based
+ * over the page's handlers: the frame is the reference markup element by element, each legacy handler calls the same
+ * function with the same arguments, the loader is registered, and while mounted every engine function is on window.
  */
 vi.mock('./engine.js', async (importOriginal) => {
     const real = await importOriginal();
@@ -17,8 +17,6 @@ vi.mock('./engine.js', async (importOriginal) => {
 const E = await import('./engine.js');
 const PAGES = [
     { id: 'music', Page: (await import('./MusicPage.jsx')).default, json: (await import('./react.json')).default },
-    { id: 'musiccues', Page: (await import('../musiccues/MusicCuesPage.jsx')).default, json: (await import('../musiccues/react.json')).default },
-    { id: 'musicws', Page: (await import('../musicws/MusicWorkstationPage.jsx')).default, json: (await import('../musicws/react.json')).default },
 ];
 let legacy;
 beforeEach(() => {
@@ -59,7 +57,7 @@ describe('the music engine is registered by its owner', () => {
         const Owner = PAGES[0].Page;
         const { unmount } = render(<Owner />);
         const fns = Object.entries(E).filter(([, v]) => typeof v === 'function').map(([n]) => n);
-        expect(fns.length).toBeGreaterThan(150); // the check runs over the engine, not over nothing
+        expect(fns.length).toBeGreaterThan(10); // the check runs over the engine, not over nothing
         expect(fns.filter(n => typeof window[n] !== 'function')).toEqual([]);
         unmount();
         const named = new Set(PAGES.flatMap(p => [p.json.loader, ...p.json.provides]));

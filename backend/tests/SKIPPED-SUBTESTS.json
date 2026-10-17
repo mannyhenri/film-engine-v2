@@ -97,7 +97,7 @@
     ],
     "edits.test.js": [
       {
-        "name": "the page: an Edit page in Post, the score monitor follows the playhead, and a session can be opened on an edit",
+        "name": "the page: an Edit page in Post",
         "reason": "REACT: reads function loadEditsPage( and friends out of the page script; the Edit page is React (src/pages/edits). Every guarantee is held in src/pages/edits/edits-contract.test.jsx (nav item, loader, X-Upload-Offset, the music workstation half) and EditsPage.test.jsx (behaviour)."
       }
     ],
@@ -301,32 +301,6 @@
       {
         "name": "the page renders the served URL, and does not hide a failure in silence",
         "reason": "reads loadMoodBoardPage out of the page script; the Mood Board is React. src/pages/moodboard/MoodBoardPage.test.jsx holds the same on the rendered page: the <img> is built from image_url through plateSrc, and a failed load is replaced by a message, not hidden."
-      }
-    ],
-    "music-registries.test.js": [
-      {
-        "name": "every track role: stored through the tool, rendered or named a guide with its reason, documented",
-        "reason": "reads film-engine repo file docs/music-workstation.md"
-      },
-      {
-        "name": "every clip kind: stored, rendered when selected, walked by the rights lineage, documented",
-        "reason": "reads film-engine repo file docs/music-workstation.md"
-      },
-      {
-        "name": "every kind of file the workstation registers is documented",
-        "reason": "reads film-engine repo file docs/music-workstation.md"
-      },
-      {
-        "name": "every score tool reaches a route the router names and the API reference documents",
-        "reason": "reads film-engine repo file docs/api-film.md"
-      },
-      {
-        "name": "every section of the portable package is in a built manifest and in the documentation",
-        "reason": "reads film-engine repo file docs/music-workstation.md"
-      },
-      {
-        "name": "every DAW mutation has an agent tool, a page control with its portable twin, an audit record, and documentation",
-        "reason": "reads film-engine repo file docs/music-workstation.md"
       }
     ],
     "page-handlers.test.js": [

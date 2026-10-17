@@ -39,7 +39,6 @@ const COST_TYPE = {
     image: 'image_generation',
     video: 'video_generation',
     voice: 'voice_tts',
-    music: 'music_generation',
     sfx: 'sfx_generation',
     ambient: 'ambient_generation',
     lipsync: 'lipsync_generation',

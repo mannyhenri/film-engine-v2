@@ -90,7 +90,7 @@ function insertShotsAfter(db, anchorId, cards, opts) {
         return { status: 500, error: 'Could not insert the shot: ' + err.message };
     }
     for (const id of ids) {
-        try { require('./screenplay-drift').stampShot(id); } catch (_) { /* drift stamping must not fail an insert */ }
+        try { require('./screenplay-drift').stampShot(id, scene.id); } catch (_) { /* drift stamping must not fail an insert */ }
     }
     return { ids, codes, scene_id: scene.id, project_id: scene.project_id, anchor_code: anchor.shot_code };
 }

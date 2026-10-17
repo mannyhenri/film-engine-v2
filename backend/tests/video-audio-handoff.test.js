@@ -103,14 +103,10 @@ test('project policy and clip audition API are explicit; approval clears QA/expo
  assert.equal(call('GET',['film','shots',shot,'video','audio-review']).body.blocking,null);
 });
 
-test('approved-score stems are sidecars, and dialogue order uses line indices',()=>{
- const renderer=require('../lib/music-renderer'); const original=renderer.listBounces;
- renderer.listBounces=()=>[{master:{asset_id:'mix'},stems:[{asset_id:'stem'}]}];
- try {
-  const stems=media.scoreStems({prepare:()=>({get:id=>({id,file_name:'strings.wav',file_path:'/fixture/strings.wav',asset_type:'audio_mix'})})},{session_id:'session',asset_id:'mix'});
-  assert.equal(stems.length,1);assert.equal(media.metadata(stems[0]).handoff_only,true);
-  assert.equal(media.selectedAudio(stems,'audio_mix').length,0);
- } finally {renderer.listBounces=original;}
+test('handoff-only sidecars stay out of the selected audio, and dialogue order uses line indices',()=>{
+ const sidecar={id:'stem',file_name:'strings.wav',file_path:'/fixture/strings.wav',asset_type:'audio_mix',metadata:JSON.stringify({handoff_only:true})};
+ assert.equal(media.selectedAudio([sidecar],'audio_mix').length,0);
+ assert.equal(media.selectedAudio([{...sidecar,metadata:'{}'}],'audio_mix').length,1);
  const ordered=media.selectedAudio([{file_name:'ZED_0.wav',asset_type:'audio_dialogue'},{file_name:'ANN_1.wav',asset_type:'audio_dialogue'}],'audio_dialogue');
  assert.deepEqual(ordered.map(a=>a.file_name),['ZED_0.wav','ANN_1.wav']);
 });

@@ -52,11 +52,10 @@ function findProjectMaster(db, projectId) {
 }
 
 /*
- * A score session's bounce master is also an `audio_mix` belonging to no shot,
- * and it is NOT the film's soundtrack: it is one session's music. Read as the
- * project mix it replaced the whole film's audio — dialogue included — with a
- * score, the moment any session was bounced. It reaches the film only through
- * an approval (lib/music-approval.js), laid over the film's own audio.
+ * A score session's bounce master (from the retired Score workstation) is also
+ * an `audio_mix` belonging to no shot, and it is NOT the film's soundtrack: it
+ * is one session's music. An old project can still hold one; read as the
+ * project mix it would replace the whole film's audio, dialogue included.
  */
 function findProjectMix(db, projectId) {
     return db.prepare(
@@ -146,25 +145,11 @@ function planConform(projectId) {
         resolution: project.target_resolution || '1920x1080',
     };
 
-    /*
-     * THE APPROVED SCORE (MUS-020), laid once over the film's audio at the
-     * start of its picture's first shot in THIS running order. A finished
-     * project mix is the whole soundtrack and is taken to contain the score,
-     * so the score is not laid a second time over it — and the report says so.
-     */
-    const approval = require('./music-approval');
-    const scored = approval.approvedScores(db, projectId);
-    const placed = approval.placeScores(approval.entriesFromClips(clips), scored.scores);
-    const reports = [...scored.reports, ...placed.reports];
-    if (mix) reports.push(...approval.shadowedByProjectMix(placed.placements));
-    plan.score = { placements: mix ? [] : placed.placements, reports };
-    // The dialogue, score and ambience generated here, laid where Playback
-    // plays them — unless a finished project mix already IS the soundtrack.
+    // The dialogue, effects, ambience and music made or brought in here, laid
+    // where Playback plays them — unless a finished project mix already IS the soundtrack.
     plan.sound = mix
         ? { placements: [], reports: ['a finished project mix is the soundtrack, so no generated sound is laid over it'] }
         : (missing.length ? { placements: [], reports: [] } : engineSound(projectId, clips));
-    // The rights policy at final export (MUS-022), over the score the master will carry.
-    plan.rights = placed.placements.length && !mix ? require('./music-rights').evaluate(db, placed.placements.map(p => p.asset_id), 'final_export') : null;
 
     if (missing.length) {
         plan.error = `Cannot conform: ${missing.length} shot(s) have no video — `
@@ -217,7 +202,7 @@ function planConform(projectId) {
  * THE FILM'S OWN SOUND, laid where Playback plays it.
  *
  * The conform kept only the sound INSIDE the clips, so a film whose dialogue,
- * score and ambience were all generated here came out of assembly silent —
+ * music and ambience were all made or brought in here came out of assembly silent —
  * every one of those files existed, played in Playback and reached the NLE
  * lanes, and none of them reached the master. "All managed from Film Engine"
  * ended one step short of the deliverable.
@@ -231,10 +216,8 @@ function planConform(projectId) {
  *     generated lines over a clip either, because a clip can carry its own
  *     speech (Seedance synthesises it) and laying both would say every line
  *     twice. A line running past its clip is cut there, and reported.
- *   - BEDS (score, ambient, scene sfx): at their scene offset with the cue's
- *     own level and fades, stopped where the scene ends. An approved score
- *     session is NOT laid here — it has its own placement (MUS-020) and the
- *     timeline already took the scene music it replaces out.
+ *   - BEDS (scene music, ambient, scene sfx): at their scene offset with the
+ *     cue's own level and fades, stopped where the scene ends.
  * A finished project mix is the whole soundtrack, so with one nothing is laid.
  */
 function engineSound(projectId, clips) {
@@ -247,7 +230,7 @@ function engineSound(projectId, clips) {
     if (!timeline) return out;
 
     // Where each shot starts in THIS cut, from the conform's own clip lengths.
-    const { entriesFromClips } = require('./music-approval');
+    const { entriesFromClips } = require('./film-sound-mix');
     const cut = new Map(entriesFromClips(clips).map((e, i) => [e.shot_id, { start: e.start_ms, clip: clips[i] }]));
     const entries = timeline.entries || [];
     // Timeline time -> conform time, through the entry that holds it.
@@ -310,7 +293,7 @@ function engineSound(projectId, clips) {
     }
 
     for (const b of timeline.beds || []) {
-        if (!b || !b.path || b.source === 'score_session') continue;
+        if (!b || !b.path) continue;
         const start = mapT(b.start_ms, false);
         const stop = mapT(b.end_ms, true);
         if (start === null || stop === null || stop <= start) continue;
@@ -444,10 +427,6 @@ async function runConform(projectId, options) {
     // Refused at the plan: no executor was consulted, and the walk says so
     // rather than pretending one was.
     if (!plan.ok) return { ok: false, state: 'missing_shots', plan, error: plan.error, walk: [], walk_stage: 'plan' };
-    if (plan.rights && !plan.rights.ok && opts.ignore_rights !== true) {
-        return { ok: false, state: 'rights_blocked', plan, walk: [], walk_stage: 'plan', rights: plan.rights,
-            error: `The rights policy blocks the final master: ${plan.rights.blocked.map(i => `${i.name} (${i.status})`).join('; ')}. Clear them in the rights register, or pass ignore_rights to conform anyway.` };
-    }
 
     // Injectable so the no-executor path can be exercised on a machine that
     // has one — the encoder probe caches an available answer for the process.
@@ -516,11 +495,10 @@ async function runConform(projectId, options) {
             fps: plan.fps, audio: plan.audio, timeoutMs: opts.timeoutMs,
         });
     } finally { fs.rmSync(trimDir, {recursive:true,force:true}); }
-    // The approved score (MUS-020) and the film's own generated sound, over
-    // the joined film in ONE pass, each at its offset.
-    const laid = [...((plan.score && plan.score.placements) || []), ...((plan.sound && plan.sound.placements) || [])];
+    // The film's own sound, over the joined film in ONE pass, each at its offset.
+    const laid = (plan.sound && plan.sound.placements) || [];
     if (joined.ok && laid.length) {
-        const mixed = require('./music-approval').mixScoreIntoFilm(outputPath, laid, { timeoutMs: opts.timeoutMs });
+        const mixed = require('./film-sound-mix').mixSoundIntoFilm(outputPath, laid, { timeoutMs: opts.timeoutMs });
         if (!mixed.ok) joined = { ok: false, state: 'failed', error: mixed.error };
     }
     if (!joined.ok) {
@@ -570,7 +548,6 @@ async function runConform(projectId, options) {
                     duration_ms: durationMs === null ? plan.total_duration_ms : durationMs,
                     audio: plan.audio ? 'project_mix' : 'clip_audio',
                     sound: ((plan.sound && plan.sound.placements) || []).map(p => ({ kind: p.kind, offset_ms: p.offset_ms, play_ms: p.play_ms })),
-                    score: (plan.score && plan.score.placements || []).map(p => ({ session_id: p.session_id, asset_id: p.asset_id, offset_ms: p.offset_ms })),
                 }));
     });
     write();

@@ -122,23 +122,20 @@ const TEMPLATES = {
 
     'scene-soundscape': {
         name: 'Scene soundscape',
-        description: 'Score, effects and an ambient bed for a scene, mixed into one track.',
+        description: 'Effects and an ambient bed for a scene, mixed into one track.',
         build: () => ({
             nodes: [
                 { id: 'scene', type: 'in.scene', label: 'Scene', config: {}, x: 60, y: 60 + ROW },
-                { id: 'music', type: 'gen.music', label: 'Score', config: {}, x: 60 + COL, y: 60 },
                 { id: 'sfx', type: 'gen.sfx', label: 'Effects', config: {}, x: 60 + COL, y: 60 + ROW },
                 { id: 'amb', type: 'gen.ambient', label: 'Ambience', config: {}, x: 60 + COL, y: 60 + ROW * 2 },
-                // The collector port earns its keep here: three audio sources,
+                // The collector port earns its keep here: two audio sources,
                 // one input.
                 { id: 'mix', type: 'tf.mix', label: 'Mix', config: {}, x: 60 + COL * 2, y: 60 + ROW },
-                { id: 'save', type: 'out.asset', label: 'Save', config: { asset_type: 'audio_music' }, x: 60 + COL * 3, y: 60 + ROW },
+                { id: 'save', type: 'out.asset', label: 'Save', config: { asset_type: 'audio_mix' }, x: 60 + COL * 3, y: 60 + ROW },
             ],
             edges: [
-                { from: 'scene', fromPort: 'text', to: 'music', toPort: 'text' },
                 { from: 'scene', fromPort: 'text', to: 'sfx', toPort: 'text' },
                 { from: 'scene', fromPort: 'text', to: 'amb', toPort: 'text' },
-                { from: 'music', fromPort: 'audio', to: 'mix', toPort: 'audio' },
                 { from: 'sfx', fromPort: 'audio', to: 'mix', toPort: 'audio' },
                 { from: 'amb', fromPort: 'audio', to: 'mix', toPort: 'audio' },
                 { from: 'mix', fromPort: 'audio', to: 'save', toPort: 'audio' },

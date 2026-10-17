@@ -64,7 +64,7 @@ function list() {
  * more than novelty.
  *
  * Empty since the licensed-catalog source adapter was removed: no provider
- * currently serves music/sfx/ambient from a rights-cleared library, so every
+ * currently serves sfx/ambient from a rights-cleared library, so every
  * capability falls through to the normal default. The mechanism is kept
  * because resolveId() still honours it the moment a catalog provider is added
  * back, and an entry naming an unregistered provider would silently do nothing.
@@ -126,7 +126,6 @@ const PREFERRED_WHEN_CONFIGURED = {
      * produces the deliverable did not exist.
      */
     post: 'seedance',
-    music: 'elevenlabs',
     voice: 'elevenlabs',
     sfx: 'elevenlabs',
     ambient: 'elevenlabs',
@@ -760,6 +759,17 @@ function withJobRecording_(adapter, capability, projectConfig) {
             payload = require('../moodboard-influence').includeInPayload(require('../../db/database').db, cfg.__project_id, payload, adapter);
         }
         if ((cap || capability) === 'video' && cfg.__production_explicit_recipe !== true) Object.assign(payload, require('../video-audio-policy').applyVideoAudioPolicy(payload, { provider_config: cfg }));
+        /*
+         * A COMPOSED negative (the scene card's avoid-list, the audio policy's "no music") reaches only a model
+         * with a negative field. Higgsfield rightly refuses a negative its chosen model cannot take; for words the
+         * pipeline added rather than the director chose, that refusal failed every Seedance / Kling 3 / MiniMax
+         * clip. Set aside and recorded instead. A saved Production draft is the director's own and still refuses.
+         */
+        if (cfg.__production_explicit_recipe !== true && payload.negative_prompt && typeof adapter.takesNegative === 'function'
+            && !adapter.takesNegative(cap || capability, payload)) {
+            payload = { ...payload, negative_not_sent: payload.negative_prompt };
+            delete payload.negative_prompt;
+        }
         if (cfg.__production_explicit_recipe !== true && Object.prototype.hasOwnProperty.call(require('../final-request-validation').supportedInputFields, adapter.id + '/' + (cap || capability))) {
             payload = require('../final-provider-request').normalizeInheritedInputs(adapter.id,cap || capability,payload);
         }

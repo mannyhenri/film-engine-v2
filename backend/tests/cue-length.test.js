@@ -33,8 +33,8 @@ process.env.FILM_DATA_DIR = process.env.FILM_DATA_DIR
 const { db } = require('../db/database');
 require('../db/schema').ensureSchema();
 
-const { buildMusicPrompt } = require('../lib/music-prompt');
-const { sceneCutLength } = require('../lib/clip-coverage');
+const { sceneCutLength, cueSeconds } = require('../lib/clip-coverage');
+const { _internal: { ambientOptions } } = require('../routes/music-gen');
 
 const PROJECT = 'cl000000-0000-4000-8000-000000000001';
 const SCENE = 'cl000000-0000-4000-8000-000000000002';
@@ -81,162 +81,63 @@ test('a scene with no footage yet reports nothing, not zero', () => {
         'a scene with no clips reports 0 rather than "nothing measured"');
 });
 
-test('the music prompt is written to the measured cut when there is one', () => {
+/*
+ * Music-making was retired on 2026-10-14, so the length is no longer read by a
+ * score prompt. It is read by the cue that remains: the ambient bed, through
+ * `ambientOptions` -> `cueSeconds` (lib/clip-coverage.js, moved from
+ * scene-score.js). The same three rules hold there.
+ */
+test('an ambient bed is written to the measured cut when there is one', () => {
     const scene = db.prepare('SELECT * FROM film_scenes WHERE id = ?').get(SCENE);
-    const payload = buildMusicPrompt({ mood: 'melancholy' }, scene, { db });
-    assert.strictEqual(payload.duration_s, 10.5,
-        `the cue was written at ${payload.duration_s}s for a 10.5s cut`);
-    assert.strictEqual(payload.duration_source, 'measured',
-        'the payload does not say where its length came from');
+    const opts = ambientOptions(scene, {}, null);
+    assert.strictEqual(opts.bed_source, 'footage', 'the bed does not say its length came from the footage');
+    assert.strictEqual(opts.bed_ms, Math.round(10500 / 1000) * 1000,
+        `the bed was written at ${opts.bed_ms}ms for a 10.5s cut`);
 });
 
 test('an explicit cue length still wins', () => {
-    // A composer asking for a 45-second piece over a 10-second scene is making
-    // a decision, not a mistake — an underscore that runs past the cut is
-    // ordinary, and the engine must not overrule it.
+    // A bed asked to run past its scene is a decision, not a mistake.
     const scene = db.prepare('SELECT * FROM film_scenes WHERE id = ?').get(SCENE);
-    const payload = buildMusicPrompt({ mood: 'melancholy', duration_ms: 45000 }, scene, { db });
-    assert.strictEqual(payload.duration_s, 45);
-    assert.strictEqual(payload.duration_source, 'cue');
+    const opts = ambientOptions(scene, {}, { id: 'x', cue_type: 'ambient', duration_ms: 45000 });
+    assert.strictEqual(opts.bed_ms, 45000);
+    assert.strictEqual(opts.bed_source, 'cue');
+    assert.deepStrictEqual(cueSeconds({ cue_ms: 45000, cut_ms: 10500, explain: true }),
+        { seconds: 45, source: 'cue' });
 });
 
-test('with nothing measured it falls back, and SAYS it fell back', () => {
+test('with nothing measured it says so, and never invents a number', () => {
     /*
-     * The default is not the problem; a silent default is. A director told
-     * "30s, because nothing has been shot yet" can act on it — generate the
-     * footage first, or set the cue length by hand.
+     * The default is not the problem; a silent default is. "No footage" and a
+     * zero-length scene are different answers, so nothing measured is NULL.
      */
+    assert.strictEqual(cueSeconds({}), null);
+    assert.deepStrictEqual(cueSeconds({ explain: true }), { seconds: null, source: 'nothing measured' });
     const empty = db.prepare('SELECT * FROM film_scenes WHERE scene_number = 2 AND project_id = ?').get(PROJECT);
-    const payload = buildMusicPrompt({ mood: 'tense' }, empty, { db });
-    assert.strictEqual(payload.duration_s, 30);
-    assert.strictEqual(payload.duration_source, 'default');
-    assert.match(String(payload.duration_note || ''), /no footage|nothing.*measured|not been shot/i,
-        'a defaulted length does not say why');
+    const opts = ambientOptions(empty, {}, null);
+    assert.strictEqual(opts.bed_source, 'nothing measured', 'a bed with no length does not say why');
 });
 
-test('every caller measures the cut, without having to ask', () => {
-    /*
-     * The handle is required LAZILY rather than threaded through the call
-     * sites. This module is used by the route, the orchestrator and the flow
-     * canvas; passing a database through all three to fix one number is how
-     * two of them end up still guessing — the "three paths out of four" gap
-     * this codebase has shipped twice.
-     *
-     * So the check is that the measurement does not depend on the caller.
-     */
-    const src = fs.readFileSync(path.join(__dirname, '..', 'lib', 'music-prompt.js'), 'utf8');
-    assert.match(src, /require\('\.\.\/db\/database'\)\.db/,
-        'the cut length can only be measured when a caller supplies a handle');
-    assert.match(src, /sceneCutLength/, 'the prompt no longer measures the cut at all');
-
-    // And an existing caller, unchanged, gets a measured length.
-    const scene = db.prepare('SELECT * FROM film_scenes WHERE id = ?').get(SCENE);
-    const payload = buildMusicPrompt({ mood: 'melancholy' }, scene);
-    assert.strictEqual(payload.duration_source, 'measured',
-        'a caller that passes no handle falls back instead of measuring');
+test('an unshot scene is measured from its cards and its dialogue, the longer of the two', () => {
+    assert.deepStrictEqual(cueSeconds({ card_ms: 15000, dialogue_ms: 8000, explain: true }),
+        { seconds: 15, source: 'shot cards' });
+    assert.deepStrictEqual(cueSeconds({ card_ms: 5000, dialogue_ms: 216000, explain: true }),
+        { seconds: 216, source: 'dialogue' });
+    // Footage, once there is any, beats both.
+    assert.strictEqual(cueSeconds({ cut_ms: 10000, card_ms: 15000, dialogue_ms: 216000 }), 10);
 });
 
-test('the NLE seam: a cut is read back, a score can follow it, and a scene cue still does not', () => {
+test('a scene cue is measured from the engine\'s own assembly, not from an imported edit', () => {
     /*
-     * This pinned the ABSENCE of any FCPXML/EDL/xmeml parser, so that building
-     * one would force the claim to be revisited rather than left stale — and it
-     * did. lib/edit-cut.js reads Premiere's XML and EDLs back, and a score
-     * SESSION written against an imported edit takes the edit's length and
-     * timing (tests/edits.test.js holds every consumer to it).
-     *
-     * What is still true, and pinned: a scene CUE (film_music_cues) is measured
-     * from the engine's own assembly (sceneCutLength), not from an edit. A cue
-     * is written per scene; the edit is a whole film, and reading a scene's
-     * length out of a cut is a different claim nobody has built. Stated here so
-     * it is not assumed.
+     * lib/edit-cut.js reads Premiere's XML and EDLs back. A scene CUE is still
+     * measured from the engine's assembly (sceneCutLength): the edit is a whole
+     * film, and reading a scene's length out of a cut is a claim nobody has
+     * built. Stated here so it is not assumed.
      */
     const lib = path.join(__dirname, '..', 'lib');
     const reader = fs.readFileSync(path.join(lib, 'edit-cut.js'), 'utf8');
     assert.match(reader, /function parseXmeml\(/, 'the xmeml reader is gone');
     assert.match(reader, /function parseEdl\(/, 'the EDL reader is gone');
-    const context = fs.readFileSync(path.join(lib, 'music-context.js'), 'utf8');
-    assert.match(context, /film_edits/, 'a score session no longer reads its edit');
-    const prompt = fs.readFileSync(path.join(lib, 'music-prompt.js'), 'utf8');
-    assert.ok(!/film_edits|edit-cut/.test(prompt),
+    const coverage = fs.readFileSync(path.join(lib, 'clip-coverage.js'), 'utf8');
+    assert.ok(!/film_edits|edit-cut/.test(coverage),
         'a scene cue now reads an edit — this test and the docs should say what it follows');
-});
-
-
-test('a reference track reaches the prompt as a style, not a title', () => {
-    /*
-     * "Sounds like X" is the clearest music note a director gives, and
-     * `film_music_cues.reference_track` was stored and read by nothing.
-     * Phrased as a style to match rather than pasted in raw, which would read
-     * as a title to quote.
-     */
-    const scene = db.prepare('SELECT * FROM film_scenes WHERE id = ?').get(SCENE);
-    const payload = buildMusicPrompt(
-        { mood: 'melancholy', reference_track: 'Blade Runner end titles' }, scene);
-    assert.match(payload.prompt, /in the style of Blade Runner end titles/,
-        'the reference track never reaches the prompt');
-});
-
-test('every field the prompt reads has a control', () => {
-    /*
-     * `instruments` and `key_signature` were READ BY THE GENERATOR and had no
-     * field in the cue form — the same gap as a control that reaches nothing,
-     * seen from the other side. Derived from what the prompt actually reads,
-     * so a field added to the builder later is covered.
-     */
-    const promptSrc = fs.readFileSync(path.join(__dirname, '..', 'lib', 'music-prompt.js'), 'utf8');
-    const SPA = fs.readFileSync(path.join(__dirname, '..', '..', 'src', 'index.html'), 'utf8');
-
-    const read = [...new Set([...promptSrc.matchAll(/\bcue\.([a-z_]+)/g)].map(m => m[1]))];
-    // Fields the generator derives rather than the director setting them.
-    const DERIVED = new Set(['duration_s', 'category', 'sound', 'seed']);
-
-    /*
-     * A control need not be named after its field.
-     *
-     * Two are not, and both for a reason: a length is typed in seconds and
-     * stored in milliseconds, and sections are a repeating editor rather than
-     * one input. Exempt BY NAME with the control named, on the rule
-     * manual-edit.test.js already follows — an exemption matching on shape
-     * would quietly excuse the next field that has no control at all, which is
-     * the exact gap this test exists to catch. Each named control must exist
-     * AND be bound to something that runs.
-     */
-    const NAMED_CONTROLS = {
-        duration_ms: ['data-field="duration_s"', 'data.duration_ms = Math.round(Number(data.duration_s)'],
-        sections: ['id="cueSections"', 'onclick="cueAddSection()"', 'function cueAddSection()',
-            'data.sections = sections'],
-    };
-
-    const at = SPA.indexOf('id="musicCueModal"');
-    assert.notStrictEqual(at, -1, 'the cue form is gone');
-    const form = SPA.slice(at, at + 6000);
-
-    const missing = read.filter(f => !DERIVED.has(f)
-        && !NAMED_CONTROLS[f]
-        && !form.includes(`data-field="${f}"`));
-    assert.deepStrictEqual(missing, [],
-        `the generator reads these and nobody can set them: ${missing.join(', ')}`);
-
-    for (const [field, needles] of Object.entries(NAMED_CONTROLS)) {
-        assert.ok(read.includes(field),
-            `${field} is exempted with a named control and the generator no longer reads it — `
-            + 'a stale exemption makes the whole list a lie');
-        for (const needle of needles) {
-            assert.ok(SPA.includes(needle),
-                `${field} claims to be set by ${needle}, which is not in the page`);
-        }
-    }
-
-    // Length is typed in seconds and stored in ms.
-    assert.match(form, /data-field="duration_s"/, 'no way to set a cue length');
-    assert.match(SPA, /data\.duration_ms = Math\.round\(Number\(data\.duration_s\)/,
-        'a cue length typed in seconds is stored as seconds');
-});
-
-test('instruments are stored as a list, not as one long instrument', () => {
-    // The route JSON-stringifies whatever it is given; a raw comma string
-    // becomes a single instrument called "solo cello, brushed kit".
-    const SPA = fs.readFileSync(path.join(__dirname, '..', '..', 'src', 'index.html'), 'utf8');
-    assert.match(SPA, /data\.instruments\.split\(','\)/,
-        'the instruments field is sent as a raw string');
 });

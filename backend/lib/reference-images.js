@@ -213,6 +213,7 @@ function toDataUri(filePath) {
             // Re-inserted so the most recently used survives eviction.
             DATA_URI_CACHE.delete(key);
             DATA_URI_CACHE.set(key, hit);
+            require('./file-strings').noteFileString(hit, key);
             return hit;
         }
 
@@ -228,6 +229,8 @@ function toDataUri(filePath) {
 
         const uri = `data:${mime};base64,${fs.readFileSync(readPath).toString('base64')}`;
         DATA_URI_CACHE.set(key, uri);
+        // So the fingerprint can recognise these bytes without re-hashing them (lib/file-strings.js).
+        require('./file-strings').noteFileString(uri, key);
         while (DATA_URI_CACHE.size > DATA_URI_CACHE_MAX) {
             DATA_URI_CACHE.delete(DATA_URI_CACHE.keys().next().value);
         }

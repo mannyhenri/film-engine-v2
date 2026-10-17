@@ -123,15 +123,6 @@ test('a file that vanishes mid-serve closes the response instead of crashing', a
     assert.strictEqual(done, 'destroyed');
 });
 
-test('a preset path outside the Native Instruments folders is refused without saying whether it exists', async () => {
-    const { handleInstruments } = require('../routes/instruments');
-    const a = await callRoute(handleInstruments, 'POST', '/film/instruments', { preset_path: '/etc/hosts', plugin: 'x' });
-    const b = await callRoute(handleInstruments, 'POST', '/film/instruments', { preset_path: '/nope/secret.nksf', plugin: 'x' });
-    assert.strictEqual(a.status, 400);
-    assert.strictEqual(b.status, 400);
-    assert.strictEqual(a.body.error, b.body.error, 'the refusal differs by whether the file exists — a file-existence oracle');
-});
-
 // ── P1 ─────────────────────────────────────────────────────────────────────
 
 test('a streaming model call is aborted when the browser disconnects', () => {
@@ -151,12 +142,6 @@ test('the page calls no function and reads no global it never defines', () => {
         const defined = new RegExp('(function|const|let|var)\\s+' + name + '\\b').test(html);
         assert.ok(uses === 0 || defined, `${name} is used ${uses} time(s) and defined nowhere`);
     }
-});
-
-test('the instrument sidecar has no undefined name in its capture', () => {
-    const src = read('instrument-sidecar.py');
-    const capture = src.slice(src.indexOf('def op_capture'), src.indexOf('\ndef ', src.indexOf('def op_capture') + 5));
-    assert.ok(!/'plugin':\s*plugin\b/.test(capture), "op_capture reads a 'plugin' variable it never defines");
 });
 
 test('a plate view reports the size and format measured from its file', async () => {

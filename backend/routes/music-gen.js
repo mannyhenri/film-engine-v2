@@ -1,14 +1,15 @@
 /**
- * FILM-090-093: Music & Sound Design Pipeline
+ * FILM-090-093: Sound Design Pipeline
  *
- * POST /film/scenes/:id/music/generate          - Generate score for a scene
- * POST /film/scenes/:id/music/generate/stream    - SSE streaming
  * POST /film/shots/:id/sfx/generate             - Generate SFX for a shot
  * POST /film/scenes/:id/ambient/generate        - Generate ambient for a scene
- * POST /film/projects/:id/music/batch           - Batch all music/SFX/ambient
- * POST /film/projects/:id/music/batch/stream    - SSE batch
- * GET  /film/projects/:id/music/jobs            - List all music jobs
- * GET  /film/music/:projectId/:filename         - Serve music files
+ * GET|POST /film/music-cues/:id/generate        - Preview or generate an effect or ambient cue
+ * GET  /film/projects/:id/music/jobs            - List sound jobs and the scene audio files
+ * GET  /film/music/:projectId/:filename         - Serve sound and music files
+ *
+ * Music is no longer generated here: music-making (scores, cues, sessions) was
+ * retired by the user on 2026-10-14. Music comes in as files (media import)
+ * and is served, mixed and exported like every other sound.
  */
 
 const { db, generateId } = require('../db/database');
@@ -113,7 +114,6 @@ async function generateFromCue(req, res, cueId, opts) {
     }
     const scene = db.prepare('SELECT * FROM film_scenes WHERE id = ?').get(cue.scene_id);
     if (!scene) return json(res, 404, { error: 'The scene this cue belongs to is gone' });
-    const project = db.prepare('SELECT * FROM film_projects WHERE id = ?').get(scene.project_id);
 
     /*
      * An SFX cue is refused rather than attempted. Sound effects are built from
@@ -156,13 +156,6 @@ async function generateFromCue(req, res, cueId, opts) {
         });
     }
 
-    const { cueSeconds } = require('../lib/scene-score');
-    const context = sceneScoreContext(scene);
-    const length = cueSeconds({
-        cue_ms: cue.duration_ms, cut_ms: context.cut_ms,
-        dialogue_ms: context.dialogue_ms, card_ms: context.card_ms, explain: true,
-    });
-
     // ---- Ambient ---------------------------------------------------------
     if (cue.cue_type === CUE_KIND_FOR.ambient) {
         const location = scene.location_id
@@ -179,22 +172,10 @@ async function generateFromCue(req, res, cueId, opts) {
         });
     }
 
-    // ---- Score, and the two music kinds beside it ------------------------
-    let sections = [];
-    try { sections = JSON.parse(cue.sections_json || '[]') || []; } catch (_) { sections = []; }
-    const scored = {
-        cue: { ...cue, sections: Array.isArray(sections) ? sections : [] },
-        context, length, derived: false,
-    };
-    const built = musicPayloadFor(scored, scene, project);
-    if (built.errors.length) return sectionRefusal(res, built.errors);
-
-    const provider = resolveGenerator('music',
-        spendContext({ id: scene.project_id }, null, scene, cueOverride(req, 'music')));
-    return runCueGeneration(res, { preview,
-        cue, scene, provider, payload: built.payload, genType: 'score',
-        assetType: 'audio_music', suffix: 'score',
-        durationMs: (length.seconds || 0) * 1000,
+    // ---- Score, source music, transitions: retired --------------------------
+    return json(res, 410, {
+        error: `A ${cue.cue_type} cue is music, and music is no longer generated in Film Engine. Bring the music in instead: upload it to the scene.`,
+        cue_id: cue.id, cue_type: cue.cue_type,
     });
 }
 
@@ -244,7 +225,7 @@ async function runCueGeneration(res, o) {
     try {
         // The cue id rides on the job so the Production graph can show which
         // sound node is running (PGN-003).
-        const result = await provider.generate(genType === 'ambient' ? 'ambient' : 'music', payload,
+        const result = await provider.generate(genType, payload,
             { timeout: 300000, jobMeta: { music_cue_id: cue.id } });
         if (!result.ok) {
             db.prepare('UPDATE film_music_jobs SET status = ?, error_message = ? WHERE id = ?')
@@ -323,21 +304,6 @@ function handleMusicGen(req, res, urlParts, query) {
         return generateFromCue(req, res, urlParts[2]);
     }
 
-    // /film/scenes/:id/music/generate[/stream]
-    if (urlParts[1] === 'scenes' && urlParts[2] && urlParts[3] === 'music') {
-        const sceneId = urlParts[2];
-        if (!UUID_RE.test(sceneId)) return json(res, 400, { error: 'Invalid scene ID' });
-
-        // The brief is a SIBLING of generate, not a child of it: nested inside
-        // the POST branch a GET could never reach it.
-        if (urlParts[4] === 'brief' && req.method === 'GET') return musicBrief(req, res, sceneId);
-        if (urlParts[4] === 'generate' && req.method === 'POST') {
-            if (urlParts[5] === 'stream') return generateMusicStream(req, res, sceneId);
-            return generateMusic(req, res, sceneId);
-        }
-        return json(res, 405, { error: 'Method not allowed' });
-    }
-
     // /film/scenes/:id/ambient/generate
     if (urlParts[1] === 'scenes' && urlParts[2] && urlParts[3] === 'ambient') {
         const sceneId = urlParts[2];
@@ -373,26 +339,13 @@ function handleMusicGen(req, res, urlParts, query) {
         return json(res, 405, { error: 'Method not allowed' });
     }
 
-    // /film/projects/:id/music[/batch[/stream] | /jobs]
+    // /film/projects/:id/music[/jobs | /mix | /stems | /srt]
     if (urlParts[1] === 'projects' && urlParts[2] && urlParts[3] === 'music') {
         const projectId = urlParts[2];
         if (!UUID_RE.test(projectId)) return json(res, 400, { error: 'Invalid project ID' });
 
         const sub = urlParts[4];
-        if (sub === 'batch' && req.method === 'POST') {
-            if (urlParts[5] === 'stream') return batchMusicStream(req, res, projectId);
-            return batchMusic(req, res, projectId);
-        }
         if (sub === 'jobs' && req.method === 'GET') return listMusicJobs(req, res, projectId, query);
-        if (sub === 'capabilities' && req.method === 'GET') {
-            // Free. What this project's music provider can and cannot do, per
-            // workflow, with limits, cost hints and the reason for every "no".
-            const project = db.prepare('SELECT id, provider_config FROM film_projects WHERE id = ?').get(projectId);
-            if (!project) return json(res, 404, { error: 'Project not found' });
-            const { discoverMusicCapabilities } = require('../lib/music-capabilities');
-            const { providerConfigOf } = require('../lib/provider-config');
-            return json(res, 200, { project_id: projectId, ...discoverMusicCapabilities(providerConfigOf(project)) });
-        }
         if (sub === 'mix' && req.method === 'POST') return mixProjectAudio(req, res, projectId);
         if (sub === 'stems' && req.method === 'POST') return exportStems(req, res, projectId);
         if (sub === 'srt' && req.method === 'GET') return exportSRT(req, res, projectId);
@@ -402,14 +355,13 @@ function handleMusicGen(req, res, urlParts, query) {
     json(res, 404, { error: 'Not found' });
 }
 
-// -- Generate Music Score for a Scene ------------------------------------
+// -- A scene, for its sound ----------------------------------------------
 
 /**
- * Everything the engine knows about a scene, for a score.
+ * Everything the engine knows about a scene, for the length of its bed.
  *
- * Gathered here rather than at each call site, because three of them build a
- * music payload and only one of them getting the scene is how a batch comes
- * back as wallpaper while a single generation sounds right.
+ * Gathered here rather than at each call site, so every bed measures its
+ * scene the same way.
  */
 function sceneScoreContext(scene) {
     const { sceneCutLength } = require('../lib/clip-coverage');
@@ -486,7 +438,6 @@ function sceneScoreContext(scene) {
  * reported as declined rather than silently ignored.
  */
 const CUE_KIND_FOR = Object.freeze({
-    music: 'score',
     ambient: 'ambient',
     sfx: 'sfx',
 });
@@ -544,349 +495,6 @@ function linkCueAsset(cueId, assetId) {
         db.prepare('UPDATE film_music_cues SET generated_asset_id = ? WHERE id = ?').run(assetId, cueId);
         return true;
     } catch (_) { return false; }
-}
-
-/**
- * The cue this scene is scored from.
- *
- * A cue somebody WROTE always wins — it is the musical direction, and deriving
- * over it would overrule the director. With no cue, the scene's own facts are
- * used rather than the defaults, which is the whole fix: the old fallback was
- * `mood: calm, genre: ambient` for every scene in every film.
- */
-function cueForScene(scene, project, body) {
-    const { scoreBrief, cueFromBrief, cueSeconds } = require('../lib/scene-score');
-    const picked = cueOfKind(scene.id, CUE_KIND_FOR.music);
-    const written = picked.chosen;
-    const context = sceneScoreContext(scene);
-
-    const length = cueSeconds({
-        cue_ms: written && written.duration_ms,
-        cut_ms: context.cut_ms,
-        dialogue_ms: context.dialogue_ms,
-        card_ms: context.card_ms,
-        explain: true,
-    });
-
-    if (written) {
-        // Sections come out of the row as JSON. Parsed here rather than at each
-        // reader, so the brief, the preview and the generation cannot disagree
-        // about the shape of the same cue.
-        let sections = [];
-        try { sections = JSON.parse(written.sections_json || '[]') || []; } catch (_) { sections = []; }
-        return {
-            cue: { ...written, sections: Array.isArray(sections) ? sections : [] },
-            context, length, derived: false,
-            other_cues: picked.others,
-            brief: scoreBrief(scene, context, project),
-        };
-    }
-
-    const brief = scoreBrief(scene, context, project);
-    const derived = cueFromBrief(brief);
-    // A body may still steer it: mood and genre are judgements, and a caller
-    // saying "make it tense" must beat a derivation that had no opinion.
-    if (body && body.mood) derived.mood = body.mood;
-    if (body && body.genre) derived.genre = body.genre;
-    if (body && body.description) derived.description = body.description;
-    if (length.seconds) derived.duration_ms = length.seconds * 1000;
-
-    return { cue: derived, context, length, derived: true, other_cues: picked.others, brief };
-}
-
-/**
- * A cue's payload, with its composition plan attached if it has sections.
- *
- * ONE builder for the free brief and for all three paid paths. Three sites built
- * this independently and the batch one did not even go through cueForScene — so
- * a scene generated from the Music page got the measured length and the same
- * scene generated from the batch got a thirty-second default. A preview built
- * differently from its purchase is worse than no preview, and this codebase has
- * paid for that once already on the refine path.
- */
-function musicPayloadFor(scored, scene, project) {
-    const { buildMusicPrompt } = require('../lib/music-prompt');
-    const { validateSections, compositionPlan, sectionFit } = require('../lib/music-sections');
-
-    const payload = buildMusicPrompt(scored.cue, scene, project);
-    if (scored.length && scored.length.seconds) {
-        payload.duration_s = scored.length.seconds;
-        payload.duration_source = scored.length.source;
-    }
-
-    const raw = Array.isArray(scored.cue.sections) ? scored.cue.sections : [];
-    if (!raw.length) return { payload, plan: null, fit: null, errors: [] };
-
-    const checked = validateSections(raw);
-    if (!checked.valid) return { payload, plan: null, fit: null, errors: checked.errors };
-
-    payload.composition_plan = compositionPlan(
-        payload.prompt_parts, checked.sections, payload.negative_prompt);
-    // The plan carries the length: the provider refuses music_length_ms
-    // alongside one, and the sections' own durations are what it honours.
-    payload.duration_s = checked.total_ms / 1000;
-    payload.duration_source = 'sections';
-    return {
-        payload, plan: payload.composition_plan,
-        /*
-         * Measured against the length this cue WOULD have had — the walk
-         * cue → footage → dialogue → nothing — not against footage alone.
-         * A dialogue scene with nothing shot yet has cut_ms 0, so comparing
-         * against that reports "no difference" for a cue 162 seconds short of
-         * its scene, which is worse than reporting nothing.
-         */
-        fit: {
-            ...sectionFit(checked.sections, (scored.length && scored.length.seconds || 0) * 1000),
-            cut_source: (scored.length && scored.length.source) || null,
-        },
-        errors: [],
-    };
-}
-
-/**
- * A refusal that costs nothing, in the shape every paid path uses.
- */
-function sectionRefusal(res, errors) {
-    return json(res, 400, {
-        error: "The cue's sections cannot be generated as written",
-        errors,
-        hint: 'Nothing was generated and nothing was charged. Fix the sections and try again.',
-    });
-}
-
-/**
- * What this scene is, for somebody deciding what it should sound like.
- *
- * FREE, and it returns no conclusion. What a scene should sound like is a
- * judgement and the connected agent is the model here, so the engine assembles
- * the facts and validates the answer rather than asking a second LLM what the
- * music is. Write the answer back with music_cue_create.
- */
-function musicBrief(req, res, sceneId) {
-    const scene = db.prepare('SELECT * FROM film_scenes WHERE id = ?').get(sceneId);
-    if (!scene) return json(res, 404, { error: 'Scene not found' });
-    const project = db.prepare('SELECT * FROM film_projects WHERE id = ?').get(scene.project_id);
-
-    const scored = cueForScene(scene, project, null);
-    const sectionLimits = require('../lib/music-sections');
-    const built = musicPayloadFor(scored, scene, project);
-    const wouldSend = built.payload;
-
-    return json(res, 200, {
-        free: true,
-        scene_id: sceneId,
-        scene: {
-            number: scene.scene_number,
-            heading: `${scene.int_ext || ''} ${scene.location || ''} - ${scene.time_of_day || ''}`.trim(),
-            description: scene.description || null,
-        },
-        facts: scored.brief.facts,
-        length: scored.length,
-        // What a cue somebody already wrote says, or null — so a model knows
-        // whether it is writing the direction or reading it.
-        existing_cue: scored.derived ? null : {
-            mood: scored.cue.mood, genre: scored.cue.genre,
-            description: scored.cue.description,
-            reference_track: scored.cue.reference_track || null,
-        },
-        derived_description: scored.brief.description,
-        would_send: {
-            // A plan REPLACES the prompt at the provider — the two are mutually
-            // exclusive — so showing both would describe a request that cannot
-            // be made.
-            prompt: built.plan ? null : wouldSend.prompt,
-            duration_s: wouldSend.duration_s,
-            duration_source: wouldSend.duration_source || null,
-            composition_plan: built.plan,
-        },
-        sections: {
-            limits: {
-                min_section_ms: sectionLimits.SECTION_MIN_MS,
-                max_section_ms: sectionLimits.SECTION_MAX_MS,
-                max_cue_ms: sectionLimits.CUE_MAX_MS,
-            },
-            written: scored.cue.sections || [],
-            fit: built.fit,
-            errors: built.errors,
-            // A structural split for a cue too long to be one section. It says
-            // nothing about what any part should SOUND like — that is the
-            // judgement this hands to whoever is directing.
-            suggested: (scored.cue.sections || []).length ? null
-                : sectionLimits.splitToFit((scored.length.seconds || 0) * 1000, scored.brief.description),
-        },
-        guidance: 'Decide the mood, the genre, the instruments and a reference track, then store '
-            + 'them with music_cue_create. A cue you write always beats the derivation. Note the '
-            + 'dialogue count: a wall-to-wall dialogue scene wants sparse underscore that never '
-            + 'becomes melodic, because a melody there fights the words. '
-            + 'To shape the cue OVER TIME — sparse under the argument, opening out at the reveal '
-            + '— write `sections`: each needs a name, a direction and a length between 3s and '
-            + '120s, and the generator honours those lengths. A cue with no sections sends one '
-            + 'prompt for its whole length, exactly as before.',
-    });
-}
-
-async function generateMusic(req, res, sceneId) {
-    const scene = db.prepare('SELECT * FROM film_scenes WHERE id = ?').get(sceneId);
-    if (!scene) return json(res, 404, { error: 'Scene not found' });
-
-    const project = db.prepare('SELECT * FROM film_projects WHERE id = ?').get(scene.project_id);
-    const musicProvider = resolveGenerator('music', spendContext({ id: scene.project_id }, null, scene, cueOverride(req, 'music')));
-
-    // Find music cues for this scene, or create from request body
-    const scored = cueForScene(scene, project, req.body);
-    let musicCue = scored.cue;
-
-    // The same builder the free brief showed — the measured length, and the
-    // composition plan when the cue has sections.
-    const built = musicPayloadFor(scored, scene, project);
-    if (built.errors.length) return sectionRefusal(res, built.errors);
-    const payload = built.payload;
-
-    const jobId = generateId();
-    db.prepare(
-        `INSERT INTO film_music_jobs (id, project_id, scene_id, music_cue_id, gen_type, status, prompt, model, duration_ms, tempo_bpm)
-         VALUES (?, ?, ?, ?, 'score', 'generating', ?, ?, ?, ?)`
-    ).run(jobId, scene.project_id, sceneId, musicCue && musicCue.id ? musicCue.id : null,
-        payload.prompt, payload.model, payload.duration_s * 1000, payload.tempo_bpm);
-
-    try {
-        const result = await musicProvider.generate('music', payload, { timeout: 300000 });
-
-        if (!result.ok) {
-            db.prepare('UPDATE film_music_jobs SET status = ?, error_message = ? WHERE id = ?').run('failed', result.error, jobId);
-            if (musicProvider.id === 'gridlight' && result.status === 503) return json(res, 503, serviceUnavailableError(MUSIC_ENDPOINT, 'music'));
-            return json(res, result.status || 500, { error: result.error });
-        }
-
-        const filename = filenameForResult(`${scene.scene_number || sceneId}_score.wav`, result);
-        ensureDir(scene.project_id, 'music');
-
-        let filePath;
-        try {
-            filePath = await persistProviderMedia(scene.project_id, 'music', filename, result.data, { serveDir: 'music' });
-        } catch (err) {
-            db.prepare('UPDATE film_music_jobs SET status = ?, error_message = ? WHERE id = ?').run('failed', err.message, jobId);
-            return json(res, 502, { error: `music generated but could not be stored: ${err.message}` });
-        }
-
-        const assetId = generateId();
-        db.prepare(
-            `INSERT INTO film_assets (
-                id, project_id, scene_id, asset_type, file_path, file_name,
-                format, mime_type, duration_ms, version,
-                provider, provider_model, provider_job_id, license_source, license_status
-             )
-             VALUES (?, ?, ?, 'audio_music', ?, ?, ?, ?, ?, 1, ?, ?, ?, 'generated', 'generated')`
-        ).run(
-            assetId, scene.project_id, sceneId, filePath, filename, formatForResult(result), mimeForResult(result), payload.duration_s * 1000,
-            musicProvider.id, resultModel(result, payload), resultJobId(result)
-        );
-
-        // The cue this was generated FROM, so the row and its audio are connected.
-        // A derived score has no cue row to link, and linkCueAsset ignores a null.
-        linkCueAsset(scored.derived ? null : scored.cue.id, assetId);
-
-        // Note: scene-level music is not a shot render, and render_ledger.shot_id
-        // is NOT NULL + FK to film_shots — so we track it in film_music_jobs only.
-        db.prepare('UPDATE film_music_jobs SET status = ?, output_path = ? WHERE id = ?').run('complete', filePath, jobId);
-
-        json(res, 200, {
-            scene_id: sceneId, job_id: jobId, status: 'complete',
-            music_url: getFileUrl('music', scene.project_id, filename),
-            duration_s: payload.duration_s, mood: payload.mood, genre: payload.genre,
-        });
-    } catch (err) {
-        db.prepare('UPDATE film_music_jobs SET status = ?, error_message = ? WHERE id = ?').run('failed', err.message, jobId);
-        if (musicProvider.id === 'gridlight' && err.message.includes('ECONNREFUSED')) return json(res, 503, serviceUnavailableError(MUSIC_ENDPOINT, 'music'));
-        json(res, 500, { error: err.message });
-    }
-}
-
-// -- SSE Streaming Music Generation --------------------------------------
-
-async function generateMusicStream(req, res, sceneId) {
-    const scene = db.prepare('SELECT * FROM film_scenes WHERE id = ?').get(sceneId);
-    if (!scene) return json(res, 404, { error: 'Scene not found' });
-
-    const project = db.prepare('SELECT * FROM film_projects WHERE id = ?').get(scene.project_id);
-    const musicProvider = resolveGenerator('music', spendContext({ id: scene.project_id }, null, scene, cueOverride(req, 'music')));
-    const scored = cueForScene(scene, project, req.body);
-    let musicCue = scored.cue;
-    // The same builder the free brief showed — the measured length, and the
-    // composition plan when the cue has sections.
-    const built = musicPayloadFor(scored, scene, project);
-    if (built.errors.length) return sectionRefusal(res, built.errors);
-    const payload = built.payload;
-
-    res.writeHead(200, {
-        'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache',
-        'Connection': 'keep-alive', 'Access-Control-Allow-Origin': '*',
-    });
-    if (res.socket) res.socket.setTimeout(0);
-
-    const sendEvent = (data) => { if (res.writableEnded) return; res.write(`data: ${JSON.stringify(data)}\n\n`); };
-    sendEvent({ type: 'status', phase: 'starting', scene_id: sceneId, mood: payload.mood });
-
-    const jobId = generateId();
-    db.prepare(
-        `INSERT INTO film_music_jobs (id, project_id, scene_id, gen_type, status, prompt, model)
-         VALUES (?, ?, ?, 'score', 'generating', ?, ?)`
-    ).run(jobId, scene.project_id, sceneId, payload.prompt, payload.model);
-
-    try {
-        // The SSE relay calls onComplete synchronously, so the download happens
-        // after the stream resolves; otherwise the asset keeps an empty
-        // file_path and never reaches the timeline as real media.
-        let streamedAsset = null;
-
-        const { ok, error } = await musicProvider.generateStream('music', payload, res, {
-            onComplete: (data) => {
-                const filename = filenameForResult(`${scene.scene_number || sceneId}_score.wav`, data);
-                ensureDir(scene.project_id, 'music');
-
-                const assetId = generateId();
-                streamedAsset = { assetId, filename, data };
-                db.prepare(
-                    `INSERT INTO film_assets (
-                        id, project_id, scene_id, asset_type, file_name, format, mime_type, version,
-                        provider, provider_model, provider_job_id, license_source, license_status
-                     )
-                     VALUES (?, ?, ?, 'audio_music', ?, ?, ?, 1, ?, ?, ?, 'generated', 'generated')`
-                ).run(
-                    assetId, scene.project_id, sceneId, filename, formatForResult(data), mimeForResult(data),
-                    musicProvider.id, resultModel(data, payload), resultJobId(data)
-                );
-                linkCueAsset(scored.derived ? null : musicCue.id, assetId);
-
-                db.prepare('UPDATE film_music_jobs SET status = ? WHERE id = ?').run('complete', jobId);
-            },
-            onError: (data) => {
-                db.prepare('UPDATE film_music_jobs SET status = ?, error_message = ? WHERE id = ?')
-                    .run('failed', data.error || 'Unknown', jobId);
-            },
-        });
-
-        if (!ok) {
-            sendEvent({ type: 'error', error: error || 'Music generation failed' });
-        } else if (streamedAsset) {
-            try {
-                const filePath = await persistProviderMedia(
-                    scene.project_id, 'music', streamedAsset.filename, streamedAsset.data, { serveDir: 'music' }
-                );
-                db.prepare('UPDATE film_assets SET file_path = ? WHERE id = ?').run(filePath, streamedAsset.assetId);
-            } catch (err) {
-                db.prepare('DELETE FROM film_assets WHERE id = ?').run(streamedAsset.assetId);
-                db.prepare('UPDATE film_music_jobs SET status = ?, error_message = ? WHERE id = ?')
-                    .run('failed', `media not stored: ${err.message}`, jobId);
-                sendEvent({ type: 'error', error: `music generated but could not be stored: ${err.message}` });
-            }
-        }
-    } catch (err) {
-        sendEvent({ type: 'error', error: err.message });
-    }
-
-    sendEvent({ type: 'done' });
-    res.end();
 }
 
 // -- Generate SFX for a Shot ---------------------------------------------
@@ -975,7 +583,7 @@ async function generateSFX(req, res, shotId) {
  * falsy, so the bed fell to a thirty-second default whatever the scene was.
  */
 function ambientOptions(scene, body, namedCue) {
-    const { cueSeconds } = require('../lib/scene-score');
+    const { cueSeconds } = require('../lib/clip-coverage');
     /*
      * A cue may be NAMED by the caller -- `music_cue_generate` addresses one
      * directly. It still comes through here rather than being assembled at the
@@ -1121,151 +729,6 @@ async function generateAmbient(req, res, sceneId) {
     }
 }
 
-// -- Batch Music/SFX/Ambient ---------------------------------------------
-
-async function batchMusicStream(req, res, projectId) {
-    const project = db.prepare('SELECT * FROM film_projects WHERE id = ?').get(projectId);
-    if (!project) return json(res, 404, { error: 'Project not found' });
-    const providerConfig = parseProjectConfig(projectId);
-    const musicProvider = resolveGenerator('music', providerConfig);
-    const ambientProvider = resolveGenerator('ambient', providerConfig);
-
-    res.writeHead(200, {
-        'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache',
-        'Connection': 'keep-alive', 'Access-Control-Allow-Origin': '*',
-    });
-    if (res.socket) res.socket.setTimeout(0);
-
-    let clientGone = false;
-    res.on('close', () => { clientGone = true; });
-
-    const sendEvent = (data) => { if (res.writableEnded) return; res.write(`data: ${JSON.stringify(data)}\n\n`); };
-
-    const scenes = db.prepare('SELECT * FROM film_scenes WHERE project_id = ? ORDER BY scene_number').all(projectId);
-    sendEvent({ type: 'status', phase: 'starting', total_scenes: scenes.length, project_id: projectId });
-
-    let completed = 0, failed = 0;
-    // A held cue is left alone and named, per scene and per kind (PGN-017):
-    // holding the score does not stop the ambient bed, and the other way round.
-    const hold = require('../lib/graph-hold');
-    const held = [];
-    const heldEntry = (cue, scene) => ({ kind: 'sound', id: cue.id, label: cue.title || cue.cue_type,
-        scene_id: scene.id, scene_number: scene.scene_number, reason: hold.HELD_REASON });
-
-    for (const scene of scenes) {
-        if (clientGone || res.writableEnded) break; // client disconnected — stop remaining scenes
-        const heldScore = hold.cueHeldFor(db, scene.id, 'music');
-        const heldAmbient = hold.cueHeldFor(db, scene.id, 'ambient');
-        if (heldScore) { held.push(heldEntry(heldScore, scene)); sendEvent({ type: 'held', held: [heldEntry(heldScore, scene)] }); }
-        if (heldAmbient) { held.push(heldEntry(heldAmbient, scene)); sendEvent({ type: 'held', held: [heldEntry(heldAmbient, scene)] }); }
-        if (!heldScore) {
-            // Music score
-            sendEvent({ type: 'scene_start', scene_id: scene.id, scene_number: scene.scene_number, phase: 'music' });
-            // Through cueForScene like every other path. This read the row
-            // directly, so a scene generated from the batch got a thirty-second
-            // default where the same scene generated from the Music page got its
-            // measured length — and would have silently skipped the sections too.
-            const musicScored = cueForScene(scene, project, null);
-            const musicCue = musicScored.cue;
-            const musicBuilt = musicPayloadFor(musicScored, scene, project);
-            const musicPayload = musicBuilt.payload;
-            if (musicBuilt.errors.length) {
-                sendEvent({ type: 'scene_error', scene_id: scene.id, phase: 'music',
-                    error: `sections: ${musicBuilt.errors.join('; ')}` });
-                failed++;
-                continue;
-            }
-
-            try {
-                const result = await musicProvider.generate('music', musicPayload, { timeout: 300000 });
-                if (!result.ok) throw new Error(result.error);
-
-                const filename = filenameForResult(`${scene.scene_number || scene.id}_score.wav`, result);
-                ensureDir(projectId, 'music');
-                const filePath = await persistProviderMedia(projectId, 'music', filename, result.data, { serveDir: 'music' });
-
-                const assetId = generateId();
-                db.prepare(
-                    `INSERT INTO film_assets (
-                        id, project_id, scene_id, asset_type, file_path, file_name,
-                        format, mime_type, version,
-                        provider, provider_model, provider_job_id, license_source, license_status
-                     )
-                     VALUES (?, ?, ?, 'audio_music', ?, ?, ?, ?, 1, ?, ?, ?, 'generated', 'generated')`
-                ).run(
-                    assetId, projectId, scene.id, filePath, filename, formatForResult(result), mimeForResult(result),
-                    musicProvider.id, resultModel(result, musicPayload), resultJobId(result)
-                );
-                linkCueAsset(musicScored.derived ? null : musicCue.id, assetId);
-
-                sendEvent({ type: 'music_complete', scene_number: scene.scene_number, music_url: getFileUrl('music', projectId, filename) });
-                completed++;
-            } catch (err) {
-                sendEvent({ type: 'music_failed', scene_number: scene.scene_number, error: err.message });
-                failed++;
-            }
-        }
-
-        // Ambient
-        if (clientGone || res.writableEnded) break; // client left mid-scene — skip ambient
-        if (heldAmbient) continue;
-        const location = scene.location_id ? db.prepare('SELECT * FROM film_locations WHERE id = ?').get(scene.location_id) : null;
-        // Through the same reading as the single route: a bed generated from
-        // the batch used to ignore the location's sound notes, the scene's own
-        // direction and the measured length, all three of which the Music page
-        // honoured.
-        const ambient = ambientOptions(scene, null);
-        const ambientPayload = buildAmbientPrompt(scene, location, ambient);
-
-        try {
-            const result = await ambientProvider.generate('ambient', ambientPayload, { timeout: 300000 });
-            if (!result.ok) throw new Error(result.error);
-
-            const filename = filenameForResult(`${scene.scene_number || scene.id}_ambient.wav`, result);
-            const filePath = await persistProviderMedia(projectId, 'music', filename, result.data, { serveDir: 'music' });
-
-            const assetId = generateId();
-            db.prepare(
-                `INSERT INTO film_assets (
-                    id, project_id, scene_id, asset_type, file_path, file_name,
-                    format, mime_type, version,
-                    provider, provider_model, provider_job_id, license_source, license_status
-                 )
-                 VALUES (?, ?, ?, 'audio_ambient', ?, ?, ?, ?, 1, ?, ?, ?, 'generated', 'generated')`
-            ).run(
-                assetId, projectId, scene.id, filePath, filename, formatForResult(result), mimeForResult(result),
-                ambientProvider.id, resultModel(result, ambientPayload), resultJobId(result)
-            );
-            linkCueAsset(ambient.cue && ambient.cue.id, assetId);
-
-            sendEvent({ type: 'ambient_complete', scene_number: scene.scene_number });
-            completed++;
-        } catch (err) {
-            sendEvent({ type: 'ambient_failed', scene_number: scene.scene_number, error: err.message });
-            failed++;
-        }
-    }
-
-    sendEvent({ type: 'result', project_id: projectId, items_completed: completed, items_failed: failed, held });
-    sendEvent({ type: 'done' });
-    res.end();
-}
-
-async function batchMusic(req, res, projectId) {
-    const project = db.prepare('SELECT * FROM film_projects WHERE id = ?').get(projectId);
-    if (!project) return json(res, 404, { error: 'Project not found' });
-
-    const scenes = db.prepare('SELECT * FROM film_scenes WHERE project_id = ? ORDER BY scene_number').all(projectId);
-
-    json(res, 200, {
-        project_id: projectId, total_scenes: scenes.length,
-        scenes: scenes.map(s => ({ scene_id: s.id, scene_number: s.scene_number, location: s.location })),
-        // The held cues these scenes would otherwise generate, named (PGN-017).
-        held: require('../lib/graph-hold').heldCues(db, projectId),
-        hint: 'Use POST /film/projects/:id/music/batch/stream for actual generation with progress',
-    });
-}
-
 // -- List Music Jobs -----------------------------------------------------
 
 function listMusicJobs(req, res, projectId, query) {
@@ -1323,16 +786,8 @@ function collectShotAudioTracks(shotId, scene, shot) {
         });
     }
 
-    /*
-     * An approved score over this scene (MUS-020) IS the music: the shot takes
-     * its slice of the approved mix — from where this shot starts within the
-     * score's picture — and the scene's legacy music is not laid under it.
-     */
-    const scoreSlice = scene ? approvedScoreSlice(scene.project_id, shotId) : null;
-    if (scoreSlice) tracks.push(scoreSlice);
-
-    // Scene-level music
-    if (scene && !scoreSlice && !require('../lib/music-approval').coveredScenes(db, scene.project_id).has(scene.id)) {
+    // Scene-level music (brought in for the scene)
+    if (scene) {
         const musicAssets = db.prepare(
             "SELECT * FROM film_assets WHERE scene_id = ? AND asset_type = 'audio_music' ORDER BY created_at DESC LIMIT 1"
         ).all(scene.id);
@@ -1344,7 +799,7 @@ function collectShotAudioTracks(shotId, scene, shot) {
         }
     }
 
-    // Scene-level ambient — ambience is not music, so an approved score leaves it alone.
+    // Scene-level ambient
     if (scene) {
         const ambientAssets = db.prepare(
             "SELECT * FROM film_assets WHERE scene_id = ? AND asset_type = 'audio_ambient' ORDER BY created_at DESC LIMIT 1"
@@ -1372,21 +827,6 @@ function collectShotAudioTracks(shotId, scene, shot) {
     }
 
     return tracks;
-}
-
-/** This shot's slice of an approved score, when one covers it: the mix, from where the shot starts within the score. */
-function approvedScoreSlice(projectId, shotId) {
-    const score = require('../lib/music-approval').approvedScores(db, projectId).scores.find(sc => sc.shot_ids.includes(shotId));
-    if (!score) return null;
-    const tl = require('./timeline').loadTimeline(projectId);
-    const code = (db.prepare('SELECT shot_code FROM film_shots WHERE id = ?').get(shotId) || {}).shot_code;
-    const entry = tl.entries.find(e => e.shot_id === shotId || (e.covers || []).includes(code));
-    const placement = (tl.score.placements || []).find(p => p.session_id === score.session_id);
-    if (!entry || !placement) return null;
-    return { type: 'music', url: placement.file_path, start_ms: 0, duration_ms: entry.duration_ms,
-        // Where in the approved mix this shot's music begins. A mix service that
-        // ignores it plays the score from its top under every shot.
-        source_offset_ms: entry.start_ms - placement.offset_ms, gain_db: 0, score_session_id: placement.session_id };
 }
 
 async function mixShotAudio(req, res, shotId) {
@@ -1479,11 +919,8 @@ async function mixProjectAudio(req, res, projectId) {
         }
     }
 
-    // The approved score (MUS-020): laid once at its offset, the scene music under it dropped.
-    const tl = require('./timeline').loadTimeline(projectId);
     json(res, 200, {
         project_id: projectId, eligible_shots: eligible.length, shots: eligible,
-        score: tl.score,
         hint: 'POST /film/shots/:id/audio/mix for per-shot mixing, or POST /film/projects/:id/music/stems for stem export.',
     });
 }
@@ -1572,6 +1009,6 @@ module.exports = {
      * generating to find out costs money, and the wrong cue produces a
      * perfectly good file.
      */
-    _internal: { cueForScene, ambientOptions, cueOfKind, linkCueAsset, CUE_KIND_FOR, generateFromCue, sceneScoreContext },
+    _internal: { ambientOptions, cueOfKind, linkCueAsset, CUE_KIND_FOR, generateFromCue, sceneScoreContext },
     collectShotAudioTracks,
 };

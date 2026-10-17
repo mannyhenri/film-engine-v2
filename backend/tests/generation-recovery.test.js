@@ -703,7 +703,7 @@ test('every ElevenLabs endpoint honours the requested format, not just /music', 
 });
 
 
-test('all four audio capabilities ask for the uncompressed render at 48k', () => {
+test('all three audio capabilities ask for the uncompressed render at 48k', () => {
     const { buildVoicePayload } = require('../lib/dialogue-builder');
     const voice = buildVoicePayload({ line: 'hello', character: 'RAY' }, null, null, {});
     assert.strictEqual(voice.output_format, 'wav');
@@ -716,7 +716,6 @@ test('all four audio capabilities ask for the uncompressed render at 48k', () =>
     // And every endpoint resolves it to the same PCM tier.
     for (const req of [
         el.buildVoiceRequest(voice),
-        el.buildMusicRequest({ prompt: 'x', duration_ms: 20000, output_format: 'wav', sample_rate: 48000 }),
         el.buildAmbientRequest({ description: 'x', duration_s: 20, output_format: 'wav', sample_rate: 48000 }),
         el.buildSfxRequest({ description: 'x', duration_s: 3, output_format: 'wav', sample_rate: 48000 }),
     ]) assert.strictEqual(req.outputFormat, 'pcm_48000');

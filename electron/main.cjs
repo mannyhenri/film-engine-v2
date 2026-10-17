@@ -339,29 +339,20 @@ async function smoke(win) {
         }
     }
     /*
-     * The music engine (src/pages/music/engine.js) draws all three music pages React renders: the sound library's count
-     * and the cue grid on Music & Sound, the list on Music Cues, and the score session (or why there is none) in place
-     * of the Score's placeholder. Viewing only: nothing is generated, saved or played.
+     * The music engine (src/pages/music/engine.js) draws Music & Sound: the sound library's count and each scene's
+     * row. Viewing only: nothing is generated, saved or played.
      */
-    if (project && ['music', 'musiccues', 'musicws'].every(p => PAGES.includes(p))) {
-        current = 'music pages';
+    if (project && PAGES.includes('music')) {
+        current = 'music page';
         const before = errors.length;
-        const drawn = {
-            music: `(document.getElementById('soundLibCount').textContent.trim().length > 0) && document.getElementById('musicGrid').children.length > 0`,
-            musiccues: `document.getElementById('musicCueList').innerHTML.trim().length > 0`,
-            musicws: `!/Loading the score session/.test(document.getElementById('mwRoot').textContent)`,
-        };
-        const got = {};
-        for (const [page, test] of Object.entries(drawn)) {
-            await js(`navigateTo('${page}')`);
-            got[page] = false;
-            for (let t = 0; t < 40 && !got[page]; t++) {
-                got[page] = await js(test).catch(() => false);
-                if (!got[page]) await new Promise(r => setTimeout(r, 250));
-            }
+        await js(`navigateTo('music')`);
+        let got = false;
+        for (let t = 0; t < 40 && !got; t++) {
+            got = await js(`(document.getElementById('soundLibCount').textContent.trim().length > 0) && document.getElementById('musicGrid').children.length > 0`).catch(() => false);
+            if (!got) await new Promise(r => setTimeout(r, 250));
         }
-        const ok = Object.values(got).every(Boolean) && errors.length === before;
-        report.push({ id: 'music pages', ok, want: 'music pages', active: ok ? 'music pages (library, cue grid, cue list, score)' : JSON.stringify(got) + ` errors=${errors.length - before}` });
+        const ok = got && errors.length === before;
+        report.push({ id: 'music page', ok, want: 'music page', active: ok ? 'music page (library, scene rows)' : `drawn=${got} errors=${errors.length - before}` });
     }
     /*
      * The 3D stage engine (src/pages/previs/engine.js) draws both 3D pages React renders: the World Engine console on

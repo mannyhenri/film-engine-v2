@@ -308,7 +308,7 @@ function attachPauses(shot, media) {
  *
  * Two shapes are accepted deliberately. An ARRAY is the cue sheet: one entry per
  * cue, each carrying the asset its own `generated_asset_id` points at, so two
- * scores in one scene are two beds rather than one. The older object keyed by
+ * effects in one scene are two beds rather than one. The older object keyed by
  * kind is still honoured because the timeline's existing contracts — default
  * gain, the offset-into-the-scene reading, the end_ms — are asserted against it,
  * and rewriting those assertions to fit a new shape is how a contract quietly
@@ -319,14 +319,19 @@ function sceneSounds(sceneId, sceneAssets = {}, cues = {}) {
     const assets = sceneAssets[sceneId] || {};
 
     if (Array.isArray(at)) {
-        return at
+        const beds = at
+            .filter(cue => BED_KIND_FOR[cue.cue_type])
             .map(cue => ({
-                kind: BED_KIND_FOR[cue.cue_type] || 'music',
-                type: ASSET_TYPE_FOR[cue.cue_type] || 'audio_music',
+                kind: BED_KIND_FOR[cue.cue_type],
+                type: ASSET_TYPE_FOR[cue.cue_type],
                 asset: cue.asset || null,
                 cue,
             }))
             .filter(b => b.asset && b.asset.file_path);
+        // The music brought in for the scene: a file, never a cue (music cues were retired on 2026-10-14).
+        const music = assets.audio_music;
+        if (music && music.file_path) beds.push({ kind: 'music', type: 'audio_music', asset: music, cue: null });
+        return beds;
     }
 
     const out = [];
@@ -338,15 +343,12 @@ function sceneSounds(sceneId, sceneAssets = {}, cues = {}) {
     return out;
 }
 
-/** Which stem a cue type plays on, and which asset type it is stored as. */
-const BED_KIND_FOR = Object.freeze({
-    score: 'music', source: 'music', transition: 'music',
-    ambient: 'ambient', sfx: 'sfx',
-});
-const ASSET_TYPE_FOR = Object.freeze({
-    score: 'audio_music', source: 'audio_music', transition: 'audio_music',
-    ambient: 'audio_ambient', sfx: 'audio_sfx',
-});
+/**
+ * Which stem a cue type plays on, and which asset type it is stored as. Sound cues only: a music cue
+ * (score, source, transition) left in an old project plays nothing of its own; its scene's music file plays.
+ */
+const BED_KIND_FOR = Object.freeze({ ambient: 'ambient', sfx: 'sfx' });
+const ASSET_TYPE_FOR = Object.freeze({ ambient: 'audio_ambient', sfx: 'audio_sfx' });
 
 function sceneBeds(entries, sceneAssets = {}, cues = {}) {
     const spans = new Map();

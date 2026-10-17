@@ -13,7 +13,7 @@
  * carry the actual PROMPT and the actual ASSETS, and where a payload has a
  * prompt the director has to be able to change it before it is sent.
  *
- * Derived from `CAPABILITY_BUILDERS` — the eight capabilities that build a
+ * Derived from `CAPABILITY_BUILDERS` — the seven capabilities that build a
  * provider payload — rather than from a list, because the failure is
  * per-capability: image had a free preview and an override, video had a
  * preview and no override, and voice, lip-sync and post had neither.
@@ -38,17 +38,18 @@ const ROOT = path.join(__dirname, '..');
 /**
  * The capabilities that build a provider payload, from the module itself.
  *
- * `describeCapability` covers eleven, but three of those are not a payload this
+ * `describeCapability` covers more, but some of those are not a payload this
  * engine builds — `llm` runs in the MCP host, and
  * `model3d` is built from a SUBJECT rather than a shot — so the set that must
- * have a per-generation preview is the eight with a builder.
+ * have a per-generation preview is the seven with a builder (music generation
+ * was retired on 2026-10-14).
  */
 function payloadCapabilities() {
     const src = fs.readFileSync(path.join(ROOT, 'lib', 'capability-payloads.js'), 'utf8');
     const block = src.slice(src.indexOf('const CAPABILITY_BUILDERS = {'));
     const names = [...block.slice(0, block.indexOf('\n};')).matchAll(/^\s{4}(\w+)\s*\(ctx/gm)]
         .map(m => m[1]);
-    assert.ok(names.length >= 8, `only found ${names.length} capability builders — the scan is wrong`);
+    assert.ok(names.length >= 7, `only found ${names.length} capability builders — the scan is wrong`);
     return names;
 }
 
@@ -99,10 +100,10 @@ test('every capability that builds a payload can be previewed without spending',
      */
     const { sh } = fixture();
     const ctx = loadShotContext(sh);
-    const scoped = { music: false, ambient: false };  // scene-scoped, built without a shot
+    const scoped = { ambient: false };  // scene-scoped, built without a shot
 
     for (const cap of payloadCapabilities()) {
-        if (scoped[cap] === false && (cap === 'music' || cap === 'ambient')) continue;
+        if (scoped[cap] === false && cap === 'ambient') continue;
         let out = null;
         try { out = buildCapabilityPayload(cap, ctx); }
         catch (err) {

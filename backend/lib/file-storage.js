@@ -471,8 +471,8 @@ function urlForPath(filePath, version) {
 
 module.exports = {
     // Where everything this engine stores lives. Exported so a store that is
-    // NOT project-scoped (the instrument library) roots itself the same way
-    // rather than recomputing the rule and drifting from it.
+    // NOT project-scoped roots itself the same way rather than recomputing the
+    // rule and drifting from it.
     DATA_DIR,
     projectRoot,
     dirFor,

@@ -82,7 +82,7 @@ test('the route writes the code the rule gives, and refuses the 27th insert', as
 });
 
 // ---- the palette -------------------------------------------------------------------
-const VALID_CUE_TYPES = ['score', 'source', 'sfx', 'ambient', 'transition'];
+const VALID_CUE_TYPES = ['sfx', 'ambient'];
 
 test('every cue type the route accepts can be added from the palette', () => {
     assert.match(fs.readFileSync(path.join(__dirname, '..', 'routes', 'assets.js'), 'utf8'),
@@ -110,7 +110,7 @@ test('the entries: a shot after the NEAREST shot with its preview code, every cu
     assert.match(sh[0].label, /2A/); assert.match(sh[0].label, /2AB/);
     es = f(GRAPH, { x: 810, y: 20 }, [], null);
     assert.equal(es.find(e => e.kind === 'shot').after, 'c', 'not the nearest shot');
-    assert.equal(es.find(e => e.kind === 'sound' && e.cue_type === 'score').scene_id, 's3', 'a cue lands in the nearest shot\'s scene');
+    assert.equal(es.find(e => e.kind === 'sound' && e.cue_type === 'ambient').scene_id, 's3', 'a cue lands in the nearest shot\'s scene');
     assert.deepEqual(es.filter(e => e.kind === 'sound').map(e => e.cue_type).sort(), [...VALID_CUE_TYPES].sort());
     assert.ok(!es.some(e => e.kind === 'sequence'), 'a sequence from nothing is offered');
     es = f(GRAPH, { x: 20, y: 30 }, ['shot:b', 'shot:a'], null);
@@ -147,7 +147,7 @@ test('picking goes through the existing routes: insert-after with the descriptio
     const at = { x: 12, y: 34 };
     const expect = [
         [{ kind: 'shot', after: 'a', code: '2AB' }, 'A reaction', '/shots/a/insert-after', b => b.card.description === 'A reaction', 'shot:new-shot'],
-        [{ kind: 'sound', cue_type: 'transition', scene_id: 's2', label: 'Transition' }, null, '/projects/p/music-cues', b => b.cue_type === 'transition' && b.scene_id === 's2', 'sound:new-cue'],
+        [{ kind: 'sound', cue_type: 'sfx', scene_id: 's2', label: 'Sound effect' }, null, '/projects/p/music-cues', b => b.cue_type === 'sfx' && b.scene_id === 's2', 'sound:new-cue'],
         [{ kind: 'sequence', shot_ids: ['a', 'b'], name: '2A–2B' }, null, '/projects/p/sequences', b => b.shot_ids.join() === 'a,b', 'seq:new-seq'],
     ];
     for (const [entry, text, url, bodyOk, key] of expect) {

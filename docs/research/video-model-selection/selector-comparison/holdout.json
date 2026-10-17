@@ -1,0 +1,14 @@
+[
+ {"id":"h-western","label":"Western standoff","prompt":"A dusty western street at noon. Two gunslingers face each other, a tumbleweed rolls past, slow push in on the younger one's twitching hand.","duration":8,"aspect":"16:9","resolution":"1080p"},
+ {"id":"h-kids-2d","label":"2D kids cartoon","prompt":"Flat 2D cartoon for kids: a smiling sun waves at a rainbow over green hills.","duration":5,"aspect":"16:9","resolution":"720p"},
+ {"id":"h-car-ad","label":"Car commercial","prompt":"Car commercial: a silver SUV drives along a coastal highway at sunset, aerial tracking shot, glossy reflections.","duration":8,"aspect":"16:9","resolution":"1080p"},
+ {"id":"h-interview","label":"Talking head interview","prompt":"A scientist in a lab coat sits for an interview and explains: \"The results surprised all of us.\"","duration":6,"aspect":"16:9","resolution":"1080p"},
+ {"id":"h-rain-window","label":"Quiet mood","prompt":"Rain runs down a window, a blurred city at night behind it, a cup of tea in the foreground.","duration":5,"aspect":"16:9","resolution":"720p"},
+ {"id":"h-battle","label":"Epic battle","prompt":"Epic medieval battle: hundreds of soldiers charge across a muddy field, arrows filling the sky, a knight on horseback leads them.","duration":10,"aspect":"16:9","resolution":"1080p"},
+ {"id":"h-tiktok-dance","label":"Vertical dance trend","prompt":"Vertical TikTok clip: a teenager does a trending dance in her bedroom, ring light, phone camera.","duration":6,"aspect":"9:16","resolution":"720p"},
+ {"id":"h-glass","label":"Shattering glass","prompt":"Slow motion: a glass vase falls off a table and shatters on a tile floor, shards scattering.","duration":5,"aspect":"16:9","resolution":"1080p"},
+ {"id":"h-poster-text","label":"Title card","prompt":"Cinematic title card: the words \"THE LAST SUMMER\" fade in over a golden wheat field.","duration":5,"aspect":"16:9","resolution":"1080p"},
+ {"id":"h-long-walk","label":"Long walk and talk, 20s","prompt":"A long walk-and-talk down a hospital corridor: two doctors discuss a patient while nurses pass by, steadicam leading them.","duration":20,"aspect":"16:9","resolution":"1080p"},
+ {"id":"h-pixel","label":"Pixel art","prompt":"Pixel art style: a tiny knight jumps across floating platforms over lava.","duration":5,"aspect":"16:9","resolution":"720p"},
+ {"id":"h-underwater","label":"Underwater","prompt":"Underwater shot of a sea turtle gliding past a coral reef, sun rays piercing the water.","duration":6,"aspect":"16:9","resolution":"1080p"}
+]

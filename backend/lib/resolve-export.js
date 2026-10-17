@@ -25,7 +25,6 @@
  *     READ ME.txt
  *     Scene_01_INT-DINER-NIGHT/
  *       Video/1A.mp4  Stills/1B.png  Sound/1A_dialogue_1.mp3 …
- *     Score/
  *
  * Media is COPIED, never moved, and the plan is free and separate from writing,
  * on the conform's and the Premiere handover's precedent.
@@ -90,10 +89,17 @@ function markerNote(info) {
  * What the export would hold. FREE: reads rows and checks files exist.
  * Returns the edit as clips on lanes, in milliseconds, and the files to copy.
  */
-function planResolve(db, projectId) {
+function planResolve(db, projectId, opts = {}) {
     const project = db.prepare('SELECT * FROM film_projects WHERE id = ?').get(projectId);
     if (!project) { const e = new Error('Project not found'); e.code = 'NOT_FOUND'; throw e; }
     const timeline = require('../routes/timeline').loadTimeline(projectId);
+    /*
+     * A CUT (Production's Cut tab, lib/production-cuts.js): only its shots, in its order and lengths, and only the
+     * sounds wired into it. Those sounds REPLACE the film's scene beds, timeline sound edits and shot effects here:
+     * the cut is the director's choice of what plays, and laying both would double every effect.
+     */
+    const cut = opts.cut || null;
+    const cutLayout = cut ? require('./production-cuts').layoutOf(db, cut, timeline) : null;
     const fps = Number(project.target_fps) || Number(timeline && timeline.fps) || DEFAULT_FPS;
 
     const scenes = db.prepare('SELECT id, scene_number, int_ext, location, time_of_day, description FROM film_scenes WHERE project_id = ?').all(projectId);
@@ -140,11 +146,17 @@ function planResolve(db, projectId) {
 
     const video = [];
     const lanes = { clip: [], timeline: [], dialogue: [], sfx: [], music: [], ambient: [] };
-    const audioTracks = ((timeline && timeline.audio_tracks) || []).map(t => ({ ...t }));
+    const audioTracks = cut ? [] : ((timeline && timeline.audio_tracks) || []).map(t => ({ ...t }));
     const explicitAudioIds = new Set(audioTracks.map(t => t.asset_id || t.source && t.source.asset_id));
     const markers = [];
     const shots = [];
-    const entries = (timeline && timeline.entries) || [];
+    const entries = cut
+        ? cutLayout.shots.filter(s => s.start_ms !== null).map(s => {
+            const e = s.entry || { shot_id: s.shot_id, shot_code: s.shot_code, scene_id: s.scene_id, index: 0 };
+            // The cut's own length: a board held longer or shorter, a clip played to a cut point.
+            return { ...e, start_ms: s.start_ms, duration_ms: s.duration_ms, ...(e.video ? { video: { ...e.video } } : {}) };
+        })
+        : (timeline && timeline.entries) || [];
     const { inspectMedia } = require('./ffmpeg');
     let lastScene = null;
 
@@ -153,6 +165,7 @@ function planResolve(db, projectId) {
     const sfxByShot = new Map();
     for (const r of db.prepare(`SELECT id, shot_id, file_path, file_name, duration_ms, metadata, version FROM film_assets
         WHERE project_id = ? AND asset_type = 'audio_sfx' AND shot_id IS NOT NULL ORDER BY created_at DESC`).all(projectId)) {
+        if (cut) break;   // a cut's effects are its wired sounds
         if (require('./nle-media').metadata(r).selected === false) continue;
         if (explicitAudioIds.has(r.id)) continue;
         const list = sfxByShot.get(r.shot_id) || [];
@@ -271,7 +284,7 @@ function planResolve(db, projectId) {
         track.copied_source = { sha256: hash, byte_length: bytes.length };
         const shot = track.shot_id && shotById.get(track.shot_id);
         const owner = entries.find(e => e.start_ms === track.owner_start_ms);
-        track.file = fileFor(source.path, `${folderOf(shot && shot.scene_id || owner && owner.scene_id)}/Sound/attached_${track.id}.${extOf(source.path)}`, 'timeline_audio');
+        track.file = fileFor(source.path, `${folderOf(shot && shot.scene_id || owner && owner.scene_id)}/Sound/${path.parse(source.path).name.replace(/[^\w .-]+/g, '_')}_${String(track.id).slice(0, 8)}.${extOf(source.path)}`, 'timeline_audio');
         for (const adjustment of track.timeline_adjustments || []) warnings.push({ ...adjustment, track_id: track.id,
             message: `${label}: ${adjustment.omitted_ms} ms lies ${adjustment.code === 'PRELAP_BEFORE_CUT' ? 'before the cut begins' : 'after the cut ends'}; original placement and full source remain in the manifest.` });
         if (track.status === 'unplaced' || track.status === 'outside_cut') {
@@ -301,20 +314,28 @@ function planResolve(db, projectId) {
     }
 
     const mapTime=ms => { const t=timing.find(t=>ms >= t.oldStart && ms <= t.oldEnd); return t ? t.start+Math.min(ms-t.oldStart,t.end-t.start) : editorialOffset; };
-    if (timing.some(t=>t.oldEnd-t.oldStart !== t.end-t.start)) warnings.push({code:'SCORE_RECONFORM_REQUIRED',message:'Source trims changed the cut. Beds have been repositioned; audition and reconform the score against this edit.'});
-    for (const [i, originalBed] of ((timeline && timeline.beds) || []).entries()) {
-        const b={...originalBed,start_ms:mapTime(originalBed.start_ms || 0),end_ms:mapTime(originalBed.end_ms || 0)};
-        const kind = b.kind === 'ambient' ? 'ambient' : b.kind === 'sfx' ? 'sfx' : 'music';
-        const isScore = b.source === 'score_session';
-        const rel = fileFor(b.path, isScore ? `Score/${path.basename(b.path)}` : `${folderOf(b.scene_id)}/Sound/scene_${kind}_${i + 1}.${extOf(b.path)}`, kind);
+    if (timing.some(t=>t.oldEnd-t.oldStart !== t.end-t.start)) warnings.push({code:'BEDS_RECONFORM_REQUIRED',message:'Source trims changed the cut. Beds have been repositioned; audition the music and ambience against this edit.'});
+    // A cut's wired sounds, already in cut time; else the film's scene beds, mapped onto this edit.
+    const laidLines = new Set(cut ? [...files.values()].filter(f => f.kind === 'dialogue').map(f => f.from) : []);
+    const beds = cut
+        ? cutLayout.sounds.filter(snd => {
+            if (!snd.placed) { warnings.push({ code: 'CUT_SOUND_UNPLACED', sound_id: snd.id, message: `${snd.label || snd.kind}: ${snd.why}; left out.` }); return false; }
+            if (!snd.asset) { warnings.push({ code: 'CUT_SOUND_EMPTY', sound_id: snd.id, message: `${snd.label || snd.kind}: no file yet; left out.` }); return false; }
+            // A shot's own generated line is already on the dialogue lane; the same file wired again would say it twice.
+            if (snd.kind === 'dialogue' && laidLines.has(snd.asset.file_path)) { warnings.push({ code: 'CUT_SOUND_DUPLICATE', sound_id: snd.id, message: `${snd.label || 'dialogue'}: this line is already the shot's own dialogue; left out so it plays once.` }); return false; }
+            return true;
+        }).map(snd => ({ kind: snd.kind, cut_sound: true, label: snd.label, path: snd.asset.file_path, scene_id: (cutLayout.shots.find(x => x.shot_id === snd.start_shot_id) || {}).scene_id,
+            start_ms: snd.start_ms, end_ms: snd.end_ms, asset_duration_ms: snd.asset.duration_ms, gain_db: snd.gain_db, fade_in_ms: snd.fade_in_ms, fade_out_ms: snd.fade_out_ms }))
+        : (timeline && timeline.beds) || [];
+    for (const [i, originalBed] of beds.entries()) {
+        const b = originalBed.cut_sound ? { ...originalBed } : {...originalBed,start_ms:mapTime(originalBed.start_ms || 0),end_ms:mapTime(originalBed.end_ms || 0)};
+        const kind = b.kind === 'ambient' ? 'ambient' : b.kind === 'sfx' ? 'sfx' : b.kind === 'dialogue' ? 'dialogue' : 'music';
+        const named = b.cut_sound ? `${String(b.label || kind).replace(/[^\w .-]+/g, '_').trim() || kind}_${i + 1}` : `scene_${kind}_${i + 1}`;
+        const rel = fileFor(b.path, `${folderOf(b.scene_id)}/Sound/${named}.${extOf(b.path)}`, kind);
         if (!rel) continue;
         const span = Math.max(0, (b.end_ms || 0) - (b.start_ms || 0));
         const srcMs = Number(b.asset_duration_ms) || span;
         lanes[kind].push({ name: `${kind} ${path.basename(b.path)}`, file: rel, start_ms: b.start_ms, duration_ms: Math.min(span, srcMs) || span, source_ms: srcMs, gain_db: Number(b.gain_db) || 0, fade_in_ms: b.fade_in_ms || 0, fade_out_ms: b.fade_out_ms || 0 });
-    }
-
-    for (const score of require('./music-approval').approvedScores(db,projectId).scores) {
-        for (const asset of require('./nle-media').scoreStems(db,score)) fileFor(asset.file_path,`Score/Stems/${asset.file_name || path.basename(asset.file_path)}`,'score_stem');
     }
 
     return {
@@ -323,6 +344,8 @@ function planResolve(db, projectId) {
         imported_into_resolve: false,
         interchange: 'FCP7_XML',
         title: project.title || 'Untitled',
+        // A cut goes into the film's own Resolve project as a timeline of its name; the film's whole cut, as before.
+        ...(cut ? { cut: { id: cut.id, name: cut.name, version: cut.version }, timeline_name: `${cut.name} v${cut.version}` } : {}),
         fps,
         timebase: { requested_fps: fps, actual_fps: actualRate(fps), frame_duration: fpsToRational(fps),
             xml_timebase: Math.round(fps), xml_ntsc: isNtscFps(fps), quantization: 'Start and end round to the nearest frame at the actual rational frame rate; duration is their difference.',
@@ -416,7 +439,7 @@ function buildResolveXml(plan, urlOf) {
 <!DOCTYPE xmeml>
 <xmeml version="5">
 <sequence id="sequence-1">
-<name>${esc(plan.title)} — first edit</name>
+<name>${esc(plan.timeline_name || plan.title + ' — first edit')}</name>
 <duration>${f(plan.total_ms)}</duration>
 ${rate}
 <timecode>${rate}<string>${esc(plan.timecode_start || "01:00:00:00")}</string><frame>${timecodeToFrames(plan.timecode_start || "01:00:00:00",fps)}</frame><displayformat>${isDropFrameFps(fps) ? "DF" : "NDF"}</displayformat></timecode>
@@ -473,6 +496,9 @@ if HERE == "__HERE__" or not os.path.isdir(HERE):
     HERE = os.path.dirname(os.path.abspath(__file__))
 
 TITLE = ${JSON.stringify(plan.title)}
+TIMELINE = ${JSON.stringify(plan.timeline_name ? plan.timeline_name : plan.title + ' — first edit')}
+# A cut goes into the film's own project (opened when it exists); the whole film's edit makes a project of its own.
+REUSE_PROJECT = ${plan.cut ? 'True' : 'False'}
 FPS = ${JSON.stringify(String(plan.fps))}
 RES = ${JSON.stringify(plan.resolution)}
 FOLDERS = ${JSON.stringify(plan.folders)}
@@ -502,7 +528,9 @@ def main():
         return 1
     pm = r.GetProjectManager()
     name = TITLE
-    project = pm.CreateProject(name)
+    project = pm.LoadProject(name) if REUSE_PROJECT else None
+    if not project:
+        project = pm.CreateProject(name)
     n = 2
     while not project:
         name = "%s (%d)" % (TITLE, n); n += 1
@@ -518,14 +546,23 @@ def main():
         if not os.path.isdir(full):
             continue
         b = pool.AddSubFolder(root, folder)
-        pool.SetCurrentFolder(b)
-        paths = []
-        for dirpath, _, files in os.walk(full):
-            paths += [os.path.join(dirpath, f) for f in sorted(files) if not f.startswith(".")]
-        if paths:
-            pool.ImportMedia(paths)
+        # A bin per scene, and inside it a bin per kind (Video, Sound, Stills), as the package folders are laid out.
+        here = [os.path.join(full, f) for f in sorted(os.listdir(full)) if not f.startswith(".") and os.path.isfile(os.path.join(full, f))]
+        if here:
+            pool.SetCurrentFolder(b)
+            pool.ImportMedia(here)
+        for kind in sorted(os.listdir(full)):
+            sub = os.path.join(full, kind)
+            if kind.startswith(".") or not os.path.isdir(sub):
+                continue
+            paths = []
+            for dirpath, _, files in os.walk(sub):
+                paths += [os.path.join(dirpath, f) for f in sorted(files) if not f.startswith(".")]
+            if paths:
+                pool.SetCurrentFolder(pool.AddSubFolder(b, kind))
+                pool.ImportMedia(paths)
     pool.SetCurrentFolder(root)
-    tl = pool.ImportTimelineFromFile(os.path.join(HERE, ${JSON.stringify(xmlName)}), {"timelineName": TITLE + " — first edit", "importSourceClips": False, "sourceClipsPath": HERE})
+    tl = pool.ImportTimelineFromFile(os.path.join(HERE, ${JSON.stringify(xmlName)}), {"timelineName": TIMELINE, "importSourceClips": False, "sourceClipsPath": HERE})
     if not tl:
         print("The timeline did not import. In Resolve: File > Import > Timeline and pick", ${JSON.stringify(xmlName)})
         return 2
@@ -555,7 +592,7 @@ function writeResolve(db, projectId, opts = {}) {
         const err = new Error(`${dest} already has files in it; an export is written into a new folder`);
         err.code = 'DEST_NOT_EMPTY'; throw err;
     }
-    const plan = planResolve(db, projectId);
+    const plan = planResolve(db, projectId, { cut: opts.cut });
     if (!plan.video.length) {
         const err = new Error('No shot has a clip or a storyboard frame yet, so there is no edit to hand over.');
         err.code = 'NOTHING_TO_EDIT'; err.plan = plan; throw err;
@@ -600,13 +637,11 @@ function writeResolve(db, projectId, opts = {}) {
         plan.missing.length ? 'Missing when this was made:' : 'Nothing was missing when this was made.',
         ...plan.warnings.map(w=>`Warning ${w.code}: ${w.message}`),
         'If this folder moves, relink media to its scene folders and update HERE in the copied import script.',
-        'Score/Stems contains any existing stems of the approved score bounce; import them manually to replace its mixed music lane.',
         ...plan.missing.map(m => `  ${m.shot_code || m.file || ''} ${m.kind}: ${m.reason}`),
         '',
     ].join('\n'), 'utf8');
     const { _files, ...pub } = plan;
     const result = { ...pub, status: 'package_written', imported_into_resolve: false, dest, xml: xmlName, metadata: csvName, script: 'Import into Resolve.py', copied: _files.length,
-        score_stems:'Sidecar files in Score/Stems: import manually when replacing the approved mix',
         relink:'After moving the package, relink media to these scene folders and update HERE in the import script if it is copied into Resolve Scripts.' };
     fs.writeFileSync(path.join(dest,'manifest.json'),JSON.stringify(result,null,2));
     return result;

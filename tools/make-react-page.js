@@ -38,7 +38,7 @@ const used = new Set();
 // compares against), so a page can be regenerated after its markup.html is gone.
 function referenceMarkup(id) {
     const { JSDOM } = require('jsdom');
-    const ref = fs.readFileSync(path.join(ROOT, 'reference/fb8c770/src/index.html'), 'utf8');
+    const ref = require('./split-lib').readSource(path.join(ROOT, 'reference/fb8c770/src/index.html')).text; // less what is retired
     const start = ref.indexOf(`<div class="page" id="page-${id}">`);
     if (start < 0) throw new Error(`page-${id} is not in the reference`);
     const end = ref.indexOf('<div class="page" id="page-', start + 10);

@@ -46,9 +46,10 @@ function parsePage(md) {
             if (j && j.type === 'object' && j.properties) { schema = j; break; }
         } catch (_) { /* an example, not a schema */ }
     }
-    const output = /"video"\s*:\s*\{/.test(md.split('A completed response')[1] || '') ? 'video'
-        : /"images"\s*:/.test(md.split('A completed response')[1] || '') ? 'image'
-        : /"audio"\s*:/.test(md.split('A completed response')[1] || '') ? 'audio' : null;
+    const response = md.split('A completed response')[1] || md.split('```json Completed')[1] || '';
+    const output = /"video"\s*:\s*\{/.test(response) ? 'video'
+        : /"images"\s*:/.test(response) ? 'image'
+        : /"audio"\s*:/.test(response) ? 'audio' : null;
     return { id, title, notes, schema, output };
 }
 

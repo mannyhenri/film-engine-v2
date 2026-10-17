@@ -20,6 +20,12 @@ const path = require('path');
 const { CAPABILITIES } = require('./providers/base');
 
 const SNAPSHOT_PATH = path.join(__dirname, 'model-catalog.snapshot.json');
+/*
+ * Capabilities the gateway may still serve and Film Engine no longer uses. Music-making was retired here on
+ * 2026-10-14, but the catalog is authored in Gridlight: a music model in it is read as known (its entry still has
+ * to be well formed), never as a catalog that fails validation and so refuses every model in it.
+ */
+const RETIRED_CAPABILITIES = ['music'];
 
 /** Every field a model entry carries. A field is null exactly when `unknown` says why. */
 const MODEL_FIELDS = [
@@ -96,7 +102,7 @@ function validateModel(m, i) {
     }
 
     if (!Array.isArray(m.capabilities) || !m.capabilities.length) errs.push(`${id}: capabilities must be a non-empty array`);
-    else for (const c of m.capabilities) if (!CAPABILITIES.includes(c)) errs.push(`${id}: capability ${c} is not one of Film Engine's (${CAPABILITIES.join(', ')})`);
+    else for (const c of m.capabilities) if (!CAPABILITIES.includes(c) && !RETIRED_CAPABILITIES.includes(c)) errs.push(`${id}: capability ${c} is not one of Film Engine's (${CAPABILITIES.join(', ')})`);
 
     if (!Array.isArray(m.allowed_regions) || !m.allowed_regions.length) errs.push(`${id}: allowed_regions must be a non-empty array`);
     else for (const r of m.allowed_regions) if (!REGION_RX.test(String(r))) errs.push(`${id}: allowed_regions has ${r}, not an AWS region id or "*"`);

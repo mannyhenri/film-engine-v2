@@ -31,8 +31,6 @@
       "flows",
       "videoshots",
       "music",
-      "musicws",
-      "musiccues",
       "threed",
       "pipeline",
       "jobsqueue"
@@ -59,18 +57,12 @@
       "previs",
       "threed"
     ],
-    "music": [
-      "music",
-      "musicws",
-      "musiccues"
-    ],
     "graph": [
       "productiongraph",
       "flows"
     ]
   },
   "backendLocalChanges": {
-    "backend/lib/music-approval.js": "SCORE_CONSUMERS: playback's code is the React page's engine, src/pages/playback/player.js, not src/index.html",
     "backend/lib/graph-hold.js": "pgRunPending is in the Production graph page's engine, src/pages/productiongraph/engine.js, not src/index.html",
     "backend/lib/framing.js": "comment: SHOT_FRAMINGS now lives in public/legacy/chunks/stage3d.js",
     "backend/lib/previs-subject-path.js": "comment: subjectPoseAt's mirror now lives in public/legacy/chunks/stage3d.js",
@@ -155,7 +147,7 @@
     "backend/tests/screenplay-drift.test.js": "GRD-4666: shot copy (lib/reference-package.js) is a creation path that stamps its draft",
     "backend/lib/stereo-qualification.js": "GRD-4667: stereo feasibility gate: candidates disabled until evidence, hard-case benchmark, device viewing and a person's decision; flat_sbs fallback; first SBS profile",
     "backend/routes/stereo.js": "GRD-4667: /film/stereo/...: evidence, reels, worker measurements, profiles; decisions are a person's",
-    "backend/lib/release-evidence.js": "GRD-4670: AT01\u2013AT12 registry; writing, blender and stereo release gates over one exact version set; stale, requalified, screenshot-only and automation-only human tests never pass; retained artifacts and known limitations in the report",
+    "backend/lib/release-evidence.js": "GRD-4670: AT01–AT12 registry; writing, blender and stereo release gates over one exact version set; stale, requalified, screenshot-only and automation-only human tests never pass; retained artifacts and known limitations in the report",
     "backend/routes/release-gates.js": "GRD-4670: /film/release-gates/...: evidence, artifacts, requalification, gate report; a release is a person's",
     "backend/db/migrations/139_stereo_qualification.sql": "GRD-4667: stereo candidates (seeded: flat_sbs enabled, stereocrafter disabled), reels, benchmarks, profiles",
     "backend/tests/stereo-qualification.test.js": "v2 only (GRD-4667): evidence completeness, hard-case coverage, measured-or-not-measured diagnostics, profile sizes, real flat-SBS encode and no silent crop, decisions",
@@ -396,7 +388,6 @@
     "design_handoff_world_engine_previz/README.md": "design_handoff_world_engine_previz/README.md",
     "design_handoff_world_engine_previz/World Engine Previz v2.dc.html": "design_handoff_world_engine_previz/World Engine Previz v2.dc.html",
     "design_handoff_world_engine_previz/support.js": "design_handoff_world_engine_previz/support.js",
-    "docs/ableton-sidecar.md": "docs/ableton-sidecar.md",
     "docs/adr/007-local-ffmpeg-for-conform.md": "docs/adr/007-local-ffmpeg-for-conform.md",
     "docs/claude-desktop-guide.md": "docs/claude-desktop-guide.md",
     "docs/plans/flows-canvas-interfaces.json": "docs/plans/flows-canvas-interfaces.json",

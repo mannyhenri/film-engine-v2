@@ -112,7 +112,7 @@
     const GUIDE_PAGE_ORDER = [
         'dashboard', 'screenplay', 'scenes', 'shotboard', 'storyboard',
         'characters', 'locations', 'props', 'assets', 'threed', 'videoshots',
-        'music', 'musiccues', 'colorgrading', 'milestones', 'notes', 'renderhistory',
+        'music', 'colorgrading', 'milestones', 'notes', 'renderhistory',
         'continuity', 'consistency', 'budget', 'exportpage', 'pipeline', 'settings',
         'stylebook',
     ];
@@ -307,46 +307,16 @@
 
       music: {
         title: 'Music & Sound', icon: '&#127925;', group: 'Media', stage: 'produce', order: 13,
-        tooltip: 'Generate score, ambient beds, and sound effects per scene or shot',
-        purpose: 'The audio half of the film. Generates original score, location ambience, and spot effects from what each scene is doing emotionally and where it takes place.',
+        tooltip: 'Ambient beds and sound effects per scene or shot, and the music you bring in',
+        purpose: 'The audio half of the film. Generates location ambience and spot effects from what each scene is doing and where it takes place, and holds the music you bring in.',
         does: [
-          'Score generation driven by scene mood',
           'Ambient beds derived from location and time of day',
           'Sound effects per shot',
           'Batch generation, then mix with ducking and loudness normalization'
         ],
         needs: ['Scenes. Shots for SFX.'],
-        next: ['musiccues', 'exportpage'],
-        pro: 'Composer + sound design + re-recording mixer'
-      },
-
-      musicws: {
-        title: 'Score', icon: '&#127932;', group: 'Media', stage: 'produce', order: 14.5,
-        tooltip: 'The score session: tracks, clips, emotion lane and markers on one ruler against the picture',
-        purpose: 'The native multitrack editor. A score session is written against an ordered picture sequence; its tracks, clips, emotion ranges and hit markers share one ruler and one playhead, and every change autosaves.',
-        does: [
-          'Pick or create a score session for a sequence or a scene',
-          'Read the brief: shots, screenplay passages, cast, look, cues, accepted emotion',
-          'Import stems aligned at the playhead; move, trim and loop clips; choose takes',
-          'Mute, solo, gain, pan and fades, heard in the browser without spending anything',
-          'See when the script or the picture moved on, and rebase deliberately'
-        ],
-        needs: ['A sequence or a scene. Stems or generated audio to place.'],
         next: ['exportpage'],
-        pro: 'Composer + music editor'
-      },
-      musiccues: {
-        title: 'Music Cues', icon: '&#127925;', group: 'Media', stage: 'produce', order: 14,
-        tooltip: 'The cue sheet: every score, SFX, and ambient cue tied to its scene',
-        purpose: 'Your cue sheet. Tracks each piece of audio against the scene it plays under, including rights status for anything you did not generate.',
-        does: [
-          'List score, SFX, and ambient cues by scene',
-          'Record music rights and licensing status',
-          'Produce the cue list distribution asks for'
-        ],
-        needs: ['Generated or imported audio.'],
-        next: ['exportpage'],
-        pro: 'Music cue sheets / music supervision'
+        pro: 'Sound design + re-recording mixer'
       },
 
       colorgrading: {
@@ -453,17 +423,16 @@
       // ── Delivery ──────────────────────────────────────────────────────────────
       edits: {
         title: 'Edit', icon: '&#9986;', group: 'Delivery', stage: 'deliver', order: 21.5,
-        tooltip: 'Cuts finished in Premiere, brought back — every version, which shot plays where, and a score timed to the edit',
-        purpose: 'Where the editor\'s cut comes home. The exported picture is kept by version, the XML or EDL it was cut from says which shot plays where, and a score can be written against the cut rather than the assembly.',
+        tooltip: 'Cuts finished in Premiere, brought back — every version, and which shot plays where',
+        purpose: 'Where the editor\'s cut comes home. The exported picture is kept by version, the XML or EDL it was cut from says which shot plays where.',
         does: [
           'Import an exported cut as a new version — nothing is overwritten',
           'Read the Final Cut Pro XML or EDL into a cut list, matched to shots by file and by shot code',
-          'Name what the cut uses that Film Engine did not make: titles, stock, pickups',
-          'Open a score session timed to the edit, whose stems line up at 00:00 in Premiere'
+          'Name what the cut uses that Film Engine did not make: titles, stock, pickups'
         ],
         needs: ['A cut exported from Premiere (H.264 or ProRes), and ideally its XML or EDL.'],
-        next: ['musicws', 'exportpage'],
-        pro: 'Assistant editor + music editor'
+        next: ['exportpage'],
+        pro: 'Assistant editor'
       },
       exportpage: {
         title: 'Export', icon: '&#128228;', group: 'Delivery', stage: 'deliver', order: 22,
@@ -1377,10 +1346,20 @@
     }
     // React port: page loaders that live in chunks, declared here so navigateTo's loaders map
     // evaluates before their chunk loads; each chunk's own function declaration fills its name in.
-    var loadProjects, loadDashboard, loadScreenplayPage, loadScenes, loadShotBoard, loadStoryboard, loadCharacters, loadLocations, loadProps, loadAssets, loadMusicCues, loadMusicWorkstation, loadMilestones, loadNotesPage, loadRenderPage, loadEditsPage, loadExportPage, loadPipeline, loadFlowsPage, loadProductionGraph, loadMoodBoardPage, loadStyleBook, loadPrevisPage, loadSettings, loadJobsQueuePage, loadBrands, loadDeliverables, loadRights, loadTitles, loadSubtitles, loadMarketing, loadConsistency, loadSpend, loadBudget, loadThreeD, loadVideoShots, loadMusic, loadPlayback;
+    var loadProjects, loadDashboard, loadScreenplayPage, loadScenes, loadShotBoard, loadStoryboard, loadCharacters, loadLocations, loadProps, loadAssets, loadMilestones, loadNotesPage, loadRenderPage, loadEditsPage, loadExportPage, loadPipeline, loadFlowsPage, loadProductionGraph, loadMoodBoardPage, loadStyleBook, loadPrevisPage, loadSettings, loadJobsQueuePage, loadBrands, loadDeliverables, loadRights, loadTitles, loadSubtitles, loadMarketing, loadConsistency, loadSpend, loadBudget, loadThreeD, loadVideoShots, loadMusic, loadPlayback;
 
 
     function navigateTo(page) {
+        /*
+         * NO FILM OPEN. A page that belongs to a film, opened with none (a phase tab, a rail button, a stale URL),
+         * drew an empty film and left no way back to the project list. Only these stand without a project: the
+         * list itself, Settings (it says which parts need a film), the style book and brand kits (they outlive a
+         * project) and the job queue (every film's jobs). Anything else goes to the list and says why.
+         */
+        if (!state.currentProject && !['projects', 'settings', 'stylebook', 'brand', 'jobsqueue'].includes(page)) {
+            setStatus('Open a project first: that screen belongs to a film.');
+            return backToProjectList();
+        }
         // On a phone the drawer covers the page you just chose.
         if (window.closeDrawer) window.closeDrawer();
         // Focus mode hides the app's chrome; any other page needs it back.
@@ -1412,8 +1391,6 @@
             locations: loadLocations,
             props: loadProps,
             assets: loadAssets,
-            musiccues: loadMusicCues,
-            musicws: loadMusicWorkstation,
             milestones: loadMilestones,
             notes: loadNotesPage,
             renderhistory: loadRenderPage,
@@ -2605,68 +2582,10 @@
             if (btn) { btn.disabled = false; btn.textContent = label; }
         }
     }
-
-    /* ── One audio file, as a card ──────────────────────────────────────────
-     *
-     * "Each audio file should be its own card with details about it — format,
-     *  what it is, etc."
-     *
-     * The row this replaces said what a cue was CALLED and nothing about the
-     * audio: not its format, length, weight, or what made it. A director
-     * choosing between two takes of a score had nothing to choose on.
-     *
-     * Every fact is read from the asset row. Nothing is inferred and nothing is
-     * invented — a card that guesses shows a confident blank where a fact
-     * should be, and `film_assets` can already answer all five.
-     */
-    // ══════════════════════════════════════════════════════════════
-    // MUSIC WORKSTATION (MUS-007) — the native multitrack editor
-    //
-    // The score session had a route and thirty tools and no page, so every
-    // track, clip, range and marker could be written by an agent and by curl
-    // and by nobody at a keyboard. This is that keyboard.
-    //
-    // ONE RULE FOR EVERY CONTROL: it carries data-mw="<table>:<field>" and
-    // its change reaches mwSave, which PUTs the row through the session route
-    // — the same validator the agent's write meets, so a refusal names the
-    // field here exactly as it does there. Nothing is decided on the page:
-    // the vocabulary, the ranges and the lifecycle table are SERVED
-    // (/music-sessions/vocabulary) rather than typed a second time, which is
-    // how a picker came to offer prop categories the CHECK refused.
-    //
-    // PLAYBACK SPENDS NOTHING. Clips are decoded once into an AudioContext and
-    // scheduled from the playhead with their own source offset, gain, pan,
-    // fades and loop policy — mute and solo decide what is heard, the way the
-    // bounce will decide it. The waveform on each clip is the sound library's
-    // own painter; a second painter is how two surfaces come to disagree
-    // about what a file looks like.
-    //
-    // AUTOSAVE IS PER ROW, DEBOUNCED, AND SAYS WHAT HAPPENED. A slider fires
-    // dozens of changes a second; each row saves once it settles, and the
-    // status line says Saving / Saved / Save failed with the reason — a save
-    // that fails silently is a director who believes their mix is kept.
-    // ══════════════════════════════════════════════════════════════
-    const MW = {
-        sessions: [], session: null, model: null, brief: null, drift: null, vocab: null,
-        selection: null, playheadMs: 0, playing: false, pxPerSec: 40,
-        audio: null, buffers: {}, timers: {}, pending: {}, saveNote: '',
-        raf: null, ctxStart: 0, msStart: 0, drag: null, sources: [],
-        jobs: [], audition: null, emotionBox: '', daw: null, instruments: [], instrumentsError: null, rendering: null,
-        open: {}, tab: {}, rollSel: null, snapDiv: 2,
-    };
     function mwTime(ms) {
         const s = Math.max(0, Number(ms) || 0) / 1000;
         return Math.floor(s / 60) + ':' + String(Math.floor(s % 60)).padStart(2, '0') + '.' + String(Math.round((s % 1) * 10));
     }
-    const DAW_ACTIONS = [
-        { op: 'status', label: 'Check again', fn: 'dawRefresh', what: 'Is Live reachable through the sidecar, which version answered, and is it the reviewed one.', portable: { label: 'Export a score package', fn: 'dawExportPackage' } },
-        { op: 'session_read', label: 'Read the Live set', fn: 'dawReadSession', what: 'The tracks in the Live set, which are Film Engine’s and which are somebody else’s.', portable: { label: 'Validate a package from any DAW', fn: 'dawImportPackage' } },
-        { op: 'push_plan', label: 'Plan a push', fn: 'dawPlanPush', what: 'What a push would create, update and leave alone, and every track edited in Live since the last push.', portable: { label: 'Export a score package', fn: 'dawExportPackage' } },
-        { op: 'push', label: 'Push this plan', fn: 'dawPush', what: 'Carry out exactly the plan reviewed here, into Film Engine’s own tracks, with every conflict decided.', portable: { label: 'Export a score package', fn: 'dawExportPackage' } },
-        { op: 'pull_plan', label: 'What can come back', fn: 'dawPlanPull', what: 'The renders Live has that could come back into this session, with their hashes.', portable: { label: 'Import a package', fn: 'dawImportPackage' } },
-        { op: 'pull', label: 'Bring back', fn: 'dawPull', what: 'One render back as candidate takes, imported only after its hash and alignment check out.', portable: { label: 'Import a package', fn: 'dawImportPackage' } },
-        { op: 'transport', label: 'Play / stop / locate Live', fn: 'dawTransport', what: 'Move Live’s transport because you asked; nothing moves it on its own.', portable: { label: 'Play in the workstation', fn: 'mwTogglePlay' } },
-    ];
 
     // Dialogue under a storyboard frame, the way a board is actually read:
     // character in caps, line beneath. The API has always returned this and the
@@ -5302,7 +5221,6 @@
             'Locations': 'Filming locations with default lighting setups and visual descriptions used during storyboard and video generation.',
             'Props': 'Physical objects and set pieces tracked per scene for continuity and breakdown purposes.',
             'Assets': 'Registry of all generated and imported media files across 22 types: keyframes, video, audio, subtitles, LUTs, reference images, and more.',
-            'Music Cues': 'Score, sound effect, and ambient audio cues tied to specific scenes with mood, tempo, and instrumentation metadata.',
             'Color Grading': 'LUT presets and color correction parameters (temperature, tint, contrast, saturation, grain) applied during post-production.',
             'Milestones': 'Production timeline markers with target and actual completion dates for tracking overall project progress.',
             'Notes & Reviews': 'Direction notes, revision requests, and approval workflow for shots. Supports 10 note types covering camera, lighting, performance, VFX, and more.',

@@ -82,11 +82,6 @@ function audition(asset) {
     return review.status === 'approved' && review.no_music === true && review.reviewed_at && review.fingerprint === fingerprint(asset) ? null
         : { asset_id:asset.id, file_name:asset.file_name, code:'VIDEO_AUDIO_AUDITION_REQUIRED', message:'Audition the mixed clip audio and approve that no music is present; dialogue and effects are allowed.' };
 }
-function scoreStems(db, score) {
-    const bounce=require('./music-renderer').listBounces(db,score.session_id).find(b=>b.master && b.master.asset_id===score.asset_id);
-    return (bounce && bounce.stems || []).map(stem=>db.prepare('SELECT * FROM film_assets WHERE id = ?').get(stem.asset_id)).filter(Boolean)
-        .map(asset=>({...asset,metadata:JSON.stringify({...metadata(asset),handoff_only:true,kind:'score_stem_handoff'})}));
-}
 function editorialShots(shots, assets) {
     return shots.map(shot => {
         const asset = assets.find(a => a.shot_id === shot.id && ['video_final','video_synced','video_raw'].includes(a.asset_type));
@@ -98,4 +93,4 @@ function stack(items) {
     for (const item of items) { let track=tracks.find(t => t[t.length-1].start_ms + t[t.length-1].duration_ms <= item.start_ms); if (!track) tracks.push(track=[]); track.push(item); }
     return tracks;
 }
-module.exports = { metadata, hasClipAudio, sourceRange, selectedAudio, planAudioEvents, audioEvents, audition, fingerprint, scoreStems, editorialShots, stack };
+module.exports = { metadata, hasClipAudio, sourceRange, selectedAudio, planAudioEvents, audioEvents, audition, fingerprint, editorialShots, stack };

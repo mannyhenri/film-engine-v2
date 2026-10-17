@@ -153,7 +153,7 @@ export const previzWorkspace = {
       this.changed();
       this.E.worldConsoleRender();
     } catch (err) {
-      legacy.setStatus(err.message, true);
+      legacy.setStatus(err.message);
     }
   },
   E: null,
@@ -226,7 +226,7 @@ export const previzWorkspace = {
       if (preserve && this.room) this.room = source.rooms?.find(r=>String(r.id) === String(this.room.id)) || null;
       if (!preserve && this.revision === revision && !legacy.WALK.moved && source.rooms?.length) this.previzRoom(source.rooms[0].id);else this.E.worldConsoleRender();
     } catch (err) {
-      if (this.revision === revision) legacy.setStatus('Set audit: ' + err.message, true);
+      if (this.revision === revision) legacy.setStatus('Set audit: ' + err.message);
     }
   },
   locationName() {
@@ -245,7 +245,7 @@ export const previzWorkspace = {
   async previzTarget(id) {
     if (id === '__create__') return this.previzCreateTarget();
     const W = legacy.WORLD;
-    if (id && !this.targets().some(s => s.id === id)) return legacy.setStatus('Choose a shot at this location', true);
+    if (id && !this.targets().some(s => s.id === id)) return legacy.setStatus('Choose a shot at this location');
     this.revision++;
     W.targetId = id || null;
     W.shotId = id || null;
@@ -260,7 +260,7 @@ export const previzWorkspace = {
         W.targetCard = detail.card;
         W.targetFrame = previs.keyframe;
       } catch (err) {
-        if (revision === this.revision) legacy.setStatus(err.message, true);
+        if (revision === this.revision) legacy.setStatus(err.message);
       }
     }
     if (revision === this.revision) this.E.worldConsoleRender();
@@ -282,7 +282,7 @@ export const previzWorkspace = {
     // A known or in-flight shot owns its original scene, set and camera until saved.
     if (this.creation?.shot || this.creation?.sending) return this.showCreationDialog(this.creation);
     const W = legacy.WORLD, scope = this.scope(), revision = this.revision, generation = ++this.creationGeneration;
-    if (!scope.projectId || !scope.versionId || !W.blocking?.blocking?.camera) return legacy.setStatus('Load a set and choose a camera view first', true);
+    if (!scope.projectId || !scope.versionId || !W.blocking?.blocking?.camera) return legacy.setStatus('Load a set and choose a camera view first');
     this.creation = null;
     try {
       const result = await api(`/projects/${scope.projectId}/scenes`);
@@ -292,7 +292,7 @@ export const previzWorkspace = {
       this.creation = {scope, revision, scenes, blocking:clone(W.blocking.blocking), lens:W.lens,
         durationMs:W.durationMs, cameraKeys:clone(W.keys || []), moves:clone(W.moves || [])};
       this.showCreationDialog(this.creation);
-    } catch (err) { if (this.sameScope(scope)) legacy.setStatus('Could not read location scenes: ' + err.message, true); }
+    } catch (err) { if (this.sameScope(scope)) legacy.setStatus('Could not read location scenes: ' + err.message); }
   },
   showCreationDialog(creation, open = true) {
     const {scope, scenes, operation, shot, sending} = creation, esc = legacy.esc;
@@ -318,10 +318,10 @@ export const previzWorkspace = {
   async previzCreateShot(sceneId) {
     const creation = this.creation;
     if (!creation || creation.sending) return;
-    if (!creation.shot && (!this.sameScope(creation.scope) || creation.revision !== this.revision)) return legacy.setStatus('The set or camera changed. Open Create shot again.', true);
-    if (creation.shot && sceneId !== creation.operation.sceneId) return legacy.setStatus('Finish saving the original shot in its selected scene.', true);
+    if (!creation.shot && (!this.sameScope(creation.scope) || creation.revision !== this.revision)) return legacy.setStatus('The set or camera changed. Open Create shot again.');
+    if (creation.shot && sceneId !== creation.operation.sceneId) return legacy.setStatus('Finish saving the original shot in its selected scene.');
     const scene = creation.scenes.find(s=>s.id === sceneId);
-    if (!scene) return legacy.setStatus('Choose a scene at this location', true);
+    if (!scene) return legacy.setStatus('Choose a scene at this location');
     const {scope, blocking} = creation, W = legacy.WORLD;
     const code = this.E.scoutShotCode(scene.scene_number, (W.shots || []).filter(s=>s.scene_id === scene.id).map(s=>s.shot_code));
     if (!creation.shot) creation.operation = {sceneId:scene.id, sceneNumber:scene.scene_number, code};
@@ -343,7 +343,7 @@ export const previzWorkspace = {
         if (this.sameScope(scope) && this.revision === creation.revision) await this.previzTarget(shot.id);
       }
       legacy.setStatus(`Shot ${shot.shot_code || operation.code} created at ${scope.name}. Select it, save a draft, then render the saved setup in Blender.`);
-    } catch (err) { legacy.setStatus((creation.shot ? `Shot ${creation.shot.shot_code || operation.code} was created, but its set/camera save failed. Retry to finish the same shot: ` : 'Could not create the shot: ') + err.message, true); }
+    } catch (err) { legacy.setStatus((creation.shot ? `Shot ${creation.shot.shot_code || operation.code} was created, but its set/camera save failed. Retry to finish the same shot: ` : 'Could not create the shot: ') + err.message); }
     finally {
       creation.sending = false;
       if (this.creation === creation) this.showCreationDialog(creation, false);
@@ -413,7 +413,7 @@ export const previzWorkspace = {
   footerHtml() {
     const t = this.target(),
       disabled = !t || !legacy.WORLD.version || this.busy;
-    return `<div class="pv-delivery"><div><span>STORYBOARD DESTINATION</span><b>${legacy.esc(t ? `${legacy.state.currentProject?.title || 'Project'} / Storyboard / ${t.shot_code}` : 'Choose or create a shot at this location')}</b><small>${t ? 'New image version · existing history preserved' : 'Existing shots at other locations stay where they are'}</small>${!t && legacy.WORLD.version ? '<button class="pv-btn" onclick="previzCreateTarget()">Create shot from this view</button>' : ''}</div><div class="pv-delivery-actions"><button class="pv-btn pv-draft" onclick="previzCapture()"${disabled ? ' disabled' : ''}>Save draft to storyboard</button><button class="pv-btn pv-primary" onclick="previzRenderReview()"${disabled || !this.draft ? ' disabled' : ''}>Render in Blender</button><small>Browser preview</small><small>${this.draft ? 'Same saved scene snapshot' : 'Save a draft first'}</small></div></div>`;
+    return `<div class="pv-delivery"><div><span>STORYBOARD DESTINATION</span><b title="${legacy.esc(t ? 'New image version · existing history preserved' : 'Existing shots at other locations stay where they are')}">${legacy.esc(t ? `${legacy.state.currentProject?.title || 'Project'} / Storyboard / ${t.shot_code}` : 'Choose or create a shot at this location')}</b><small>${t ? 'New image version · existing history preserved' : 'Existing shots at other locations stay where they are'}</small>${!t && legacy.WORLD.version ? '<button class="pv-btn" onclick="previzCreateTarget()">Create shot from this view</button>' : ''}</div><div class="pv-delivery-actions"><button class="pv-btn pv-draft" onclick="previzCapture()" title="Browser preview"${disabled ? ' disabled' : ''}>Save draft to storyboard</button><button class="pv-btn pv-primary" onclick="previzRenderReview()" title="${this.draft ? 'Same saved scene snapshot' : 'Save a draft first'}"${disabled || !this.draft ? ' disabled' : ''}>Render in Blender</button><small>Browser preview</small><small>${this.draft ? 'Same saved scene snapshot' : 'Save a draft first'}</small></div></div>`;
   },
   async capture() {
     const E = this.E,
@@ -525,7 +525,7 @@ export const previzWorkspace = {
       };
       this.reviewHtml();
     } catch (err) {
-      legacy.setStatus(err.message, true);
+      legacy.setStatus(err.message);
     } finally {
       this.busy = false;
       this.E.worldConsoleRender();
@@ -555,7 +555,7 @@ export const previzWorkspace = {
       };
       this.reviewHtml();
     } catch (err) {
-      legacy.setStatus(err.message, true);
+      legacy.setStatus(err.message);
     } finally {
       this.busy = false;
     }
@@ -609,7 +609,7 @@ export const previzWorkspace = {
       }
       legacy.setStatus(`Saved ${p.snapshot.target.shot_code} v${result.version} · ${result.kind === 'previz_draft' ? 'browser preview' : 'Blender render'}`);
     } catch (err) {
-      legacy.setStatus(err.message, true);
+      legacy.setStatus(err.message);
     } finally {
       p.sending = false;
     }
@@ -624,7 +624,7 @@ export const previzWorkspace = {
         body: '{}'
       });
     } catch (err) {
-      legacy.setStatus(err.message, true);
+      legacy.setStatus(err.message);
     }
   }
 };

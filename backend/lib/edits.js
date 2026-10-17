@@ -6,19 +6,14 @@
  * EDL it was cut from is imported too — read into a cut list saying which
  * Film Engine shot plays where in THAT edit (lib/edit-cut.js).
  *
- * A score session can then be written against an edit instead of against the
- * assembly: its picture is the cut, its length is the edit's, and its stems
- * line up with the edit's first frame, so they drop straight onto the
- * sequence in Premiere at 00:00.
- *
  * NOTHING IS OVERWRITTEN. Each import is a new version with its own file; the
- * previous cut is exactly as it was, because a score timed to v2 has to be
+ * previous cut is exactly as it was, because anything timed to v2 has to be
  * able to say it was timed to v2 after v3 arrives.
  *
  * THE BYTES DECIDE, AND THE ENCODER HAS THE LAST WORD. A container is
  * recognised from its first bytes (never the name), and the encoder must then
  * read a video stream and a length out of the file — an edit that cannot be
- * decoded is a picture nobody can score against, found out at the worst time.
+ * decoded is a picture nobody can work against, found out at the worst time.
  */
 
 const fs = require('fs');
@@ -248,7 +243,6 @@ function present(row) {
     const cutAsset = row.cut_asset_id ? db().prepare('SELECT id, file_name FROM film_assets WHERE id = ?').get(row.cut_asset_id) : null;
     let cutList = null;
     try { cutList = row.cut_json ? JSON.parse(row.cut_json) : null; } catch (_) { cutList = null; }
-    const sessions = db().prepare('SELECT id, name, status FROM film_music_sessions WHERE edit_id = ? ORDER BY created_at').all(row.id);
     const latest = db().prepare('SELECT MAX(version) AS v FROM film_edits WHERE project_id = ?').get(row.project_id).v;
     return {
         id: row.id, project_id: row.project_id, version: row.version, name: row.name, notes: row.notes,
@@ -261,7 +255,6 @@ function present(row) {
         cut: cutList ? { format: row.cut_format, file_name: cutAsset ? cutAsset.file_name : null, imported_at: row.cut_imported_at,
             sequence: cutList.sequence, sequences: cutList.sequences, picture_track: cutList.picture_track,
             summary: cutList.summary, events: cutList.events, overlays: cutList.overlays || [] } : null,
-        sessions,
         created_at: row.created_at, updated_at: row.updated_at,
     };
 }
@@ -287,18 +280,9 @@ function updateEdit(editId, body) {
     return getEdit(editId);
 }
 
-/**
- * Remove an edit version. Refused while a score session is written against
- * it — deleting the picture out from under a score is how music ends up timed
- * to nothing — unless `force`, which leaves those sessions with no picture and
- * says so. The files move to `deleted/`, recoverable, like a plate.
- */
-function deleteEdit(editId, opts) {
+/** Remove an edit version. The files move to `deleted/`, recoverable, like a plate. */
+function deleteEdit(editId) {
     const e = getEdit(editId);
-    if (e.sessions.length && !(opts && opts.force)) {
-        throw error(409, `score session(s) ${e.sessions.map(s => `"${s.name || s.id}"`).join(', ')} are written against this edit. Point them at another edit first, or delete with force.`,
-            { code: 'EDIT_IN_USE', sessions: e.sessions });
-    }
     const assets = [e.asset_id, db().prepare('SELECT cut_asset_id FROM film_edits WHERE id = ?').get(editId).cut_asset_id].filter(Boolean);
     const moved = [];
     for (const id of assets) {
@@ -315,7 +299,7 @@ function deleteEdit(editId, opts) {
         db().prepare('DELETE FROM film_edits WHERE id = ?').run(editId);
         for (const id of assets) db().prepare('DELETE FROM film_assets WHERE id = ?').run(id);
     })();
-    return { deleted: true, id: editId, version: e.version, recoverable: moved, sessions_left_without_picture: e.sessions.map(s => s.id) };
+    return { deleted: true, id: editId, version: e.version, recoverable: moved };
 }
 
 /** The newest edit version of a project, or null. */

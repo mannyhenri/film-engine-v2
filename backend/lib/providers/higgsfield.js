@@ -94,22 +94,24 @@ const DEFAULT_IMAGE_MODEL = process.env.HIGGSFIELD_IMAGE_MODEL || 'soul-2';
 /* ── credentials ────────────────────────────────────────────────────────── */
 
 /**
- * Higgsfield issues a key ID and a secret, and the header carries both as
- * `id:secret`. Stored as one string in that shape; the SDK's HF_CREDENTIALS
- * and the docs' HF_API_KEY_ID / HF_API_KEY_SECRET are read too.
+ * The key, exactly as open.higgsfield.ai lets you copy it, goes in the header
+ * as `Key <key>`. Older consoles issued a key ID and a secret that the header
+ * carries as `id:secret`; that shape still works, from one line or from the two
+ * Setup fields. A paste that already starts with "Key " is not doubled. The
+ * SDK's HF_CREDENTIALS and the docs' HF_API_KEY / HF_API_KEY_ID + _SECRET are
+ * read too.
  */
 function credential() {
-    const env = process.env.HF_CREDENTIALS
+    const env = process.env.HF_CREDENTIALS || process.env.HF_API_KEY
         || (process.env.HF_API_KEY_ID && process.env.HF_API_KEY_SECRET
             ? `${process.env.HF_API_KEY_ID}:${process.env.HF_API_KEY_SECRET}` : '');
     const stored = getCredential('higgsfield');
     const meta = stored.meta || {};
-    // Setup stores the two halves as fields; one "id:secret" line (env or the key box) works too.
     const fromFields = meta.key_id && meta.key_secret ? `${String(meta.key_id).trim()}:${String(meta.key_secret).trim()}` : '';
-    const key = String(env || stored.apiKey || fromFields || '').trim();
-    if (!key) return { ok: false, status: 401, error: 'higgsfield: no API key configured — enter the key ID and secret from console.higgsfield.ai in Setup → API keys' };
-    if (!/^[^:\s]+:[^:\s]+$/.test(key)) {
-        return { ok: false, status: 401, error: 'higgsfield: the key must be the key ID and the secret joined by a colon ("KEY_ID:KEY_SECRET"), as the console shows them' };
+    const key = String(env || stored.apiKey || fromFields || '').trim().replace(/^Key\s+/i, '');
+    if (!key) return { ok: false, status: 401, error: 'higgsfield: no API key yet. Connect API key: paste the API key copied from open.higgsfield.ai, as-is.' };
+    if (/\s/.test(key)) {
+        return { ok: false, status: 401, error: 'higgsfield: that key has spaces in it. Paste the API key copied from open.higgsfield.ai, as-is.' };
     }
     return { ok: true, header: `Key ${key}` };
 }
@@ -205,6 +207,7 @@ const OWN = new Set(['prompt', 'duration', 'image_url', 'image_urls', 'end_image
 function buildRequest(capability, payload) {
     const p = payload || {};
     const table = MODELS[capability] || {};
+    if (p.model && !table[p.model]) throw new Error(`higgsfield: unknown ${capability} model ${p.model}; website-only models must open on Higgsfield`);
     const fallback = capability === 'video' ? DEFAULT_VIDEO_MODEL : DEFAULT_IMAGE_MODEL;
     const modelId = table[p.model] ? p.model : (table[fallback] ? fallback : Object.keys(table)[0]);
     const model = table[modelId];
@@ -216,6 +219,9 @@ function buildRequest(capability, payload) {
     let kind;
     if (capability === 'image') kind = (keys.length || refs.length) && model.endpoints.reference ? 'reference' : 'text';
     else if (keys.length >= 2 && model.endpoints['first-last']) kind = 'first-last';
+    // References beside a keyframe: the reference endpoint takes both (the keyframe goes first), the first-frame one
+    // takes no references at all, so a shot with its cast and location attached would otherwise always be refused.
+    else if (refs.length && model.endpoints.reference) kind = 'reference';
     else if (keys.length && model.endpoints.image) kind = 'image';
     else if (keys.length && model.endpoints['first-last']) kind = 'first-last';
     else if ((keys.length || refs.length) && model.endpoints.reference) kind = 'reference';
@@ -550,6 +556,29 @@ async function collect(handle, opts) {
     return awaitResult(`${BASE_URL}/requests/${encodeURIComponent(String(handle))}/status`, cred.header, Date.now() + budget, opts);
 }
 
+/** Does the endpoint this payload would reach have a negative_prompt field? */
+function takesNegative(capability, payload) {
+    try {
+        const { negative_prompt, ...rest } = payload || {};
+        const r = buildRequest(capability, rest);
+        return !!((CONTRACT.models[r.endpoint].schema || {}).properties || {}).negative_prompt;
+    } catch (_) { return false; }
+}
+
+/** Ask Higgsfield to cancel a request. Refunded when it is still queued. */
+async function cancelJob(handle) {
+    const cred = credential();
+    if (!cred.ok) return cred;
+    let res, body;
+    try {
+        res = await fetch(`${BASE_URL}/requests/${encodeURIComponent(String(handle))}/cancel`, { method: 'POST', headers: { Authorization: cred.header, accept: 'application/json' } });
+        if (res.ok) return { ok: true };
+        body = await readJson(res);
+    } catch (err) { return { ok: false, status: 502, error: `higgsfield: could not reach ${BASE_URL} to cancel — ${err.message}` }; }
+    if (res.status === 400 || res.status === 409) return { ok: false, status: 409, fallback: 'stop_waiting', error: `higgsfield: ${errorOf(res.status, body)} (it has already started, so it can no longer be cancelled)` };
+    return { ok: false, status: res.status, error: errorOf(res.status, body) };
+}
+
 /**
  * Is the key right? Free: asks the status of a request that does not exist.
  * A good key gets 404 (no such request on this account), a bad one 401.
@@ -573,11 +602,13 @@ async function checkCredential() {
  */
 function meterHiggsfield(capability, payload, result) {
     const model = (result && result.provider_model) || (payload && payload.model) || null;
-    if (capability === 'image') return { unit: 'image', quantity: 1, model: model || DEFAULT_IMAGE_MODEL };
+    const request=buildRequest(capability,{...payload,model:model||undefined});
+    const parts={higgsfield_endpoint:request.endpoint,configuration:{...request.body,duration_seconds:Number(request.body.duration)}};
+    if (capability === 'image') return { unit: 'image', quantity: request.body.batch_size||1, model: model || DEFAULT_IMAGE_MODEL,parts };
     if (capability !== 'video') return null;
     const p = payload || {};
     const s = Number(first(p.duration_s, p.duration, p.duration_ms ? p.duration_ms / 1000 : undefined, 5));
-    return { unit: 'second', quantity: Math.max(1, s), model: model || DEFAULT_VIDEO_MODEL };
+    return { unit: 'second', quantity: Math.max(1, Number(request.body.duration)||s), model: model || DEFAULT_VIDEO_MODEL,parts };
 }
 
 const modelList = cap => Object.fromEntries(Object.entries(MODELS[cap]).map(([id, m]) => [id,
@@ -602,8 +633,14 @@ const higgsfieldAdapter = {
     asyncGeneration: true,
     /** A request reports queued / in_progress and no percentage. */
     reportsProgress: 'phase',
-    /** Cancellable only while queued; once started it runs, so stopping leaves it collectable. */
-    cancel: 'stop_waiting',
+    /**
+     * Cancel reaches Higgsfield (POST /requests/:id/cancel, 202). It is accepted
+     * only while the request is still queued; once in progress Higgsfield answers
+     * 400, and the honest fallback is to stop waiting and keep it collectable.
+     */
+    cancel: 'provider',
+    cancelJob,
+    takesNegative,
 
     /*
      * The image contract every image adapter states. A size is a ratio and a
@@ -634,14 +671,11 @@ const higgsfieldAdapter = {
     checkCredential,
     awaitResult,
     connection: {
-        instructions: 'In console.higgsfield.ai create an API key: it comes as a key ID and a secret. Enter both. Pay-as-you-go; failed and moderated requests are not charged.',
-        helpUrl: 'https://console.higgsfield.ai',
-        fields: [
-            { key: 'key_id', label: 'API key ID', placeholder: 'from console.higgsfield.ai' },
-            { key: 'key_secret', label: 'API key secret', type: 'password' },
-        ],
+        // One field, as Higgsfield asks: the key goes in whole, as copied. An older id:secret pair still works.
+        instructions: 'Connect API key: paste the API key copied from open.higgsfield.ai. Paste it as-is. Pay-as-you-go; failed and moderated requests are not charged.',
+        helpUrl: 'https://open.higgsfield.ai/api-keys',
     },
 };
 
 module.exports = { adapter: higgsfieldAdapter, higgsfieldAdapter, MODELS, SOURCE_WORKFLOWS, buildRequest, deliverableFrame,
-    describeRequest, generate, collect, checkCredential, credential, kindOf, tierOf };
+    describeRequest, generate, collect, cancelJob, takesNegative, checkCredential, credential, kindOf, tierOf };

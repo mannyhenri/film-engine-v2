@@ -93,8 +93,7 @@ const PG_JOINS = [
     ['match_cut', 'Match cut'], ['whip_pan', 'Whip pan'], ['morph', 'Morph'],
 ];
 const PG_KIND = { sfx: { label: 'Sound effect', cue: 'sfx', gen: 'gen.sfx', cap: 'sfx' },
-    ambient: { label: 'Room tone', cue: 'ambient', gen: 'gen.ambient', cap: 'ambient' },
-    music: { label: 'Music', cue: 'score', gen: 'gen.music', cap: 'music' } };
+    ambient: { label: 'Room tone', cue: 'ambient', gen: 'gen.ambient', cap: 'ambient' } };
 
 // (PG: kept in core, public/legacy/production-graph.js)
 
@@ -385,7 +384,7 @@ function pgNodeHtml(n, raw) {
             <div class="pg-wave" data-wave="${n.asset_id}"></div></div>`;
     }
     if (n.type === 'sound') {
-        const k = PG_KIND[n.kind] || PG_KIND.music;
+        const k = PG_KIND[n.kind] || PG_KIND.sfx;
         const parent = n.parent ? pgNode(n.parent) : null;
         const matches = parent && n.duration_ms && Math.abs(parent.duration_ms - n.duration_ms) < 500;
         const empty = !n.versions.length ? `<div class="pg-node empty" data-key="${n.key}:empty" data-empty-for="${n.key}"
@@ -979,7 +978,7 @@ function pgImpactDecorate(html, n) {
 // ── Double-click to add (PGN-019) ──────────────────────────────────────────
 
 /** Every cue type the cue route accepts (routes/assets.js VALID_CUE_TYPES), as the palette names it. */
-const PG_ADD_CUE_TYPES = Object.freeze({ score: 'Score', source: 'Source music', sfx: 'Sound effect', ambient: 'Room tone', transition: 'Transition' });
+const PG_ADD_CUE_TYPES = Object.freeze({ sfx: 'Sound effect', ambient: 'Room tone' });
 
 /**
  * The code an inserted shot will get — a mirror of lib/shot-insert-code.js,
@@ -1802,7 +1801,7 @@ async function pgDuplicate(n) {
             await api(`/projects/${pid}/music-cues`, { method: 'POST', body: JSON.stringify({
                 cue_type: n.cue_type, title: (n.title || 'Sound') + ' copy', description: n.description, scene_id: n.scene_id,
                 ...(n.sequence_id ? { sequence_id: n.sequence_id } : n.shot_id ? { shot_id: n.shot_id } : {}),
-                mood: n.mood, genre: n.genre, negative_prompt: n.negative_prompt, duration_ms: n.duration_ms }) });
+                negative_prompt: n.negative_prompt, duration_ms: n.duration_ms }) });
             setStatus('Sound duplicated. Its versions stay with the original.');
         }
         loadProductionGraph();
@@ -1950,7 +1949,7 @@ async function pgRunPending() {
      * every generate button follow: nothing spends before it has been seen.
      */
     return confirmPaidImage({
-        capability: frames.length ? 'image' : 'music',
+        capability: frames.length ? 'image' : (PG_KIND[first.kind] || PG_KIND.sfx).cap,
         title: `Run pending — ${pending.length} item${pending.length === 1 ? '' : 's'}`,
         previewUrl: frames.length ? `/shots/${first.id}/prompt` : `/music-cues/${first.id}/generate`,
         note: 'Costs credits. Each item is generated on its own, in running order.' + heldNote,
@@ -2474,7 +2473,7 @@ async function pgGenerateSequence(n) {
 }
 
 async function pgDrawerSound(n, body, foot, close) {
-    const k = PG_KIND[n.kind] || PG_KIND.music;
+    const k = PG_KIND[n.kind] || PG_KIND.sfx;
     const parent = n.parent ? pgNode(n.parent) : null;
     const custom = !!n.duration_ms;
     body.innerHTML = `
@@ -2488,9 +2487,6 @@ async function pgDrawerSound(n, body, foot, close) {
         <pre class="pg-pre" id="pgSceneDetails" style="max-height:120px;">…</pre>
         <label class="pg-l">Your direction — added on top</label>
         <textarea rows="3" onblur="pgCuePut('${n.id}', { description: this.value })">${esc(n.description)}</textarea>
-        ${n.kind === 'music' ? `<div style="display:flex;gap:8px;"><div style="flex:1;"><label class="pg-l">Mood</label>
-          <input type="text" value="${esc(n.mood)}" onblur="pgCuePut('${n.id}', { mood: this.value })"></div>
-          <div style="flex:1;"><label class="pg-l">Genre</label><input type="text" value="${esc(n.genre)}" onblur="pgCuePut('${n.id}', { genre: this.value })"></div></div>` : ''}
         <label class="pg-l">Length</label>
         <div class="pg-seg"><button class="${custom ? '' : 'on'}" onclick="pgCuePut('${n.id}', { duration_ms: 0 })">Match${parent ? ' ' + pgSecs(parent.duration_ms) : ''}</button>
           <button class="${custom ? 'on' : ''}" onclick="document.getElementById('pgCueLen').focus()">Custom</button></div>
@@ -2501,8 +2497,7 @@ async function pgDrawerSound(n, body, foot, close) {
         <pre class="pg-pre" id="pgCueSend">Reading the request…</pre></div>
       <div class="pg-dsec"><div class="pg-kicker"><span>Versions</span></div>
         ${n.versions.length ? `<div class="pg-list">${n.versions.map(v => pgVersionRow(v, 'ver:' + v.asset_id)).join('')}</div>`
-          : '<p class="pg-note">None yet. Each generation adds an audio version node; the selected one plays.</p>'}
-        <div class="pg-btnrow"><button class="btn btn-secondary btn-sm" onclick="navigateTo('musicws')">Open in Score workspace →</button></div></div>`;
+          : '<p class="pg-note">None yet. Each generation adds an audio version node; the selected one plays.</p>'}</div>`;
     foot.innerHTML = `<button class="pg-hbtn" onclick="pgCuePreview('${n.id}')">Preview · free</button>
         ${mediaUploadControl(k.cap === 'sfx' ? 'sfx' : k.cap, 'audio', 'cue', n.id, { after: 'loadProductionGraph', label: 'Upload' })}
         <div class="grow"></div><button class="pg-hbtn primary" onclick="pgGenerateSound(pgNode('${n.key}'))">Generate</button>`;
@@ -2531,7 +2526,7 @@ async function pgCuePreview(id) {
 
 function pgGenerateSound(n) {
     if (!n) return;
-    const k = PG_KIND[n.kind] || PG_KIND.music;
+    const k = PG_KIND[n.kind] || PG_KIND.sfx;
     return confirmPaidImage({
         capability: k.cap,
         title: 'Generate ' + (n.title || k.label),
@@ -2775,7 +2770,7 @@ function pgDropTarget(node, mime) {
     if (node.type === 'sequence' && media === 'video')
         return { helper: 'media', capability: 'video', url: `/sequences/${node.id}/import`, what: 'a clip of the whole sequence' };
     if (node.type === 'sound' && media === 'audio')
-        return { helper: 'media', capability: 'music', url: `/music-cues/${node.id}/audio`, what: 'a new version of this sound' };
+        return { helper: 'media', capability: node.kind === 'ambient' ? 'ambient' : 'sfx', url: `/music-cues/${node.id}/audio`, what: 'a new version of this sound' };
     const takes = { shot: 'a picture or a clip', sequence: 'a clip', sound: 'a sound' }[node.type];
     return { refused: takes ? `This ${node.type} takes ${takes}, not ${media === 'image' ? 'a picture' : 'a ' + (media === 'video' ? 'clip' : 'sound')}.`
                             : `A ${node.type} node takes no uploads; drop it on the shot, sequence or sound it belongs to.` };
@@ -3495,7 +3490,7 @@ function pgEnsureSide() {
     host.className = 'pg-side';
     host.dataset.fePhase = 'production';
     const pal = [['new:shot', 'Shot', '#c07ce0'], ['new:sequence', 'Sequence', '#e2c15a'], ['new:sound:sfx', 'SFX', '#57c98a'],
-        ['new:sound:ambient', 'Ambient', '#57c98a'], ['new:sound:music', 'Music', '#57c98a'], ['new:link', 'Linked frame', '#c07ce0']];
+        ['new:sound:ambient', 'Ambient', '#57c98a'], ['new:link', 'Linked frame', '#c07ce0']];
     host.innerHTML = `<input class="pg-side-find" placeholder="Find a shot" oninput="PG.find=this.value;pgRenderSide()">
         <div id="pgOutline"></div>
         <div><div class="fe-panel-kicker" style="margin-bottom:6px;">Add node · drag onto graph</div>
@@ -3781,10 +3776,10 @@ function pgOriginNodeHtml(n,sel,pos) {
     if(n.type==='origin-reference'||n.type==='draft-reference'){
         const ref=n.reference,preview=ref?.data || ref?.preview_url;
         return `<div class="pg-node pg-origin pg-origin-reference${sel}" data-key="${esc(n.key)}" style="${pos}width:180px;min-height:64px;">
-          ${preview&&String(ref.mime || 'image/').startsWith('image/')?`<img src="${esc(preview)}" alt="Recorded reference">`:''}<div class="pg-ref-info">${ref?`${esc(ref.order || '')} ${esc(ref.reference_role || ref.role || ref.wire_role || 'reference')}<br><code>${esc(String(ref.sha256 || ref.asset_id || (ref.captured_reference?'Frozen review '+ref.captured_reference.review_id:'hash not recorded')).slice(0,16))} · ${ref.byte_length ?? '?'} bytes</code>`:'Inputs not recorded<br>bytes / role / order unknown'}</div>${pgPort('out',n.kind,'out')}</div>`;
+          ${preview&&String(ref.mime || 'image/').startsWith('image/')?`<img src="${esc(preview)}" alt="Recorded reference" loading="lazy">`:''}<div class="pg-ref-info">${ref?`${esc(ref.order || '')} ${esc(ref.reference_role || ref.role || ref.wire_role || 'reference')}<br><code>${esc(String(ref.sha256 || ref.asset_id || (ref.captured_reference?'Frozen review '+ref.captured_reference.review_id:'hash not recorded')).slice(0,16))} · ${ref.byte_length ?? '?'} bytes</code>`:'Inputs not recorded<br>bytes / role / order unknown'}</div>${pgPort('out',n.kind,'out')}</div>`;
     }
     if(n.type==='board-version')return `<div class="pg-node pg-origin${sel}" data-key="${esc(n.key)}" style="${pos}width:260px;min-height:224px;">
-      <div class="pg-nh"><div class="pg-title">Frame v${n.version}${n.selected?' · selected':''}</div><div class="pg-sub">Immutable result</div></div>${portIn}${n.url?`<img class="pg-board-image" src="${esc(pgSrc(n.url))}" alt="Storyboard version ${n.version}">`:''}${portOut}</div>`;
+      <div class="pg-nh"><div class="pg-title">Frame v${n.version}${n.selected?' · selected':''}</div><div class="pg-sub">Immutable result</div></div>${portIn}${n.url?`<img class="pg-board-image" src="${esc(pgSrc(n.url) + (String(n.url).includes('?') ? '&w=320' : '?w=320'))}" alt="Storyboard version ${n.version}" loading="lazy">`:''}${portOut}</div>`;
     if(n.type==='draft-request'){
         const draft=n.draft?.payload?.[n.kind];
         return `<div class="pg-node pg-origin kind-video${sel}" data-key="${esc(n.key)}" style="${pos}width:250px;min-height:216px;"><div class="pg-nh"><div class="pg-title">${n.kind==='video'?'Video':'Image'} recipe · draft</div><div class="pg-sub">${n.draft?'Saved revision '+n.draft.revision:'Current sources · no approval'}</div></div>${pgPort('in','image','in')}${n.kind==='video'?pgPort('in','audio','audio'):''}<div class="pg-origin-body"><div class="pg-origin-prompt">${esc(draft?.prompt || 'Edit the prompt and ordered references, then review the exact request.')}</div><button class="pg-sbtn primary" onclick="event.stopPropagation();pgOpenDraft('${esc(n.parent)}','${n.kind}')">Edit &amp; review ${n.kind}</button></div></div>`;

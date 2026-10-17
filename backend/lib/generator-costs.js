@@ -175,6 +175,10 @@ function compareGenerators(capability, opts = {}) {
 
         for (const model of models) {
             const r = rateFor(adapter.id, capability, model) || base;
+            if (r.usd_per_unit === null) {
+                unpriced.push({provider:adapter.id,capability,model,why:r.note||'No current published model price'});
+                continue;
+            }
             const usdPerUnit = Number(r.usd_per_unit ?? r.usd_per_native ?? 0);
             const unit = r.unit || base.unit || 'call';
             const units = unitsPerWork(unit, capability, { frame, clip_seconds: seconds });

@@ -6,7 +6,7 @@ export const REQUIRED = {
     assets: 'v2', jobsqueue: 'v2', notes: 'v2', renderhistory: 'v2', moodboard: 'v2', stylebook: 'v2', marketing: 'v2',
     subtitles: 'v2', titles: 'v2', rights: 'v2', deliverables: 'v2', projects: 'v2',
     // film-engine agent
-    productiongraph: 'fe', videoshots: 'fe', playback: 'fe', music: 'fe', musiccues: 'fe', musicws: 'fe', screenplay: 'fe',
+    productiongraph: 'fe', videoshots: 'fe', playback: 'fe', music: 'fe', screenplay: 'fe',
     previs: 'fe', threed: 'fe', flows: 'fe', edits: 'fe', budget: 'fe',
 };
 // Not wired yet, each with its owner (REQUIRED); an owner removes a name here in the commit that wires it.

@@ -8,6 +8,7 @@
 import { describe, it, expect } from 'vitest';
 import fs from 'fs';
 import path from 'path';
+import { createRequire } from 'module';
 import { render } from '@testing-library/react';
 import { installLegacy } from '../test/setup.js';
 import { domWalk } from '../test/reference.js';
@@ -15,7 +16,9 @@ import { MODALS } from './modals/index.js';
 import App from '../App.jsx';
 
 const ROOT = path.resolve(__dirname, '../..');
-const REF = new DOMParser().parseFromString(fs.readFileSync(path.join(ROOT, 'reference/fb8c770/src/index.html'), 'utf8'), 'text/html');
+// The reference as the split reads it: without what the user retired (tools/split-lib.js RETIRED).
+const { readSource } = createRequire(import.meta.url)('../../tools/split-lib.js');
+const REF = new DOMParser().parseFromString(readSource(path.join(ROOT, 'reference/fb8c770/src/index.html')).text, 'text/html');
 const REF_MODALS = [...REF.querySelectorAll('body > .modal-overlay, .main > .modal-overlay')].map(m => m.id);
 const owners = (dir) => fs.readdirSync(path.join(ROOT, dir)).filter(n => fs.existsSync(path.join(ROOT, dir, n, 'react.json')))
     .map(n => ({ owner: `${dir}/${n}`, dir: path.join(ROOT, dir, n), ...JSON.parse(fs.readFileSync(path.join(ROOT, dir, n, 'react.json'), 'utf8')) }));

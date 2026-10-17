@@ -1,0 +1,1287 @@
+{
+  "checked": "2026-10-15",
+  "source": "https://ai-video-model-selector.vercel.app/api/studio/evaluate",
+  "runs": [
+    {
+      "id": "neutral",
+      "request": {
+        "prompt": "A man stands in a room.",
+        "startFrameId": null,
+        "imageIds": [],
+        "videoIds": [],
+        "videoDurations": [],
+        "duration": 5,
+        "aspect": "16:9",
+        "resolution": "1080p"
+      },
+      "response": {
+        "id": "59fa12d8-ecdb-4ea6-b23e-edb3f45ce9b6",
+        "sceneType": null,
+        "sceneLabels": [],
+        "workflow": "generate",
+        "dialogue": "none",
+        "unsupportedReason": null,
+        "selectionMode": "recommended",
+        "providerReceipt": {
+          "endpoint": "https://api.typesafe.ai/v1/systemone",
+          "status": 200,
+          "receivedAt": "2026-10-15T03:03:47.951Z",
+          "requestId": "req_01a13d84112375bc87ae1d86467fdc9d",
+          "platformRequestId": null
+        },
+        "providerModel": "jev-1.13.0",
+        "rulesVersion": 20,
+        "scoring": "relative_fit_v2",
+        "providerChoice": "seedance",
+        "choice": "seedance",
+        "confidence": 1,
+        "cards": [
+          {
+            "id": "seedance",
+            "noAdvantage": false,
+            "fitScore": 10,
+            "probability": 1,
+            "blocked": null,
+            "reason": "Your top quality pick for this scene."
+          },
+          {
+            "id": "seedance-2",
+            "noAdvantage": false,
+            "fitScore": 9,
+            "probability": 0,
+            "blocked": null,
+            "reason": "An alternative when you want quality close to Seedance 2.5."
+          },
+          {
+            "id": "kling-omni",
+            "noAdvantage": false,
+            "fitScore": 7,
+            "probability": 0,
+            "blocked": null,
+            "reason": "A close Kling alternative, with a small quality trade-off."
+          },
+          {
+            "id": "kling",
+            "noAdvantage": false,
+            "fitScore": 0,
+            "probability": 0,
+            "blocked": null,
+            "reason": "No specific reason returned. Evaluate again to retry."
+          },
+          {
+            "id": "wan",
+            "noAdvantage": true,
+            "fitScore": 8,
+            "probability": 0,
+            "blocked": null,
+            "reason": "No clear advantage over the stronger choices for this scene."
+          },
+          {
+            "id": "gemini-omni",
+            "noAdvantage": true,
+            "fitScore": 6,
+            "probability": 0,
+            "blocked": null,
+            "reason": "No clear advantage over the stronger choices for this scene."
+          },
+          {
+            "id": "flux",
+            "noAdvantage": true,
+            "fitScore": 6,
+            "probability": 0,
+            "blocked": null,
+            "reason": "No clear advantage over the stronger choices for this scene."
+          },
+          {
+            "id": "h3",
+            "noAdvantage": true,
+            "fitScore": 1,
+            "probability": 0,
+            "blocked": null,
+            "reason": "A lower-priority alternative for this scene; Seedance is the preferred quality choice."
+          }
+        ],
+        "durationSuggestion": null,
+        "noneProbability": 0,
+        "elapsed": 303
+      }
+    },
+    {
+      "id": "anime",
+      "request": {
+        "prompt": "A 2D anime girl waves to her friend on a quiet rooftop. No dialogue.",
+        "startFrameId": null,
+        "imageIds": [],
+        "videoIds": [],
+        "videoDurations": [],
+        "duration": 6,
+        "aspect": "16:9",
+        "resolution": "1080p"
+      },
+      "response": {
+        "id": "d1984785-8258-49fc-ba9d-c94d4384f615",
+        "sceneType": "Anime",
+        "sceneLabels": [
+          "Anime"
+        ],
+        "workflow": "generate",
+        "dialogue": "none",
+        "unsupportedReason": null,
+        "selectionMode": "recommended",
+        "providerReceipt": {
+          "endpoint": "https://api.typesafe.ai/v1/systemone",
+          "status": 200,
+          "receivedAt": "2026-10-15T03:03:48.793Z",
+          "requestId": "req_01a13d8414187e178d4d64ef8b75901d",
+          "platformRequestId": null
+        },
+        "providerModel": "jev-1.13.0",
+        "rulesVersion": 20,
+        "scoring": "relative_fit_v2",
+        "providerChoice": "h3",
+        "choice": "h3",
+        "confidence": 0.99,
+        "cards": [
+          {
+            "id": "h3",
+            "noAdvantage": false,
+            "fitScore": 10,
+            "probability": 0.99,
+            "blocked": null,
+            "reason": "The preferred specialist for this 2D character animation."
+          },
+          {
+            "id": "seedance",
+            "noAdvantage": false,
+            "fitScore": 9,
+            "probability": 0.01,
+            "blocked": null,
+            "reason": "A strong alternative for the dialogue, character interaction and shot changes."
+          },
+          {
+            "id": "seedance-2",
+            "noAdvantage": false,
+            "fitScore": 7,
+            "probability": 0,
+            "blocked": null,
+            "reason": "Another option for this cartoon scene, below Seedance 2.5 in quality."
+          },
+          {
+            "id": "kling",
+            "noAdvantage": false,
+            "fitScore": 0,
+            "probability": 0,
+            "blocked": null,
+            "reason": "No specific reason returned. Evaluate again to retry."
+          },
+          {
+            "id": "wan",
+            "noAdvantage": true,
+            "fitScore": 7,
+            "probability": 0,
+            "blocked": null,
+            "reason": "No clear advantage over the stronger choices for this scene."
+          },
+          {
+            "id": "kling-omni",
+            "noAdvantage": true,
+            "fitScore": 5,
+            "probability": 0,
+            "blocked": null,
+            "reason": "No clear advantage over the stronger choices for this scene."
+          },
+          {
+            "id": "flux",
+            "noAdvantage": true,
+            "fitScore": 5,
+            "probability": 0,
+            "blocked": null,
+            "reason": "No clear advantage over the stronger choices for this scene."
+          },
+          {
+            "id": "gemini-omni",
+            "noAdvantage": true,
+            "fitScore": 1,
+            "probability": 0,
+            "blocked": null,
+            "reason": "No clear advantage over the stronger choices for this scene."
+          }
+        ],
+        "durationSuggestion": null,
+        "noneProbability": 0,
+        "elapsed": 431
+      }
+    },
+    {
+      "id": "cartoon",
+      "request": {
+        "prompt": "A cartoon fox searches a magical forest, hand drawn 2D animation.",
+        "startFrameId": null,
+        "imageIds": [],
+        "videoIds": [],
+        "videoDurations": [],
+        "duration": 8,
+        "aspect": "16:9",
+        "resolution": "1080p"
+      },
+      "response": {
+        "id": "44366a47-c8a4-4359-acd6-80d3b99be91b",
+        "sceneType": "Animation",
+        "sceneLabels": [
+          "Animation"
+        ],
+        "workflow": "generate",
+        "dialogue": "none",
+        "unsupportedReason": null,
+        "selectionMode": "recommended",
+        "providerReceipt": {
+          "endpoint": "https://api.typesafe.ai/v1/systemone",
+          "status": 200,
+          "receivedAt": "2026-10-15T03:03:48.746Z",
+          "requestId": "req_01a13d841428742096c8c67ec1bda367",
+          "platformRequestId": null
+        },
+        "providerModel": "jev-1.13.0",
+        "rulesVersion": 20,
+        "scoring": "relative_fit_v2",
+        "providerChoice": "h3",
+        "choice": "h3",
+        "confidence": 0.98,
+        "cards": [
+          {
+            "id": "h3",
+            "noAdvantage": false,
+            "fitScore": 10,
+            "probability": 0.98,
+            "blocked": null,
+            "reason": "The preferred specialist for this 2D character animation."
+          },
+          {
+            "id": "seedance",
+            "noAdvantage": false,
+            "fitScore": 9,
+            "probability": 0.02,
+            "blocked": null,
+            "reason": "A strong alternative for the dialogue, character interaction and shot changes."
+          },
+          {
+            "id": "seedance-2",
+            "noAdvantage": false,
+            "fitScore": 7,
+            "probability": 0,
+            "blocked": null,
+            "reason": "Another option for this cartoon scene, below Seedance 2.5 in quality."
+          },
+          {
+            "id": "kling",
+            "noAdvantage": false,
+            "fitScore": 0,
+            "probability": 0,
+            "blocked": null,
+            "reason": "No specific reason returned. Evaluate again to retry."
+          },
+          {
+            "id": "kling-omni",
+            "noAdvantage": true,
+            "fitScore": 5,
+            "probability": 0,
+            "blocked": null,
+            "reason": "No clear advantage over the stronger choices for this scene."
+          },
+          {
+            "id": "wan",
+            "noAdvantage": true,
+            "fitScore": 5,
+            "probability": 0,
+            "blocked": null,
+            "reason": "No clear advantage over the stronger choices for this scene."
+          },
+          {
+            "id": "flux",
+            "noAdvantage": true,
+            "fitScore": 5,
+            "probability": 0,
+            "blocked": null,
+            "reason": "No clear advantage over the stronger choices for this scene."
+          },
+          {
+            "id": "gemini-omni",
+            "noAdvantage": true,
+            "fitScore": 1,
+            "probability": 0,
+            "blocked": null,
+            "reason": "No clear advantage over the stronger choices for this scene."
+          }
+        ],
+        "durationSuggestion": null,
+        "noneProbability": 0,
+        "elapsed": 375
+      }
+    },
+    {
+      "id": "clay",
+      "request": {
+        "prompt": "Stop motion claymation of a tiny robot walking through a kitchen.",
+        "startFrameId": null,
+        "imageIds": [],
+        "videoIds": [],
+        "videoDurations": [],
+        "duration": 6,
+        "aspect": "16:9",
+        "resolution": "1080p"
+      },
+      "response": {
+        "id": "6da800e2-cb61-4a37-993a-1b9d3fd44a00",
+        "sceneType": "Animation",
+        "sceneLabels": [
+          "Animation"
+        ],
+        "workflow": "generate",
+        "dialogue": "none",
+        "unsupportedReason": null,
+        "selectionMode": "recommended",
+        "providerReceipt": {
+          "endpoint": "https://api.typesafe.ai/v1/systemone",
+          "status": 200,
+          "receivedAt": "2026-10-15T03:03:48.060Z",
+          "requestId": "req_01a13d8411827b0b978b962ef735757d",
+          "platformRequestId": null
+        },
+        "providerModel": "jev-1.13.0",
+        "rulesVersion": 20,
+        "scoring": "relative_fit_v2",
+        "providerChoice": "seedance",
+        "choice": "seedance",
+        "confidence": 0.86,
+        "cards": [
+          {
+            "id": "seedance",
+            "noAdvantage": false,
+            "fitScore": 10,
+            "probability": 0.88,
+            "blocked": null,
+            "reason": "Your top quality pick for this scene."
+          },
+          {
+            "id": "seedance-2",
+            "noAdvantage": false,
+            "fitScore": 9,
+            "probability": 0.01,
+            "blocked": null,
+            "reason": "An alternative when you want quality close to Seedance 2.5."
+          },
+          {
+            "id": "wan",
+            "noAdvantage": false,
+            "fitScore": 8,
+            "probability": 0.02,
+            "blocked": null,
+            "reason": "An alternative for the animated scene and character movement."
+          },
+          {
+            "id": "kling-omni",
+            "noAdvantage": false,
+            "fitScore": 7,
+            "probability": 0.01,
+            "blocked": null,
+            "reason": "A close Kling alternative, with a small quality trade-off."
+          },
+          {
+            "id": "kling",
+            "noAdvantage": false,
+            "fitScore": 0,
+            "probability": 0,
+            "blocked": null,
+            "reason": "No specific reason returned. Evaluate again to retry."
+          },
+          {
+            "id": "flux",
+            "noAdvantage": true,
+            "fitScore": 7,
+            "probability": 0,
+            "blocked": null,
+            "reason": "No clear advantage over the stronger choices for this scene."
+          },
+          {
+            "id": "h3",
+            "noAdvantage": true,
+            "fitScore": 6,
+            "probability": 0.03,
+            "blocked": null,
+            "reason": "No clear advantage over the stronger choices for this scene."
+          },
+          {
+            "id": "gemini-omni",
+            "noAdvantage": true,
+            "fitScore": 6,
+            "probability": 0,
+            "blocked": null,
+            "reason": "No clear advantage over the stronger choices for this scene."
+          }
+        ],
+        "durationSuggestion": null,
+        "noneProbability": 0.05,
+        "elapsed": 337
+      }
+    },
+    {
+      "id": "dialogue",
+      "request": {
+        "prompt": "Close-up of a woman who whispers \"I thought you were gone.\"",
+        "startFrameId": null,
+        "imageIds": [],
+        "videoIds": [],
+        "videoDurations": [],
+        "duration": 5,
+        "aspect": "16:9",
+        "resolution": "1080p"
+      },
+      "response": {
+        "id": "3f6185aa-4c19-40fd-b17c-88986a09df4c",
+        "sceneType": "Story scene",
+        "sceneLabels": [
+          "Story scene",
+          "Brief dialogue",
+          "Voice acting"
+        ],
+        "workflow": "generate",
+        "dialogue": "brief",
+        "unsupportedReason": null,
+        "selectionMode": "recommended",
+        "providerReceipt": {
+          "endpoint": "https://api.typesafe.ai/v1/systemone",
+          "status": 200,
+          "receivedAt": "2026-10-15T03:03:48.773Z",
+          "requestId": "req_01a13d841437752abc829047263c6073",
+          "platformRequestId": null
+        },
+        "providerModel": "jev-1.13.0",
+        "rulesVersion": 20,
+        "scoring": "relative_fit_v2",
+        "providerChoice": "seedance",
+        "choice": "seedance",
+        "confidence": 0.99,
+        "cards": [
+          {
+            "id": "seedance",
+            "noAdvantage": false,
+            "fitScore": 10,
+            "probability": 0.99,
+            "blocked": null,
+            "reason": "Your top quality pick for this scene."
+          },
+          {
+            "id": "seedance-2",
+            "noAdvantage": false,
+            "fitScore": 9,
+            "probability": 0,
+            "blocked": null,
+            "reason": "An alternative when you want quality close to Seedance 2.5."
+          },
+          {
+            "id": "flux",
+            "noAdvantage": false,
+            "fitScore": 7,
+            "probability": 0.01,
+            "blocked": null,
+            "reason": "A strong voice-acting option for the delivery and emotion you described."
+          },
+          {
+            "id": "kling",
+            "noAdvantage": false,
+            "fitScore": 0,
+            "probability": 0,
+            "blocked": null,
+            "reason": "No specific reason returned. Evaluate again to retry."
+          },
+          {
+            "id": "wan",
+            "noAdvantage": true,
+            "fitScore": 8,
+            "probability": 0,
+            "blocked": null,
+            "reason": "The amount of dialogue favors the Seedance models for this scene."
+          },
+          {
+            "id": "gemini-omni",
+            "noAdvantage": true,
+            "fitScore": 7,
+            "probability": 0,
+            "blocked": null,
+            "reason": "The amount of dialogue favors the Seedance models for this scene."
+          },
+          {
+            "id": "kling-omni",
+            "noAdvantage": true,
+            "fitScore": 5,
+            "probability": 0,
+            "blocked": null,
+            "reason": "The amount of dialogue favors the Seedance models for this scene."
+          },
+          {
+            "id": "h3",
+            "noAdvantage": true,
+            "fitScore": 5,
+            "probability": 0,
+            "blocked": null,
+            "reason": "The amount of dialogue favors the Seedance models for this scene."
+          }
+        ],
+        "durationSuggestion": null,
+        "noneProbability": 0,
+        "elapsed": 412
+      }
+    },
+    {
+      "id": "realistic",
+      "request": {
+        "prompt": "Photorealistic slow motion of a wine glass shattering on stone, liquid splashing.",
+        "startFrameId": null,
+        "imageIds": [],
+        "videoIds": [],
+        "videoDurations": [],
+        "duration": 5,
+        "aspect": "16:9",
+        "resolution": "1080p"
+      },
+      "response": {
+        "id": "e26de12f-15cc-4acc-95b6-100e3d49a5a7",
+        "sceneType": "Cinematic",
+        "sceneLabels": [
+          "Cinematic",
+          "Realistic"
+        ],
+        "workflow": "generate",
+        "dialogue": "none",
+        "unsupportedReason": null,
+        "selectionMode": "recommended",
+        "providerReceipt": {
+          "endpoint": "https://api.typesafe.ai/v1/systemone",
+          "status": 200,
+          "receivedAt": "2026-10-15T03:03:48.746Z",
+          "requestId": "req_01a13d84143477d0a68194bb8454bc47",
+          "platformRequestId": null
+        },
+        "providerModel": "jev-1.13.0",
+        "rulesVersion": 20,
+        "scoring": "relative_fit_v2",
+        "providerChoice": "seedance",
+        "choice": "seedance",
+        "confidence": 0.99,
+        "cards": [
+          {
+            "id": "seedance",
+            "noAdvantage": false,
+            "fitScore": 10,
+            "probability": 0.99,
+            "blocked": null,
+            "reason": "Your top quality pick for this scene."
+          },
+          {
+            "id": "seedance-2",
+            "noAdvantage": false,
+            "fitScore": 9,
+            "probability": 0,
+            "blocked": null,
+            "reason": "An alternative when you want quality close to Seedance 2.5."
+          },
+          {
+            "id": "wan",
+            "noAdvantage": false,
+            "fitScore": 8,
+            "probability": 0.01,
+            "blocked": null,
+            "reason": "Fits the camera work and cinematic look of this scene."
+          },
+          {
+            "id": "kling-omni",
+            "noAdvantage": false,
+            "fitScore": 7,
+            "probability": 0,
+            "blocked": null,
+            "reason": "A close Kling alternative, with a small quality trade-off."
+          },
+          {
+            "id": "kling",
+            "noAdvantage": false,
+            "fitScore": 0,
+            "probability": 0,
+            "blocked": null,
+            "reason": "No specific reason returned. Evaluate again to retry."
+          },
+          {
+            "id": "gemini-omni",
+            "noAdvantage": true,
+            "fitScore": 7,
+            "probability": 0,
+            "blocked": null,
+            "reason": "No clear advantage over the stronger choices for this scene."
+          },
+          {
+            "id": "flux",
+            "noAdvantage": true,
+            "fitScore": 7,
+            "probability": 0,
+            "blocked": null,
+            "reason": "No clear advantage over the stronger choices for this scene."
+          },
+          {
+            "id": "h3",
+            "noAdvantage": true,
+            "fitScore": 1,
+            "probability": 0,
+            "blocked": null,
+            "reason": "A lower-priority alternative for this scene; Seedance is the preferred quality choice."
+          }
+        ],
+        "durationSuggestion": null,
+        "noneProbability": 0,
+        "elapsed": 375
+      }
+    },
+    {
+      "id": "action",
+      "request": {
+        "prompt": "A car drifts around a corner at night, whip pan following the coordinated stunt.",
+        "startFrameId": null,
+        "imageIds": [],
+        "videoIds": [],
+        "videoDurations": [],
+        "duration": 8,
+        "aspect": "16:9",
+        "resolution": "1080p"
+      },
+      "response": {
+        "id": "5dee68ec-916c-4f99-9c0e-9a43f01f37de",
+        "sceneType": "Cinematic",
+        "sceneLabels": [
+          "Cinematic"
+        ],
+        "workflow": "generate",
+        "dialogue": "none",
+        "unsupportedReason": null,
+        "selectionMode": "recommended",
+        "providerReceipt": {
+          "endpoint": "https://api.typesafe.ai/v1/systemone",
+          "status": 200,
+          "receivedAt": "2026-10-15T03:03:48.778Z",
+          "requestId": "req_01a13d841460768d9bbb06f8d03618ee",
+          "platformRequestId": null
+        },
+        "providerModel": "jev-1.13.0",
+        "rulesVersion": 20,
+        "scoring": "relative_fit_v2",
+        "providerChoice": "seedance",
+        "choice": "seedance",
+        "confidence": 0.98,
+        "cards": [
+          {
+            "id": "seedance",
+            "noAdvantage": false,
+            "fitScore": 10,
+            "probability": 0.98,
+            "blocked": null,
+            "reason": "The coordinated action makes this a good fit for your premium model."
+          },
+          {
+            "id": "seedance-2",
+            "noAdvantage": false,
+            "fitScore": 9,
+            "probability": 0,
+            "blocked": null,
+            "reason": "An alternative when you want quality close to Seedance 2.5."
+          },
+          {
+            "id": "wan",
+            "noAdvantage": false,
+            "fitScore": 8,
+            "probability": 0.02,
+            "blocked": null,
+            "reason": "Fits the camera work and cinematic look of this scene."
+          },
+          {
+            "id": "kling-omni",
+            "noAdvantage": false,
+            "fitScore": 7,
+            "probability": 0,
+            "blocked": null,
+            "reason": "A close Kling alternative, with a small quality trade-off."
+          },
+          {
+            "id": "kling",
+            "noAdvantage": false,
+            "fitScore": 0,
+            "probability": 0,
+            "blocked": null,
+            "reason": "No specific reason returned. Evaluate again to retry."
+          },
+          {
+            "id": "gemini-omni",
+            "noAdvantage": true,
+            "fitScore": 7,
+            "probability": 0,
+            "blocked": null,
+            "reason": "No clear advantage over the stronger choices for this scene."
+          },
+          {
+            "id": "flux",
+            "noAdvantage": true,
+            "fitScore": 7,
+            "probability": 0,
+            "blocked": null,
+            "reason": "No clear advantage over the stronger choices for this scene."
+          },
+          {
+            "id": "h3",
+            "noAdvantage": true,
+            "fitScore": 6,
+            "probability": 0,
+            "blocked": null,
+            "reason": "The coordinated action and camera moves favor Seedance for this scene."
+          }
+        ],
+        "durationSuggestion": null,
+        "noneProbability": 0,
+        "elapsed": 355
+      }
+    },
+    {
+      "id": "product",
+      "request": {
+        "prompt": "Product shot of perfume bottle with legible NOIR lettering on black marble.",
+        "startFrameId": null,
+        "imageIds": [],
+        "videoIds": [],
+        "videoDurations": [],
+        "duration": 6,
+        "aspect": "16:9",
+        "resolution": "1080p"
+      },
+      "response": {
+        "id": "6942c3f2-5e46-4a44-96e6-cef9ba29c77a",
+        "sceneType": "Product video",
+        "sceneLabels": [
+          "Product video"
+        ],
+        "workflow": "generate",
+        "dialogue": "none",
+        "unsupportedReason": null,
+        "selectionMode": "recommended",
+        "providerReceipt": {
+          "endpoint": "https://api.typesafe.ai/v1/systemone",
+          "status": 200,
+          "receivedAt": "2026-10-15T03:03:48.744Z",
+          "requestId": "req_01a13d84142e7213853f1102d97c1313",
+          "platformRequestId": null
+        },
+        "providerModel": "jev-1.13.0",
+        "rulesVersion": 20,
+        "scoring": "relative_fit_v2",
+        "providerChoice": "seedance",
+        "choice": "seedance",
+        "confidence": 0.95,
+        "cards": [
+          {
+            "id": "seedance",
+            "noAdvantage": false,
+            "fitScore": 10,
+            "probability": 0.96,
+            "blocked": null,
+            "reason": "Your top quality pick for this scene."
+          },
+          {
+            "id": "seedance-2",
+            "noAdvantage": false,
+            "fitScore": 9,
+            "probability": 0,
+            "blocked": null,
+            "reason": "An alternative when you want quality close to Seedance 2.5."
+          },
+          {
+            "id": "wan",
+            "noAdvantage": false,
+            "fitScore": 8,
+            "probability": 0.04,
+            "blocked": null,
+            "reason": "A strong alternative for the product shot and movement you described."
+          },
+          {
+            "id": "kling-omni",
+            "noAdvantage": false,
+            "fitScore": 7,
+            "probability": 0,
+            "blocked": null,
+            "reason": "A close Kling alternative, with a small quality trade-off."
+          },
+          {
+            "id": "kling",
+            "noAdvantage": false,
+            "fitScore": 0,
+            "probability": 0,
+            "blocked": null,
+            "reason": "No specific reason returned. Evaluate again to retry."
+          },
+          {
+            "id": "gemini-omni",
+            "noAdvantage": true,
+            "fitScore": 7,
+            "probability": 0,
+            "blocked": null,
+            "reason": "No clear advantage over the stronger choices for this scene."
+          },
+          {
+            "id": "flux",
+            "noAdvantage": true,
+            "fitScore": 7,
+            "probability": 0,
+            "blocked": null,
+            "reason": "No clear advantage over the stronger choices for this scene."
+          },
+          {
+            "id": "h3",
+            "noAdvantage": true,
+            "fitScore": 1,
+            "probability": 0,
+            "blocked": null,
+            "reason": "A lower-priority alternative for this scene; Seedance is the preferred quality choice."
+          }
+        ],
+        "durationSuggestion": null,
+        "noneProbability": 0,
+        "elapsed": 359
+      }
+    },
+    {
+      "id": "aerial",
+      "request": {
+        "prompt": "One continuous slow aerial shot above misty mountains at dawn.",
+        "startFrameId": null,
+        "imageIds": [],
+        "videoIds": [],
+        "videoDurations": [],
+        "duration": 8,
+        "aspect": "16:9",
+        "resolution": "1080p"
+      },
+      "response": {
+        "id": "54520731-19ba-4787-ab3d-191d0cd97de7",
+        "sceneType": "Cinematic",
+        "sceneLabels": [
+          "Cinematic"
+        ],
+        "workflow": "generate",
+        "dialogue": "none",
+        "unsupportedReason": null,
+        "selectionMode": "recommended",
+        "providerReceipt": {
+          "endpoint": "https://api.typesafe.ai/v1/systemone",
+          "status": 200,
+          "receivedAt": "2026-10-15T03:03:48.055Z",
+          "requestId": "req_01a13d84113e72c796a87394af54036a",
+          "platformRequestId": null
+        },
+        "providerModel": "jev-1.13.0",
+        "rulesVersion": 20,
+        "scoring": "relative_fit_v2",
+        "providerChoice": "seedance",
+        "choice": "seedance",
+        "confidence": 0.97,
+        "cards": [
+          {
+            "id": "seedance",
+            "noAdvantage": false,
+            "fitScore": 10,
+            "probability": 0.97,
+            "blocked": null,
+            "reason": "Your top quality pick for this scene."
+          },
+          {
+            "id": "seedance-2",
+            "noAdvantage": false,
+            "fitScore": 9,
+            "probability": 0,
+            "blocked": null,
+            "reason": "An alternative when you want quality close to Seedance 2.5."
+          },
+          {
+            "id": "wan",
+            "noAdvantage": false,
+            "fitScore": 8,
+            "probability": 0.03,
+            "blocked": null,
+            "reason": "Fits the camera work and cinematic look of this scene."
+          },
+          {
+            "id": "kling-omni",
+            "noAdvantage": false,
+            "fitScore": 7,
+            "probability": 0,
+            "blocked": null,
+            "reason": "A close Kling alternative, with a small quality trade-off."
+          },
+          {
+            "id": "flux",
+            "noAdvantage": false,
+            "fitScore": 7,
+            "probability": 0,
+            "blocked": null,
+            "reason": "A fit for the supporting shot and simple movement you described."
+          },
+          {
+            "id": "kling",
+            "noAdvantage": false,
+            "fitScore": 0,
+            "probability": 0,
+            "blocked": null,
+            "reason": "No specific reason returned. Evaluate again to retry."
+          },
+          {
+            "id": "h3",
+            "noAdvantage": true,
+            "fitScore": 7,
+            "probability": 0,
+            "blocked": null,
+            "reason": "A lower-priority alternative for this scene; Seedance is the preferred quality choice."
+          },
+          {
+            "id": "gemini-omni",
+            "noAdvantage": true,
+            "fitScore": 7,
+            "probability": 0,
+            "blocked": null,
+            "reason": "No clear advantage over the stronger choices for this scene."
+          }
+        ],
+        "durationSuggestion": null,
+        "noneProbability": 0,
+        "elapsed": 391
+      }
+    },
+    {
+      "id": "long",
+      "request": {
+        "prompt": "One continuous slow aerial shot above misty mountains at dawn.",
+        "startFrameId": null,
+        "imageIds": [],
+        "videoIds": [],
+        "videoDurations": [],
+        "duration": 25,
+        "aspect": "16:9",
+        "resolution": "1080p"
+      },
+      "response": {
+        "id": "4ed9074f-3442-4512-9fc7-f68dac009d4f",
+        "sceneType": "Cinematic",
+        "sceneLabels": [
+          "Cinematic"
+        ],
+        "workflow": "generate",
+        "dialogue": "none",
+        "unsupportedReason": null,
+        "selectionMode": "recommended",
+        "providerReceipt": {
+          "endpoint": "https://api.typesafe.ai/v1/systemone",
+          "status": 200,
+          "receivedAt": "2026-10-15T03:03:47.897Z",
+          "requestId": "req_01a13d8411407180ac3fe15b7969fff7",
+          "platformRequestId": null
+        },
+        "providerModel": "jev-1.13.0",
+        "rulesVersion": 20,
+        "scoring": "relative_fit_v2",
+        "providerChoice": "seedance",
+        "choice": "seedance",
+        "confidence": 0.94,
+        "cards": [
+          {
+            "id": "seedance",
+            "noAdvantage": false,
+            "fitScore": 10,
+            "probability": 0.96,
+            "blocked": null,
+            "reason": "A fit for the supporting shot and simple movement you described."
+          },
+          {
+            "id": "wan",
+            "noAdvantage": false,
+            "fitScore": 8,
+            "probability": 0.04,
+            "blocked": null,
+            "reason": "Fits the camera work and cinematic look of this scene."
+          },
+          {
+            "id": "kling",
+            "noAdvantage": false,
+            "fitScore": 0,
+            "probability": 0,
+            "blocked": "Supports 3–15s; your shot is 25s.",
+            "reason": "Supports 3–15s; your shot is 25s."
+          },
+          {
+            "id": "kling-omni",
+            "noAdvantage": false,
+            "fitScore": 0,
+            "probability": 0,
+            "blocked": "Supports 3–15s; your shot is 25s.",
+            "reason": "Supports 3–15s; your shot is 25s."
+          },
+          {
+            "id": "h3",
+            "noAdvantage": false,
+            "fitScore": 0,
+            "probability": 0,
+            "blocked": "Supports 5–15s; your shot is 25s.",
+            "reason": "Supports 5–15s; your shot is 25s."
+          },
+          {
+            "id": "seedance-2",
+            "noAdvantage": false,
+            "fitScore": 0,
+            "probability": 0,
+            "blocked": "Supports 4–15s; your shot is 25s.",
+            "reason": "Supports 4–15s; your shot is 25s."
+          },
+          {
+            "id": "gemini-omni",
+            "noAdvantage": false,
+            "fitScore": 0,
+            "probability": 0,
+            "blocked": "Supports 3–10s; your shot is 25s.",
+            "reason": "Supports 3–10s; your shot is 25s."
+          },
+          {
+            "id": "flux",
+            "noAdvantage": false,
+            "fitScore": 0,
+            "probability": 0,
+            "blocked": "Supports 5–20s; your shot is 25s.",
+            "reason": "Supports 5–20s; your shot is 25s."
+          }
+        ],
+        "durationSuggestion": {
+          "modelId": "kling-omni",
+          "duration": 15,
+          "requestedDuration": 25
+        },
+        "noneProbability": 0,
+        "elapsed": 207
+      }
+    },
+    {
+      "id": "ugc",
+      "request": {
+        "prompt": "Realistic selfie video of a man talking excitedly to camera: \"These sneakers changed everything. They feel amazing and I wear them every single day.\"",
+        "startFrameId": null,
+        "imageIds": [],
+        "videoIds": [],
+        "videoDurations": [],
+        "duration": 10,
+        "aspect": "9:16",
+        "resolution": "720p"
+      },
+      "response": {
+        "id": "73748991-21c8-4043-8e78-46e20ba6254a",
+        "sceneType": "Product video",
+        "sceneLabels": [
+          "Product video",
+          "Realistic",
+          "Dialogue-heavy",
+          "Voice acting"
+        ],
+        "workflow": "generate",
+        "dialogue": "substantial",
+        "unsupportedReason": null,
+        "selectionMode": "recommended",
+        "providerReceipt": {
+          "endpoint": "https://api.typesafe.ai/v1/systemone",
+          "status": 200,
+          "receivedAt": "2026-10-15T03:03:48.787Z",
+          "requestId": "req_01a13d84144f76f8af98807259127f0f",
+          "platformRequestId": null
+        },
+        "providerModel": "jev-1.13.0",
+        "rulesVersion": 20,
+        "scoring": "relative_fit_v2",
+        "providerChoice": "seedance",
+        "choice": "seedance",
+        "confidence": 0.98,
+        "cards": [
+          {
+            "id": "seedance",
+            "noAdvantage": false,
+            "fitScore": 10,
+            "probability": 0.98,
+            "blocked": null,
+            "reason": "Your top quality pick for this scene."
+          },
+          {
+            "id": "seedance-2",
+            "noAdvantage": false,
+            "fitScore": 9,
+            "probability": 0.01,
+            "blocked": null,
+            "reason": "An alternative when you want quality close to Seedance 2.5."
+          },
+          {
+            "id": "flux",
+            "noAdvantage": false,
+            "fitScore": 7,
+            "probability": 0.01,
+            "blocked": null,
+            "reason": "A strong voice-acting option for the delivery and emotion you described."
+          },
+          {
+            "id": "kling",
+            "noAdvantage": false,
+            "fitScore": 0,
+            "probability": 0,
+            "blocked": null,
+            "reason": "No specific reason returned. Evaluate again to retry."
+          },
+          {
+            "id": "wan",
+            "noAdvantage": true,
+            "fitScore": 8,
+            "probability": 0,
+            "blocked": null,
+            "reason": "The amount of dialogue favors the Seedance models for this scene."
+          },
+          {
+            "id": "gemini-omni",
+            "noAdvantage": true,
+            "fitScore": 7,
+            "probability": 0,
+            "blocked": null,
+            "reason": "The amount of dialogue favors the Seedance models for this scene."
+          },
+          {
+            "id": "kling-omni",
+            "noAdvantage": true,
+            "fitScore": 5,
+            "probability": 0,
+            "blocked": null,
+            "reason": "The amount of dialogue favors the Seedance models for this scene."
+          },
+          {
+            "id": "h3",
+            "noAdvantage": true,
+            "fitScore": 5,
+            "probability": 0,
+            "blocked": null,
+            "reason": "The amount of dialogue favors the Seedance models for this scene."
+          }
+        ],
+        "durationSuggestion": null,
+        "noneProbability": 0,
+        "elapsed": 383
+      }
+    },
+    {
+      "id": "4k",
+      "request": {
+        "prompt": "A cinematic wide establishing shot of an empty city at dusk.",
+        "startFrameId": null,
+        "imageIds": [],
+        "videoIds": [],
+        "videoDurations": [],
+        "duration": 8,
+        "aspect": "16:9",
+        "resolution": "4K"
+      },
+      "response": {
+        "id": "815d68c7-c20b-4afa-8ff1-a38aeadcce99",
+        "sceneType": "B-roll",
+        "sceneLabels": [
+          "B-roll",
+          "Cinematic"
+        ],
+        "workflow": "generate",
+        "dialogue": "none",
+        "unsupportedReason": null,
+        "selectionMode": "recommended",
+        "providerReceipt": {
+          "endpoint": "https://api.typesafe.ai/v1/systemone",
+          "status": 200,
+          "receivedAt": "2026-10-15T03:03:48.642Z",
+          "requestId": "req_01a13d8413b47a3ead4243bff05a61e3",
+          "platformRequestId": null
+        },
+        "providerModel": "jev-1.13.0",
+        "rulesVersion": 20,
+        "scoring": "relative_fit_v2",
+        "providerChoice": "seedance",
+        "choice": "seedance",
+        "confidence": 0.97,
+        "cards": [
+          {
+            "id": "seedance",
+            "noAdvantage": false,
+            "fitScore": 10,
+            "probability": 0.97,
+            "blocked": null,
+            "reason": "Fits the camera work and cinematic look of this scene."
+          },
+          {
+            "id": "seedance-2",
+            "noAdvantage": false,
+            "fitScore": 9,
+            "probability": 0,
+            "blocked": null,
+            "reason": "An alternative when you want quality close to Seedance 2.5."
+          },
+          {
+            "id": "wan",
+            "noAdvantage": false,
+            "fitScore": 8,
+            "probability": 0.03,
+            "blocked": null,
+            "reason": "Fits the camera work and cinematic look of this scene."
+          },
+          {
+            "id": "kling-omni",
+            "noAdvantage": false,
+            "fitScore": 7,
+            "probability": 0,
+            "blocked": null,
+            "reason": "A fit for the supporting shot and simple movement you described."
+          },
+          {
+            "id": "flux",
+            "noAdvantage": false,
+            "fitScore": 7,
+            "probability": 0,
+            "blocked": null,
+            "reason": "A fit for the supporting shot and simple movement you described."
+          },
+          {
+            "id": "kling",
+            "noAdvantage": false,
+            "fitScore": 0,
+            "probability": 0,
+            "blocked": null,
+            "reason": "No specific reason returned. Evaluate again to retry."
+          },
+          {
+            "id": "gemini-omni",
+            "noAdvantage": true,
+            "fitScore": 7,
+            "probability": 0,
+            "blocked": null,
+            "reason": "No clear advantage over the stronger choices for this scene."
+          },
+          {
+            "id": "h3",
+            "noAdvantage": true,
+            "fitScore": 6,
+            "probability": 0,
+            "blocked": null,
+            "reason": "A lower-priority alternative for this scene; Seedance is the preferred quality choice."
+          }
+        ],
+        "durationSuggestion": null,
+        "noneProbability": 0,
+        "elapsed": 376
+      }
+    }
+  ]
+}

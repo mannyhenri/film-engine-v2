@@ -1,9 +1,0 @@
-{
-  "about": "This page is React (MusicWorkstationPage.jsx, its frame generated from the legacy markup). Its loader is in the music engine (src/pages/music/engine.js), owned by the Music & Sound page, which draws the whole score session.",
-  "loader": "loadMusicWorkstation",
-  "provides": [],
-  "replaces": [
-    "loadMusicWorkstation"
-  ],
-  "modals": []
-}

@@ -1,7 +1,7 @@
 /**
  * FILM-070-072: Pipeline Engine
  *
- * Pure logic for orchestrating the 9-step shot production pipeline.
+ * Pure logic for orchestrating the 8-step shot production pipeline (scene music was retired on 2026-10-14).
  * Defines step ordering, dependency resolution, and execution planning.
  * No DB dependency — used by routes/pipeline.js for the actual execution.
  */
@@ -13,11 +13,10 @@ const PIPELINE_STEPS = [
     { id: 'video', name: 'Video Generation', depends: ['keyframe'], scope: 'shot', handler: 'video-gen' },
     { id: 'voice', name: 'Dialogue Synthesis', depends: [], scope: 'shot', handler: 'voice' },
     { id: 'lipsync', name: 'Lip-Sync', depends: ['video', 'voice'], scope: 'shot', handler: 'lipsync' },
-    { id: 'music', name: 'Scene Music', depends: [], scope: 'scene', handler: 'music-gen' },
     { id: 'sfx', name: 'Sound Effects', depends: [], scope: 'shot', handler: 'music-gen' },
     { id: 'ambient', name: 'Ambient Audio', depends: [], scope: 'scene', handler: 'music-gen' },
     { id: 'post', name: 'Post-Production', depends: ['lipsync'], scope: 'shot', handler: 'post-production' },
-    { id: 'assembly', name: 'Final Assembly', depends: ['post', 'music', 'sfx', 'ambient'], scope: 'project', handler: 'conform' },
+    { id: 'assembly', name: 'Final Assembly', depends: ['post', 'sfx', 'ambient'], scope: 'project', handler: 'conform' },
 ];
 
 const STEP_IDS = PIPELINE_STEPS.map(s => s.id);

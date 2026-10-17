@@ -70,15 +70,15 @@ test('items come in dependency order, across shots, and total their own prices',
 test('a locked board keeps frames out and says so; a held shot is excluded; scene sound is planned', () => {
     const plan = rc.buildRunChangedPlan({
         report: { shots: [shot('s1', '1A', [row('keyframe', 'redo')]), shot('s2', '1B', [row('voice', 'redo')])] },
-        scenes: { sc1: { music: 'redo', ambient: 'waiting' } },
+        scenes: { sc1: { ambient: 'redo' }, sc2: { ambient: 'waiting' } },
         boardLocked: true,
         held: new Set(['s2']),
     });
     assert.match(plan.skipped.find(s => s.stage === 'keyframe').reason, /locked/i);
     assert.match(plan.skipped.find(s => s.stage === 'voice').reason, /held/i);
-    const music = plan.items.find(i => i.stage === 'music');
-    assert.ok(music && music.scene_id === 'sc1' && music.cost === COST_PER_CALL.music);
-    assert.match(plan.skipped.find(s => s.stage === 'ambient').reason, /waiting/i);
+    const ambient = plan.items.find(i => i.stage === 'ambient');
+    assert.ok(ambient && ambient.scene_id === 'sc1' && ambient.cost === COST_PER_CALL.ambient);
+    assert.match(plan.skipped.find(s => s.stage === 'ambient' && s.scene_id === 'sc2').reason, /waiting/i);
 });
 
 test('nothing behind is an empty plan that says so, not an error', () => {

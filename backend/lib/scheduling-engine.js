@@ -47,7 +47,6 @@ const STEP_MODELS = {
     video: 'video',
     voice: 'qwen3-tts',
     lipsync: 'wav2lip',
-    music: 'musicgen-large',
     sfx: 'musicgen-large',
     ambient: 'musicgen-large',
     post: 'realesrgan-video',

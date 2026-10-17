@@ -7,7 +7,7 @@ import Lists from './lists.jsx';
  * Playback, as React: the page is rendered once, and the engine (player.js, moved verbatim from the legacy
  * chunk) drives the media through the elements' ids — the video, the dialogue and the two beds, the scrub,
  * the playlist, the timecode. Nothing here re-renders while the cut plays; the controls are uncontrolled and
- * the engine reads them (the Dialogue / Camera move / Score / Ambient switches, the note fields).
+ * the engine reads them (the Dialogue / Camera move / Music / Ambient switches, the note fields).
  *
  * Every engine function is also put on window at mount, as the chunk had them: the engine renders HTML with
  * inline handlers (the playlist's rows, the note list) that call them by name.
@@ -91,8 +91,8 @@ export default function PlaybackPage() {
                             <label className="text-sm" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, cursor: 'pointer' }} title="Play each shot's camera move over its storyboard frame">
                                 <input type="checkbox" id="pbMotion" defaultChecked onChange={() => P.pbMotionToggled()} /> Camera move
                             </label>
-                            <label className="text-sm" id="pbScoreLabel" style={{ display: 'none', alignItems: 'center', gap: 6, cursor: 'pointer' }} title="Play each scene's score under its shots">
-                                <input type="checkbox" id="pbScore" defaultChecked onChange={() => P.pbBedsToggled()} /> Score
+                            <label className="text-sm" id="pbScoreLabel" style={{ display: 'none', alignItems: 'center', gap: 6, cursor: 'pointer' }} title="Play each scene's music under its shots">
+                                <input type="checkbox" id="pbScore" defaultChecked onChange={() => P.pbBedsToggled()} /> Music
                             </label>
                             <label className="text-sm" id="pbAmbientLabel" style={{ display: 'none', alignItems: 'center', gap: 6, cursor: 'pointer' }} title="Play each scene's ambient bed under its shots">
                                 <input type="checkbox" id="pbAmbient2" defaultChecked onChange={() => P.pbBedsToggled()} /> Ambient

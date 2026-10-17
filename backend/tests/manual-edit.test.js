@@ -81,7 +81,10 @@ const NAMED_DIFFERENTLY = {
     // A hold is a toggle on the production graph — its menu item and Ctrl+B —
     // not an input on a form (PGN-016).
     'shots.js updateShotCard': { held: { control: 'pgToggleHold', why: 'a toggle on the production graph (menu item, Ctrl+B), not a form field' } },
-    'assets.js updateMusicCue': { held: { control: 'pgToggleHold', why: 'a toggle on the production graph (menu item, Ctrl+B), not a form field' } },
+    'assets.js updateMusicCue': {
+        held: { control: 'pgToggleHold', why: 'a toggle on the production graph (menu item, Ctrl+B), not a form field' },
+        cue_type: { control: 'pgCuePut', why: 'the Kind segment (sound effect / ambient bed) in the production graph\'s sound drawer, one button per kind calling pgCuePut with cue_type' },
+    },
     'budget.js setBudgetLimit': {
         budget_total: { control: 'budget_limit', why: 'the control is named for the limit; saveBudgetLimit remaps it' },
     },

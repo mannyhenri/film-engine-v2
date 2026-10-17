@@ -5,7 +5,7 @@
  *   POST   /film/projects/:id/edits/import       a new version: { data | upload_id, name?, notes?, cut?, sequence? }
  *   GET    /film/edits/:id                       one version, with its cut list
  *   PUT    /film/edits/:id                       rename, notes
- *   DELETE /film/edits/:id[?force=true]          refused while a score is written against it
+ *   DELETE /film/edits/:id                       the files move to 05 Edit/deleted
  *   POST   /film/edits/:id/cut                   the XML or EDL it was cut from: { text | data, sequence? }
  *   POST   /film/edits/:id/cut/rematch           match the stored cut against the shots as they are now
  *   GET    /film/edits/:projectId/:file          the picture itself (and the cut file)
@@ -21,7 +21,7 @@ function json(res, status, data) {
 
 function attempt(res, status, fn) {
     try { return json(res, status, fn()); }
-    catch (e) { return json(res, e.status || 500, { error: e.message, ...(e.code ? { code: e.code } : {}), ...(e.sessions ? { sessions: e.sessions } : {}) }); }
+    catch (e) { return json(res, e.status || 500, { error: e.message, ...(e.code ? { code: e.code } : {}) }); }
 }
 
 async function handleEdits(req, res, parts, query) {
@@ -52,10 +52,7 @@ async function handleEdits(req, res, parts, query) {
     }
     if (!parts[3] && req.method === 'GET') return attempt(res, 200, () => ({ edit: edits.getEdit(id) }));
     if (!parts[3] && req.method === 'PUT') return attempt(res, 200, () => ({ edit: edits.updateEdit(id, req.body) }));
-    if (!parts[3] && req.method === 'DELETE') {
-        const force = (query && (query.force === 'true' || query.force === '1')) || (req.body && req.body.force === true);
-        return attempt(res, 200, () => edits.deleteEdit(id, { force }));
-    }
+    if (!parts[3] && req.method === 'DELETE') return attempt(res, 200, () => edits.deleteEdit(id));
     return json(res, 405, { error: 'Method not allowed' });
 }
 

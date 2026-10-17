@@ -47,7 +47,7 @@ const UI = fs.readFileSync(path.join(ROOT, '..', 'src', 'index.html'), 'utf8')
 const PAID_ACTIONS = [
     'generateVideoFor', 'generateAllVideos',
     'generateModelFor', 'generateAllModels',
-    'generateScoreFor', 'generateAmbientFor',
+    'generateAmbientFor',
     'generateSequence', 'refineFrame',
     'generateLocationImage', 'generateCharacterImage', 'generatePropImage',
     'sweepLocationCompass',
@@ -618,9 +618,8 @@ test('every paid control shows the actual PROMPT, not just a warning', () => {
         /*
          * A free preview is not always spelled "preview". This engine's
          * free-before-paid surfaces are named `preview`, `brief` and `plan` —
-         * a compass sweep reads `/plate/compass/plan`, a sequence reads
-         * `/sequences/:id/plan`, and a score reads `/scenes/:id/music/brief`.
-         * Requiring the word "preview" reported all three as showing no prompt
+         * a compass sweep reads `/plate/compass/plan` and a sequence reads
+         * `/sequences/:id/plan`. Requiring the word "preview" reported them as showing no prompt
          * while they showed every one, which is the cries-wolf failure.
          */
         const showsPrompt = reaches.some(src =>
