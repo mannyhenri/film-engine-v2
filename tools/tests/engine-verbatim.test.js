@@ -43,7 +43,8 @@ const CHANGED = {
         "renderCharacterSheet": "authorized expression slots: load captured character/slot data and reject late or superseded sheet reads",
         "characterSheetHtml": "authorized six face expression slots and non-destructive description/appearance consolidation; body plates remain present",
         "generateOfficialViews": "authorized manual ChatGPT handoff: stop the body-view loop on a saved external handoff and retain its captured character identity",
-        "generateCharacterImage": "authorized manual ChatGPT handoff: a pending external image is reported as a handoff rather than an already generated image"
+        "generateCharacterImage": "authorized manual ChatGPT handoff: a pending external image is reported as a handoff rather than an already generated image",
+        "exportCharacterSheet": "the director's sheet: the main picture on top, its variations below, then the description (MainSheet), replacing the four official views"
     },
     "src/pages/flows/engine.js": {
         "flowPaintRun": "user-approved staged request review: paused provider chains visibly require a fresh review after the previous result is saved",

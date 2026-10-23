@@ -170,11 +170,20 @@ test('the exported sheet carries every region', () => {
     // somebody hands to a costume designer with the colours missing.
     const body = bodyOf('exportCharacterSheet');
     for (const region of CS.SHEET_REGIONS) {
-        const words = { views: 'Official views', physical: 'Physical spec', details: 'Appearance',
+        const words = { views: 'Main picture', physical: 'Physical spec', details: 'Description',
             wardrobe: 'Wardrobe', palette: 'Palette', references: 'Concept art' }[region.id];
         assert.ok(body.includes(words),
             `the PDF has no '${words}' section — the sheet on paper is not the sheet on screen`);
     }
+});
+
+test('the exported sheet puts the main picture on top, the variations below it, then the description', () => {
+    // The order the director's sheet draws (MainSheet): the picture every generation uses leads the page.
+    const body = bodyOf('exportCharacterSheet');
+    assert.ok(body.includes('/sheet`'), 'the export does not read the main picture and its variations');
+    const at = ['class="main"', 'class="vars"', 'Description'].map(w => body.indexOf(w));
+    assert.ok(at.every(i => i >= 0), `a part is missing from the export: ${at}`);
+    assert.deepEqual([...at].sort((x, y) => x - y), at, 'the export is not main, then variations, then description');
 });
 
 test('the PDF does not print flush to the paper edge', () => {

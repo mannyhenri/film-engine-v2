@@ -768,10 +768,20 @@ const { state } = Object.fromEntries(['state'].map(n => [n, live(n)]));
      * page wastes a cartridge and reads badly, which is the same reason the
      * screenplay export builds its own.
      */
-    function exportCharacterSheet() {
+    async function exportCharacterSheet() {
         const c = SHEET.character;
         if (!c) return;
-        const plates = csPlatesByView();
+        // Opened before the sheet is read: a window opened after an await is a pop-up the browser blocks.
+        const win = window.open('', '_blank');
+        if (!win) { setStatus('Allow pop-ups to export the sheet'); return; }
+        win.document.write('<!doctype html><title>Preparing the sheet…</title><p style="font:13px sans-serif">Preparing the sheet…</p>');
+        /*
+         * The sheet as the director makes it now (MainSheet, backend/lib/character-sheet-main.js): the MAIN picture,
+         * the one every generation uses, on top; the variations below it; then the description.
+         */
+        let main = null, variations = [];
+        try { const s = await api(`/characters/${c.id}/sheet`); main = s.main; variations = s.variations || []; }
+        catch (err) { setStatus('Could not read the main picture: ' + err.message); }
         const spec = [['Age', c.age_range], ['Gender', c.gender],
             ['Height', c.height_m ? c.height_m + ' m' : null], ['Build', c.build],
             ['Hair', c.hair], ['Distinguishing', c.distinguishing]].filter(r => r[1]);
@@ -779,11 +789,12 @@ const { state } = Object.fromEntries(['state'].map(n => [n, live(n)]));
         const palette = SHEET.palette || [];
         // Wardrobe has its own section, so it is not repeated in the contact
         // strip: the same picture twice on one page reads as a mistake.
-        const refs = SHEET.gallery.filter(i => !i.sendable && i.image_url
+        // Nor is a variation repeated among the references.
+        const shown = new Set([main, ...variations].filter(Boolean).map(v => v.image_url));
+        const refs = SHEET.gallery.filter(i => !i.sendable && i.image_url && !shown.has(i.image_url)
             && (i.metadata && i.metadata.ref_category) !== 'costume');
 
-        const win = window.open('', '_blank');
-        if (!win) { setStatus('Allow pop-ups to export the sheet'); return; }
+        win.document.open();
         win.document.write(`<!doctype html><html><head><meta charset="utf-8">
         <title>${esc(c.name || 'Character')} — character sheet</title>
         <style>
@@ -798,11 +809,14 @@ const { state } = Object.fromEntries(['state'].map(n => [n, live(n)]));
           h2 { font: 600 10px/1 ui-monospace, Menlo, monospace; letter-spacing:.2em;
                text-transform:uppercase; color:#666; margin:22px 0 8px;
                border-bottom:1px solid #ddd; padding-bottom:5px; }
-          .views { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; }
-          .views figure { margin:0; }
-          .views img { width:100%; aspect-ratio:3/4; object-fit:cover; border:1px solid #ccc; }
-          .views figcaption { font:9px ui-monospace,Menlo,monospace; letter-spacing:.12em;
+          .main { margin:0; }
+          .main img { width:100%; display:block; border:1px solid #ccc; }
+          .main .blank { aspect-ratio:16/9; border:1px dashed #bbb; display:grid; place-items:center; color:#888; }
+          .main figcaption, .vars figcaption { font:9px ui-monospace,Menlo,monospace; letter-spacing:.12em;
               text-transform:uppercase; color:#666; margin-top:4px; }
+          .vars { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-top:10px; }
+          .vars figure { margin:0; break-inside:avoid; }
+          .vars img { width:100%; aspect-ratio:16/9; object-fit:contain; background:#f3f3f3; border:1px solid #ddd; display:block; }
           .spec { display:grid; grid-template-columns:repeat(3,1fr); gap:0; border:1px solid #ddd; }
           .spec div { padding:8px 10px; border-right:1px solid #eee; border-bottom:1px solid #eee; }
           .spec .k { font:9px ui-monospace,Menlo,monospace; letter-spacing:.16em;
@@ -831,14 +845,17 @@ const { state } = Object.fromEntries(['state'].map(n => [n, live(n)]));
         <div class="sub">${esc([state.currentProject && state.currentProject.title,
             [c.age_range, c.gender].filter(Boolean).join(' · ')].filter(Boolean).join(' — '))}</div>
         <div class="rule"></div>
-        <h2>Official views</h2>
-        <div class="views">${CS_VIEWS.map(v => plates[v.id]
-            ? `<figure><img src="${esc(plateSrc(plates[v.id].image_url, 320))}"><figcaption>${esc(v.label)}</figcaption></figure>`
-            : `<figure><div style="aspect-ratio:3/4;border:1px dashed #bbb;"></div><figcaption>${esc(v.label)} — not generated</figcaption></figure>`).join('')}</div>
+        <h2>Main picture — used for every generation</h2>
+        <figure class="main">${main
+            ? `<img src="${esc(csImg(main.image_url))}"><figcaption>${esc(main.kind || 'sheet')}</figcaption>`
+            : '<div class="blank">No main picture yet</div>'}</figure>
+        ${variations.length ? `<div class="vars">${variations.map(v =>
+            `<figure><img src="${esc(plateSrc(v.image_url, 480))}"><figcaption>${esc(v.kind || 'picture')}</figcaption></figure>`).join('')}</div>` : ''}
+        <h2>Description — from the screenplay</h2>
+        <div class="prose">${c.appearance_prompt ? `<p><b>Appearance.</b> ${esc(c.appearance_prompt)}</p>` : ''}
+            ${c.description ? `<p>${esc(c.description)}</p>` : ''}${!c.appearance_prompt && !c.description ? '—' : ''}</div>
         ${spec.length ? `<h2>Physical spec</h2><div class="spec">${spec.map(([k, v]) =>
             `<div><div class="k">${esc(k)}</div><div class="v">${esc(v)}</div></div>`).join('')}</div>` : ''}
-        <h2>Appearance — prompt source</h2><div class="prose">${esc(c.appearance_prompt || '—')}</div>
-        ${c.description ? `<h2>Description</h2><div class="prose">${esc(c.description)}</div>` : ''}
         ${c.personality_notes ? `<h2>Personality</h2><div class="prose">${esc(c.personality_notes)}</div>` : ''}
         ${palette.length ? `<h2>Palette</h2><div class="pal">${palette.map(p =>
             `<div><div class="sw" style="background:${esc(p.hex)}"></div>
