@@ -246,6 +246,16 @@ test('the real AI Image Upscale engine: 4x-UltraSharp to 4K and to 2x, at the si
         assert.strictEqual(p.stats.result, want);
         assert.strictEqual(execFileSync('ffprobe', ['-v', 'error', '-show_entries', 'stream=width,height', '-of', 'csv=p=0:s=x', out]).toString().trim(), want);
     }
+    // Film grain: the same size, more fine texture than the clean result, and more at a higher setting.
+    const texture = f => Number(execFileSync('/usr/local/bin/python3.10', ['-c', `import numpy as n;from PIL import Image;a=n.asarray(Image.open(${JSON.stringify(f)}).convert('L'),dtype=float);print(n.std(a[1:-1,1:-1]*4-a[:-2,1:-1]-a[2:,1:-1]-a[1:-1,:-2]-a[1:-1,2:]))`]).toString());
+    const levels = {};
+    for (const g of ['0', '0.3', '0.8']) {
+        const out = path.join(TMP, `grain-${g}.png`), prog = path.join(TMP, `grain-${g}.json`);
+        execFileSync('python3', [REAL, src, '--out', out, '--size', '2', '--grain', g, '--progress', prog], { timeout: 300000 });
+        assert.strictEqual(JSON.parse(fs.readFileSync(prog, 'utf8')).stats.grain, `${Math.round(Number(g) * 100)}%`);
+        levels[g] = texture(out);
+    }
+    assert.ok(levels['0.3'] > levels['0'] * 1.05 && levels['0.8'] > levels['0.3'] * 1.1, `grain did not rise with the setting: ${JSON.stringify(levels)}`);
 });
 
 test.after(() => fs.rmSync(TMP, { recursive: true, force: true }));
