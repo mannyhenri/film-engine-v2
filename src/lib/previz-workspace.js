@@ -598,7 +598,10 @@ export const previzWorkspace = {
     const p = this.pending;
     if (!p?.review || p.sending) return;
     const W = legacy.WORLD;
-    if (p.revision !== this.revision || p.snapshot.target.id !== W.targetId || p.snapshot.world.version_id !== W.version?.id) return this.previzCancel();
+    if (p.revision !== this.revision || p.snapshot.target.id !== W.targetId || p.snapshot.world.version_id !== W.version?.id) {
+      await this.previzCancel();
+      return legacy.setStatus('The camera or set changed after this capture. Capture it again.');
+    }
     p.sending = true;
     try {
       if (!p.token) p.token = await api(`/previz-workspace/reviews/${p.review.id}/approve`, {
@@ -609,6 +612,10 @@ export const previzWorkspace = {
         })
       });
       if (p !== this.pending || p.revision !== this.revision) {
+        if (p === this.pending) {
+          await this.previzCancel();
+          return legacy.setStatus('The camera or set changed after this capture. Capture it again.');
+        }
         await api(`/previz-workspace/reviews/${p.review.id}/cancel`, {
           method: 'POST',
           body: '{}'
@@ -637,6 +644,14 @@ export const previzWorkspace = {
       legacy.setStatus(`Saved ${p.snapshot.target.shot_code} v${result.version} · ${result.kind === 'previz_draft' ? 'browser preview' : 'Blender render'}`);
     } catch (err) {
       legacy.setStatus(err.message);
+      // The status line sits behind the modal: say it where the button was pressed.
+      const box = document.querySelector('#previzFrozenReview .pv-frozen-review');
+      if (box && p === this.pending) {
+        let line = box.querySelector('.pv-review-error');
+        if (!line) { line = document.createElement('p'); line.className = 'pv-review-error'; box.querySelector('.btn-row')?.before(line); }
+        line.textContent = /cannot be retried|fingerprint|changed/i.test(err.message)
+          ? `Not saved: ${err.message} Go back to blocking and capture again.` : `Not saved: ${err.message}`;
+      }
     } finally {
       p.sending = false;
     }

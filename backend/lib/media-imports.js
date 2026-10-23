@@ -892,9 +892,13 @@ function importMedia(target, input) {
                     filePath,filename,extension,mime,bytes.length,version,
                     JSON.stringify({kind:spec.metaKind,imported:true}));
             activation.activateAsset(db,owner.shotId,assetId,files);
-            return {target,asset_id:assetId,project_id:owner.projectId,shot_id:owner.shotId,
+            const out = {target,asset_id:assetId,project_id:owner.projectId,shot_id:owner.shotId,
                 file_name:filename,file_path:filePath,version,
                 url:getFileUrl('storyboards',owner.projectId,filename)};
+            // A caller's own writes for this image (its metadata, a review it completes) commit with it or
+            // not at all: activation owns the transaction, so they cannot wrap this call in one of their own.
+            if (typeof input.within === 'function') input.within(out);
+            return out;
         });
     }
 

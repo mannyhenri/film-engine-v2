@@ -227,6 +227,8 @@
     "worldAddLeg",
     "worldHydrateMove",
     "worldAddKey",
+    "worldSetLength",
+    "worldSyncShotLength",
     "worldPoseAtT",
     "worldPreviewCamera",
     "worldSeekTo",

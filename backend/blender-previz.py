@@ -38,11 +38,61 @@ def import_glb(path):
 
 
 # ── the set ─────────────────────────────────────────────────────────────────
+def merge_set(objs):
+    """
+    One object for the set. A furnished house arrives as thousands of objects (14,863 for Horton Mansion) and
+    Workbench drew each one per frame, 9 to 12 s a frame at 320 px: a 4 s shot timed out before it finished.
+    Joined, the same geometry and materials draw as one. The set never moves, so nothing is lost.
+    """
+    # Only what renders is merged: an object outside the view layer, or hidden from render, was never drawn and
+    # stays as it was (it cannot be selected to join).
+    layer = bpy.context.view_layer.objects
+    meshes = [o for o in objs if o.type == 'MESH' and o.name in layer and not o.hide_render]
+    # By name, now: a joined object is gone from bpy.data, and a reference to it can no longer be read.
+    extras = [o.name for o in objs if o.type in ('LIGHT', 'CAMERA', 'EMPTY')]
+    merged = meshes
+    if len(meshes) > 1:
+        bpy.ops.object.select_all(action='DESELECT')
+        for o in meshes:
+            o.hide_set(False)
+            o.hide_viewport = False
+            o.select_set(True)
+        bpy.context.view_layer.objects.active = meshes[0]
+        # Unparented keeping where they stand, BEFORE their empties go: a child of a removed parent moves.
+        bpy.ops.object.parent_clear(type='CLEAR_KEEP_TRANSFORM')
+        bpy.ops.object.join()
+        merged = [bpy.context.view_layer.objects.active]
+        merged[0].name = 'set'
+    # Workbench draws no lights, the set's own exported cameras are not ours, and empties only held the hierarchy.
+    for name in extras:
+        if name in bpy.data.objects:
+            bpy.data.objects.remove(bpy.data.objects[name], do_unlink=True)
+    return merged
+
+
+
 if job.get('world_glb'):
-    for o in import_glb(job['world_glb']):
-        # Workbench draws no lights; the set's own exported cameras are not ours.
-        if o.type in ('LIGHT', 'CAMERA'):
-            bpy.data.objects.remove(o, do_unlink=True)
+    cache = job.get('set_cache')
+    if cache and os.path.exists(cache):
+        # The set as merged last time, keyed by the GLB's identity in Node: seconds instead of minutes.
+        with bpy.data.libraries.load(cache, link=False) as (src, dst):
+            dst.objects = list(src.objects)
+        for o in dst.objects:
+            if o is not None:
+                sc.collection.objects.link(o)
+        print('PREVIZ-SET cached', flush=True)
+    else:
+        # Workbench draws no lights; the set's own exported cameras are not ours (merge_set drops both).
+        merged = merge_set(import_glb(job['world_glb']))
+        print('PREVIZ-SET merged %d' % len(merged), flush=True)
+        if cache and merged:
+            try:
+                os.makedirs(os.path.dirname(cache), exist_ok=True)
+                tmp = cache + '.%d.tmp' % os.getpid()
+                bpy.data.libraries.write(tmp, set(merged), compress=True)
+                os.replace(tmp, cache)
+            except Exception as err:      # a cache that cannot be written only costs the next render the import
+                print('PREVIZ-SET cache not written: %s' % err, flush=True)
 
 
 # ── the staged subjects, each under one empty that is moved per frame ──────

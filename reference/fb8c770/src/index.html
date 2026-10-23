@@ -5228,6 +5228,8 @@ body.pv-hide-bottom .pv-console { height:calc(100vh - 150px); }
   border-radius:0; background:#12302a; border-bottom:1px solid #2a8a72; }
 .pv-stage-name { height:28px; min-width:220px; border-radius:8px; border:1px solid rgba(255,255,255,0.15); background:#1d1d20; color:#eee; padding:0 8px; }
 .pv-num { width:52px; height:26px; border-radius:6px; border:1px solid rgba(255,255,255,0.15); background:#1d1d20; color:#eee; padding:0 6px; }
+.pv-time .pv-len { width:52px; height:24px; padding:0 4px; font:inherit; text-align:right; }
+.pv-shotlen { white-space:nowrap; font-size:11px; padding:5px 9px; border-color:#846632; color:#e8bb73; }
 .pv-follow, .pv-floor { display:inline-flex; align-items:center; gap:4px; }
 .pv-floor select { height:26px; border-radius:6px; border:1px solid rgba(255,255,255,0.15); background:#1d1d20; color:#eee; }
 .stage-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(150px, 1fr)); gap:6px; max-height:52vh; overflow-y:auto; margin:10px 0; }
@@ -17421,9 +17423,13 @@ THREE.GLTFLoader = GLTFLoader;
             ${worldTimelineHtml()}
           </div>`;
         const hasMove = (WORLD.moves || []).length || (WORLD.keys || []).length;
+        const lenIn = `<input class="pv-num pv-len" type="number" min="0.5" max="60" step="0.5" value="${dur.toFixed(1)}" onchange="worldSetLength(this.value)" aria-label="Length of the move in seconds" title="Length of the move. Keys keep their time in seconds; past the last key the camera holds.">`;
+        const shotMs = ((WORLD.shots || []).find(s => s.id === (WORLD.shotId || WORLD.targetId)) || {}).duration_ms || 0;
+        const shotLen = shotMs > 0 && Math.abs(shotMs - (WORLD.durationMs || 4000)) >= 50
+            ? `<button class="pv-btn pv-shotlen" onclick="worldSyncShotLength()" title="The shot's length on its storyboard card is what Generate and the cut use">Shot is ${(shotMs / 1000).toFixed(1)} s · make it ${dur.toFixed(1)} s</button>` : '';
         return `<div class="pv-movedock">
           <button class="pv-play" onclick="worldPlayMove()" aria-label="Play the move">${pvIcon('play')}</button>
-          <span class="pv-time">${((WORLD.t || 0) * dur).toFixed(1)} <span>/ ${dur.toFixed(1)} s</span></span>
+          <span class="pv-time">${((WORLD.t || 0) * dur).toFixed(1)} <span>/ ${lenIn} s</span></span>${shotLen}
           <div class="pv-move-summary"><span class="pv-playhead" style="left:${Math.round((WORLD.t || 0) * 100)}%"></span>
             ${hasMove ? '<span>Camera move and authored keys</span>' : '<span>No move yet — the camera holds. Add a key to start one.</span>'}</div>
           <button class="pv-btn" onclick="worldAddKey()">+ Key</button>
@@ -19349,26 +19355,36 @@ THREE.GLTFLoader = GLTFLoader;
 
     /* ── THE MOVE, RENDERED: a previz video, free and local (Blender) ───── */
     async function previzVideoExport(btn) {
-        if (!WORLD.shotId) return setStatus('Open a shot first');
+        // A failure said only in the status line under the page went unseen: the director saw Blender start and no video.
+        const failed = (msg) => {
+            setStatus(msg);
+            showModalHtml('previzVideoModal', `<h3>Previz video not made</h3><p class="text-sm">${esc(msg)}</p>
+                <div class="btn-row"><button class="btn btn-secondary" onclick="closeModal('previzVideoModal')">Close</button></div>`);
+            showModal('previzVideoModal');
+        };
+        if (!WORLD.shotId) return failed(WORLD.scout
+            ? 'The video renders a shot\'s saved move. Press Apply to shot, open that shot (Current shot), then export.'
+            : 'Open a shot first.');
         const label = btn ? btn.textContent : '';
         const done = () => { if (btn) { btn.disabled = false; btn.textContent = label; } };
         if (btn) { btn.disabled = true; btn.textContent = 'Starting…'; }
         try {
             await api(`/shots/${WORLD.shotId}/previs/render-video`, { method: 'POST', body: '{}' });
-        } catch (err) { done(); return setStatus('Previz video not started: ' + err.message); }
+        } catch (err) { done(); return failed('Previz video not started: ' + err.message); }
         const shot = WORLD.shotId;
         const poll = async () => {
             let r;
-            try { r = await api(`/shots/${shot}/previs/videos`); } catch (err) { done(); return setStatus(err.message); }
+            try { r = await api(`/shots/${shot}/previs/videos`); } catch (err) { done(); return failed(err.message); }
             const job = r && r.job;
             if (job && (job.status === 'running' || job.status === 'encoding')) {
-                if (btn) btn.textContent = job.status === 'encoding' ? 'Encoding…' : `Rendering ${job.frame}/${job.frames}`;
+                // Frame 0 is Blender loading the set: minutes the first time for a heavy one, seconds once it is cached.
+                if (btn) btn.textContent = job.status === 'encoding' ? 'Encoding…' : job.frame ? `Rendering ${job.frame}/${job.frames}` : 'Loading the set…';
                 return setTimeout(poll, 1000);
             }
             done();
-            if (job && job.status === 'failed') return setStatus('Previz video failed: ' + job.error);
+            if (job && job.status === 'failed') return failed('Previz video failed: ' + String(job.error || '').slice(0, 600));
             const v = r && r.videos && r.videos[0];
-            if (!v) return setStatus('The previz video was not registered');
+            if (!v) return failed('The previz video was not registered');
             const url = mediaUrl(v.url);
             showModalHtml('previzVideoModal', `<h3>Previz · v${esc(String(v.version))}</h3>
                 <video src="${esc(url)}" controls autoplay style="width:100%;max-height:70vh;background:#000"></video>
@@ -19735,12 +19751,16 @@ THREE.GLTFLoader = GLTFLoader;
         const lighting = (WORLD.blocking && WORLD.blocking.lighting) || {};
         const lightLabel = lighting.technique || lighting.type || 'holds for the shot';
         const floorLabel = pathSubjects.length ? 'follows the moving subject' : 'follows the camera';
+        const lenIn = `<input class="pv-num pv-len" type="number" min="0.5" max="60" step="0.5" value="${dur.toFixed(1)}" onchange="worldSetLength(this.value)" aria-label="Length of the move in seconds" title="Length of the move. Keys keep their time in seconds; past the last key the camera holds.">`;
+        const shotMs = ((WORLD.shots || []).find(s => s.id === (WORLD.shotId || WORLD.targetId)) || {}).duration_ms || 0;
+        const shotLen = shotMs > 0 && Math.abs(shotMs - (WORLD.durationMs || 4000)) >= 50
+            ? `<button class="pv-btn pv-shotlen" onclick="worldSyncShotLength()" title="The shot's length on its storyboard card is what Generate and the cut use">Shot is ${(shotMs / 1000).toFixed(1)} s · make it ${dur.toFixed(1)} s</button>` : '';
 
         return `
         <div class="we-panel we-timeline">
           <div class="we-panel-head">
             <span class="we-label">CAMERA MOVEMENT</span>
-            <span class="we-live">${dur.toFixed(1)}s</span>
+            <span class="we-live">${lenIn} s</span>${shotLen}
             <button class="we-btn" onclick="worldPlayMove()">▶ PLAY MOVE</button>
             <button class="we-btn" onclick="worldAddKey()">+ KEY</button>
             <button class="we-btn" onclick="worldAddLeg()">+ LEG</button>
@@ -19820,8 +19840,9 @@ THREE.GLTFLoader = GLTFLoader;
          * The dock has no playhead of its own, so both presses landed at the same moment and the second replaced
          * the first: one key, no move, and Play did nothing. A key pressed again at the moment the last one was
          * added (the playhead not moved since) is the NEXT key: it goes to the end of the move, and keys already
-         * at the end are spaced back evenly to make room. A key at a moment the director moved the playhead to
-         * still replaces the one there, which is how a key is corrected.
+         * at the end make the move longer by one more segment of the average length, each earlier key keeping
+         * its time in seconds (squeezing them sped up the move already set). A key at a moment the director
+         * moved the playhead to still replaces the one there, which is how a key is corrected.
          */
         let keys = (WORLD.keys || []).slice();
         const there = keys.find(k => Math.abs((k.t || 0) - t) <= 1e-3);
@@ -19830,7 +19851,13 @@ THREE.GLTFLoader = GLTFLoader;
         if (there && !same && WORLD.lastKeyT != null && Math.abs(WORLD.lastKeyT - t) <= 1e-3) {
             const last = Math.max(...keys.map(k => k.t || 0));
             if (last < 1 - 1e-3) key.t = 1;
-            else { const n = keys.length; keys = keys.map(k => Object.assign({}, k, { t: (k.t || 0) * n / (n + 1) })); key.t = 1; }
+            else {
+                const old = WORLD.durationMs || 4000, n = keys.length;
+                const next = Math.min(60000, Math.round(old + old / Math.max(1, n - 1)));
+                keys = keys.map(k => Object.assign({}, k, { t: (k.t || 0) * old / next }));
+                WORLD.durationMs = next;
+                key.t = 1;
+            }
         }
         // A key at the same moment replaces the one there, rather than stacking.
         WORLD.keys = keys.filter(k => Math.abs((k.t || 0) - key.t) > 1e-3).concat([key]).sort((a, b) => a.t - b.t);
@@ -19840,7 +19867,42 @@ THREE.GLTFLoader = GLTFLoader;
         worldConsoleRender();
         setStatus(WORLD.keys.length < 2
             ? `Key 1 at ${Math.round(key.t * 100)}% — move the camera, then press + Key again for where it ends`
-            : `Key ${WORLD.keys.findIndex(k => k === key) + 1} of ${WORLD.keys.length} at ${Math.round(key.t * 100)}% — press Play to see the move`);
+            : `Key ${WORLD.keys.findIndex(k => k === key) + 1} of ${WORLD.keys.length} at ${(key.t * (WORLD.durationMs || 4000) / 1000).toFixed(1)} s — press Play to see the move`);
+    }
+
+    /*
+     * THE MOVE'S LENGTH, IN SECONDS. Keys are stored as a share of the move (0..1), so the length alone
+     * stretched them. Longer: each key keeps its second and the camera holds after the last one, which is
+     * where a next move starts (playhead to the end, move the camera, + Key). Shorter than the last key:
+     * the keys are squeezed to fit, since a key past the end would never play.
+     */
+    function worldSetLength(seconds) {
+        const old = WORLD.durationMs || 4000;
+        const want = Math.round(Math.max(0.5, Math.min(60, Number(seconds))) * 1000);
+        if (!Number.isFinite(want) || want === old) return worldConsoleRender();
+        const lastMs = Math.max(0, ...(WORLD.keys || []).map(k => (k.t || 0) * old));
+        const keep = want >= lastMs;
+        WORLD.keys = (WORLD.keys || []).map(k => Object.assign({}, k, { t: keep ? (k.t || 0) * old / want : (k.t || 0) }));
+        WORLD.durationMs = want;
+        WORLD.lastKeyT = null;
+        worldTimelineSave();
+        worldConsoleRender();
+        setStatus(`The move is ${(want / 1000).toFixed(1)} s` + (keep ? ((WORLD.keys || []).length && want > lastMs
+            ? ` — the camera holds after ${(lastMs / 1000).toFixed(1)} s. Move the playhead to the end, set the camera and + Key for the next move.` : '')
+            : ' — the keys were squeezed to fit.'));
+    }
+
+    /** The shot's own length (its storyboard card), set to the move's: what Generate and the cut read. Scouting, the target shot's. */
+    async function worldSyncShotLength() {
+        const shot = (WORLD.shots || []).find(s => s.id === (WORLD.shotId || WORLD.targetId));
+        if (!shot) return;
+        const seconds = Math.round((WORLD.durationMs || 4000) / 100) / 10;
+        try {
+            await api(`/shots/${shot.id}`, { method: 'PUT', refresh: false, body: JSON.stringify({ duration_seconds: seconds }) });
+            shot.duration_ms = Math.round(seconds * 1000);
+            worldConsoleRender();
+            setStatus(`${shot.shot_code || 'The shot'} is now ${seconds.toFixed(1)} s on its card`);
+        } catch (err) { setStatus(err.message); }
     }
 
     /*
@@ -19892,8 +19954,11 @@ THREE.GLTFLoader = GLTFLoader;
         if (typeof worldMeshRenderOnce === 'function') worldMeshRenderOnce();
         if (typeof worldSplatRenderOnce === 'function') worldSplatRenderOnce();
         worldDrawPath();
-        const heads = document.querySelectorAll('.we-playhead');
+        // The dock under the view too: with the timeline closed, Play moved the camera and nothing that shows time.
+        const heads = document.querySelectorAll('.we-playhead, .pv-playhead');
         for (const h of heads) h.style.left = Math.round(WORLD.t * 100) + '%';
+        const clock = document.querySelector('.pv-time');
+        if (clock && clock.firstChild && clock.firstChild.nodeType === 3) clock.firstChild.nodeValue = (WORLD.t * (WORLD.durationMs || 4000) / 1000).toFixed(1) + ' ';
     }
 
     /*

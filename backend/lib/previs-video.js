@@ -160,9 +160,24 @@ function plan(shotId, opts = {}) {
     };
 }
 
+/**
+ * Where the worker keeps the set merged into one object (blender-previz.py merge_set), keyed by the GLB's own
+ * identity: a heavy set imports once (Horton Mansion: about 3 minutes), not on every export. A changed file
+ * gets a new key, so a stale set is never drawn. Bump SET_CACHE_VERSION when merge_set changes what it keeps.
+ */
+const SET_CACHE_VERSION = 1;
+function setCache(glb) {
+    if (!glb) return null;
+    let st;
+    try { st = fs.statSync(glb); } catch (_) { return null; }
+    const key = require('crypto').createHash('sha256')
+        .update(JSON.stringify([SET_CACHE_VERSION, path.resolve(glb), st.size, Math.round(st.mtimeMs)])).digest('hex').slice(0, 24);
+    return path.join(require('./data-paths').DATA_DIR, 'cache', 'previz-sets', key + '.blend');
+}
+
 /** The job the previz worker receives for a plan: same plan, same job. */
 function renderJob(p, outDir) {
-    return { mode: 'previz', out_dir: outDir || null, world_glb: p.world_glb, width: p.width, height: p.height,
+    return { mode: 'previz', out_dir: outDir || null, world_glb: p.world_glb, set_cache: setCache(p.world_glb), width: p.width, height: p.height,
         sensor_width_mm: p.sensor_width_mm, sensor_fit: p.sensor_fit, shading: p.mode, still: p.kind === 'still',
         subjects: p.subjects, frames: p.frames.map(f => ({ cam: f.cam, subjects: f.subjects })) };
 }
@@ -224,8 +239,11 @@ function render(shotId, opts = {}) {
 async function renderNow(shotId, p, job, runBlender) {
     const work = fs.mkdtempSync(path.join(os.tmpdir(), 'film-engine-previz-'));
     try {
-        const rendered = await runBlender(renderJob(p, work), Math.max(600000, p.frame_count * 6000), {
+        // Stopped when Blender goes quiet, not at a total: a heavy set took 3 minutes to load and about 7 s a
+        // frame, so a fixed 10 minutes killed renders that were progressing, and kept nothing of them.
+        const rendered = await runBlender(renderJob(p, work), 4 * 3600000, {
             script: SCRIPT,
+            idleMs: 10 * 60000,
             onLog: chunk => { const m = /PREVIZ-FRAME (\d+)\/(\d+)/g; let x; while ((x = m.exec(chunk))) job.frame = Number(x[1]); },
         });
         if (p.kind === 'still') return saveStill(shotId, p, work, job, rendered);
@@ -279,4 +297,4 @@ function saveStill(shotId, p, work, job, rendered) {
     return { still: { asset_id: id, file_name: fileName, url: urlFor(p.project_id, fileName), at_ms: p.frames[0].t_ms, versions: p.versions }, warnings: p.warnings, substitutions: p.substitutions };
 }
 
-module.exports = { plan, render, renderJob, list, JOBS, KIND, MAX_FRAMES, toBlender };
+module.exports = { plan, render, renderJob, setCache, list, JOBS, KIND, MAX_FRAMES, toBlender };

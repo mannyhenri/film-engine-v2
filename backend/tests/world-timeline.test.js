@@ -252,3 +252,37 @@ test('WE-4.6 concurrent legs compose deltas rather than chaining', () => {
         'the timeline re-implements leg sampling — a second answer to what the move is');
     assert.ok(save.length > 40, 'the save is a stub');
 });
+
+// ══ The move's length, in seconds ═══════════════════════════════════════════
+
+const LEN_STUBS = 'const saved = [], said = [];\n'
+    + 'const worldTimelineSave = () => saved.push(JSON.parse(JSON.stringify({ keys: WORLD.keys, durationMs: WORLD.durationMs })));\n'
+    + 'const worldConsoleRender = () => {}; const setStatus = (m) => said.push(m);\n';
+const keyAt = (t, x) => ({ t, position: [x, 1.6, 0], rotation: [0, 0, 0], focalMm: 35, rotationUnit: 'degrees' });
+
+test('a longer move keeps every key at its second, and is saved; a shorter one than the last key squeezes them', () => {
+    const run = (seconds, keys) => build(['worldSetLength'], `(worldSetLength(${seconds}), { WORLD, saved, said })`,
+        `const WORLD = { durationMs: 4000, keys: ${JSON.stringify(keys)} };\n` + LEN_STUBS);
+    const longer = run(8, [keyAt(0, 0), keyAt(1, 2)]);
+    assert.equal(longer.WORLD.durationMs, 8000);
+    assert.deepStrictEqual(longer.WORLD.keys.map(k => k.t * longer.WORLD.durationMs), [0, 4000], 'keys moved in seconds');
+    assert.equal(longer.saved.length, 1, 'the new length was not saved');
+    assert.match(longer.said[0], /holds after 4\.0 s/);
+
+    const shorter = run(2, [keyAt(0, 0), keyAt(1, 2)]);
+    assert.equal(shorter.WORLD.durationMs, 2000);
+    assert.deepStrictEqual(shorter.WORLD.keys.map(k => k.t), [0, 1], 'a key past the end would never play');
+    assert.match(shorter.said[0], /squeezed/);
+
+    for (const bad of ['"abc"', '4']) assert.equal(run(bad, [keyAt(0, 0), keyAt(1, 2)]).saved.length, 0, `${bad} saved a change`);
+});
+
+test('+ Key again at the end of a move adds a next move of the same average length, earlier keys keep their seconds', () => {
+    const r = build(['worldAddKey'], '(worldAddKey(), { WORLD, saved })',
+        `const WORLD = { durationMs: 4000, t: 1, lastKeyT: 1, lens: 35, keys: ${JSON.stringify([keyAt(0, 0), keyAt(1, 2)])} };\n`
+        + 'const worldWalkCamera = () => ({ position: [5, 1.6, 0], rotation: [30, 0, 0], focalMm: 35 });\n' + LEN_STUBS);
+    assert.equal(r.WORLD.durationMs, 8000);
+    assert.deepStrictEqual(r.WORLD.keys.map(k => Math.round(k.t * r.WORLD.durationMs)), [0, 4000, 8000]);
+    assert.deepStrictEqual(r.WORLD.keys[2].position, [5, 1.6, 0]);
+    assert.equal(r.saved[0].durationMs, 8000, 'the longer move was not saved with its keys');
+});

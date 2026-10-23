@@ -354,32 +354,35 @@ function createSnapshotService(db, deps = {}) {
       })
     };
   }
-  function attach(id, bytes, kind, receipt) {
+  /**
+   * Attach the image as the shot's new storyboard version. `finish(out)` runs inside the storyboard
+   * activation's own transaction (it refuses an outer one), so the file, its metadata and the review's
+   * completion commit together, or the file is rolled back and the review stays retryable.
+   */
+  function attach(id, bytes, kind, receipt, finish) {
     const r = row(id),
       s = snapshot(id);
     sourceCurrent(s);
-    const imported = require('./media-imports').importMedia('storyboard-image', {
+    return require('./media-imports').importMedia('storyboard-image', {
       shotId: r.shot_id,
       bytes,
       mime: 'image/png',
-      versioned: true
+      versioned: true,
+      within: imported => {
+        const metadata = {
+          kind,
+          label: kind === 'previz_draft' ? 'Previz draft · browser preview' : 'Blender render · Cycles CPU',
+          previz_snapshot_id: id,
+          previz_snapshot_hash: r.snapshot_hash,
+          previz_snapshot: s,
+          receipt: receipt || null
+        };
+        db.prepare('UPDATE film_assets SET metadata=?,width=?,height=? WHERE id=?').run(canonical(metadata), s.frame.width, s.frame.height, imported.asset_id);
+        db.prepare('UPDATE film_previz_snapshots SET ' + (kind === 'previz_draft' ? 'draft_asset_id' : 'render_asset_id') + '=? WHERE id=?').run(imported.asset_id, id);
+        Object.assign(imported, { snapshot_id: id, snapshot_hash: r.snapshot_hash, kind });
+        if (finish) finish(imported);
+      }
     });
-    const metadata = {
-      kind,
-      label: kind === 'previz_draft' ? 'Previz draft · browser preview' : 'Blender render · Cycles CPU',
-      previz_snapshot_id: id,
-      previz_snapshot_hash: r.snapshot_hash,
-      previz_snapshot: s,
-      receipt: receipt || null
-    };
-    db.prepare('UPDATE film_assets SET metadata=?,width=?,height=? WHERE id=?').run(canonical(metadata), s.frame.width, s.frame.height, imported.asset_id);
-    db.prepare('UPDATE film_previz_snapshots SET ' + (kind === 'previz_draft' ? 'draft_asset_id' : 'render_asset_id') + '=? WHERE id=?').run(imported.asset_id, id);
-    return {
-      ...imported,
-      snapshot_id: id,
-      snapshot_hash: r.snapshot_hash,
-      kind
-    };
   }
   function tokenRow(token, provider) {
     const review = reviews.get(token?.id);
@@ -389,15 +392,12 @@ function createSnapshotService(db, deps = {}) {
   function saveDraft(token) {
     const review = tokenRow(token, 'previz-browser');
     if (review.state === 'completed') return review.result;
-    const claim = reviews.claim(token, 'previz-browser', 'image'),
-      id = claim.snapshot.body.snapshot_id;
-    const result = db.transaction(() => {
-      const r = row(id);
-      const out = attach(id, fs.readFileSync(r.preview_path), 'previz_draft');
+    const id = review.snapshot.body.snapshot_id;
+    // Claimed inside the attach, so a save that fails leaves the review approved and the button retryable.
+    return attach(id, fs.readFileSync(row(id).preview_path), 'previz_draft', null, out => {
+      reviews.claim(token, 'previz-browser', 'image');
       reviews.complete(review.id, out);
-      return out;
-    }).immediate();
-    return result;
+    });
   }
   function blockers(s) {
     const reasons = [];
@@ -476,14 +476,11 @@ function createSnapshotService(db, deps = {}) {
         const bytes = fs.readFileSync(result.image);
         const raster = require('./png-raster').decode(bytes);
         if (!raster || raster.width !== s.frame.width || raster.height !== s.frame.height) fail('Blender returned no PNG matching the approved dimensions');
-        const output = db.transaction(() => {
+        return attach(id, bytes, 'previz_blender', result, out => {
           if (row(id).job_state !== 'rendering' || row(id).active_review_id !== review.id) fail('Render cancelled');
-          const out = attach(id, bytes, 'previz_blender', result);
           db.prepare("UPDATE film_previz_snapshots SET job_state='completed' WHERE id=?").run(id);
           reviews.complete(review.id, out);
-          return out;
-        }).immediate();
-        return output;
+        });
       } catch (err) {
         db.prepare("UPDATE film_previz_snapshots SET job_state=CASE WHEN job_state='cancelled' THEN job_state ELSE 'failed' END,job_error=? WHERE id=? AND active_review_id=?").run(err.message, id, review.id);
         throw err;

@@ -125,3 +125,15 @@ test('through the routes: an applied blocking reaches the direction read; an una
     assert.equal(pv.facing, 'Front');
     assert.ok(pv.sig && pv.sig !== staged.sig || pv.sig, 'a signature to tell a later change by');
 });
+
+test('three or more keys are described beat by beat, with their seconds and a hold to the end', () => {
+    const { describeKeyed } = require('../lib/previs-direction');
+    const k = (t, position, yaw) => ({ t, position, rotation: [yaw, 0, 0], focalMm: 35 });
+    // 0–4 s dolly in 1.5 m; 4–8 s pan 30° left; still until 12 s. First-to-last alone would not say the pan came second.
+    const text = describeKeyed([k(0, [0, 1.6, 0], 0), k(1 / 3, [0, 1.6, -1.5], 0), k(2 / 3, [0, 1.6, -1.5], 30)], 1, 12, '');
+    assert.equal(text, 'From 0 to 4 s the camera dollies in 1.5 m; from 4 to 8 s it pans 30° left; then it holds until 12 s.');
+    // A beat with no move is left out rather than described as one.
+    assert.equal(describeKeyed([k(0, [0, 1.6, 0], 0), k(0.5, [0, 1.6, 0], 0), k(1, [1, 1.6, 0], 0)], 1, 8, ''),
+        'From 4 to 8 s the camera trucks right 1 m.');
+    assert.equal(describeKeyed([k(0, [0, 1.6, 0], 0), k(0.5, [0, 1.6, 0], 0), k(1, [0, 1.6, 0], 0)], 1, 8, ''), 'The camera holds its position.');
+});

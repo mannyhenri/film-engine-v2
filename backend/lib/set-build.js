@@ -439,15 +439,24 @@ function runBlender(job, timeoutMs, opts = {}) {
         const wp = require('./world-previz');
         const child = spawn(blender.bin, wp.workerArgs(wp.workerForScript(opts.script || SCRIPT), jobPath),
             { stdio: ['ignore', 'pipe', 'pipe'] });
-        let log = '', timedOut = false;
+        let log = '', timedOut = false, idle = null;
+        // opts.idleMs: a job that is still printing is still working. A long render (a heavy set, many frames) was
+        // killed at a fixed total while it progressed; with idleMs it is stopped only when it goes quiet that long.
+        const quiet = () => {
+            if (!opts.idleMs) return;
+            clearTimeout(idle);
+            idle = setTimeout(() => { timedOut = 'idle'; child.kill('SIGKILL'); }, opts.idleMs);
+        };
         child.stdout.on('data', b => {
             log += b; if (log.length > 400000) log = log.slice(-200000);
+            quiet();
             if (opts.onLog) { try { opts.onLog(String(b)); } catch (_) { /* a listener never stops a render */ } }
         });
-        child.stderr.on('data', b => { log += b; });
+        child.stderr.on('data', b => { log += b; quiet(); });
+        quiet();
         const timer = setTimeout(() => { timedOut = true; child.kill('SIGKILL'); }, timeoutMs || 240000);
         child.on('close', (code, signal) => {
-            clearTimeout(timer);
+            clearTimeout(timer); clearTimeout(idle);
             // The answer is the file the script wrote, not the exit code: Blender
             // can finish the work and then crash unloading an add-on.
             if (/SET-BUILD-DONE/.test(log) && fs.existsSync(resultPath)) {
@@ -466,7 +475,8 @@ function runBlender(job, timeoutMs, opts = {}) {
                 return launch(Object.assign({}, runJob, { render_engine: 'CYCLES_CPU' }), true).then(resolve, reject);
             }
             const tail = log.split('\n').filter(l => /Error|Traceback|line \d+/.test(l)).slice(-8).join('\n');
-            const ended = timedOut ? `timed out after ${timeoutMs || 240000} ms`
+            const ended = timedOut === 'idle' ? `no progress for ${Math.round(opts.idleMs / 1000)} s`
+                : timedOut ? `timed out after ${timeoutMs || 240000} ms`
                 : signal ? `signal ${signal}` : `exit ${code}`;
             const e = new Error(`Blender did not finish the ${runJob.mode} (${ended}). ${tail || log.slice(-800)}`);
             e.code = 'BLENDER_FAILED';

@@ -28,11 +28,11 @@ function ends(row) {
     const path = parse(row.path_json, []).filter(k => Array.isArray(k && k.position));
     const src = keys.length >= 2 ? keys.slice().sort((a, b) => (a.t || 0) - (b.t || 0)) : path.length >= 2 ? path : null;
     if (!src) return null;
-    return { a: src[0], b: src[src.length - 1], count: src.length, from: keys.length >= 2 ? 'keys' : 'path' };
+    return { a: src[0], b: src[src.length - 1], count: src.length, keys: src, from: keys.length >= 2 ? 'keys' : 'path' };
 }
 
-/** "dollies in 1.5 m and pans 30° left": the move from its first pose to its last, in the camera's own frame. */
-function describeMove(a, b, scale, seconds, ease) {
+/** The parts of a move from one pose to the next, in the camera's own frame: ["dollies in 1.5 m", "pans 30° left"]. */
+function moveParts(a, b, scale) {
     const yaw0 = Number((a.rotation || [])[0]) || 0;
     const fwd = [-Math.sin(yaw0 * R), -Math.cos(yaw0 * R)], right = [Math.cos(yaw0 * R), -Math.sin(yaw0 * R)];
     const d = [0, 1, 2].map(i => (Number(b.position[i]) - Number(a.position[i])) * scale);
@@ -48,10 +48,35 @@ function describeMove(a, b, scale, seconds, ease) {
     if (Math.abs(pan) >= 5) parts.push(`pans ${Math.round(Math.abs(pan))}° ${pan < 0 ? 'right' : 'left'}`);
     if (Math.abs(tilt) >= 4) parts.push(`tilts ${tilt > 0 ? 'up' : 'down'} ${Math.round(Math.abs(tilt))}°`);
     if (fa && fb && Math.abs(fb - fa) >= 3) parts.push(`zooms ${fb > fa ? 'in' : 'out'} from ${Math.round(fa)}mm to ${Math.round(fb)}mm`);
+    return parts;
+}
+const listOf = (parts) => parts.length > 1 ? parts.slice(0, -1).join(', ') + ' and ' + parts[parts.length - 1] : parts[0];
+const EASE_WORDS = { 'ease-in': ', easing in', 'ease-out': ', easing out', 'ease-both': ', easing in and out', linear: ' at an even pace' };
+
+/** "dollies in 1.5 m and pans 30° left": the move from its first pose to its last, in the camera's own frame. */
+function describeMove(a, b, scale, seconds, ease) {
+    const parts = moveParts(a, b, scale);
     if (!parts.length) return 'The camera holds its position.';
-    const list = parts.length > 1 ? parts.slice(0, -1).join(', ') + ' and ' + parts[parts.length - 1] : parts[0];
-    const easeWords = { 'ease-in': ', easing in', 'ease-out': ', easing out', 'ease-both': ', easing in and out', linear: ' at an even pace' }[ease] || '';
-    return `Over ${r1(seconds)} seconds the camera ${list}${easeWords}.`;
+    return `Over ${r1(seconds)} seconds the camera ${listOf(parts)}${EASE_WORDS[ease] || ''}.`;
+}
+
+/**
+ * A move of several keys, beat by beat: "From 0 to 4 s the camera dollies in 1.5 m; from 4 to 8 s it pans 30°
+ * left; then it holds until 12 s." First-to-last alone lost every move in between (a dolly then a pan back
+ * read as a dolly), and the seconds are what a video model times the action by.
+ */
+function describeKeyed(keys, scale, seconds, ease) {
+    const at = (k) => r1(Math.max(0, Math.min(1, Number(k.t) || 0)) * seconds);
+    const beats = [];
+    for (let i = 1; i < keys.length; i++) {
+        const parts = moveParts(keys[i - 1], keys[i], scale);
+        if (parts.length) beats.push({ from: at(keys[i - 1]), to: at(keys[i]), parts });
+    }
+    if (!beats.length) return 'The camera holds its position.';
+    const lines = beats.map((b, i) => `${i ? 'from' : 'From'} ${b.from} to ${b.to} s ${i ? 'it' : 'the camera'} ${listOf(b.parts)}`);
+    const end = beats[beats.length - 1].to;
+    const tail = end < r1(seconds) - 0.05 ? `; then it holds until ${r1(seconds)} s` : '';
+    return lines.join('; ') + tail + (EASE_WORDS[ease] || '') + '.';
 }
 
 /** Height and tilt as Generate's angle words (ANGLES in direct-model.js). */
@@ -129,7 +154,9 @@ function previsForShot(db, shotId) {
     const legs = parse(row.moves_json, []);
     const ease = (span && span.b && span.b.ease) || (Array.isArray(legs) && legs[0] && legs[0].ease) || '';
     const lensMm = Number(start.focalMm) || Number(camera.focalMm) || Number((/(\d{2,3})\s*mm/.exec(String(cc.lens || '')) || [])[1]) || 0;
-    const move = span ? describeMove(span.a, span.b, scale, seconds, ease) : null;
+    const move = !span ? null
+        : span.from === 'keys' && span.keys.length > 2 ? describeKeyed(span.keys, scale, seconds, ease)
+        : describeMove(span.a, span.b, scale, seconds, ease);
     const staging = Array.isArray(start.position)
         ? describeStaging(parse(row.subjects_json, []), start, scale, lensMm) : { lines: [], facing: null };
     const out = {
@@ -143,4 +170,4 @@ function previsForShot(db, shotId) {
     return out;
 }
 
-module.exports = { previsForShot, describeMove, describeStaging, angleOf };
+module.exports = { previsForShot, describeMove, describeKeyed, describeStaging, angleOf };
