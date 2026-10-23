@@ -349,3 +349,15 @@ textarea.ds-in { resize: vertical; }
 .ps-transport { display: flex; align-items: center; gap: 10px; }
 .ps-transport input[type="range"] { flex: 1; }
 
+/* Optimized for Seedance: the final prompt and the files it names, in upload order. */
+.ds-opt-prompt { display: grid; gap: 8px; }
+.ds-opt-prompt h4 { margin: 4px 0 0; font-size: 12px; }
+.ds-optrefs { margin: 0; padding-left: 18px; display: grid; gap: 6px; font-size: 12px; }
+.ds-optrefs li small { display: block; color: #9a9aa3; }
+.ds-optrefs li code { display: block; font-size: 11px; color: #8fadff; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.s-sfx-todo { color: #f5b14c; font-style: italic; }
+.ds-dialogue { flex-wrap: wrap; gap: 8px; font-size: 12px; }
+.ds-dialogue .ds-num { width: 64px; display: inline-block; margin: 0 4px; }
+.ds-optbusy { display: grid; gap: 8px; }
+.ds-optbar { height: 8px; border-radius: 4px; background: rgba(255,255,255,.08); overflow: hidden; }
+.ds-optbar span { display: block; height: 100%; background: linear-gradient(90deg, #6690ff, #8fadff); transition: width .8s ease; }

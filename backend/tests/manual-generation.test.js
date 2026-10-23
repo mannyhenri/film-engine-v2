@@ -21,7 +21,8 @@ function fixture(provider){
  return {db,dir,s,close(){db.close();fs.rmSync(dir,{recursive:true});}};
 }
 const payload={prompt:'A lighthouse at dusk, 35mm, slow push in'};
-function capabilityOf(provider){return provider==='elevenlabs'?'voice':provider==='worldlabs'?'world':provider==='meshy'?'model3d':['magnific','muapi-upscale','topaz'].includes(provider)?'post':'image';}
+// Meshy's 3D is sent by the user's ruling (manual.SENT); its images, the capability checked here, stay manual.
+function capabilityOf(provider){return provider==='elevenlabs'?'voice':provider==='worldlabs'?'world':provider==='meshy'?'image':['magnific','muapi-upscale','topaz'].includes(provider)?'post':'image';}
 
 test('the review registry is exported and every reviewable provider is manual',()=>{
  assert.ok(reviewProviders.length>=11,'REVIEW_PROVIDER_MODULES must be exported from final-provider-request');
@@ -32,7 +33,7 @@ test('every registered adapter capability is classified: manual or explicitly ke
  for(const adapter of require('../lib/providers').list()){
   for(const capability of adapter.capabilities||[]){
    if(capability==='llm'){assert.equal(manual.isManual(adapter.id,capability),false,adapter.id+' llm text is kept');continue;}
-   if(KEPT.has(adapter.id)){assert.equal(manual.isManual(adapter.id,capability),false,adapter.id+'/'+capability+' is kept');continue;}
+   if(KEPT.has(adapter.id)||manual.SENT[adapter.id]?.has(capability)){assert.equal(manual.isManual(adapter.id,capability),false,adapter.id+'/'+capability+' is kept');continue;}
    assert.equal(manual.isManual(adapter.id,capability),true,adapter.id+'/'+capability+' must be manual');
   }
  }
@@ -73,6 +74,14 @@ test('creative transport and media upload never call fetch for a manual provider
   assert.equal((await upload.hostFile(__filename,'key')).code,'MANUAL_GENERATION_ONLY');
   assert.equal(calls,0,'no network call reached a manual vendor');
  }finally{global.fetch=original;}
+});
+
+test('Meshy 3D is sent (the user\'s ruling, 2026-10-23); Meshy images and every other vendor stay manual',()=>{
+ assert.deepEqual(Object.fromEntries(Object.entries(manual.SENT).map(([k,v])=>[k,[...v]])),{meshy:['model3d']});
+ assert.equal(manual.isManual('meshy','model3d'),false);
+ assert.equal(manual.isManual('meshy','image'),true);
+ assert.doesNotThrow(()=>manual.assertSendable('meshy','model3d'));
+ assert.throws(()=>manual.assertSendable('meshy','image'),/Manual generation only/);
 });
 
 test('kept providers are not blocked by the manual gate',async()=>{

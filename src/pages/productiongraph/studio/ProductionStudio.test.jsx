@@ -41,8 +41,13 @@ const C = { ...JSON.parse(JSON.stringify(shotB)), id: '00000000-0000-4000-8000-0
 GRAPH.nodes.push(C);
 GRAPH.running_order = [...(GRAPH.running_order || []), C.id];
 const enc = (k) => encodeURIComponent(k);
+let optPolls = 0, optBody = null;
+const SEEDANCE = (body) => ({ prompt: `[GOAL] Seedance prompt for ${body.label}. MARA corresponds to @Image 1.`, folder: '/films/Demo/07 Delivery/Exports/Seedance hand-off/1A',
+    refs: [{ order: 1, label: '@Image 1', kind: 'image', role: 'character sheet', name: 'MARA', file: '/x/01 @Image 1 - MARA character sheet.png', file_name: '01 @Image 1 - MARA character sheet.png', use: 'her appearance', in_prompt: true },
+           { order: 2, label: '@Video 1', kind: 'video', role: 'dialogue audio', name: 'dialogue', file: '/x/02 @Video 1 - dialogue (black screen).mp4', file_name: '02 @Video 1 - dialogue (black screen).mp4', use: 'voices and timing', in_prompt: false }],
+    notes: ['Check the cup is the same in both shots'], model: 'gpt-6-astra', created_at: '2026-10-23T10:00:00Z' });
 const STARTER = (code) => ({ recipe: { provider: 'runway', model: 'gen4.5', prompt: `Composed prompt for ${code}`,
-    reference_images: [{ asset_id: 'plate-char', reference_role: 'character', name: 'Mara' }, { asset_id: 'plate-loc', reference_role: 'location', name: 'Diner' }],
+    reference_images: [{ asset_id: 'plate-char', reference_role: 'character', name: 'Mara' }, { asset_id: 'plate-loc', reference_role: 'location', name: 'Diner', location_id: 'loc-1' }],
     init_image: { asset_id: `frame-${code}`, reference_role: 'keyframe' } } });
 
 const CARD_A = { description: 'Mara waits at the table.', direction: 'Mara sits alone at the table, watching the door. Joe comes in.', notes: '', dialogue: [{ character: 'MARA', line: 'Where were you?' }, { character: 'JOE', line: 'Out.' }],
@@ -61,6 +66,10 @@ function open(extra = {}) {
         [`GET /projects/${P}/production-graph/nodes/${enc(B.key)}/draft/starter?kind=video&provider=higgsfield`]: STARTER('1B'),
         [`POST /projects/${P}/production-studio/recommend`]: (body) => rec.recommend(body),
         [`POST /projects/${P}/production-studio/optimize-prompt`]: (body) => ({ prompt: `OPTIMIZED for ${body.model_id}`, changes: ['Camera move first'] }),
+        [`POST /projects/${P}/production-studio/seedance-prompt`]: (body) => { optPolls = 0; optBody = body; return { job: { id: 'opt-1', status: 'running', stage: 'sheets', stage_label: 'Making the character and location sheets and the dialogue track', elapsed_s: 0, stage_elapsed_s: 0 } }; },
+        [`GET /projects/${P}/production-studio/seedance-prompt/jobs/opt-1`]: () => (++optPolls < 2
+            ? { job: { id: 'opt-1', status: 'running', stage: 'writing', stage_label: 'ChatGPT is writing the prompt from 3 pictures', elapsed_s: 42, stage_elapsed_s: 40 } }
+            : { job: { id: 'opt-1', status: 'done', stage: 'done', result: SEEDANCE(optBody) } }),
         [`GET /projects/${P}/production-graph/nodes/${enc(A.key)}/draft`]: { draft: null },
         [`GET /projects/${P}/production-graph/nodes/${enc(SEQ.key)}/draft`]: { draft: { revision: 3 } },
         [`PUT /projects/${P}/production-graph/nodes/${enc(A.key)}/draft`]: { draft: { revision: 1 } },
@@ -96,7 +105,7 @@ describe('Production Studio: tabs', () => {
     it('opens on Generate, Cut is one click away, and there is no classic graph tab', async () => {
         open(); await flush();
         expect(screen.getByRole('tab', { name: 'Generate' }).getAttribute('aria-selected')).toBe('true');
-        expect(screen.getAllByRole('tab').map(t => t.textContent)).toEqual(['Generate', 'Cut']);
+        expect(within(screen.getByRole('tablist', { name: 'Production views' })).getAllByRole('tab').map(t => t.textContent)).toEqual(['Generate', 'Cut', 'Generators']);
     });
 });
 
@@ -152,18 +161,115 @@ describe('Generate (Direct studio): pick, direct, watch the prompt, check, send'
         expect(screen.getByText(/1 picture the pipeline would attach could not be matched to a project file/)).toBeTruthy();
     });
 
-    it('choosing a model chip selects it for sending, and Optimize rewrites for it into the editable text', async () => {
-        const { calls } = open(); await flush(); await pick('1A'); await wait(600);
+    it('choosing a model chip selects it for sending', async () => {
+        open(); await flush(); await pick('1A'); await wait(600);
         const gen = within(direct()).getByRole('heading', { name: 'Generate' }).closest('.ds-gen');
         const chips = gen.querySelectorAll('.ds-chips .ds-chip');
         expect(chips.length).toBeGreaterThan(1);
         await click(chips[1]);
-        const id = screen.getByLabelText('Send to Higgsfield model').value;
         expect(chips[1].getAttribute('aria-pressed')).toBe('true');
+    });
+
+    it('Optimize with AI writes the Seedance prompt on its own tab, from the working prompt, the subjects, frames and lines; the working prompt stays', async () => {
+        const { calls } = open(); await flush(); await pick('1A'); await wait(600);
+        const before = prompt().querySelector('.ds-sheet').textContent;
         await click(within(prompt()).getByRole('button', { name: 'Optimize with AI' }));
-        expect(screen.getByLabelText(/Your text is what gets sent/).value).toBe(`OPTIMIZED for ${id}`);
-        expect(calls.find(c => c.path.endsWith('/optimize-prompt')).body).toMatchObject({ model_id: id });
-        expect(calls.find(c => c.path.endsWith('/optimize-prompt')).body.prompt).toContain('Where were you?');
+        // While ChatGPT writes: the stage, a bar and the time taken, then the prompt lands by itself.
+        await act(async () => { await new Promise(r => setTimeout(r, 50)); }); await flush();
+        expect(prompt().textContent).toMatch(/ChatGPT is writing the prompt from 3 pictures…0:42 elapsed/);
+        expect(Number(screen.getByRole('progressbar', { name: 'Optimize progress' }).getAttribute('aria-valuenow'))).toBeGreaterThan(50);
+        await act(async () => { await new Promise(r => setTimeout(r, 1100)); }); await flush();
+        const body = calls.find(c => c.path.endsWith('/seedance-prompt')).body;
+        expect(body.async).toBe(true);
+        expect(body.prompt).toContain('Where were you?');
+        expect(body).toMatchObject({ label: '1A', duration_s: 6, location_ids: ['loc-1'], storyboard_asset_ids: ['frame-1A'] });
+        expect(body.shots[0]).toMatchObject({ shot_id: A.id, code: '1A', offset_s: 0 });
+        expect(body.shots[0].lines.map(l => [l.index, l.name, l.text])).toEqual([[0, 'Mara', 'Where were you?'], [1, 'Joe', 'Out.']]);
+        expect(screen.getByRole('tab', { name: 'Optimized for Seedance' }).getAttribute('aria-selected')).toBe('true');
+        expect(screen.getByLabelText(/Paste this into Seedance 2.5/).value).toBe('[GOAL] Seedance prompt for 1A. MARA corresponds to @Image 1.');
+        const files = screen.getByRole('list', { name: 'Reference files' });
+        expect(files.textContent).toContain('01 @Image 1 - MARA character sheet.png');
+        expect(files.textContent).toMatch(/@Video 1.*not named in the prompt/);
+        await click(screen.getByRole('tab', { name: 'Working prompt' }));
+        expect(prompt().querySelector('.ds-sheet').textContent).toBe(before);
+    });
+
+    // Every way shots can be picked: alone, several not grouped, grouped as one clip, grouped as separate shots.
+    // With two or more, Optimize writes ONE Seedance prompt for all of them, from every shot's direction and pictures.
+    const UNITS = [
+        { name: 'one shot', codes: ['1A'], setup: async () => { await pick('1A'); } },
+        { name: 'two picked, not grouped', codes: ['1A', '1B'], setup: async () => { await pick('1A'); await pick('1B'); } },
+        { name: 'grouped as one clip', codes: ['1A', '1B'], setup: async () => { await pick('1A'); await pick('1B');
+            await click(within(board()).getByRole('button', { name: 'Group 2 shots as a sequence' }));
+            await click(within(direct()).getByRole('button', { name: /^One clip/ })); } },
+        { name: 'grouped as separate shots', codes: ['1A', '1B'], setup: async () => { await pick('1A'); await pick('1B');
+            await click(within(board()).getByRole('button', { name: 'Group 2 shots as a sequence' }));
+            await click(within(direct()).getByRole('button', { name: /^Separate shots/ })); } },
+    ];
+    it.each(UNITS.map(u => [u.name, u]))('Optimize covers every picked shot: %s', async (_, u) => {
+        const { calls } = open(); await flush(); await u.setup(); await wait(600);
+        await click(screen.getByRole('tab', { name: /Optimized for Seedance/ }));
+        await click(within(prompt()).getByRole('button', { name: 'Optimize with AI' }));
+        await act(async () => { await new Promise(r => setTimeout(r, 1200)); }); await flush();
+        const body = calls.filter(c => c.path.endsWith('/seedance-prompt')).pop().body;
+        const dur = { '1A': 6, '1B': 3 };
+        expect(body.shots.map(x => x.code)).toEqual(u.codes);
+        expect(body.label).toBe(u.codes.join('+'));
+        expect(body.duration_s).toBe(u.codes.reduce((a, c) => a + dur[c], 0));
+        expect(body.shots.map(x => x.offset_s)).toEqual(u.codes.map((c, i) => u.codes.slice(0, i).reduce((a, k) => a + dur[k], 0)));
+        expect(body.storyboard_asset_ids).toEqual(u.codes.map(c => `frame-${c}`));
+        expect(body.prompt).toContain('Where were you?');
+        if (u.codes.includes('1B')) expect(body.prompt).toMatch(/Framing: wide/);
+        expect(screen.getByLabelText(/Paste this into Seedance 2.5/).value).toContain(`Seedance prompt for ${u.codes.join('+')}`);
+    });
+
+    it('a dialogue recording can be chosen for Optimize, with where the clip starts in it', async () => {
+        const { calls } = open(); window.__feFiles = { pathFor: () => '/films/Demo/06 Sound/Dialogue/scene take.wav', reveal: () => {} };
+        try {
+            await flush(); await pick('1A'); await wait(600);
+            await click(screen.getByRole('tab', { name: /Optimized for Seedance/ }));
+            expect(prompt().textContent).toContain("The shots' recorded lines, where found.");
+            const file = prompt().querySelector('input[type=file]');
+            await act(async () => { fireEvent.change(file, { target: { files: [new File(['x'], 'scene take.wav', { type: 'audio/wav' })] } }); }); await flush();
+            await act(async () => { fireEvent.change(screen.getByLabelText(/Where this clip starts/), { target: { value: '12.5' } }); }); await flush();
+            await click(within(prompt()).getByRole('button', { name: 'Optimize with AI' }));
+            expect(calls.find(c => c.path.endsWith('/seedance-prompt')).body.dialogue_file).toEqual({ path: '/films/Demo/06 Sound/Dialogue/scene take.wav', from_s: 12.5 });
+        } finally { delete window.__feFiles; }
+    });
+
+    it('a new read of the graph (a visit, a reload) reads the picked shots\' plates again, so a new storyboard frame is sent', async () => {
+        const v = open(); await flush(); await pick('1A'); await wait(600);
+        const starterCalls = () => v.calls.filter(c => c.path.includes(enc(A.key)) && c.path.includes('/draft/starter')).length;
+        expect(starterCalls()).toBe(1);
+        await act(async () => { v.view.rerender(<ProductionStudio graph={JSON.parse(JSON.stringify(GRAPH))} reload={() => {}} />); }); await wait(600);
+        expect(starterCalls()).toBe(2);
+    });
+
+    it('the length of a single shot can be changed, and the prompt and checks follow', async () => {
+        open(); await flush(); await pick('1A');
+        expect(prompt().textContent).toContain('Shot 1A · 6s');
+        await click(within(direct()).getByRole('button', { name: 'Longer' }));
+        expect(prompt().textContent).toContain('Shot 1A · 7s');
+        await click(within(direct()).getByRole('button', { name: 'Shorter' }));
+        await click(within(direct()).getByRole('button', { name: 'Shorter' }));
+        expect(prompt().textContent).toContain('Shot 1A · 5s');
+    });
+
+    it('a sound added at the playhead is in the prompt at once, and reaches a hand-edited prompt too', async () => {
+        open(); await flush(); await pick('1A');
+        fireEvent.click(screen.getByTestId('ds-ruler'), { clientX: 0 });
+        await click(screen.getByRole('button', { name: '+ Sound at playhead' }));
+        expect(prompt().querySelector('.s-sfx-todo').textContent).toContain('<a sound, to describe>');
+        expect(direct().textContent).toMatch(/1 sound has no description yet/);
+        await act(async () => { fireEvent.change(within(direct()).getByLabelText('What we hear'), { target: { value: 'a chair scrapes' } }); }); await flush();
+        await click(within(prompt()).getByRole('button', { name: 'Edit text' }));
+        const ta = () => screen.getByLabelText(/Your text is what gets sent/);
+        await act(async () => { fireEvent.change(ta(), { target: { value: ta().value.replace('Where were you?', 'Where WERE you?') } }); }); await flush();
+        await click(screen.getByRole('button', { name: '+ Sound at playhead' }));
+        await act(async () => { fireEvent.change(within(direct()).getByLabelText('What we hear'), { target: { value: 'the door bangs' } }); }); await flush();
+        expect(ta().value).toContain('Where WERE you?');
+        expect(ta().value).toContain('<the door bangs>');
+        expect(ta().value).toContain('<a chair scrapes>');
     });
 
     it('Send saves a Higgsfield draft with the compiled prompt and generates from that saved revision', async () => {
@@ -415,5 +521,76 @@ describe('Direct studio: who is who', () => {
         const out = backendless.ageConflicts(['JUNE', 'RAY MERCER'], [['1E', { notes: 'June asks about Elaine. Ray, late forties, looks at the glass.' }]], age, backendless.shortName);
         expect(out).toEqual([{ ch: 'RAY MERCER', profile: '57', card: 'late forties', shot: '1E' }]);
         expect(backendless.ageConflicts(['RAY MERCER'], [['1B', { notes: 'Ray, 57, sits down.' }]], age, backendless.shortName)).toEqual([]);
+    });
+});
+
+describe('the bottom status bar', () => {
+    // setStatus(text, true) means "working": it runs the bar's progress animation and an elapsed counter until the
+    // next message. Hints and errors passed true by mistake, so a bare "Select a shot" ran a progress bar for nothing.
+    it('only real work turns on the progress bar', async () => {
+        const fs = await import('fs');
+        const busy = ['CutTab.jsx', 'DirectStudio.jsx', 'ProductionStudio.jsx', 'GeneratorsTab.jsx'].flatMap(f =>
+            [...fs.readFileSync(path.join(__dirname, f), 'utf8').matchAll(/setStatus\(([^;\n]*?), true\)/g)].map(m => m[1]));
+        expect(busy).toEqual(["'Generating the sound…'"]);
+    });
+});
+
+/*
+ * Previz › Apply to shot reaches Generate (the user: "I framed the shot in Previz, applied it, and nothing reached
+ * Production"). Production stays mounted while the director is in Previz, so Generate reads again when the page is
+ * shown again; and the newer decision wins: an Apply after the last change here takes the camera outright.
+ */
+describe('Previz Apply reaches Generate', () => {
+    const board = () => screen.getByRole('complementary', { name: 'Storyboard' });
+    const direct = () => screen.getByRole('complementary', { name: 'Direct' });
+    const prompt = () => screen.getByRole('region', { name: 'Prompt' });
+    const pick = async (code) => { await act(async () => { fireEvent.click(within(board()).getByRole('button', { name: new RegExp(code) })); }); await flush(); };
+    const click = async (el) => { await act(async () => { fireEvent.click(el); }); await flush(); };
+    // 1A as The Glass Harbour had it: Generate saved at 10:50 (height changed here to Low), Previz applied at 11:00.
+    const SAVED_A = () => ({ ...SEEDED_A(), cam: { ...SEEDED_A().cam, angle: 'Low', lens: 12 }, inh: { ...SEEDED_A().cam, lens: 12 } });
+    const PREVIS = { state: 'applied', applied: true, framing: 'Wide', angle: 'Ground', facing: null, lens: 14, move: 'The camera holds its position.', staging: [], keys: 24, seconds: 4, applied_at: '2026-10-23 11:00:00', sig: 'pv-1' };
+    const withShotA = (entry) => ({ ...DIRECTION, shots: { ...DIRECTION.shots, [A.id]: { ...DIRECTION.shots[A.id], ...entry } } });
+
+    it('meetPrevis: the newer side wins; an older Apply only fills the fields not changed here', () => {
+        const d = SAVED_A();
+        const newer = backendless.meetPrevis(d, { previs: PREVIS, updated_at: '2026-10-23 10:50:48' });
+        expect(newer.took).toBe('previz');
+        expect(newer.d.cam).toMatchObject({ framing: 'WS', angle: 'Ground', lens: 14 });
+        expect(newer.d.pvz.won).toEqual({ by: 'previz', at: '2026-10-23 11:00:00' });
+        const older = backendless.meetPrevis(d, { previs: PREVIS, updated_at: '2026-10-23 11:30:00' });
+        expect(older.took).toBe('merged');
+        expect(older.d.cam.angle).toBe('Low');          // changed here, and newer: stays
+        expect(older.d.cam.framing).toBe('WS');          // not changed here: follows Previz
+        expect(backendless.meetPrevis(older.d, { previs: PREVIS, updated_at: '2026-10-23 11:30:00' }).took).toBe(null);
+        const again = backendless.meetPrevis(older.d, { previs: { ...PREVIS, sig: 'pv-2', lens: 24 }, updated_at: '2026-10-23 11:30:00' });
+        expect(again.took).toBe('kept');
+        expect(again.d.cam.lens).toBe(older.d.cam.lens);
+    });
+
+    it('an Apply newer than the last change here takes the camera, shows it in Camera and the prompt, says so, and is saved', async () => {
+        const { calls } = open({ [`GET /projects/${P}/production-studio/direction`]: withShotA({ direction: SAVED_A(), revision: 16, updated_at: '2026-10-23 10:50:48', previs: PREVIS }) });
+        await flush(); await pick('1A');
+        expect(prompt().textContent).toMatch(/Framing: wide, ground height[^.]*14mm/);
+        await click(within(direct()).getByRole('tab', { name: 'Camera' }));
+        expect(within(direct()).getByTestId('pvz-won').textContent).toMatch(/applied at 11:00 UTC, after the last change here, so it replaced/);
+        const puts = () => calls.filter(c => c.method === 'PUT' && c.path === `/projects/${P}/production-studio/direction/shots/${A.id}`);
+        for (let i = 0; i < 30 && !puts().length; i++) await wait(100);   // the save is debounced (600 ms)
+        const put = puts().pop();
+        expect(put && put.body.data.cam).toMatchObject({ framing: 'WS', angle: 'Ground', lens: 14 });
+        expect(put.body.data.pvz.sig).toBe('pv-1');
+    });
+
+    it('an open Generate picks up an Apply made in Previz when the page is shown again', async () => {
+        const routes = { [`GET /projects/${P}/production-studio/direction`]: withShotA({ direction: SAVED_A(), revision: 16, updated_at: '2026-10-23 10:50:48', previs: null }) };
+        const { legacy } = open(routes); await flush(); await pick('1A');
+        expect(prompt().textContent).toMatch(/12mm/);
+        // The director goes to Previz and presses Apply to shot; coming back brings the window to the front.
+        const fresh = withShotA({ direction: SAVED_A(), revision: 16, updated_at: '2026-10-23 10:50:48', previs: PREVIS });
+        const before = legacy.fake.api.getMockImplementation();
+        legacy.fake.api.mockImplementation(async (path, opts = {}) =>
+            ((opts.method || 'GET') === 'GET' && path === `/projects/${P}/production-studio/direction` ? fresh : before(path, opts)));
+        await act(async () => { window.dispatchEvent(new Event('focus')); });
+        await flush(); await flush();
+        expect(prompt().textContent).toMatch(/Framing: wide, ground height[^.]*14mm/);
     });
 });

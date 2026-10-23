@@ -242,6 +242,37 @@ export function applyPrevis(s, pv) {
 /** Previz changed since this shot last took it (or was applied after the shot was directed). */
 export const previsBehind = (s, pv) => !!(pv && pv.applied && (!s?.pvz || s.pvz.sig !== pv.sig));
 
+/**
+ * Previz taken OUTRIGHT: its camera fields replace the shot's, including ones changed here. For an Apply newer than
+ * the last change made here (or the director's own Update): the newer decision wins.
+ */
+export function takePrevis(s, pv) {
+    if (!s || !pv || !pv.applied) return s;
+    const n = clone(s);
+    const from = previsCam(pv);
+    n.cam = { ...n.cam, ...from };
+    n.inh = { ...(n.inh || s.cam), ...from };
+    n.pvz = { sig: pv.sig, move: pv.move || '', staging: Array.isArray(pv.staging) ? pv.staging : [], on: n.pvz ? n.pvz.on !== false : true };
+    return n;
+}
+
+/**
+ * How a loaded shot meets its applied Previz. `x` is the direction read's entry: { previs, updated_at } (both
+ * SQLite UTC "YYYY-MM-DD HH:MM:SS", so they compare as text). The newer one wins:
+ *   - Previz applied after the last save here (or nothing saved): Previz's camera replaces this shot's ('previz').
+ *   - changes here are newer and the shot never took Previz: Previz fills only the fields not changed here ('merged').
+ *   - changes here are newer and it took an earlier Previz: kept; the Camera tab offers Update ('kept').
+ * `pvz.won` records which side won and when, for the Camera tab to say so.
+ */
+export function meetPrevis(d, x) {
+    const pv = x && x.previs;
+    if (!d || !pv || !pv.applied || (d.pvz && d.pvz.sig === pv.sig)) return { d, took: null };
+    const previzNewer = !x.updated_at || !pv.applied_at || String(pv.applied_at) > String(x.updated_at);
+    if (previzNewer) { const n = takePrevis(d, pv); n.pvz.won = { by: 'previz', at: pv.applied_at || null }; return { d: n, took: 'previz' }; }
+    if (!d.pvz) { const n = applyPrevis(d, pv); n.pvz.won = { by: 'here', at: x.updated_at }; return { d: n, took: 'merged' }; }
+    return { d, took: 'kept' };
+}
+
 /* ---------- acting ---------- */
 
 /** The beats an emotion plays as, from what sets it off: face, gaze, breath, body, voice; listening reactions on request. */
@@ -323,7 +354,11 @@ export function compileShot(s, ctx) {
             if (l.src === 'eleven') x += br ? ' [recorded voice to be lip-synced]' : ' (recorded voice; lip-sync later)';
             items.push({ t: l.t + 0.01, cls: 'dlg', x });
         }
-        for (const f of s.sfx) if (f.t >= t0 && f.t < t1 && String(f.text).trim()) items.push({ t: f.t + 0.02, cls: 'sfx', x: br ? '<' + f.text + '>' : 'Sound: ' + f.text + '.' });
+        // A sound added at the playhead is in the prompt at once, marked until it is described (checks() says so too).
+        for (const f of s.sfx) if (f.t >= t0 && f.t < t1) {
+            const what = String(f.text || '').trim();
+            items.push({ t: f.t + 0.02, cls: what ? 'sfx' : 'sfx-todo', x: br ? '<' + (what || 'a sound, to describe') + '>' : 'Sound: ' + (what || 'a sound, to describe') + '.' });
+        }
         if (i === starts.length - 1 && String(s.end || '').trim()) items.push({ t: 999, cls: 'cam', x: 'End frame: ' + s.end });
         items.sort((a, b) => a.t - b.t);
         const hot = !!flash && (flash.shot === code || flash.shot === null) && (flash.t === null || flash.t === undefined || (flash.t >= t0 && flash.t < t1));
@@ -387,6 +422,8 @@ export function checks(ctx) {
         } else if (facts && Number.isFinite(facts.min) && u.dur < facts.min) {
             out.push({ k: 'warn', text: `${u.label} is ${u.dur}s; ${facts.label} makes at least ${facts.min}s, so the clip comes back longer and is trimmed in Cut.`, fixes: [] });
         }
+        const vague = u.ids.reduce((a, id) => a + (shots[id].sfx || []).filter(f => !String(f.text || '').trim()).length, 0);
+        if (vague) out.push({ k: 'warn', text: `${u.label}: ${vague} sound${vague === 1 ? ' has' : 's have'} no description yet ("a sound, to describe" in the prompt). Click ${vague === 1 ? 'it' : 'each'} on the Effects lane and say what we hear.`, fixes: [] });
         const w = u.ids.reduce((a, id) => a + shots[id].lines.reduce((b, l) => b + words(l.text), 0), 0);
         const wps = w / Math.max(1, u.dur);
         if (wps > 2.4) out.push({ k: 'warn', text: `${u.label}: ${w} words in ${u.dur}s (${wps.toFixed(1)} per second). Lines may be rushed or dropped.`,

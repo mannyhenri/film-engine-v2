@@ -1,0 +1,31 @@
+/* 3D Models (ModelsStudio.jsx): one card per character, location and prop, with its model. */
+.md { padding: 0 0 32px; }
+.md-warn { color: var(--gl-warning, #f59e0b); background: rgba(245,158,11,.08); border: 1px solid rgba(245,158,11,.3); border-radius: 8px; padding: 8px 12px; font-size: 13px; }
+.md-kind { margin: 0 0 20px; }
+.md-kind-title { font-size: 13px; text-transform: uppercase; letter-spacing: 1px; color: var(--gl-text-muted); margin: 8px 0 10px; display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+.md-kind-title .text-muted { text-transform: none; letter-spacing: 0; font-size: 12px; }
+.md-all { margin-top: 28px; }
+.md-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 12px; }
+.md-card, .md-model { display: grid; gap: 8px; align-content: start; }
+.md-card h3, .md-model h3 { font-size: 13px; margin: 0; overflow-wrap: anywhere; }
+.md-card > p, .md-model > p { margin: 0; }
+.md-thumb { position: relative; aspect-ratio: 16 / 10; background: var(--gl-bg-elevated, #18181c); border-radius: 8px; overflow: hidden; display: grid; place-items: center; }
+.md-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.md-badge { position: absolute; top: 6px; right: 6px; background: rgba(102,144,255,.9); color: #fff; font: 600 10px/1 system-ui, sans-serif; padding: 4px 6px; border-radius: 4px; }
+.md-state { color: var(--gl-text-muted); min-height: 18px; }
+.md-err { color: var(--gl-error, #e5484d); }
+.md-bar { height: 6px; border-radius: 3px; background: rgba(255,255,255,.08); overflow: hidden; }
+.md-bar span { display: block; height: 100%; background: var(--gl-accent, #6366f1); transition: width .4s; }
+.md-actions, .md-tags { display: flex; gap: 6px; flex-wrap: wrap; }
+.md-pass { display: grid; gap: 6px; border-top: 1px solid var(--gl-border-subtle, rgba(255,255,255,.08)); padding-top: 8px; }
+.md-pass textarea { min-height: 52px; box-sizing: border-box; width: 100%; }
+.md-viewer-overlay { position: fixed; inset: 0; z-index: 1000; background: rgba(0,0,0,.7); display: grid; place-items: center; padding: 24px; }
+.md-viewer { width: min(1100px, 100%); height: min(760px, 100%); background: #111114; border: 1px solid rgba(255,255,255,.12); border-radius: 12px; display: grid; grid-template-rows: auto 1fr; overflow: hidden; }
+.md-viewer header { display: flex; gap: 12px; align-items: center; padding: 10px 14px; border-bottom: 1px solid rgba(255,255,255,.08); }
+.md-viewer header button { margin-left: auto; }
+.md-viewer-stage { position: relative; min-height: 0; cursor: grab; touch-action: none; }
+.md-viewer-stage:active { cursor: grabbing; }
+.md-viewer-stage canvas { display: block; width: 100%; height: 100%; }
+.md-viewer-note { position: absolute; inset: 0; display: grid; place-items: center; color: #c9c9d1; pointer-events: none; }
+.md-confirm { display: grid; gap: 6px; width: 100%; font-size: 12px; border: 1px solid rgba(229,72,77,.45); background: rgba(229,72,77,.08); border-radius: 8px; padding: 8px 10px; }
+.md-confirm .btn-danger { background: #c4363b; color: #fff; border-color: #c4363b; }

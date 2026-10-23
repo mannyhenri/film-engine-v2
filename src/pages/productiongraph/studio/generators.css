@@ -1,0 +1,59 @@
+/* Production › Generators (GeneratorsTab.jsx). Uses the studio's .ps tokens. */
+.gen { display: flex; flex-direction: column; gap: 16px; padding: 16px 20px 32px; }
+.gen-main { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(300px, 1fr); gap: 16px; align-items: start; }
+/* The player with the running job's progress under it; the tool panel beside them; History below both. */
+.gen-left { display: grid; gap: 12px; min-width: 0; }
+@media (max-width: 980px) { .gen-main { grid-template-columns: 1fr; } }
+
+.gen-drop { background: var(--ps-panel); border: 1px dashed rgba(255,255,255,.18); border-radius: 12px; min-height: 260px; display: flex; flex-direction: column; overflow: hidden; }
+.gen-drop.has { border-style: solid; border-color: var(--ps-line); }
+.gen-drop.over { border-color: var(--ps-accent-line); background: var(--ps-accent-soft); }
+.gen-empty { margin: auto; text-align: center; display: grid; gap: 10px; justify-items: center; padding: 32px; }
+.gen-player { position: relative; background: #000; line-height: 0; }
+.gen-player video { width: 100%; max-height: 52vh; display: block; }
+.gen-player audio { width: 100%; margin: 24px 0; }
+.gen-player .gen-still { width: 100%; max-height: 52vh; object-fit: contain; display: block; background: #000; }
+.gen-points { position: absolute; inset: 0; pointer-events: none; }
+.gen-points span { position: absolute; width: 12px; height: 12px; margin: -6px 0 0 -6px; border-radius: 50%; border: 2px solid #fff; }
+.gen-points span.in { background: var(--ps-ok); }
+.gen-points span.out { background: #e5484d; }
+.gen-info { padding: 10px 12px; border-top: 1px solid var(--ps-line); }
+
+.gen-panel { background: var(--ps-panel); border: 1px solid var(--ps-line); border-radius: 12px; padding: 14px; display: grid; gap: 12px; min-width: 0; }
+/* Kept inside the panel: a long save path or the app-wide `select { width: 100% }` with padding pushed it past the window. */
+.gen-panel > * { min-width: 0; }
+.gen-opt select, .gen-opt input { box-sizing: border-box; max-width: 100%; }
+.gen-loading { position: absolute; inset: 0; display: grid; place-items: center; padding: 24px; text-align: center; color: #c9c9d1; background: rgba(0,0,0,.6); font: 13px/1.4 system-ui, sans-serif; pointer-events: none; }
+.gen-tools { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 8px; }
+.gen-tool { display: grid; gap: 2px; text-align: left; padding: 10px; border-radius: 9px; background: var(--ps-side); border: 1px solid var(--ps-line); }
+.gen-tool.on { border-color: var(--ps-accent-line); background: var(--ps-accent-soft); }
+.gen-tool:disabled { opacity: .45; cursor: not-allowed; }
+.gen-tool-name { font-weight: 600; }
+.gen-tool-desc { color: var(--ps-muted); font-size: 11px; }
+.gen-range { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.gen-range kbd { font: 11px ui-monospace, monospace; border: 1px solid rgba(255,255,255,.25); border-radius: 4px; padding: 0 4px; margin-left: 4px; }
+.gen-options { display: grid; gap: 10px; }
+.gen-opt { display: grid; gap: 4px; color: #c9c9d1; font-size: 12px; }
+.gen-opt.check { display: flex; align-items: center; gap: 8px; }
+.gen-opt select, .gen-opt input[type=text], .gen-opt input[type=number] { background: var(--ps-head); border: 1px solid rgba(255,255,255,.14); border-radius: 7px; padding: 6px 8px; }
+.gen-opt em { font-style: normal; margin-left: 6px; }
+.ps-link { background: none; border: 0; padding: 0; color: #8fadff; text-decoration: underline; font-size: 12px; }
+
+.gen-jobs { background: var(--ps-panel); border: 1px solid var(--ps-line); border-radius: 12px; padding: 14px; }
+.gen-jobs > ul { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 8px; }
+.gen-job { border: 1px solid var(--ps-line); border-radius: 9px; padding: 10px 12px; display: grid; gap: 6px; background: var(--ps-side); }
+.gen-status { font-size: 12px; color: var(--ps-muted); }
+.gen-status.done { color: var(--ps-ok); }
+.gen-status.failed, .gen-status.interrupted { color: #e5484d; }
+.gen-status.running, .gen-status.queued { color: #8fadff; }
+.gen-bar { height: 6px; border-radius: 3px; background: rgba(255,255,255,.08); overflow: hidden; }
+.gen-bar span { display: block; height: 100%; background: var(--ps-accent); transition: width .4s; }
+.gen-outs { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.gen-outs li { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.gen-out-player { width: 100%; max-height: 40vh; background: #000; border-radius: 8px; }
+.gen-saveto { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.gen-path { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; min-width: 0; direction: rtl; text-align: left; }
+.gen-saveto .gen-path { flex: 1 1 100%; }
+.gen-now { border: 1px solid var(--ps-accent-line); background: var(--ps-accent-soft); border-radius: 10px; padding: 10px 12px; display: grid; gap: 8px; }
+.gen-bar.big { height: 10px; border-radius: 5px; }
+.gen .ps-btn:disabled { opacity: .55; cursor: not-allowed; }

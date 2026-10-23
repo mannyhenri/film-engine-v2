@@ -6,7 +6,7 @@ import { installLegacy } from '../../test/setup.js';
 import { legacyMarkup, legacyHandlers, domWalk, frameChildren } from '../../test/reference.js';
 
 /*
- * The two 3D pages share one engine (engine.js, owned by Previs). Set-based over the two: each frame is the reference
+ * The 3D stage engine (engine.js, owned by Previs). Set-based over the pages drawn from it: each frame is the reference
  * markup element by element, each legacy handler calls the same function with the same arguments, each loader is
  * registered; while Previs is mounted every engine function is on window, and what the chunk bound at load
  * (mount.js) is bound, and unbound after.
@@ -20,7 +20,7 @@ vi.mock('./engine.js', async (importOriginal) => {
 const E = await import('./engine.js');
 const PAGES = [
     { id: 'previs', Page: (await import('./PrevisPage.jsx')).default, json: (await import('./react.json')).default },
-    { id: 'threed', Page: (await import('../threed/ThreeDPage.jsx')).default, json: (await import('../threed/react.json')).default },
+    // 3D Models left the engine's frame (2026-10-23): it is its own React page now (threed/ModelsStudio.jsx, tested there).
 ];
 let legacy;
 beforeEach(() => {

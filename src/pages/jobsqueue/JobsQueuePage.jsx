@@ -16,15 +16,44 @@ function StatusBadge({ status }) {
     return <span style={{ display: 'inline-block', padding: '2px 7px', borderRadius: 999, background: color + '22', color, fontSize: 11, fontWeight: 700 }}>{status || 'unknown'}</span>;
 }
 
+/*
+ * When a job happened: its date and time where you are, and how long ago. The jobs' created_at is SQLite's
+ * datetime('now') (UTC, no zone written) on most tables and ISO on some, so a bare one is read as UTC.
+ */
+export function whenOf(at, now = Date.now()) {
+    if (!at) return '';
+    const s = String(at);
+    const d = new Date(/[zZ]|[+-]\d\d:?\d\d$/.test(s) || !/\d{2}:\d{2}/.test(s) ? s : s.replace(' ', 'T') + 'Z');
+    if (Number.isNaN(d.getTime())) return s;
+    const mins = Math.round((now - d.getTime()) / 60000);
+    const ago = mins < 1 ? 'just now' : mins < 60 ? `${mins} min ago` : mins < 48 * 60 ? `${Math.round(mins / 60)} h ago` : `${Math.round(mins / 1440)} days ago`;
+    return `${d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: d.getFullYear() === new Date(now).getFullYear() ? undefined : 'numeric' })}, ${d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })} · ${ago}`;
+}
+const FINISHED = new Set(['complete', 'completed', 'completed_with_errors', 'failed', 'cancelled', 'canceled', 'interrupted']);   // as routes/jobs.js
+
 export default function JobsQueuePage() {
     const [view, setView] = useState(null); // null | { loading } | { error } | { data }
+    const [showCleared, setShowCleared] = useState(false);
+    const pidNow = () => legacy.state.currentProject && legacy.state.currentProject.id;
 
-    async function loadJobsQueuePage() {
-        const pid = legacy.state.currentProject && legacy.state.currentProject.id;
+    async function loadJobsQueuePage(all = showCleared) {
+        const pid = pidNow();
         if (!pid) { legacy.setStatus('Open a project first'); return; }
-        setView({ loading: true });
-        try { setView({ data: await legacy.api(`/projects/${pid}/jobs`) }); }
+        setView(v => (v && v.data ? v : { loading: true }));
+        try { setView({ data: await legacy.api(`/projects/${pid}/jobs${all ? '?include_cleared=1' : ''}`) }); }
         catch (err) { setView({ error: err.message }); }
+    }
+    // Clear: the finished jobs leave the list (and the badge); they are only hidden, so Restore brings them back.
+    async function clearFinished() {
+        try {
+            const r = await legacy.api(`/projects/${pidNow()}/jobs/clear`, { method: 'POST', body: '{}', refresh: false });
+            legacy.setStatus(`${r.cleared} finished job${r.cleared === 1 ? '' : 's'} cleared from the queue.`);
+            await loadJobsQueuePage();
+        } catch (err) { legacy.setStatus('Clear failed: ' + err.message); }
+    }
+    async function restore() {
+        try { await legacy.api(`/projects/${pidNow()}/jobs/restore`, { method: 'POST', body: '{}', refresh: false }); setShowCleared(false); await loadJobsQueuePage(false); }
+        catch (err) { legacy.setStatus('Restore failed: ' + err.message); }
     }
     usePageLoader('loadJobsQueuePage', loadJobsQueuePage);
 
@@ -36,7 +65,14 @@ export default function JobsQueuePage() {
         <div className="page" id="page-jobsqueue">
             <div className="flex-between mb-16">
                 <h2>Job Queue</h2>
-                <button className="btn btn-secondary" onClick={() => loadJobsQueuePage()}>Refresh</button>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                    {data && data.cleared > 0 && <label className="text-sm text-muted" style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                        <input type="checkbox" checked={showCleared} onChange={e => { setShowCleared(e.target.checked); loadJobsQueuePage(e.target.checked); }} /> Show cleared ({data.cleared})</label>}
+                    {data && data.cleared > 0 && <button className="btn btn-secondary" onClick={restore}>Restore cleared</button>}
+                    <button className="btn btn-secondary" disabled={!data || !data.jobs.some(j => FINISHED.has(j.status))} onClick={clearFinished}
+                        title="Hide every complete, failed and cancelled job from this list. Running jobs stay. Nothing is deleted.">Clear finished jobs</button>
+                    <button className="btn btn-secondary" onClick={() => loadJobsQueuePage()}>Refresh</button>
+                </div>
             </div>
             <div id="jobsQueueSummary" className="mb-16">
                 {view?.loading && <div className="card">Loading queue...</div>}
@@ -55,9 +91,9 @@ export default function JobsQueuePage() {
                 {data && data.jobs.length > 0 && !controls.shown.length && <ListNoMatch list={controls} />}
                 {data && !data.jobs.length && <div className="card"><p className="text-muted">No generation jobs for this project yet.</p></div>}
                 {data && controls.shown.map(job => (
-                    <div className="card mb-8" key={job.id} data-job-id={job.id}>
+                    <div className="card mb-8" key={job.id} data-job-id={job.id} data-job-active={job.is_active ? 'true' : 'false'}>
                         <div className="flex-between">
-                            <div><strong>{job.job_type}</strong> <span className="text-sm text-muted">{job.id}</span></div>
+                            <div><strong>{job.job_type}</strong> {job.created_at && <><span className="text-sm" title={String(job.created_at)}>{whenOf(job.created_at)}</span> </>}<span className="text-sm text-muted">{job.id}</span></div>
                             <StatusBadge status={job.status} />
                         </div>
                         <p className="text-sm text-muted">{job.prompt || job.model || 'No prompt/model recorded'}</p>

@@ -5,7 +5,7 @@
  *
  *   --smoke   visit every page and exit 1 on any console error (CI / round checks)
  */
-const { app, BrowserWindow, shell, ipcMain } = require('electron');
+const { app, BrowserWindow, shell, ipcMain, dialog } = require('electron');
 
 // The app's name in the menus (About / Hide / Quit Film Engine) and to the OS. Before ready, or the
 // default menu is built with "Electron". The bold app-menu title and the Dock label come from the
@@ -64,6 +64,25 @@ function acceptsAICapability(base) {
 
 // Only the app's main frame may retrieve the transient capability. Popups and
 // other pages sharing this preload never receive it.
+// Show a Generators result in Finder. Only an existing absolute file or folder, and only for the app window.
+// Choose where Generators saves its results: the Mac's folder picker, attached to the app window.
+ipcMain.handle('fe-pick-folder', async (event, start) => {
+    if (!appWindow || event.sender !== appWindow.webContents) return '';
+    const fs = require('fs');
+    const r = await dialog.showOpenDialog(appWindow, { title: 'Save results in', buttonLabel: 'Save Here',
+        defaultPath: typeof start === 'string' && path.isAbsolute(start) && fs.existsSync(start) ? start : undefined,
+        properties: ['openDirectory', 'createDirectory'] });
+    return r.canceled || !r.filePaths.length ? '' : r.filePaths[0];
+});
+
+ipcMain.handle('fe-reveal', (event, p) => {
+    if (!appWindow || event.sender !== appWindow.webContents) return false;
+    const fs = require('fs');
+    if (typeof p !== 'string' || !path.isAbsolute(p) || !fs.existsSync(p)) return false;
+    shell.showItemInFolder(p);
+    return true;
+});
+
 ipcMain.handle('fe-ai-capability', event => {
     if (!appWindow || event.sender !== appWindow.webContents || event.senderFrame !== appWindow.webContents.mainFrame) throw Error('Film AI capability is restricted to the app window.');
     const url = new URL(event.senderFrame.url);

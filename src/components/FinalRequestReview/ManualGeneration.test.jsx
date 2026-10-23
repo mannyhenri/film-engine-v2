@@ -5,7 +5,8 @@ import FinalRequestReview,{FinalRequestReviewDialog} from './FinalRequestReview.
 // Every provider the final review resolves (backend REVIEW_PROVIDER_MODULES) and
 // every capability those adapters serve. The last screen is the deliverable:
 // full prompt, every asset, Copy and Close; there is no Send.
-const PROVIDERS={openai:'image',google:'image',muapi:'image',seedance:'video',runway:'video',higgsfield:'video','muapi-upscale':'image-upscale',meshy:'model3d',worldlabs:'world',magnific:'post',elevenlabs:'voice',topaz:'post'};
+// Meshy 3D is not here: the user ruled it sent (sent-capabilities.js; its own test below). Meshy images stay.
+const PROVIDERS={openai:'image',google:'image',muapi:'image',seedance:'video',runway:'video',higgsfield:'video','muapi-upscale':'image-upscale',worldlabs:'world',magnific:'post',elevenlabs:'voice',topaz:'post'};
 const CASES=[...Object.entries(PROVIDERS),['runway','image'],['higgsfield','image'],['seedance','post'],['meshy','image'],['elevenlabs','sfx'],['elevenlabs','music'],['elevenlabs','ambient']];
 const PNG='data:image/png;base64,iVBORw0KGgo=';
 function review(provider,capability){
@@ -15,6 +16,30 @@ function review(provider,capability){
    references:[{order:1,role:'first_frame',tag:'hero',mime:'image/png',data:PNG,path:'/media/a.png',source_path:'/media/a-original.png',source_transform:'encoded_reference_bytes_differ',sha256:'h1',byte_length:8},{order:2,role:'style',mime:'image/png',data:PNG,path:'/media/b.png',sha256:'h2',byte_length:8}],quote:{amount:1.2,currency:'USD'}}};
 }
 afterEach(()=>{cleanup();vi.unstubAllGlobals();});
+
+describe('Meshy 3D is sent: approve this exact request and its cost, then it goes',()=>{
+ it('matches the backend ruling exactly',async()=>{
+  const {createRequire}=await import('module');const path=await import('path');
+  const backend=createRequire(import.meta.url)(path.resolve(__dirname,'../../../backend/lib/manual-generation.js'));
+  const {SENT}=await import('./sent-capabilities.js');
+  expect(Object.fromEntries(Object.entries(SENT).map(([k,v])=>[k,[...v]]))).toEqual(Object.fromEntries(Object.entries(backend.SENT).map(([k,v])=>[k,[...v]])));
+ });
+ it('needs the consent box, approves the fingerprint, and hands the approval to the route',async()=>{
+  const r=review('meshy','model3d');r.route_request={path:'/characters/c1/model/from-image',body:{}};
+  const request=vi.fn().mockResolvedValue({approval:{id:'a1',review_id:r.id,fingerprint:'fp'}}),send=vi.fn(),cancel=vi.fn();
+  render(<FinalRequestReviewDialog initialReview={r} onSend={send} onCancel={cancel} request={request}/>);
+  expect(screen.getByText(/Film Engine sends this request to Meshy when you approve it/).textContent).toContain('about $1.20');
+  const go=screen.getByRole('button',{name:'Approve & send'});
+  expect(go.disabled).toBe(true);
+  fireEvent.click(screen.getByRole('checkbox'));
+  expect(go.disabled).toBe(false);
+  fireEvent.click(go);
+  await waitFor(()=>expect(send).toHaveBeenCalled());
+  expect(request).toHaveBeenCalledWith(`/final-request-review/${r.id}/approve`,{fingerprint:'fp',human_confirmed:true});
+  expect(send.mock.calls[0][0]).toEqual({id:'a1',review_id:r.id,fingerprint:'fp',__route_body:{}});
+  expect(screen.queryByRole('button',{name:'Copy prompt'})).toBeNull();
+ });
+});
 
 describe('manual generation: the final screen hands over prompt and assets',()=>{
  it.each(CASES)('%s/%s shows the full prompt, every asset, Copy and Close, and no Send',async(provider,capability)=>{

@@ -1,0 +1,33 @@
+/* The character sheet's main picture, variations, description and steps (MainSheet.jsx). */
+.msh { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(300px, 1fr); gap: 20px; align-items: start; padding: 4px 0 16px; }
+@media (max-width: 900px) { .msh { grid-template-columns: 1fr; } }
+.msh-left, .msh-right { display: grid; gap: 12px; min-width: 0; }
+.msh-main { position: relative; background: #2a2b30; border-radius: 10px; overflow: hidden; min-height: 240px; display: grid; place-items: center; }
+.msh-main img { width: 100%; display: block; }
+.msh-badge { position: absolute; left: 10px; top: 10px; background: rgba(16,16,20,.78); color: #cfe0ff; font-size: 11px; font-weight: 600; padding: 4px 8px; border-radius: 6px; }
+.msh-empty { display: grid; gap: 6px; padding: 32px; text-align: center; max-width: 420px; color: #c9c9d1; font-size: 13px; }
+.msh-h { margin: 0; font-size: 12px; text-transform: uppercase; letter-spacing: .8px; color: var(--gl-text-muted, #9a9aa3); }
+.msh-h .text-muted { text-transform: none; letter-spacing: 0; margin-left: 6px; }
+/* Four across the main picture's width, so several sheets fit under it. */
+.msh-vars { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.msh-var { padding: 0; border: 1px solid rgba(255,255,255,.12); border-radius: 8px; overflow: hidden; background: #1c1d22; cursor: pointer; display: grid; text-align: left; }
+.msh-var:hover:not(:disabled) { border-color: #6690ff; }
+.msh-var img { width: 100%; aspect-ratio: 16 / 9; object-fit: cover; display: block; }
+.msh-var small { padding: 3px 6px; font-size: 10.5px; color: #a6a6b0; }
+.msh-row { display: flex; gap: 8px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
+.msh-desc, .msh-steps { display: grid; gap: 8px; background: var(--gl-bg-surface, #17171b); border: 1px solid rgba(255,255,255,.08); border-radius: 10px; padding: 12px; }
+.msh-desc textarea, .msh-prompt textarea { width: 100%; box-sizing: border-box; font: 12.5px/1.5 inherit; }
+.msh-text { margin: 0; font-size: 13px; line-height: 1.55; }
+.msh-lab { font-size: 11px; color: #9a9aa3; }
+.msh-step { display: grid; gap: 6px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,.06); }
+.msh-step p { margin: 0; }
+.msh-prompt { display: grid; gap: 6px; }
+.msh-prompt textarea { font-family: ui-monospace, monospace; font-size: 11.5px; }
+.msh-prompt button { justify-self: start; }
+.msh-busy { font-size: 12px; color: #cfe0ff; display: flex; gap: 8px; flex-wrap: wrap; }
+.msh-portraits { justify-content: flex-start; }
+.msh-portrait { padding: 0; border: 1px solid rgba(255,255,255,.12); border-radius: 6px; overflow: hidden; width: 54px; height: 54px; cursor: pointer; background: none; }
+.msh-portrait img { width: 100%; height: 100%; object-fit: cover; }
+.msh-err { color: #e5484d; font-size: 12px; margin: 0; }
+.cs-more { margin-top: 12px; border-top: 1px solid rgba(255,255,255,.08); padding-top: 10px; }
+.cs-more > summary { cursor: pointer; font-size: 12px; color: #9a9aa3; }

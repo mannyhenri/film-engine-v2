@@ -77,7 +77,10 @@ test('every real generation route reaches a manual review with its full prompt a
    if(vendor.length)problems.push({route:key(c),problem:'vendor call',vendor});
    if(!id){problems.push({route:key(c),problem:'no review',status:out.status,text:out.text.slice(0,200)});continue;}
    const review=JSON.parse((await call('GET','/final-request-review/'+id)).text),snap=review.snapshot||{};
-   if(!manual.isManual(snap.provider,snap.capability))problems.push({route:key(c),problem:'review is not for a manual vendor',provider:snap.provider});
+   // A capability the user ruled sent (manual.SENT: Meshy 3D) still stops at its review with no vendor call, but it is
+   // not a hand-over: it is approved and sent from there, so its job row is the job and stays.
+   const sentCap=!!manual.SENT[snap.provider]?.has(snap.capability);
+   if(!sentCap&&!manual.isManual(snap.provider,snap.capability))problems.push({route:key(c),problem:'review is not for a manual vendor',provider:snap.provider});
    const prompt=promptOf(snap.body);
    // A text prompt, or, for an operation on a model or clip (rig, upscale), the asset it operates on.
    if(!prompt&&!(['post','image-upscale','model3d'].includes(snap.capability)&&(snap.references||[]).length))problems.push({route:key(c),problem:'review has no prompt',capability:snap.capability});
@@ -88,7 +91,7 @@ test('every real generation route reaches a manual review with its full prompt a
     if(!ref.data){const got=await call('GET',`/final-request-review/${id}/references/${ref.order}/original`);if(got.status!==200||got.text.length!==ref.byte_length)problems.push({route:key(c),problem:'original asset not downloadable',status:got.status});}
    }
    const after=counts(),grew=Object.keys(after).filter(t=>after[t]!==before[t]&&!/review/.test(t));
-   if(grew.length)problems.push({route:key(c),problem:'rows left behind the review',grew});
+   if(grew.length&&!sentCap)problems.push({route:key(c),problem:'rows left behind the review',grew});
    reached.push(`${key(c)} → ${snap.provider}/${snap.capability} · ${(snap.references||[]).length} assets · "${prompt.slice(0,50)}"`);
   }
   for(const n of fixtures.NOT_MANUAL_GENERATION){

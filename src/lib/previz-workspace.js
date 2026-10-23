@@ -522,7 +522,8 @@ export const previzWorkspace = {
           camera:{...b.camera,focalMm:W.lens || b.camera.focalMm || 35},durationMs:W.durationMs,
           cameraKeys:clone(W.keys || []),moves:clone(W.moves || [])})});
       }
-      await api(`/shots/${shotId}/previs/apply`, {method:'POST',body:'{}'});
+      // With the framing Previz shows (worldApplyBody), so Generate's Framing follows the camera, not the old card.
+      await api(`/shots/${shotId}/previs/apply`, {method:'POST',body:this.E.worldApplyBody ? this.E.worldApplyBody() : '{}'});
       legacy.setStatus(`Applied to ${(t && t.shot_code) || 'the shot'}: Production › Generate now uses this camera, move and staging (anything you changed there stays).`);
     } catch (err) { legacy.setStatus('Could not apply: ' + err.message); }
     finally { this.busy = false; this.E.worldConsoleRender(); }

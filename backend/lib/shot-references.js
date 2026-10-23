@@ -24,6 +24,7 @@
  * whole parity suite testable without I/O.
  */
 
+const { mainFirstSql } = require('./character-sheet-main');   // the character's MAIN sheet first (lib/character-sheet-main.js)
 const { orderByViewSql, headlinePlate } = require('./plate-views');
 const { sendableSql, sendableOnly } = require('./subject-gallery');
 const { selectReferences } = require('./reference-images');
@@ -131,8 +132,8 @@ function gatherShotReferences(projectId, matchedChars, matchedLocation, sceneCar
              WHERE project_id = ? AND character_id = ?
                AND asset_type IN ('character_sheet', 'reference_image')
                AND ${sendableSql()}
-             ORDER BY ${orderByViewSql()}, version DESC, created_at DESC LIMIT 1`
-        ).get(projectId, ch.id);
+             ORDER BY ${mainFirstSql()}, ${orderByViewSql()}, version DESC, created_at DESC LIMIT 1`
+        ).get(projectId, ch.id);   // the character's MAIN sheet when it has one (lib/character-sheet-main.js), else front first
         if (plate) candidates.push({ name: ch.name, kind: 'character', file_path: plate.file_path });
     }
 

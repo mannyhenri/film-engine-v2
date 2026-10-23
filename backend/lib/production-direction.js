@@ -49,7 +49,8 @@ function getDirection(db, projectId) {
                 end_state: card.end_state || '',
                 duration_s: Number(card.duration_seconds) || Math.round((Number(r.duration_ms) || 0) / 1000) || 0,
             },
-            direction: d ? d.data : null, revision: d ? d.revision : 0,
+            // When the direction was last saved, so Generate can tell whether a Previz Apply is newer (newer wins).
+            direction: d ? d.data : null, revision: d ? d.revision : 0, updated_at: d ? d.updated_at : null,
             // What Previz decided for this shot, in prompt words (lib/previs-direction.js); null when never blocked.
             previs: require('./previs-direction').previsForShot(db, r.id),
         };

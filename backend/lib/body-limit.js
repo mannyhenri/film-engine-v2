@@ -20,7 +20,8 @@
  */
 
 /** Last path segments that mean "this request carries a file". */
-const FILE_CARRYING_SEGMENTS = Object.freeze(['import', 'media']);
+// 'upload' and 'sheet': a finished character sheet, and the studio picture its prompt is written from (characters/:id/sheet/…).
+const FILE_CARRYING_SEGMENTS = Object.freeze(['import', 'media', 'upload', 'sheet']);
 
 const JSON_LIMIT = 10 * 1024 * 1024;
 /*

@@ -1,5 +1,5 @@
 {
-  "about": "This page is React (ThreeDPage.jsx, its frame generated from the reference markup). Its loader is in the 3D stage engine (src/pages/previs/engine.js), owned by the Previs page. three.js is declared in vendors and loaded before the loader.",
+  "about": "This page is React (ModelsStudio.jsx): characters, locations and props with their models; Meshy for characters, Astra-guided Blender builds for locations and props, a 3D viewer (three.js, declared in vendors and loaded before the page). It registers the loader name loadThreeD itself.",
   "loader": "loadThreeD",
   "provides": [],
   "replaces": [

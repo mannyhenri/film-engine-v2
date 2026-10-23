@@ -7,6 +7,9 @@
  *   POST /film/production-studio/recommend                  rank every model for a brief by the rules (free)
  *   POST /film/projects/:id/production-studio/recommend     the same, then an AI judgement when `ai` is true
  *   POST /film/projects/:id/production-studio/optimize-prompt   rewrite the composed prompt for the chosen model
+ *   POST /film/projects/:id/production-studio/seedance-prompt   the final Seedance 2.5 prompt by ChatGPT, from the sheets,
+ *        storyboard frames, dialogue (black-screen MP4) and the stored guide; writes the hand-off folder (lib/seedance-prompt.js).
+ *        With { async: true }: 202 { job }, then GET …/seedance-prompt/jobs/:id → { job: { status, stage_label, elapsed_s, result } }
  *   POST /film/projects/:id/production-studio/send-to-resolve   write the Resolve package, open Resolve, import it
  *   GET|PUT|DELETE /film/projects/:id/production-studio/direction[/…]   the Direct studio's saved choices (free)
  *
@@ -149,8 +152,14 @@ async function sendToResolve(projectId, cut) {
     let written;
     try { const { video, lanes, ...out } = rx.writeResolve(db, projectId, { dest, cut }); written = out; }
     catch (err) { return { status: err.code ? 409 : 500, body: { error: err.code || 'RESOLVE_EXPORT_FAILED', message: err.message } }; }
-    const launch = await require('../lib/resolve-launch').launchResolve(dest);
-    if (!launch.imported && process.platform === 'darwin' && process.env.FILM_RESOLVE_LAUNCH !== '0') {
+    const lua = require('../lib/resolve-lua');
+    // Free Resolve takes the cut through its Scripts menu: install this package's script there (tests never reach here
+    // with a real Resolve: FILM_RESOLVE_LAUNCH=0, or FILM_RESOLVE_SCRIPTS_DIR points elsewhere).
+    const menu = lua.isFreeResolve() && process.env.FILM_RESOLVE_LAUNCH !== '0' ? lua.installLuaScript(dest) : null;
+    if (menu) written.lua = { ...written.lua, ...menu };
+    const launch = await require('../lib/resolve-launch').launchResolve(dest, { free: !!(menu && menu.installed), menu: menu && menu.menu });
+    // The package folder in Finder only when Resolve could not take it at all (the menu script is the way in otherwise).
+    if (!launch.imported && !launch.needs_click && process.platform === 'darwin' && process.env.FILM_RESOLVE_LAUNCH !== '0') {
         require('child_process').spawn('open', [dest], { detached: true, stdio: 'ignore' }).on('error', () => {}).unref();
     }
     return { status: 200, body: { ...written, imported_into_resolve: launch.imported, launch } };
@@ -198,6 +207,10 @@ async function handleProductionStudio(req, res, parts) {
         return json(res, 200, { models: rw.runwayModels(), connected: rw.connected(), usd_per_credit: rw.USD_PER_CREDIT });
     }
     if (scoped && sub === 'direction') return direction(req, res, projectId, parts.slice(5));
+    if (scoped && sub === 'seedance-prompt' && parts[5] === 'jobs' && parts[6] && req.method === 'GET') {
+        try { return json(res, 200, { job: require('../lib/seedance-prompt').getJob(parts[6]) }); }
+        catch (err) { return json(res, err.status || 500, { error: err.message }); }
+    }
     if (req.method !== 'POST') return json(res, 405, { error: 'Method not allowed' });
     const body = await readBody(req);
     if (sub === 'recommend') {
@@ -214,6 +227,12 @@ async function handleProductionStudio(req, res, parts) {
         if (!project) return json(res, 404, { error: 'Project not found' });
         const r = await optimize(project, body);
         return json(res, r.status, r.body);
+    }
+    if (sub === 'seedance-prompt') {
+        // { async: true } starts it as a job (202, then GET …/seedance-prompt/jobs/:id for the stage); else it answers when done.
+        const sp = require('../lib/seedance-prompt');
+        try { return body.async ? json(res, 202, { job: sp.startJob(projectId, body) }) : json(res, 200, await sp.writeSeedancePrompt(projectId, body)); }
+        catch (err) { return json(res, err.status || 500, { error: err.message }); }
     }
     if (sub === 'send-to-resolve') { const r = await sendToResolve(projectId); return json(res, r.status, r.body); }
     return json(res, 404, { error: 'Not found' });

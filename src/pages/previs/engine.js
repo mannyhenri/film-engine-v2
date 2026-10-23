@@ -1624,11 +1624,18 @@ const { AI_PATH, WALK, WORLD, state } = Object.fromEntries(['AI_PATH', 'WALK', '
         worldConsoleRender();
     }
 
+    /** What Apply sends with it: the framing Previz shows now (shot size by coverage), which the stage alone cannot say. */
+    function worldApplyBody() {
+        let now = {};
+        try { now = worldShotNow() || {}; } catch (_) { now = {}; }
+        return JSON.stringify(now.framing ? { framing: now.framing } : {});
+    }
+
     async function worldApplyDecisions() {
         const shotId = WORLD.shotId, selection = WORLD.selectionRevision;
         if (!WORLD.shotId) return;
         try {
-            await api(`/shots/${shotId}/previs/apply`, { method: 'POST', body: '{}' });
+            await api(`/shots/${shotId}/previs/apply`, { method: 'POST', body: worldApplyBody() });
             setStatus('Applied to the shot — generation now sends it');
         } catch (err) { setStatus('Could not apply: ' + err.message); }
         if (WORLD.shotId === shotId && WORLD.selectionRevision === selection) await worldRefreshBlocking(shotId, selection);
@@ -1660,7 +1667,7 @@ const { AI_PATH, WALK, WORLD, state } = Object.fromEntries(['AI_PATH', 'WALK', '
         const decisions = (WORLD.blocking && WORLD.blocking.decisions) || [];
         try {
             if (lock && decisions.some(d => d.state === 'trying')) {
-                await api(`/shots/${shotId}/previs/apply`, { method: 'POST', body: '{}' });
+                await api(`/shots/${shotId}/previs/apply`, { method: 'POST', body: worldApplyBody() });
             }
             await api(`/shots/${shotId}/previs/${lock ? 'lock' : 'unlock'}`,
                 { method: 'POST', body: JSON.stringify({ all: true }) });
@@ -3295,17 +3302,32 @@ const { AI_PATH, WALK, WORLD, state } = Object.fromEntries(['AI_PATH', 'WALK', '
             const r = await api(`/projects/${state.currentProject.id}/assets?type=other`);
             models = (r.assets || r || []).map(a => {
                 let m = a.metadata; try { m = typeof m === 'string' ? JSON.parse(m) : (m || {}); } catch (_) { m = {}; }
-                return /^model_/.test(m.kind || '') ? { id: a.id, label: m.subject_name || a.file_name } : null;
+                return /^model_/.test(m.kind || '') ? { id: a.id, label: m.subject_name || a.file_name, kind: m.subject_kind || '',
+                    subject: m.subject_id || '', made: m.source === 'astra-blender' ? 'Blender' : m.subject_kind === 'imported' ? 'imported' : 'Meshy' } : null;
             }).filter(Boolean);
         } catch (_) { models = []; }
-        const t = tab || 'people';
+        /*
+         * A film's own cast and props by name, each subject's newest model first (the 3D Models page makes them:
+         * characters on Meshy, props in Blender). A location is not staged: it is the set (the 3D SETS rail).
+         * Anything else (an imported .glb, a model of no subject) stays under "Other models".
+         */
+        const ofKind = k => models.filter(m => m.kind === k);
+        const other = models.filter(m => !['character', 'prop', 'location'].includes(m.kind));
+        STAGE.models = models;
+        const t = tab || (ofKind('character').length ? 'characters' : 'people');
         const entries = STAGE.library.entries || [];
         const item = (label, sub, onclick) => `<button class="stage-item" onclick="${onclick}"><b>${esc(label)}</b><span>${esc(sub)}</span></button>`;
         const size = e => e.size_m.map(v => v.toFixed(2)).join(' × ') + ' m';
         let body = '';
         if (t === 'people') body = entries.filter(e => e.category === 'people').map(e => item(e.label, size(e), `stageAdd('lib', '${e.id}')`)).join('');
-        else if (t === 'models') body = models.length ? models.map(m => item(m.label, 'this project', `stageAdd('model', '${m.id}')`)).join('')
-            : '<p class="pv-dim">No 3D models in this project yet. Make one in the design section (Meshy) or upload a .glb.</p>';
+        else if (t === 'characters' || t === 'props') {
+            const list = ofKind(t === 'characters' ? 'character' : 'prop');
+            body = list.length ? list.map((m, i) => item(m.label, (list.findIndex(x => x.subject === m.subject) === i ? 'newest · ' : 'earlier · ') + m.made,
+                `stageAdd('model', '${m.id}')`)).join('')
+                : `<p class="pv-dim">No ${t === 'characters' ? 'character' : 'prop'} models yet. Make them on Write &amp; Design › 3D Models.</p>`;
+        }
+        else if (t === 'models') body = other.length ? other.map(m => item(m.label, m.made === 'imported' ? 'imported .glb' : 'this project', `stageAdd('model', '${m.id}')`)).join('')
+            : '<p class="pv-dim">No other 3D models. Upload a .glb on Write &amp; Design › 3D Models.</p>';
         else {
             const cats = STAGE.library.categories.filter(c => c !== 'people');
             body = cats.map(c => {
@@ -3316,7 +3338,7 @@ const { AI_PATH, WALK, WORLD, state } = Object.fromEntries(['AI_PATH', 'WALK', '
         const tabBtn = (id, label) => `<button class="pv-tab${t === id ? ' active' : ''}" onclick="stageOpenAdd('${id}')">${label}</button>`;
         showModalHtml('stageAddModal', `
             <h3>Stage in this shot</h3>
-            <div class="pv-tabs">${tabBtn('people', 'People')}${tabBtn('furniture', 'Furniture')}${tabBtn('models', 'Your 3D models')}</div>
+            <div class="pv-tabs">${tabBtn('characters', 'Characters')}${tabBtn('props', 'Props')}${tabBtn('people', 'People')}${tabBtn('furniture', 'Furniture')}${tabBtn('models', 'Other models')}</div>
             <div class="stage-grid">${body}</div>
             <p class="text-sm text-muted">Placed a few metres in front of the camera, at real size. Move and turn it on the Plan view.</p>
             <div class="btn-row"><button class="btn btn-secondary" onclick="closeModal('stageAddModal')">Close</button></div>`);
@@ -3346,7 +3368,11 @@ const { AI_PATH, WALK, WORLD, state } = Object.fromEntries(['AI_PATH', 'WALK', '
             su = { kind: person ? 'human' : 'mesh', name: e.label.split(',')[0] + (n ? ' ' + (n + 1) : ''),
                    model: { library: id }, sizeM: [w, h, d], position: at, rotationDeg: [0, person ? yaw : 0, 0] };
         } else {
-            su = { kind: 'mesh', name: '', model: { asset_id: id }, sizeM: [1, 1.8, 1], position: at, rotationDeg: [0, yaw, 0], fitToModel: true };
+            // A character's or prop's model keeps its subject's name and link, so the shot says who is standing there.
+            const m = (STAGE.models || []).find(x => x.id === id) || {};
+            su = { kind: m.kind === 'character' ? 'human' : 'mesh', name: m.kind === 'character' || m.kind === 'prop' ? m.label : '', model: { asset_id: id },
+                   ...(m.subject ? { subject: { kind: m.kind, id: m.subject } } : {}),
+                   sizeM: [1, 1.8, 1], position: at, rotationDeg: [0, m.kind === 'character' ? yaw : 0, 0], fitToModel: true };
         }
         subs.push(su);
         STAGE.sel = subs.length - 1;
@@ -5670,6 +5696,7 @@ export {
     worldImpliedSubject,
     worldImpliedSubjectKeep,
     worldShotNow,
+    worldApplyBody,
     worldShotPlace,
     worldShotOnHtml,
     worldShotOn,

@@ -7,6 +7,7 @@
  * POST /film/characters/:id/refsheet/generate     — FILM-014: Generate reference sheet
  * GET  /film/characters/:id/refsheet              — FILM-014: Get reference sheet status
  */
+const { mainFirstSql } = require('../lib/character-sheet-main');   // the character's MAIN sheet first (lib/character-sheet-main.js)
 const { isolationNegativeFor, subjectPlateOpening, projectMedium } = require('../lib/plate-isolation');
 const { orderByViewSql } = require('../lib/plate-views');
 const { db, generateId } = require('../db/database');
@@ -52,6 +53,35 @@ function handleCharacters(req, res, urlParts, query) {
         const sub = urlParts[3];
 
         if (sub === 'expressions') return require('./character-expressions').handleCharacterExpressions(req,res,charId,urlParts);
+
+        /*
+         * The character sheet (lib/character-sheet-main.js): one MAIN picture used for every generation.
+         *   GET  /film/characters/:id/sheet                  the main, the variations, the studio portraits, the description
+         *   PUT  /film/characters/:id/sheet/main             { asset_id }: make that picture the main
+         *   POST /film/characters/:id/sheet/upload           { data, name }: a finished sheet (the main if there is none yet)
+         *   POST /film/characters/:id/sheet/prompt/main      start: ChatGPT writes the studio medium-shot prompt (description + guide)
+         *   POST /film/characters/:id/sheet/prompt/sheet     start, from { data, name } or { asset_id } (the studio picture):
+         *                                                    ChatGPT writes the three-panel sheet prompt (picture + guide)
+         *   Both answer 202 at once; the prompt is kept per character and read back in GET …/sheet as prompts.main / .sheet.
+         */
+        if (sub === 'sheet') {
+            const S = require('../lib/character-sheet-main');
+            const send = (status, data) => { res.writeHead(status, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(data)); };
+            const body = req.body || {};
+            return (async () => {
+                try {
+                    if (!urlParts[4] && req.method === 'GET') return send(200, S.sheetOf(charId));
+                    if (urlParts[4] === 'main' && req.method === 'PUT') return send(200, S.setMain(charId, String(body.asset_id || '')));
+                    if (urlParts[4] === 'upload' && req.method === 'POST') return send(201, S.uploadSheet(charId, body));
+                    // Started as a job (202); the prompt lands in GET …/sheet (prompts.main / prompts.sheet) when ChatGPT is done.
+                    if (urlParts[4] === 'prompt' && ['main', 'sheet'].includes(urlParts[5]) && req.method === 'POST') {
+                        const { prompts } = S.startPrompt(charId, urlParts[5], body);
+                        return send(202, { prompts });
+                    }
+                    return send(404, { error: 'unknown character sheet route' });
+                } catch (err) { return send(err.status || 500, { error: err.message }); }
+            })();
+        }
 
         if (sub === 'voice') {
             if (req.method === 'GET') return getVoiceProfile(req, res, charId);
@@ -200,7 +230,7 @@ function listCharacters(req, res, projectId) {
         `SELECT file_name, project_id, version, created_at FROM film_assets
            WHERE asset_type IN ('character_sheet', 'reference_image') AND character_id = ?
              AND COALESCE(json_extract(metadata, '$.plate_role'), 'reference') = 'reference'
-           ORDER BY ${orderByViewSql()}, created_at DESC LIMIT 1`
+           ORDER BY ${mainFirstSql()}, ${orderByViewSql()}, created_at DESC LIMIT 1`
     );
 
     for (const ch of rows) {

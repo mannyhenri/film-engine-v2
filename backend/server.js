@@ -49,6 +49,7 @@
  *   POST   /film/shots/:id/video/generate[/stream]          — Video generation
  *   GET    /film/projects/:id/production-graph              — The production graph (layout, tidy, version pointers)
  *   GET/POST /film/projects/:id/cuts, /film/cuts/:id[/sounds|/versions|/send-to-resolve], /film/cut-sounds/:id — Cuts
+ *   GET/POST /film/generators/tools|inputs[/import|/:id]|jobs[/:id[/cancel|/output/:n]] — Generators (local AI tools, free)
  *   POST   /film/projects/:id/video/batch[/stream]          — Batch video generation
  *   GET    /film/video/:projectId/:filename                 — Serve video files
  *   POST   /film/shots/:id/lipsync/generate[/stream]        — Lip-sync generation
@@ -496,6 +497,10 @@ const server = http.createServer(async (req, res) => {
         // Route: cuts (Production's Cut tab) — /film/projects/:id/cuts, /film/cuts/:id[/…], /film/cut-sounds/:id
         if ((parts[1] === 'projects' && parts[2] && parts[3] === 'cuts') || (parts[1] === 'cuts' && parts[2]) || (parts[1] === 'cut-sounds' && parts[2])) {
             return await require('./routes/production-cuts').handleProductionCuts(req, res, parts);
+        }
+        // Route: /film/generators/* — Production's Generators tab: local AI tools (slow-mo, upscale, depth, rotoscope, stems, subtitles)
+        if (parts[1] === 'generators') {
+            return await require('./routes/generators').handleGenerators(req, res, parts);
         }
         if (parts[1] === 'production-studio' || (parts[1] === 'projects' && parts[2] && parts[3] === 'production-studio')) {
             return await handleProductionStudio(req, res, parts);
@@ -1020,6 +1025,10 @@ const server = http.createServer(async (req, res) => {
         if (parts[1] === 'set-builds'
             || (parts[1] === 'locations' && parts[2] && SET_BUILD_TAILS.includes(parts[3]))) {
             return await handleSetBuilds(req, res, parts, query);
+        }
+        // A location or prop modelled in background Blender, guided by Astra through Codex (lib/astra-build.js).
+        if (parts[1] === 'astra-builds' || (parts[1] === 'projects' && parts[2] && parts[3] === 'astra-builds')) {
+            return await require('./routes/astra-builds').handleAstraBuilds(req, res, parts, query);
         }
         if (parts[1] === 'worlds' || parts[1] === 'world-versions'
             || (parts[1] === 'projects' && parts[3] === 'worlds')

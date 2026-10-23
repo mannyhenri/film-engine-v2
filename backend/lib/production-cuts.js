@@ -174,6 +174,16 @@ function layoutOf(db, cut, timeline) {
     }
     const holds = parse(cut.holds_json, {});
     const codes = new Map(db.prepare('SELECT id, shot_code, scene_card_yaml FROM film_shots WHERE id IN (SELECT value FROM json_each(?))').all(cut.shot_ids).map(r => [r.id, r]));
+    /*
+     * A board holds for the shot's length, as directed. The timeline holds every still for a fixed five seconds (its
+     * rule for playback), so a 28-second shot played 5 s in the Cut, and a length changed in Generate never reached it.
+     * The length set in Generate (production_directions, in seconds) first, then the card's own duration_seconds.
+     * A clip still plays its own length; a hold set here in the Cut still wins over both.
+     */
+    const directed = new Map(db.prepare("SELECT owner, data_json FROM production_directions WHERE project_id = ? AND owner LIKE 'shot:%'").all(cut.project_id)
+        .map(r => [r.owner.slice(5), Number(parse(r.data_json, {}).dur) || 0]));
+    const cardSecs = row => { const c = parse(row && row.scene_card_yaml, null); return Number(c && (c.duration_seconds || c.duration_s)) || 0; };
+    const boardMs = (id, row) => Math.round(1000 * (directed.get(id) || cardSecs(row))) || 0;
     let at = 0;
     const shots = [], placed = new Set();
     for (const id of parse(cut.shot_ids, [])) {
@@ -183,7 +193,7 @@ function layoutOf(db, cut, timeline) {
             shots.push({ shot_id: id, shot_code: shot.shot_code || '', covered_by: e.covered_by, start_ms: null, duration_ms: 0, picture: 'covered' });
             continue;
         }
-        const own = e ? Number(e.duration_ms) || 5000 : 5000;
+        const own = e && e.video ? Number(e.duration_ms) || 5000 : boardMs(id, shot) || (e ? Number(e.duration_ms) || 5000 : 5000);
         const sourceMs = e && e.video ? Number(e.video.source_duration_ms) || 0 : 0;
         let len = holds[id] || own;
         if (sourceMs && len > sourceMs) len = sourceMs;      // a clip cannot play longer than it is

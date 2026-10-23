@@ -1,4 +1,4 @@
-const { contextBridge, ipcRenderer } = require('electron');
+const { contextBridge, ipcRenderer, webUtils } = require('electron');
 
 // Where the API is: main started (or checked) the backend and passes its
 // address. The page's own rule (same host, :3100) cannot know a backend main
@@ -8,6 +8,14 @@ if (arg) contextBridge.exposeInMainWorld('__filmEngineApiBase', arg.slice('--fe-
 
 // Which desktop shell this is, so the page can make room for the window controls.
 contextBridge.exposeInMainWorld('__feDesktop', { platform: process.platform });
+// Generators: a dropped file is read where it lies (Electron 32+ removed File.path; webUtils is the way),
+// and a finished result is shown in Finder so it can be dragged into Resolve.
+contextBridge.exposeInMainWorld('__feFiles', {
+    pathFor: file => { try { return webUtils.getPathForFile(file) || ''; } catch (_) { return ''; } },
+    reveal: p => ipcRenderer.invoke('fe-reveal', String(p || '')),
+    // A folder chosen in the Mac's own picker, or '' when cancelled.
+    pickFolder: (start) => ipcRenderer.invoke('fe-pick-folder', String(start || '')),
+});
 contextBridge.exposeInMainWorld('__feImageHandoff', {
     availability: () => ipcRenderer.invoke('fe-image-handoff-availability'),
     copyAndOpen: (id,destination='desktop') => ipcRenderer.invoke('fe-image-handoff-open', String(id),String(destination)),

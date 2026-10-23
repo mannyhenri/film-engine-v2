@@ -161,7 +161,8 @@ function previsForShot(db, shotId) {
         ? describeStaging(parse(row.subjects_json, []), start, scale, lensMm) : { lines: [], facing: null };
     const out = {
         state, applied: state === 'applied',
-        framing: cc.shot_type || '', angle: Array.isArray(start.position) ? angleOf(start.position, start.rotation, scale) : null,
+        // The framing applied from Previz (card camera.framing, crew id) in words framingOf reads; else the card's.
+        framing: (require('./framing').FRAMINGS.find(f => f.id === cc.framing) || {}).label || cc.shot_type || '', angle: Array.isArray(start.position) ? angleOf(start.position, start.rotation, scale) : null,
         facing: staging.facing, lens: lensMm ? Math.round(lensMm) : null,
         move, staging: staging.lines, keys: span ? span.count : 0, seconds,
         applied_at: row.applied_at || null,

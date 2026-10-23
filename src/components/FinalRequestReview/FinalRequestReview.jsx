@@ -6,6 +6,7 @@ import './final-request-review.css';
 import {handoffEligible,useDesktopAvailability,copyHandoff,ImageHandoffResult} from './ImageHandoff.jsx';
 import ExpressionPicker from './ExpressionPicker.jsx';
 import { reviewIdsIn } from './review-marker.js';
+import { isSent } from './sent-capabilities.js';
 
 const json = value => JSON.stringify(value, null, 2);
 const clone = value => JSON.parse(JSON.stringify(value));
@@ -133,6 +134,22 @@ export function FinalRequestReviewDialog({ initialReview, onSend, onCancel, onRe
   } catch(e) { if(live())setError(e.message); }
   finally { submitting.current=false; if(live())setBusy(false); }
  }
+ /*
+  * Approve and send: only for a capability the user ruled sent (sent-capabilities.js: Meshy 3D). The approval seals
+  * this exact visible snapshot (its fingerprint); the route then sends it, and a changed request needs a new review.
+  */
+ async function approveAndSend() {
+  if (!live() || submitting.current || dirty || !ack) return;
+  submitting.current=true; setBusy(true); setError('');
+  try {
+   const unknownCost=quote.amount==null && quote.estimated_cost==null && quote.credits==null;
+   const approved=await request(`/final-request-review/${review.id}/approve`, {fingerprint:review.fingerprint,human_confirmed:true,...(unknownCost?{cost_unknown_ack:true}:{})});
+   const token=approved.approval || approved;
+   onReview?.(token);
+   if(!live()){await discard([token]);return;}
+   await onSend({...token,...(review.route_request?{__route_body:review.route_request.body}:{})});
+  } catch(e) { if(live()){setError(e.message); submitting.current=false; setBusy(false); setAck(false);} }
+ }
  async function copy(kind) {
   setError('');
   try { await copyText(kind==='brief'?briefOf(snapshot,resolvedPrompt,snapshotRefs):resolvedPrompt); if(live())setCopied(kind==='brief'?'Prompt, settings and asset list copied.':'Prompt copied.'); }
@@ -148,6 +165,10 @@ export function FinalRequestReviewDialog({ initialReview, onSend, onCancel, onRe
   if(live())onCancel();
  }
  const snapshotRefs=snapshot.references || snapshot.media || [];
+ const sends=isSent(snapshot), quote=snapshot.quote || review.quote || {};
+ const [ack,setAck]=useState(false);
+ const costText=quote.amount!=null?`about ${quote.currency==='USD'||!quote.currency?'$':''}${Number(quote.amount).toFixed(2)}${quote.currency&&quote.currency!=='USD'?' '+quote.currency:''}`
+  :quote.credits!=null?`${quote.credits} credits`:quote.estimated_cost!=null?`about $${Number(quote.estimated_cost).toFixed(2)}`:'not quoted by the provider';
  const resolvedPrompt=fullPromptOf(snapshot) ?? promptOf(payload);
  const settings=settingsOf(snapshot);
  const batch=initialReview.review_position;
@@ -155,7 +176,9 @@ export function FinalRequestReviewDialog({ initialReview, onSend, onCancel, onRe
  return <div className="final-review-overlay"><section className="final-review-dialog" role="dialog" aria-modal="true" aria-label="Final provider request review" data-review={review.id}>
   <header><h2>Prompt and assets for {vendorOf(snapshot.provider)}{batch?.total>1?` (${batch.index+1} of ${batch.total})`:null}</h2><button aria-label="Close final review" disabled={busy} onClick={cancel}>×</button></header>
   <div className="final-review-body">
-   <p className="final-review-manual">Film Engine does not send this request. Copy the prompt, download the assets in order, and generate in {vendorOf(snapshot.provider)}'s own app with the settings below.</p>
+   {sends
+    ? <p className="final-review-manual">Film Engine sends this request to {vendorOf(snapshot.provider)} when you approve it, and brings the result back by itself. Cost: {costText}.</p>
+    : <p className="final-review-manual">Film Engine does not send this request. Copy the prompt, download the assets in order, and generate in {vendorOf(snapshot.provider)}'s own app with the settings below.</p>}
    {batch?.total>1&&<p>Item {batch.index+1} of {batch.total}. Use Next and Previous to go through every item; Close ends the batch.</p>}
    <section className="final-review-handover" aria-label="Manual generation hand-over">
     <h3>Prompt</h3>
@@ -200,9 +223,10 @@ export function FinalRequestReviewDialog({ initialReview, onSend, onCancel, onRe
    {snapshotRefs.length>0&&<div>{snapshotRefs.map((ref,i)=><div className="final-review-reference" key={i}>{previewOf(ref)&&(ref.mime?.startsWith('video/')?<video src={previewOf(ref)} controls preload="metadata" aria-label={`Resolved video reference ${i+1}`}/>:ref.mime?.startsWith('audio/')?<audio src={previewOf(ref)} controls preload="none" aria-label={`Resolved audio reference ${i+1}`}/>:ref.mime?.startsWith('model/')||ref.mime==='application/octet-stream'?<a href={previewOf(ref)} download={`approved-reference-${i+1}`}>Download exact model reference bytes</a>:<img src={previewOf(ref)} alt={`Resolved reference ${i+1}`}/>)}<span>{ref.order ?? i+1}. {ref.role || 'reference'} · {ref.wire_role || 'wire role not recorded'} · {ref.byte_length ?? 'unknown'} bytes{ref.moodboard_entry_id ? ` · Moodboard ${(ref.influence_roles || []).join(', ')} · ${ref.influence_note || ''} · ${ref.byte_length} bytes` : ''} <code>{ref.sha256 || ref.content_hash || ref.hash}</code>{ref.annotated?' · annotations included':''}</span></div>)}</div>}
    <pre aria-label="Exact resolved provider request">{json(snapshot)}</pre>
    </details>
+   {sends&&<label className="final-review-consent"><input type="checkbox" checked={ack} disabled={busy||dirty} onChange={e=>setAck(e.target.checked)}/> I approve this exact request and its cost ({costText}).</label>}
    {error&&<p role="alert">{error}</p>}
   </div>
-  <footer><button disabled={busy} onClick={cancel}>Close</button>{batch?.total>1&&<span className="final-review-nav">{batch.index>0&&<button disabled={busy} onClick={()=>onSend({__manual_nav:'previous'})}>Previous item</button>}{batch.index<batch.total-1&&<button disabled={busy} onClick={()=>onSend({__manual_nav:'next'})}>Next item</button>}</span>}{destination==='copy'?<><button disabled={busy||dirty} onClick={()=>copy('brief')}>Copy prompt, settings &amp; asset list</button><button disabled={busy||dirty} onClick={()=>copy('prompt')}>Copy prompt</button></>:<button disabled={!canHandOff} onClick={handOff}>{busy?'Preparing…':'Copy prompt & open ChatGPT'}</button>}</footer>
+  <footer><button disabled={busy} onClick={cancel}>Close</button>{batch?.total>1&&<span className="final-review-nav">{batch.index>0&&<button disabled={busy} onClick={()=>onSend({__manual_nav:'previous'})}>Previous item</button>}{batch.index<batch.total-1&&<button disabled={busy} onClick={()=>onSend({__manual_nav:'next'})}>Next item</button>}</span>}{sends?<button className="final-review-send" disabled={busy||dirty||!ack||!review.fingerprint} onClick={approveAndSend}>{busy?'Sending…':'Approve & send'}</button>:destination==='copy'?<><button disabled={busy||dirty} onClick={()=>copy('brief')}>Copy prompt, settings &amp; asset list</button><button disabled={busy||dirty} onClick={()=>copy('prompt')}>Copy prompt</button></>:<button disabled={!canHandOff} onClick={handOff}>{busy?'Preparing…':'Copy prompt & open ChatGPT'}</button>}</footer>
  </section></div>;
 }
 

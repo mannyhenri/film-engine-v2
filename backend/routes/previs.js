@@ -1021,6 +1021,13 @@ function applyBlockingToCard(req, res, shotId) {
     // Only what the stage decides. shot_type comes from the solved framing,
     // lens from the actual focal length, movement from what was blocked.
     if (blocking.shot_type) card.camera.shot_type = blocking.shot_type;
+    /*
+     * The framing Previz shows when Apply is pressed (worldShotNow: the shot size by coverage at the subject), in
+     * the crew vocabulary (lib/framing). It never reached the card: there is no shot_type column on the blocking, so
+     * Generate fell back to the card's old shot_type ("dolly" read as Medium) whatever the camera framed.
+     */
+    const framing = String((req.body && req.body.framing) || '').toLowerCase();
+    if (require('../lib/framing').FRAMINGS.some(f => f.id === framing)) card.camera.framing = framing;
     const focalMm = camera.focalMm !== undefined ? camera.focalMm : camera.focal_mm;
     const sensorId = camera.sensorId || camera.sensor;
     const fStop = camera.fStop !== undefined ? camera.fStop : camera.f_stop;

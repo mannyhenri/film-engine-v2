@@ -4,9 +4,10 @@ import { scenesOf, secondsOf, matchingSequence, collectReferences, briefOf, higg
 import {
     EMOS, FAMS, INTS, MOVES, MV, MV_GROUPS, FRAMINGS, ANGLES, FACINGS, LENSES, TECHS, TRANS, TRANS_SHORT, SFX_QUICK, CAST_COLORS,
     nid, canonOf, lineLen, clamp, half, fmt, shortName, seedShot, applyEmotion, blankMove, beatStarts, compile, compileText, checks, ageConflicts,
-    applyPrevis, previsBehind,
+    previsBehind, takePrevis, meetPrevis,
 } from './direct-model.js';
 import HiggsfieldCatalog from './HiggsfieldCatalog.jsx';
+import { mergePrompt } from './prompt-merge.js';
 
 /*
  * Generate, as the Direct studio (design pass 2, approved 2026-10-15).
@@ -36,7 +37,7 @@ const cut = (t, n) => (t.length > n ? t.slice(0, n) + '…' : t);
 const shotImg = (node, w) => { const f = node && (node.selected_frame || (node.frames || []).slice(-1)[0]); return f?.url ? `${legacy.API_BASE}${f.url}${f.url.includes('?') ? '&' : '?'}w=${w}` : ''; };
 
 const DEFAULT_STUDIO = { picked: [], grouped: false, order: [], mode: 'sep', model: '', bracket: true, amb: null, music: { on: false, text: '' },
-    ages: {}, settings: {}, hand: null, aspect: '16:9', resolution: '', audio: true, provider: 'higgsfield', runwayModel: '' };
+    ages: {}, settings: {}, hand: null, hands: {}, optimized: {}, aspect: '16:9', resolution: '', audio: true, provider: 'higgsfield', runwayModel: '' };
 
 export default function DirectStudio({ pid, graph, catalog, runway = { connected: false, models: [], usd_per_credit: 0.01 }, reload }) {
     const scenes = useMemo(() => scenesOf(graph), [graph]);
@@ -46,7 +47,7 @@ export default function DirectStudio({ pid, graph, catalog, runway = { connected
     const [info, setInfo] = useState(null);            // GET direction: cards, cast, scenes
     const [S, setS] = useState({});                    // shot id → direction
     const [studio, setStudio] = useState(DEFAULT_STUDIO);
-    const [ui, setUi] = useState({ sel: { k: 'none' }, tab: 'acting', zoom: 'seq', fam: 'all', emoQ: '', lib: null, mvGroup: 'all', mvQ: '', promptShot: null, askApply: false, lnConfirm: null });
+    const [ui, setUi] = useState({ promptTab: 'work', sel: { k: 'none' }, tab: 'acting', zoom: 'seq', fam: 'all', emoQ: '', lib: null, mvGroup: 'all', mvQ: '', promptShot: null, askApply: false, lnConfirm: null });
     const [t, setT] = useState(0);
     const [playing, setPlaying] = useState(false);
     const [flash, setFlash] = useState(null);
@@ -72,16 +73,41 @@ export default function DirectStudio({ pid, graph, catalog, runway = { connected
             setInfo(r);
             revs.current = { shots: Object.fromEntries(Object.entries(r.shots || {}).map(([id, x]) => [id, x.revision || 0])), studio: r.studio_revision || 0 };
             const canon = canonOf((r.cast || []).map(c => c.name));
-            // An applied Previz is taken the first time a shot meets it (keeping any camera field changed here);
-            // a later Previz change waits for the director's Update in the shot's Camera tab.
-            setS(Object.fromEntries(Object.entries(r.shots || {}).map(([id, x]) => {
+            // An applied Previz meets each shot by time (meetPrevis): an Apply newer than the last change here takes the
+            // camera outright; changes here that are newer stay, and the Camera tab says which won. A shot that took
+            // Previz is saved, so the next read finds it settled.
+            const took = [];
+            const next = Object.fromEntries(Object.entries(r.shots || {}).map(([id, x]) => {
                 const d = x.direction && x.direction.v ? x.direction : seedShot(x.card, x.card.duration_s, canon);
-                return [id, x.previs && x.previs.applied && !d.pvz ? applyPrevis(d, x.previs) : d];
-            })));
+                const m = meetPrevis(d, x);
+                if (m.took === 'previz' || m.took === 'merged') took.push(id);
+                return [id, m.d];
+            }));
+            // Edits made here since the read began (still unsaved) are kept over what was read.
+            const unsaved = [...dirty.current.shots];
+            setS(prev => ({ ...next, ...Object.fromEntries(unsaved.filter(id => prev[id]).map(id => [id, prev[id]])) }));
+            if (took.length) { for (const id of took) dirty.current.shots.add(id); queueSaveRef.current(); }
             if (r.studio) setStudio(s => ({ ...DEFAULT_STUDIO, ...r.studio, hand: r.studio.hand ?? null }));
-        } catch (err) { legacy.setStatus('Direction: ' + err.message, true); }
+        } catch (err) { legacy.setStatus('Direction: ' + err.message); }
     }, [pid]);
     useEffect(() => { load(); }, [load]);
+    /*
+     * Read again when the page is shown again: the app keeps Production mounted while the director is in Previz, so
+     * an Apply made there reached Generate only after a restart. Every visit reloads the graph (a new `graph`), and a
+     * window brought back to the front counts too. Unsaved edits here are saved first, then the read keeps them.
+     */
+    const seenGraph = useRef(graph);
+    useEffect(() => {
+        if (seenGraph.current === graph) return;
+        seenGraph.current = graph;
+        flushRef.current().finally(() => load());
+    }, [graph, load]);
+    useEffect(() => {
+        const back = () => { if (document.visibilityState === 'visible') flushRef.current().finally(() => load()); };
+        window.addEventListener('focus', back);
+        document.addEventListener('visibilitychange', back);
+        return () => { window.removeEventListener('focus', back); document.removeEventListener('visibilitychange', back); };
+    }, [load]);
     // A shot the direction read did not carry (added since, or no card yet) starts from what the graph knows of it.
     useEffect(() => {
         if (!info) return;
@@ -114,12 +140,13 @@ export default function DirectStudio({ pid, graph, catalog, runway = { connected
             // Nothing is dropped: what did not save stays queued and is tried again shortly.
             for (const id of left) dirty.current.shots.add(id);
             if (doStudio) dirty.current.studio = true;
-            legacy.setStatus('Direction not saved yet (' + err.message + '). Trying again in a few seconds.', true);
+            legacy.setStatus('Direction not saved yet (' + err.message + '). Trying again in a few seconds.');
             clearTimeout(saveTimer.current); saveTimer.current = setTimeout(() => flushRef.current(), 5000);
         }
     }, [pid]);
     const flushRef = useRef(flush); flushRef.current = flush;
     const queueSave = useCallback(() => { clearTimeout(saveTimer.current); saveTimer.current = setTimeout(flush, 600); }, [flush]);
+    const queueSaveRef = useRef(queueSave); queueSaveRef.current = queueSave;
     useEffect(() => () => { if (dirty.current.shots.size || dirty.current.studio) flush(); }, [flush]);
 
     const flashT = useRef(null);
@@ -128,11 +155,10 @@ export default function DirectStudio({ pid, graph, catalog, runway = { connected
     const edit = (id, fn, at = null) => {
         setS(prev => { const s = clone(prev[id]); const out = fn(s) || s; return { ...prev, [id]: out }; });
         dirty.current.shots.add(id); queueSave(); touch(id, at);
-        if (studio.hand !== null) setPending(n => n + 1);
     };
     const setSt = (p, { quiet = false } = {}) => {
         setStudio(s => ({ ...s, ...p })); dirty.current.studio = true; queueSave();
-        if (!quiet) { touch(null, null); if (studio.hand !== null && !('hand' in p)) setPending(n => n + 1); }
+        if (!quiet) touch(null, null);
     };
 
     // ---------- the film as the studio reads it ----------
@@ -161,6 +187,14 @@ export default function DirectStudio({ pid, graph, catalog, runway = { connected
     const settingOf = (sid) => studio.settings?.[sid] ?? defaultSetting(sid);
     const amb = studio.amb || { on: true, text: (scope[0] && sceneInfo(scope[0]).sound) || '' };
 
+    /*
+     * A new storyboard frame or reference plate made elsewhere (Storyboard, Characters…) reaches here: each read of the
+     * graph (a visit, a reload) drops the plates read before, so the picked shots' starters are read again. They were
+     * read once per session, so Generate kept sending the old frame.
+     */
+    const graphSeen = useRef(graph);
+    const [plateRead, setPlateRead] = useState(0);
+    useEffect(() => { if (graphSeen.current !== graph) { graphSeen.current = graph; setStarters({}); setPlateRead(n => n + 1); } }, [graph]);
     // References: the starters' plates for the shots being generated, and which tag each character gets.
     useEffect(() => {
         const missing = picked.filter(id => !starters[id]);
@@ -170,7 +204,7 @@ export default function DirectStudio({ pid, graph, catalog, runway = { connected
             .then(r => [id, { ...(r.recipe || {}), unmatched: (r.unresolved || []).length }], err => [id, { prompt: s.description || '', error: err.message }]); }))
             .then(pairs => { if (!gone) setStarters(m => ({ ...m, ...Object.fromEntries(pairs) })); });
         return () => { gone = true; };
-    }, [picked.join(','), pid]); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [picked.join(','), pid, plateRead]); // eslint-disable-line react-hooks/exhaustive-deps
     const recipes = promptCodes.map(id => starters[id]).filter(Boolean);
     const { start, references } = useMemo(() => collectReferences(recipes), [starters, promptCodes.join(',')]); // eslint-disable-line react-hooks/exhaustive-deps
     const facts = catalog.models.find(m => m.id === studio.model) || null;
@@ -200,8 +234,63 @@ export default function DirectStudio({ pid, graph, catalog, runway = { connected
     const compiled = ready && promptCodes.length ? compile({ codes: promptCodes, shots: S, one, bracket: studio.bracket, nameOf, refOf, ageOf, flash, labelOf: label,
         setting: [...new Set(promptCodes.map(sceneOf))].map(settingOf).filter(Boolean).join(' '), amb, music: studio.music, prevTrans }) : null;
     const compiledText = compileText(compiled);
-    const hand = studio.hand;
+    /*
+     * The director's own text, kept per shot or sequence (it was one text for whatever was picked, so another shot showed
+     * it). What the controls add later is merged into it (prompt-merge.js): a sound at the playhead, music, a line. Only
+     * a change to words the director rewrote stays out, and is counted below the text.
+     */
+    const unitKey = (one ? 'seq:' : 'shot:') + promptCodes.join('+');
+    /*
+     * What Optimize writes for: every picked shot once two or more are picked (grouped or not, one clip or separate),
+     * so the Seedance prompt carries the whole sequence's direction and pictures; one shot alone is that shot.
+     */
+    const optCodes = scope.length > 1 ? scope : promptCodes;
+    const optKey = scope.length > 1 ? 'seq:' + scope.join('+') : unitKey;
+    const handEntry = (studio.hands || {})[unitKey] || null;
+    const hand = handEntry ? handEntry.text : null;
     const finalText = hand !== null ? hand : compiledText;
+    const setHand = (text, base = compiledText) => {
+        setStudio(st => {
+            const hands = { ...(st.hands || {}) };
+            if (text === null) delete hands[unitKey]; else hands[unitKey] = { text, base };
+            return { ...st, hands, hand: null };
+        });
+        dirty.current.studio = true; queueSave();
+    };
+    useEffect(() => {   // one text from before it was kept per shot: it belongs to what is picked now
+        if (ready && studio.hand && promptCodes.length && !(studio.hands || {})[unitKey]) setHand(studio.hand, null);
+    }, [ready, unitKey]); // eslint-disable-line react-hooks/exhaustive-deps
+    useEffect(() => {
+        if (!handEntry || !compiledText) return;
+        if (handEntry.base == null) { setHand(handEntry.text, compiledText); return; }
+        if (handEntry.base === compiledText) return;
+        const m = mergePrompt(handEntry.base, handEntry.text, compiledText);
+        setHand(m.text, compiledText);
+        if (m.conflicts) setPending(n => n + m.conflicts);
+    }, [compiledText, unitKey]); // eslint-disable-line react-hooks/exhaustive-deps
+    // A running optimize is a job on the server, kept per shot or sequence, so leaving the tab does not lose it.
+    const optJobId = (studio.optimizing || {})[optKey] || null;
+    const [optJob, setOptJob] = useState(null);
+    useEffect(() => {   // follow the job: its stage and time, then its prompt onto the tab
+        if (!optJobId?.id || !pid) { setOptJob(null); return undefined; }
+        let gone = false, t = null;
+        const done = () => setStudio(st => { const o = { ...(st.optimizing || {}) }; delete o[optKey]; return { ...st, optimizing: o }; });
+        const poll = async () => {
+            try {
+                const r = await legacy.api(`/projects/${pid}/production-studio/seedance-prompt/jobs/${optJobId.id}`, { refresh: false });
+                if (gone) return;
+                setOptJob(r.job);
+                if (r.job.status === 'done') {
+                    setStudio(st => ({ ...st, optimized: { ...(st.optimized || {}), [optKey]: { ...r.job.result, from: optJobId.from } } })); done();
+                    dirty.current.studio = true; queueSave(); return;
+                }
+                if (r.job.status === 'failed') { legacy.setStatus('Optimize failed: ' + r.job.error); done(); dirty.current.studio = true; queueSave(); return; }
+            } catch (err) { if (!gone) { legacy.setStatus('Optimize: ' + err.message); done(); return; } }
+            if (!gone) t = setTimeout(poll, 1000);
+        };
+        poll();
+        return () => { gone = true; clearTimeout(t); };
+    }, [optJobId?.id, optKey, pid]); // eslint-disable-line react-hooks/exhaustive-deps
 
     // ---------- models: the server's ranking for exactly what would be sent ----------
     const ask = useRef(0);
@@ -217,8 +306,8 @@ export default function DirectStudio({ pid, graph, catalog, runway = { connected
             setResult(out);
             const top = out.cards?.[0];
             if (top && (!studio.model || ai || !catalog.models.some(m => m.id === studio.model))) setSt({ model: top.id }, { quiet: true });
-            if (out.judge_error) legacy.setStatus('AI judgement unavailable: ' + out.judge_error + '. Showing the rules ranking.', true);
-        } catch (err) { if (ticket === ask.current) legacy.setStatus('Recommendation failed: ' + err.message, true); }
+            if (out.judge_error) legacy.setStatus('AI judgement unavailable: ' + out.judge_error + '. Showing the rules ranking.');
+        } catch (err) { if (ticket === ask.current) legacy.setStatus('Recommendation failed: ' + err.message); }
         finally { if (ai) setBusy(''); }
     }, [pid, unitShots.map(s => s.id).join(','), unitDur, finalText, references.length, !!start, studio.aspect, studio.resolution, studio.model, catalog.models]); // eslint-disable-line react-hooks/exhaustive-deps
     useEffect(() => { const h = setTimeout(() => recommend(false), 500); return () => clearTimeout(h); }, [promptCodes.join(','), unitDur, studio.aspect, studio.resolution, references.length, compiledText.length > 0]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -289,7 +378,7 @@ export default function DirectStudio({ pid, graph, catalog, runway = { connected
     const group = () => { setSt({ grouped: true, order: board.map(s => s.id).filter(id => picked.includes(id)) }, { quiet: true }); patchUi({ sel: { k: 'seq' } }); };
     const ungroup = () => { setSt({ grouped: false, order: [], mode: 'sep' }, { quiet: true }); patchUi({ sel: { k: 'none' } }); };
     const lt0 = focus ? clamp(t - offsets[focus], 0, Math.max(0, S[focus].dur - 0.5)) : 0;
-    const addAt = () => ({ id: focus, lt: focus ? half(lt0) : 0 });
+    const addAt = () => ({ id: focus, lt: focus && Number.isFinite(lt0) ? half(lt0) : 0 });   // a playhead not yet placed is the start
 
     // ---------- preview ----------
     const pv = { has: scope.length > 0 };
@@ -388,22 +477,57 @@ export default function DirectStudio({ pid, graph, catalog, runway = { connected
         } catch (err) {
             // Closing the final review is the end of a hand-over, not a failure: say where the take goes back in.
             if (err.code === 'FINAL_REQUEST_CANCELLED') legacy.setStatus(`Generate it on ${isRw ? 'Runway' : 'Higgsfield'} with the prompt and assets from the review, then import the clip on Video Shots: it becomes this shot's take.`);
-            else legacy.setStatus('Not sent: ' + err.message, true);
+            else legacy.setStatus('Not sent: ' + err.message);
         }
         finally { setBusy(''); }
     };
+    /*
+     * Optimize with AI: the final Seedance 2.5 prompt, by ChatGPT, the director's way (backend/lib/seedance-prompt.js):
+     * the character and location sheets, the props, each shot's storyboard frame and the recorded dialogue on a black
+     * MP4, with the working prompt as it stands and the stored Seedance guide. It lands on its own tab, so the working
+     * prompt stays as it is, and in a hand-off folder named by the labels the prompt binds.
+     */
+    const optimized = (studio.optimized || {})[optKey] || null;
+    // The dialogue recording for this clip, when the director has one (the scene's whole take, say): where this clip starts in it.
+    const dialogueFile = (studio.dialogue || {})[optKey] || null;
+    const setDialogue = v => setSt({ dialogue: { ...(studio.dialogue || {}), [optKey]: v || undefined } }, { quiet: true });
+    // The working text Optimize starts from: the prompt as shown when it is the whole unit (one shot, or one clip); for
+    // several shots, each shot's own working text (the director's edit of it, else as the controls write it) in order,
+    // under its code and time in the sequence.
+    const shotText = id => (studio.hands || {})['shot:' + id]?.text ?? compileText(compile({ codes: [id], shots: S, one: false, bracket: studio.bracket, nameOf, refOf, ageOf,
+        flash: null, labelOf: label, setting: settingOf(sceneOf(id)) || '', amb, music: studio.music, prevTrans: null }));
+    const optText = optCodes.length > 1 && !(one && optCodes.join() === promptCodes.join())
+        ? optCodes.map(id => `SHOT ${label(id)} (${fmt(offsets[id])}–${fmt(offsets[id] + S[id].dur)}, ${S[id].dur}s${scope.indexOf(id) < scope.length - 1 && grouped ? `; then: ${S[id].transOut || 'continuous'}` : ''})\n${shotText(id)}`).join('\n\n')
+        : finalText;
+    const optDur = optCodes.reduce((a, id) => a + S[id].dur, 0);
+    const optRefs = optCodes.length === promptCodes.length ? references : collectReferences(optCodes.map(id => starters[id]).filter(Boolean)).references;
+    const optChars = [...new Set(optCodes.flatMap(id => [...S[id].lines.map(l => l.ch), ...Object.keys(S[id].perf || {})]))];
+    let promptSha = 0; for (let i = 0; i < optText.length; i++) promptSha = (promptSha * 31 + optText.charCodeAt(i)) | 0;   // no hook: below the early returns
     const optimize = async () => {
-        if (!finalText.trim()) return;
-        setBusy('optimize');
+        if (!optText.trim() || optJobId) return;
+        setBusy('optimize'); patchUi({ promptTab: 'optimized' });
+        const castId = ch => castList.find(x => castKey(x.name) === ch)?.id;
+        const frameOf = r => [r?.init_image, r?.image_url, Array.isArray(r?.keyframes) ? r.keyframes[0] : null].find(f => f && f.asset_id)?.asset_id;
         try {
-            const out = await legacy.api(`/projects/${pid}/production-studio/optimize-prompt`, { method: 'POST', body: JSON.stringify({
-                prompt: finalText, model_id: studio.model || undefined, duration_s: unitDur, aspect: studio.aspect,
-                references: references.map(r => ({ role: r.reference_role || r.role, name: r.name || '' })) }), refresh: false });
-            setSt({ hand: out.prompt }, { quiet: true }); setPending(0); setChanges(out.changes || []);
-        } catch (err) { legacy.setStatus('Optimize failed: ' + err.message, true); }
+            const out = await legacy.api(`/projects/${pid}/production-studio/seedance-prompt`, { method: 'POST', refresh: false, body: JSON.stringify({
+                label: optCodes.map(label).join('+'), prompt: optText, duration_s: optDur, aspect: studio.aspect,
+                model_label: isRw ? rwModel?.label : facts?.label,
+                shots: optCodes.map(id => ({ shot_id: id, code: label(id), offset_s: optCodes.length > 1 ? offsets[id] - offsets[optCodes[0]] : 0,
+                    lines: S[id].lines.map((l, index) => ({ index, t: l.t, ch: l.ch, name: nameOf(l.ch), text: l.text })) })),
+                character_ids: optChars.map(castId).filter(Boolean),
+                location_ids: [...new Set(optRefs.map(r => r.location_id).filter(Boolean))],
+                prop_ids: [...new Set(optRefs.map(r => r.prop_id).filter(Boolean))],
+                storyboard_asset_ids: optCodes.map(id => frameOf(starters[id])).filter(Boolean),
+                ...(dialogueFile ? { dialogue_file: { path: dialogueFile.path, from_s: dialogueFile.from_s || 0 } } : {}),
+                async: true,
+            }) });
+            setOptJob(out.job);
+            setSt({ optimizing: { ...(studio.optimizing || {}), [optKey]: { id: out.job.id, from: promptSha } } }, { quiet: true });
+        } catch (err) { legacy.setStatus('Optimize failed: ' + err.message); }
         finally { setBusy(''); }
     };
-    const copy = async () => { try { await navigator.clipboard.writeText(finalText); setCopied(true); setTimeout(() => setCopied(false), 1500); } catch (err) { legacy.setStatus('Copy failed: ' + err.message, true); } };
+    const copyOptimized = async () => { try { await navigator.clipboard.writeText(optimized.prompt); setCopied('opt'); setTimeout(() => setCopied(false), 1500); } catch (err) { legacy.setStatus('Copy failed: ' + err.message); } };
+    const copy = async () => { try { await navigator.clipboard.writeText(finalText); setCopied(true); setTimeout(() => setCopied(false), 1500); } catch (err) { legacy.setStatus('Copy failed: ' + err.message); } };
 
     const credits = cardOf?.cost?.credits;
     const usdApi = cardOf?.cost?.usd ?? cardOf?.est_usd;
@@ -475,7 +599,14 @@ export default function DirectStudio({ pid, graph, catalog, runway = { connected
                     <section className="ds-prompt" aria-label="Prompt">
                         <div className="ds-head"><h3>Prompt</h3><span className="ds-pill live">Live</span><span>{compiled ? (one ? `Sequence as one clip · ${total}s` : `Shot ${label(promptCodes[0])} · ${S[promptCodes[0]].dur}s`) : ''}</span><div style={{ flex: 1 }} /><span className="ds-mono">{finalText.length.toLocaleString()} chars</span></div>
                         {compiled && !one && scope.length > 1 && <div className="ds-chips">{scope.map(id => <button key={id} type="button" className={'ds-chip' + (id === promptCodes[0] ? ' on' : '')} onClick={() => patchUi({ promptShot: id })}>{label(id)}</button>)}</div>}
-                        {compiled && hand === null && (
+                        <div className="ds-seg" role="tablist" aria-label="Prompt version">
+                            <button type="button" role="tab" aria-selected={ui.promptTab !== 'optimized'} className={ui.promptTab !== 'optimized' ? 'on' : ''} onClick={() => patchUi({ promptTab: 'work' })}>Working prompt</button>
+                            <button type="button" role="tab" aria-selected={ui.promptTab === 'optimized'} className={ui.promptTab === 'optimized' ? 'on' : ''} onClick={() => patchUi({ promptTab: 'optimized' })}>Optimized for Seedance{optCodes.length > 1 ? ` · ${optCodes.map(label).join('+')}` : ''}{optimized ? '' : ' (none yet)'}</button>
+                        </div>
+                        {ui.promptTab === 'optimized' && compiled && <DialoguePick d={dialogueFile} onSet={setDialogue} />}
+                        {ui.promptTab === 'optimized' && compiled && <OptimizedPrompt o={optimized} busy={busy === 'optimize' || !!optJobId} job={optJob} stale={!!optimized && optimized.from !== promptSha}
+                            copied={copied === 'opt'} onCopy={copyOptimized} onRun={optimize} onEdit={text => setSt({ optimized: { ...(studio.optimized || {}), [optKey]: { ...optimized, prompt: text } } }, { quiet: true })} />}
+                        {ui.promptTab !== 'optimized' && compiled && hand === null && (
                             <div className="ds-sheet" aria-live="polite">
                                 {compiled.pre && <p className="ds-para s-lit">{compiled.pre}</p>}
                                 {compiled.paras.map((p, i) => (
@@ -484,23 +615,23 @@ export default function DirectStudio({ pid, graph, catalog, runway = { connected
                                 <p className="ds-para">{compiled.post}</p>
                             </div>
                         )}
-                        {compiled && hand !== null && <>
-                            <label className="ds-lab" htmlFor="dsHand">Your text is what gets sent. Controls keep saving, but no longer rewrite it.</label>
-                            <textarea id="dsHand" className="ds-handta" value={hand} onChange={e => setSt({ hand: e.target.value }, { quiet: true })} />
-                            {pending > 0 && <div className="ds-check warn"><span className="ds-ck">!</span><span>{pending} control change{pending === 1 ? '' : 's'} since your edit {pending === 1 ? 'is' : 'are'} saved but not in this text. Rebuild to bring {pending === 1 ? 'it' : 'them'} in.</span></div>}
+                        {ui.promptTab !== 'optimized' && compiled && hand !== null && <>
+                            <label className="ds-lab" htmlFor="dsHand">Your text is what gets sent. What you add with the controls still goes into it.</label>
+                            <textarea id="dsHand" className="ds-handta" value={hand} onChange={e => setHand(e.target.value, handEntry.base)} />
+                            {pending > 0 && <div className="ds-check warn"><span className="ds-ck">!</span><span>{pending} control change{pending === 1 ? '' : 's'} touched words you rewrote, so {pending === 1 ? 'it was' : 'they were'} left out of your text. Rebuild from controls to see {pending === 1 ? 'it' : 'them'}.</span></div>}
                             {changes && changes.length > 0 && <ul className="ds-changes">{changes.map((c, i) => <li key={i}>{c}</li>)}</ul>}
                         </>}
                         {!compiled && <div className="ds-sheet"><p className="ds-muted">The prompt appears here as soon as a shot is picked, one paragraph per beat, in time order.</p></div>}
-                        <div className="ds-row">
+                        {ui.promptTab !== 'optimized' && <div className="ds-row">
                             <div className="ds-seg" role="group" aria-label="Prompt notation" style={{ flex: 1 }}>
                                 <button type="button" className={studio.bracket ? '' : 'on'} aria-pressed={!studio.bracket} onClick={() => setSt({ bracket: false })}>Plain prose</button>
                                 <button type="button" className={studio.bracket ? 'on' : ''} aria-pressed={studio.bracket} onClick={() => setSt({ bracket: true })}>{'{speech} <sound> (score)'}</button>
                             </div>
-                            {compiled && hand === null && <button type="button" className="ds-btn sm" onClick={() => { setSt({ hand: compiledText }, { quiet: true }); setPending(0); setChanges(null); }}>Edit text</button>}
-                            {compiled && hand !== null && <button type="button" className="ds-btn sm" onClick={() => { setSt({ hand: null }, { quiet: true }); setPending(0); setChanges(null); }}>Rebuild from controls</button>}
-                            <button type="button" className="ds-btn sm" disabled={!compiled || busy === 'optimize'} onClick={optimize}>{busy === 'optimize' ? 'Optimizing…' : 'Optimize with AI'}</button>
-                            <button type="button" className="ds-btn sm" disabled={!compiled} onClick={copy}>{copied ? 'Copied' : 'Copy'}</button>
-                        </div>
+                            {compiled && hand === null && <button type="button" className="ds-btn sm" onClick={() => { setHand(compiledText); setPending(0); setChanges(null); }}>Edit text</button>}
+                            {compiled && hand !== null && <button type="button" className="ds-btn sm" onClick={() => { setHand(null); setPending(0); setChanges(null); }}>Rebuild from controls</button>}
+                            <button type="button" className="ds-btn sm" disabled={!compiled || busy === 'optimize'} onClick={optimize} title="ChatGPT writes the final Seedance 2.5 prompt from this one, the sheets, storyboard frames and dialogue">{busy === 'optimize' ? 'Optimizing…' : 'Optimize with AI'}</button>
+                            <button type="button" className="ds-btn sm" disabled={!compiled} onClick={copy}>{copied === true ? 'Copied' : 'Copy'}</button>
+                        </div>}
                         <p className="ds-muted"><span className="s-cam">camera</span> · <span className="s-act">acting</span> · <span className="s-dlg">dialogue</span> · <span className="s-sfx">sound</span> · <span className="s-lit">continuity and light</span>. Brackets are a creator convention, not a model standard.</p>
                     </section>
                 </div>
@@ -545,8 +676,16 @@ export default function DirectStudio({ pid, graph, catalog, runway = { connected
                                 </div></div>
                             ))}
                             <div className="ds-lane"><button type="button" className="ds-ll" onClick={() => focus && patchUi({ sel: { k: 'shot', shot: focus }, tab: 'sound', lib: null })}><span className="ds-sw" style={{ background: '#57c98a' }} />Effects</button><div className="ds-track">
-                                {scope.flatMap(id => S[id].sfx.filter(f => offsets[id] + f.t >= r0 && offsets[id] + f.t < r1).map(f => (
-                                    <button key={f.id} type="button" className={'ds-mk' + (k === 'sfx' && sel.id === f.id ? ' on' : '')} style={{ left: X(offsets[id] + f.t) }} title={f.text} onClick={go({ k: 'sfx', shot: id, id: f.id })}>{f.text || 'describe the sound'}</button>)))}
+                                {/* Each label stops short of the next marker (full text on hover): sounds a moment apart drew their names over each other. */}
+                                {(() => {
+                                    const mk = scope.flatMap(id => S[id].sfx.filter(f => offsets[id] + f.t >= r0 && offsets[id] + f.t < r1).map(f => ({ id, f, at: offsets[id] + f.t })))
+                                        .sort((a, b) => a.at - b.at);
+                                    return mk.map(({ id, f, at }, i) => {
+                                        const next = mk.slice(i + 1).find(m => m.at > at);
+                                        const room = next ? { maxWidth: `min(150px, calc(${X(next.at)} - ${X(at)} - 3px))` } : null;
+                                        return <button key={f.id} type="button" className={'ds-mk' + (k === 'sfx' && sel.id === f.id ? ' on' : '')} style={{ left: X(at), ...room }} title={f.text} onClick={go({ k: 'sfx', shot: id, id: f.id })}>{f.text || 'describe the sound'}</button>;
+                                    });
+                                })()}
                             </div></div>
                             <div className="ds-lane"><button type="button" className="ds-ll" onClick={() => patchUi({ sel: { k: 'amb' }, lib: null })}><span className="ds-sw" style={{ background: '#4fb6c9' }} />Ambience</button><div className="ds-track">
                                 <button type="button" className={'ds-blk amb' + (k === 'amb' ? ' on' : '') + (amb.on ? '' : ' offbed')} style={{ left: 0, width: '100%' }} onClick={() => patchUi({ sel: { k: 'amb' }, lib: null })}>{amb.on ? 'Ambience: ' + (amb.text || 'describe the room') : 'Ambience off'}</button>
@@ -575,7 +714,7 @@ export default function DirectStudio({ pid, graph, catalog, runway = { connected
                             return <div key={id} className="ds-row ds-seqrow">
                                 <button type="button" className="ds-btn xs ghost" onClick={go({ k: 'shot', shot: id })}><b>{label(id)}</b> <span className="ds-mono">{(FRAMINGS.find(f => f[0] === S[id].cam.framing) || [, ''])[1]}</span></button>
                                 <span className="ds-row" style={{ gap: 2 }}><button type="button" className="ds-btn xs" onClick={mvTo(-1)} aria-label={`Move ${label(id)} earlier`}>↑</button><button type="button" className="ds-btn xs" onClick={mvTo(1)} aria-label={`Move ${label(id)} later`}>↓</button></span>
-                                <Step lab={`${S[id].dur}s`} minus={() => edit(id, s => { s.dur = Math.max(2, s.dur - 1); })} plus={() => edit(id, s => { s.dur += 1; })} less="Shorter" more="Longer" />
+                                <Step lab={`${S[id].dur}s`} minus={() => edit(id, s => fitLength(s, Math.max(2, s.dur - 1)))} plus={() => edit(id, s => fitLength(s, s.dur + 1))} less="Shorter" more="Longer" />
                             </div>;
                         })}
                         <p className="ds-muted">Scene-card length stays on the card; this is the length you generate.</p>
@@ -699,6 +838,75 @@ export default function DirectStudio({ pid, graph, catalog, runway = { connected
     );
 }
 
+/**
+ * The dialogue for Optimize: the recorded lines of the shots are found by themselves; a recording on disk (the scene's
+ * whole take) can be chosen instead, with the second this clip starts at in it. It becomes @Video 1 on a black screen.
+ */
+function DialoguePick({ d, onSet }) {
+    const input = useRef(null);
+    const pick = e => {
+        const f = e.target.files?.[0]; e.target.value = '';
+        const p = f && window.__feFiles?.pathFor?.(f);
+        if (p) onSet({ path: p, name: f.name, from_s: 0 });
+    };
+    return <div className="ds-row ds-dialogue">
+        <span className="ds-lab" style={{ margin: 0 }}>Dialogue audio</span>
+        {d ? <>
+            <b title={d.path}>{d.name}</b>
+            <label className="ds-muted">this clip starts at <input type="number" min="0" step="0.1" aria-label="Where this clip starts in the recording (seconds)" className="ds-in ds-num" value={d.from_s || 0}
+                onChange={e => onSet({ ...d, from_s: Math.max(0, Number(e.target.value) || 0) })} /> s</label>
+            <button type="button" className="ds-btn xs" onClick={() => onSet(null)}>Use the recorded lines instead</button>
+        </> : <span className="ds-muted">The shots' recorded lines, where found.</span>}
+        {window.__feFiles?.pathFor && <button type="button" className="ds-btn xs" onClick={() => input.current?.click()}>{d ? 'Change…' : 'Choose a recording…'}</button>}
+        <input ref={input} type="file" accept="audio/*,video/*" hidden onChange={pick} />
+    </div>;
+}
+
+/** The final Seedance prompt and the files it names, in the order to upload them. */
+function OptimizedPrompt({ o, busy, job, stale, copied, onCopy, onRun, onEdit }) {
+    if (busy) {
+        /*
+         * ChatGPT reports nothing while it writes, so the bar is the real stage plus an estimate of the writing (it took
+         * about 70 s on a two-person shot), held below the end until the answer is in: never a finish that isn't one.
+         */
+        const st = job?.stage, el = job?.elapsed_s || 0, se = job?.stage_elapsed_s || 0;
+        const pct = st === 'saving' ? 97 : st === 'writing' ? Math.min(95, 12 + Math.round(83 * (1 - Math.exp(-se / 60)))) : Math.min(10, 2 + se * 2);
+        const mmss = n => `${Math.floor(n / 60)}:${String(n % 60).padStart(2, '0')}`;
+        return <div className="ds-sheet ds-optbusy" role="status" aria-live="polite">
+            <b>{job?.stage_label || 'Starting'}…</b>
+            <div className="ds-optbar" role="progressbar" aria-label="Optimize progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct}><span style={{ width: `${pct}%` }} /></div>
+            <span className="ds-muted">{mmss(el)} elapsed · usually one to two minutes · you can leave this tab; the prompt lands here when ChatGPT is done</span>
+        </div>;
+    }
+    if (!o) return <div className="ds-sheet"><p className="ds-muted">Direct the shot and edit the working prompt first. Then Optimize with AI: ChatGPT writes the final Seedance 2.5 prompt from it, the sheets, storyboard frames and dialogue, using the Seedance guide stored in the app. Your working prompt stays as it is.</p>
+        <button type="button" className="ds-btn sm" onClick={onRun}>Optimize with AI</button></div>;
+    return <div className="ds-opt-prompt">
+        {stale && <div className="ds-check warn"><span className="ds-ck">!</span><span>The working prompt changed since this was written. Optimize again to bring the changes in.</span></div>}
+        <label className="ds-lab" htmlFor="dsOpt">Paste this into Seedance 2.5 on Higgsfield (draft first), with the files below.</label>
+        <textarea id="dsOpt" className="ds-handta" value={o.prompt} onChange={e => onEdit(e.target.value)} />
+        <h4>Upload these, in this order</h4>
+        <ol className="ds-optrefs" aria-label="Reference files">{(o.refs || []).map(r => <li key={r.order}>
+            <b>{r.label}</b> {r.name} · {r.role}{r.source ? ` (${r.source})` : ''}{r.in_prompt ? '' : ' · not named in the prompt'}<small>{r.use}</small><code title={r.file}>{r.file_name}</code></li>)}</ol>
+        {!(o.refs || []).length && <p className="ds-muted">No reference files: add character, location or prop pictures for a closer match.</p>}
+        {(o.notes || []).length > 0 && <ul className="ds-changes">{o.notes.map((n, i) => <li key={i}>{n}</li>)}</ul>}
+        <div className="ds-row">
+            <button type="button" className="ds-btn sm" onClick={onCopy}>{copied ? 'Copied' : 'Copy prompt'}</button>
+            {window.__feFiles?.reveal && <button type="button" className="ds-btn sm" onClick={() => window.__feFiles.reveal((o.refs || [])[0]?.file || o.folder)}>Show files in Finder</button>}
+            <button type="button" className="ds-btn sm" onClick={onRun}>Optimize again</button>
+            <span className="ds-muted">{o.model ? `ChatGPT (${o.model})` : 'ChatGPT'} · {new Date(o.created_at).toLocaleString()}</span>
+        </div>
+    </div>;
+}
+
+/** A shot's new length, with everything timed in it kept inside: lines, moves, sounds and acting beats. */
+function fitLength(x, to) {
+    x.dur = to;
+    x.lines.forEach(l => { l.t = Math.min(l.t, Math.max(0, to - 0.8)); });
+    x.moves.forEach(m => { m.end = Math.min(m.end, to); m.start = Math.min(m.start, Math.max(0, to - 0.5)); });
+    (x.sfx || []).forEach(f => { f.t = Math.min(f.t, Math.max(0, to - 0.2)); });
+    for (const p of Object.values(x.perf || {})) (p.beats || []).forEach(b => { b.t = Math.min(b.t, Math.max(0, to - 0.2)); });
+}
+
 function Step({ lab, minus, plus, less = 'Earlier', more = 'Later' }) {
     return <span className="ds-step"><button type="button" className="ds-btn xs" onClick={minus} aria-label={less}>−</button><b>{lab}</b><button type="button" className="ds-btn xs" onClick={plus} aria-label={more}>+</button></span>;
 }
@@ -734,6 +942,9 @@ function ShotPanel({ s, node, card, id, label, ui, patchUi, edit, go, offsets, l
         <div className="ds-panel" style={{ gap: 8 }}>
             <div className="ds-row">{img ? <img className="ds-thumb" src={shotImg(node, 160)} alt="" style={{ width: 76, height: 43 }} /> : <span className="ds-thumb ph" style={{ width: 76, height: 43 }} />}<span className="ds-sl"><b>{label(id)} · {fr ? fr[1] : cam.framing}</b><span className="ds-mono">{s.dur}s · {s.lines.length} line{s.lines.length === 1 ? '' : 's'}</span></span></div>
             <p className="ds-muted">{card.description}</p>
+            {/* The shot's length, here as well as in a sequence: shortening keeps its lines and moves inside it. */}
+            <div className="ds-row"><span className="ds-muted">Length</span>
+                <Step lab={`${s.dur}s`} less="Shorter" more="Longer" minus={() => edit(id, x => fitLength(x, Math.max(2, x.dur - 1)))} plus={() => edit(id, x => fitLength(x, x.dur + 1))} /></div>
         </div>
         <div className="ds-seg" role="tablist" aria-label="Shot direction">{SHOT_TABS.map(([tid, lab]) => <button key={tid} type="button" role="tab" aria-selected={ui.tab === tid} className={ui.tab === tid ? 'on' : ''} onClick={() => patchUi({ tab: tid, lib: null })}>{lab}</button>)}</div>
 
@@ -749,7 +960,7 @@ function ShotPanel({ s, node, card, id, label, ui, patchUi, edit, go, offsets, l
         </div>}
 
         {ui.tab === 'camera' && <>
-            <PrevizPanel s={s} pv={pv} onUpdate={() => edit(id, x => { const n = applyPrevis(x, pv); x.cam = n.cam; x.inh = n.inh; x.pvz = n.pvz; }, 0)}
+            <PrevizPanel s={s} pv={pv} onUpdate={() => edit(id, x => { const n = takePrevis(x, pv); x.cam = n.cam; x.inh = n.inh; x.pvz = { ...n.pvz, won: { by: 'previz', at: pv.applied_at || null } }; }, 0)}
                 onToggle={(on) => edit(id, x => { if (x.pvz) x.pvz.on = on; }, 0)} />
             <div className="ds-panel">
                 <div className="ds-row"><h4>Framing</h4><span className={'ds-pill ' + (ovr.length ? 'ovr' : 'inh')}>{ovr.length ? 'Changed here: ' + ovr.join(', ') : s.pvz ? 'From Previz' : 'From the scene card'}</span><div style={{ flex: 1 }} /><button type="button" className="ds-link" onClick={() => legacy.navigateTo && legacy.navigateTo('previs')}>Frame it in Previz 3D ↗</button></div>
@@ -922,7 +1133,7 @@ function LinePanel({ s, id, sel, ui, patchUi, edit, offsets, nameOf, colorOf, ca
             legacy.setStatus(`Scene card for this shot updated. The Screenplay page shows the change to sync.`);
             patchUi({ lnConfirm: null });
             await reloadCards();
-        } catch (err) { legacy.setStatus('Screenplay not updated: ' + err.message, true); }
+        } catch (err) { legacy.setStatus('Screenplay not updated: ' + err.message); }
         finally { setSaving(false); }
     };
     return <div className="ds-panel">
@@ -972,7 +1183,9 @@ function PrevizPanel({ s, pv, onUpdate, onToggle }) {
             {s.pvz?.move && <p className="ds-muted" style={{ margin: 0 }}><b>Move:</b> {s.pvz.move}</p>}
             {s.pvz?.staging?.length > 0 && <p className="ds-muted" style={{ margin: 0 }}><b>Staging:</b> {s.pvz.staging.join(' ')}</p>}
             {!s.pvz?.move && !s.pvz?.staging?.length && <p className="ds-muted" style={{ margin: 0 }}>Previz set the framing and lens; no move or named people were blocked.</p>}
-            {behind && pv.applied && <div className="ds-row"><span className="ds-muted" style={{ flex: 1 }}>Previz was applied again with a different camera or staging. Update takes it; anything you changed here stays.</span>
+            {!behind && s.pvz?.won?.by === 'previz' && <p className="ds-muted" style={{ margin: 0 }} data-testid="pvz-won">Previz's camera was applied{s.pvz.won.at ? ` at ${s.pvz.won.at.slice(11, 16)} UTC` : ''}, after the last change here, so it replaced the framing, height, facing and lens here.</p>}
+            {!behind && s.pvz?.won?.by === 'here' && <p className="ds-muted" style={{ margin: 0 }} data-testid="pvz-won">Your changes here are newer than Previz's Apply, so the fields you changed stay; the others follow Previz.</p>}
+            {behind && pv.applied && <div className="ds-row"><span className="ds-muted" style={{ flex: 1 }}>Previz was applied again, but your changes here are newer, so they stay. Update takes Previz's camera instead.</span>
                 <button type="button" className="ds-btn sm pri" onClick={onUpdate}>Update from Previz</button></div>}
             {!pv.applied && <p className="ds-muted" style={{ margin: 0 }}>Previz has unapplied changes for this shot. <button type="button" className="ds-link" onClick={openPreviz}>Apply them in Previz ↗</button></p>}
         </div>);

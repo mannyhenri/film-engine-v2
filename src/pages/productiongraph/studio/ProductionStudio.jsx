@@ -2,23 +2,26 @@ import { useCallback, useEffect, useState } from 'react';
 import { legacy } from '../../../lib/legacy.js';
 import DirectStudio from './DirectStudio.jsx';
 import CutTab from './CutTab.jsx';
+import GeneratorsTab from './GeneratorsTab.jsx';
 import './studio.css';
 
 /*
- * Production, as two tabs:
+ * Production, as three tabs:
  *   Generate — the Direct studio: pick shots (group two or more as a sequence),
  *              direct acting, camera, dialogue, sound and light on a timeline,
  *              watch the prompt rebuild beat by beat, check it against the
  *              Higgsfield model, send.
  *   Cut      — the rough edit, footage or not: picked shots in order, sound
  *              wired to them, sent to DaVinci Resolve as a timeline.
+ *   Generators — local AI tools on any dropped video: slow motion (a marked section), upscale (the
+ *              whole file), depth, rotoscope, stems, subtitles; results to drag into Resolve.
  * The old node graph has no tab any more (the user removed it); the page still
  * mounts its engine out of sight, because it loads the graph both tabs read and
  * hosts features not yet moved (in-betweens, depth, compositing, version picks).
  *
  * The page hands both tabs the graph the engine loaded (one read per film).
  */
-const TABS = [['generate', 'Generate'], ['cut', 'Cut']];
+const TABS = [['generate', 'Generate'], ['cut', 'Cut'], ['generators', 'Generators']];
 
 export default function ProductionStudio({ graph, reload, onTabChange }) {
     const [tab, setTab] = useState('generate');
@@ -30,7 +33,7 @@ export default function ProductionStudio({ graph, reload, onTabChange }) {
     const reloadCatalog = useCallback(async () => {
         try { const r = await legacy.api('/production-studio/higgsfield-models'); setCatalog({ connected: !!r?.connected, models: Array.isArray(r?.models) ? r.models : [],
             website_models:Array.isArray(r?.website_models)?r.website_models:[],api_modes:Array.isArray(r?.api_modes)?r.api_modes:[] }); }
-        catch (err) { legacy.setStatus('Higgsfield models: ' + err.message, true); }
+        catch (err) { legacy.setStatus('Higgsfield models: ' + err.message); }
         // Runway: a second place to send the same request, with its own credits (free list, nothing sent).
         try { const r = await legacy.api('/production-studio/runway-models'); setRunway({ connected: !!r?.connected, models: Array.isArray(r?.models) ? r.models : [], usd_per_credit: Number(r?.usd_per_credit) || 0.01 }); }
         catch (_) { setRunway({ connected: false, models: [], usd_per_credit: 0.01 }); }
@@ -60,6 +63,7 @@ export default function ProductionStudio({ graph, reload, onTabChange }) {
             </div>
             {tab === 'generate' && <DirectStudio pid={pid} graph={graph} catalog={catalog} runway={runway} reload={reload} />}
             {tab === 'cut' && <CutTab pid={pid} graph={graph} />}
+            {tab === 'generators' && <GeneratorsTab />}
         </div>
     );
 }

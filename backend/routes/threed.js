@@ -175,6 +175,16 @@ function handleThreeD(req, res, urlParts, query) {
         const assetId = urlParts[2];
         if (!UUID_RE.test(assetId)) return json(res, 400, { error: 'Invalid asset ID' });
         const op = urlParts[3];
+        // GET /film/models/:id/uses: where it is used, before deleting. DELETE /film/models/:id?confirm=1: delete it and
+        // what was built from it (lib/model-delete.js); in use, only with confirm.
+        if (req.method === 'GET' && op === 'uses') {
+            try { return json(res, 200, require('../lib/model-delete').usesOf(db, assetId)); }
+            catch (err) { return json(res, err.status || 500, { error: err.message }); }
+        }
+        if (req.method === 'DELETE' && !op) {
+            try { return json(res, 200, require('../lib/model-delete').deleteModel(db, assetId, { confirm: (query && (query.confirm === '1' || query.confirm === 'true')) || !!(req.body && req.body.confirm) })); }
+            catch (err) { return json(res, err.status || 500, { error: err.message, ...(err.uses ? { uses: err.uses } : {}) }); }
+        }
         /*
          * The FREE preview for a mesh operation.
          *
@@ -263,12 +273,13 @@ function loadSubject(kind, id) {
  * @returns {Promise<{assetId:string, filePath:string, modelUrl:string, filename:string}>}
  */
 async function registerModel(projectId, subject, kind, format, data, jobId, metaKind) {
-    const filename = `${safeName(subject.name)}.${format}`;
+    // Its own file: one name per subject meant a second model overwrote the first, and both rows showed the newest.
+    const assetId = generateId();
+    const filename = `${safeName(subject.name)}_${assetId.slice(0, 8)}.${format}`;
     ensureDir(projectId, SUBDIR);
 
     const filePath = await persistProviderMedia(projectId, SUBDIR, filename, data);
 
-    const assetId = generateId();
     const metadata = {
         kind: metaKind || 'model_3d',
         subject_kind: kind,
@@ -277,14 +288,18 @@ async function registerModel(projectId, subject, kind, format, data, jobId, meta
         format,
         character_id: kind === 'character' ? subject.id : null,
         prop_id: kind === 'prop' ? subject.id : null,
+        location_id: kind === 'location' ? subject.id : null,
     };
+    // Linked by its subject's own column too, so the subject's page and Previz find it without reading metadata.
     db.prepare(
-        `INSERT INTO film_assets (id, project_id, character_id, asset_type, file_path, file_name, format, mime_type, version, metadata)
-         VALUES (?, ?, ?, 'other', ?, ?, ?, ?, 1, ?)`
+        `INSERT INTO film_assets (id, project_id, character_id, prop_id, location_id, asset_type, file_path, file_name, format, mime_type, version, metadata)
+         VALUES (?, ?, ?, ?, ?, 'other', ?, ?, ?, ?, 1, ?)`
     ).run(
         assetId,
         projectId,
         kind === 'character' ? subject.id : null,
+        kind === 'prop' ? subject.id : null,
+        kind === 'location' ? subject.id : null,
         filePath,
         filename,
         format,
@@ -298,6 +313,18 @@ async function registerModel(projectId, subject, kind, format, data, jobId, meta
     }
 
     return { assetId, filePath, modelUrl: getFileUrl(SUBDIR, projectId, filename), filename };
+}
+
+/**
+ * The picture image-to-3D is built from: the subject's own approved plate, by its own column. The character's MAIN sheet
+ * first (lib/character-sheet-main.js), then the front view (a turnaround's front reconstructs best), then a character
+ * sheet, then the newest plate. Never an expression study or an inspiration still (the gallery's rule).
+ */
+function fromImageReference(kind, subjectId, projectId) {
+    const { loadGallery } = require('../lib/subject-gallery');
+    const rank = r => (r.metadata && r.metadata.main_sheet ? -1 : r.view === 'front' ? 0 : r.asset_type === 'character_sheet' ? 1 : !r.view ? 2 : 3);
+    return loadGallery(db, kind, subjectId).filter(r => r.sendable && r.project_id === projectId)
+        .sort((a, b) => rank(a) - rank(b))[0] || null;
 }
 
 function mimeFor(format) {
@@ -319,12 +346,14 @@ async function buildModelGenerationPlan(kind, subjectId, body = {}, fromImage = 
     // Resolve an init image: explicit body ref, else the subject's newest reference asset on disk.
     let imageRef = opts.init_image || null;
     if (!imageRef) {
-        const refAsset = db.prepare(
-            `SELECT * FROM film_assets
-             WHERE project_id = ? AND (character_id = ? OR file_name LIKE ?)
-               AND asset_type IN ('reference_image','character_sheet','reference_sheet','storyboard')
-             ORDER BY created_at DESC LIMIT 1`
-        ).get(projectId, kind === 'character' ? subjectId : '', `${safeName(subject.name)}%`);
+        /*
+         * The subject's own approved plate, by its own column (character_id / location_id / prop_id). This matched a
+         * prop or location by FILE NAME before, so "SALT SHAKER" could take another subject's picture and a renamed
+         * subject took none; and it ignored the gallery's rule, so an expression study or an inspiration still could
+         * be what a paid mesh was built from. The front view first: image-to-3D reads one picture, and a turnaround's
+         * front is the one it reconstructs best; then a character sheet, then the newest plate.
+         */
+        const refAsset = fromImageReference(kind, subjectId, projectId);
         // Defense-in-depth: only read a DB-sourced file_name that is a plain
         // basename (no separators / traversal) before touching the disk.
         if (refAsset && refAsset.file_name && /^[\w.-]+$/.test(refAsset.file_name)) {
@@ -803,4 +832,4 @@ function listModelJobs(req, res, projectId) {
 
 function safeParse(s) { try { return JSON.parse(s || '{}'); } catch (_) { return {}; } }
 
-module.exports = { handleThreeD, threedPayloadFor, threedProviderFor, buildModelGenerationPlan, collectSubjects };
+module.exports = { handleThreeD, fromImageReference, threedPayloadFor, threedProviderFor, buildModelGenerationPlan, collectSubjects };

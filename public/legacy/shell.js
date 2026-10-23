@@ -319,7 +319,8 @@
     Array.prototype.forEach.call(els.rail.children, function (b) {
       b.classList.toggle('on', b.dataset.rail === page);
     });
-    var jobs = document.querySelectorAll('#jobsQueueList .job-row, #jobsQueueList .card').length;
+    // Running jobs only: a badge that counts every finished job (113 with nothing running) says nothing.
+    var jobs = document.querySelectorAll('#jobsQueueList [data-job-active="true"]').length;
     var jb = els.rail.querySelector('[data-rail="jobsqueue"]');
     if (jb) {
       var old = jb.querySelector('.b');

@@ -1,4 +1,5 @@
 'use strict';
+const { mainFirstSql } = require('./character-sheet-main');   // the character's MAIN sheet first (lib/character-sheet-main.js)
 const fs = require('fs');
 const DEFAULTS = Object.freeze(['Neutral', 'Fear', 'Anger', 'Sadness', 'Joy', 'Surprise']);
 const SLOT_IDS = DEFAULTS.map((_, i) => `slot-${i + 1}`);
@@ -107,7 +108,7 @@ function createExpressionStore(db) {
     }
     function identity(id) {
         const ch = character(id);
-        const rows = db.prepare(`SELECT * FROM film_assets WHERE project_id=? AND character_id=? AND asset_type IN ('character_sheet','reference_image') AND ${require('./subject-gallery').sendableSql()} ORDER BY ${require('./plate-views').orderByViewSql()}, version DESC, created_at DESC`).all(ch.project_id,id);
+        const rows = db.prepare(`SELECT * FROM film_assets WHERE project_id=? AND character_id=? AND asset_type IN ('character_sheet','reference_image') AND ${require('./subject-gallery').sendableSql()} ORDER BY ${mainFirstSql()}, ${require('./plate-views').orderByViewSql()}, version DESC, created_at DESC`).all(ch.project_id,id);
         const a = rows.find(r => r.file_path && fs.existsSync(r.file_path));
         if (!a) failure('A usable approved identity plate is required before generating an expression. Upload or approve a body plate first.');
         return a;

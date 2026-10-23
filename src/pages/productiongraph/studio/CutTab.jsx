@@ -47,10 +47,22 @@ export default function CutTab({ pid, graph }) {
             if (gone || !list.length) return;
             const r = await api(`/cuts/${list[0].id}`);
             if (!gone && r?.cut) setCut(r.cut);
-        }).catch(err => legacy.setStatus('Cuts: ' + err.message, true))
+        }).catch(err => legacy.setStatus('Cuts: ' + err.message))
             .finally(() => { if (!gone) setLoaded(true); });
         return () => { gone = true; };
     }, [loadList, api]);
+
+    // The open cut, read again when the graph is (a visit, a reload) or the window comes back: a new storyboard frame,
+    // a take, or a length set in Generate shows without reopening the cut.
+    const cutId = cut?.id;
+    useEffect(() => {
+        if (!cutId) return undefined;
+        let gone = false;
+        const again = () => api(`/cuts/${cutId}`).then(r => { if (!gone && r?.cut) setCut(r.cut); }).catch(() => {});
+        again();
+        window.addEventListener('focus', again);
+        return () => { gone = true; window.removeEventListener('focus', again); };
+    }, [graph, cutId, api]); // eslint-disable-line react-hooks/exhaustive-deps
 
     /** Every change goes to the server, which answers with the cut laid out again. */
     const change = async (path, method, body, note) => {
@@ -60,7 +72,7 @@ export default function CutTab({ pid, graph }) {
             if (r?.cut) setCut(r.cut);
             if (note) legacy.setStatus(note);
             return r;
-        } catch (err) { legacy.setStatus(err.message, true); return null; }
+        } catch (err) { legacy.setStatus(err.message); return null; }
         finally { setBusy(false); }
     };
     const startCut = async (shotIds) => {
@@ -87,7 +99,7 @@ export default function CutTab({ pid, graph }) {
         return setShots(ids);
     };
     const addSound = (kind, shotId) => {
-        if (!cut || !inCut.has(shotId)) { legacy.setStatus('Drop a sound on a shot that is in the cut.', true); return; }
+        if (!cut || !inCut.has(shotId)) { legacy.setStatus('Drop a sound on a shot that is in the cut.'); return; }
         return change(`/cuts/${cut.id}/sounds`, 'POST', { kind, start_shot_id: shotId, label: KIND[kind].label }).then(r => {
             const made = r?.cut?.sounds?.[r.cut.sounds.length - 1];
             if (made) setSel({ sound: made.id });
@@ -100,7 +112,7 @@ export default function CutTab({ pid, graph }) {
     const fileToSound = async (sound, file) => {
         const kind = KIND[sound.kind];
         const shot = byId.get(sound.start_shot_id);
-        if (!shot) { legacy.setStatus('Not added: the shot this sound starts on is no longer in the film. Move the sound onto a shot first.', true); return; }
+        if (!shot) { legacy.setStatus('Not added: the shot this sound starts on is no longer in the film. Move the sound onto a shot first.'); return; }
         const scoped = kind.id === 'music' || kind.id === 'ambient';
         const url = scoped ? `/scenes/${shot.scene_id}/media/${kind.capability}/import` : `/shots/${shot.id}/media/${kind.capability}/import`;
         try {
@@ -108,7 +120,7 @@ export default function CutTab({ pid, graph }) {
             const imported = await api(url, { method: 'POST', body: JSON.stringify({ data, name: file.name }) });
             await updateSound(sound.id, { asset_id: imported.asset_id, label: sound.label && sound.label !== kind.label ? sound.label : file.name.replace(/\.[^.]+$/, '') });
             legacy.setStatus(`${file.name} filed in 06 Sound and wired in.`);
-        } catch (err) { legacy.setStatus('Not added: ' + err.message, true); }
+        } catch (err) { legacy.setStatus('Not added: ' + err.message); }
     };
     const onFile = (e) => { const f = e.target.files && e.target.files[0]; e.target.value = ''; const s = pendingFile.current; pendingFile.current = null; if (f && s) fileToSound(s, f); };
 
@@ -129,7 +141,7 @@ export default function CutTab({ pid, graph }) {
                     await updateSound(sound.id, { asset_id: d.asset_id, label: prompt.slice(0, 60) });
                     setGenFor(null);
                     legacy.setStatus('Generated and wired: ' + d.file_name);
-                } catch (err) { legacy.setStatus('Error: ' + err.message, true); }
+                } catch (err) { legacy.setStatus('Error: ' + err.message); }
             },
         });
     };
@@ -137,7 +149,7 @@ export default function CutTab({ pid, graph }) {
     const newVersion = async () => { const r = await change(`/cuts/${cut.id}/versions`, 'POST', {}, 'Saved as a new version; the old one is kept.'); if (r?.cut) await loadList(); };
     const openCut = async (id) => {
         try { const r = await api(`/cuts/${id}`); if (r?.cut) { setCut(r.cut); setSel(null); } }
-        catch (err) { legacy.setStatus('Could not open that cut: ' + err.message, true); }
+        catch (err) { legacy.setStatus('Could not open that cut: ' + err.message); }
     };
     const sendToResolve = async () => {
         setSending('busy');
@@ -186,6 +198,11 @@ export default function CutTab({ pid, graph }) {
                 <div className="ps-toast" role="status">
                     {sending.error ? <>Resolve export failed: {sending.error}</>
                         : sending.imported_into_resolve ? <>Resolve opened with “{cut?.label}” as a timeline: {sending.copied} files in Video, Stills and Sound bins, with shot markers. Package: <code>{sending.dest}</code></>
+                            : sending.launch?.needs_click ? <>
+                                <b>One click in Resolve to finish.</b> Resolve is open: open any project (Untitled Project is fine), then
+                                {' '}<b>Workspace › Scripts › Film Engine - Load Latest Cut</b>. It makes a new project with “{cut?.label}” as its timeline,
+                                and {sending.copied} files in bins per scene, with shot markers. Free Resolve lets nothing outside it do this step.
+                                {' '}Package: <code>{sending.dest}</code></>
                             : <>The package is written to <code>{sending.dest}</code>, but Resolve did not take it: {sending.launch?.reason}</>}
                     <button type="button" aria-label="Close" className="ps-x" onClick={() => setSending(null)}>×</button>
                 </div>
@@ -223,7 +240,7 @@ export default function CutTab({ pid, graph }) {
                         {CUT_KINDS.map(k => (
                             <button key={k.id} type="button" draggable className="ps-chip" style={{ borderColor: k.color }}
                                 onDragStart={e => e.dataTransfer.setData('text/x-cut-sound', k.id)}
-                                onClick={() => (sel?.shot ? addSound(k.id, sel.shot) : legacy.setStatus('Select a shot, or drag the sound onto one.', true))}>
+                                onClick={() => (sel?.shot ? addSound(k.id, sel.shot) : legacy.setStatus('Select a shot, or drag the sound onto one.'))}>
                                 <i style={{ background: k.color }} aria-hidden="true" />{k.label}</button>
                         ))}
                     </div>

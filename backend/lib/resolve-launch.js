@@ -58,6 +58,14 @@ async function launchResolve(dest, opts = {}) {
         return { imported: false, attempts: 0, log,
             reason: `Could not open DaVinci Resolve (it may not be installed): ${String(opened.out || '').trim().slice(0, 200)}` };
     }
+    /*
+     * Free Resolve: nothing outside it can drive it, so don't spend a minute knocking. It is open (or brought to the
+     * front); the import is one click in its Scripts menu (lib/resolve-lua.js installed it there).
+     */
+    if (opts.free) {
+        return { imported: false, attempts: 0, log, needs_click: true, menu: opts.menu || 'Workspace › Scripts › Film Engine - Load Latest Cut',
+            reason: `Resolve is open. Open any project (Untitled Project is fine), then ${opts.menu || 'Workspace › Scripts › Film Engine - Load Latest Cut'}: it makes a new project with this cut's timeline and media.` };
+    }
     const script = path.join(dest, 'Import into Resolve.py');
     let last = '';
     for (let i = 1; i <= attempts; i++) {

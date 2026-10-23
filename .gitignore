@@ -11,3 +11,4 @@ src/index.html
 
 .neoncore/
 .neoncore/attachments/
+__pycache__/

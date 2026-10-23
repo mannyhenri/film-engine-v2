@@ -18,8 +18,16 @@ const MANUAL_PROVIDERS = new Set([
     'elevenlabs', 'worldlabs', 'google', 'openai', 'magnific', 'topaz',
 ]);
 
+/*
+ * Capabilities of a manual vendor that ARE sent, each by the user's own ruling. Meshy 3D (2026-10-23): a character's
+ * model is generated through Meshy's API after the usual paid confirmation and final review, and comes back to the
+ * 3D Models page by itself. Meshy's 2D images stay manual.
+ */
+const SENT = Object.freeze({ meshy: new Set(['model3d']) });
+
 function isManual(provider, capability) {
     if (capability === 'llm') return false;
+    if (SENT[String(provider || '')]?.has(capability)) return false;
     return MANUAL_PROVIDERS.has(String(provider || ''));
 }
 
@@ -46,6 +54,8 @@ function assertSendable(provider, capability) {
 function installReviewStopCleanup(db) {
     const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE '%job%'").all().map(r => r.name);
     const manualList = [...MANUAL_PROVIDERS].map(id => `'${id}'`).join(', ');
+    const sentClause = Object.entries(SENT).map(([id, caps]) => `
+                    AND NOT (json_extract(r.snapshot_json, '$.provider') = '${id}' AND json_extract(r.snapshot_json, '$.capability') IN (${[...caps].map(c => `'${c}'`).join(', ')}))`).join('');
     // The review table must exist for the trigger to name it.
     db.exec(require('fs').readFileSync(require('path').join(__dirname, '../db/migrations/141_final_request_reviews.sql'), 'utf8'));
     for (const table of tables) {
@@ -64,7 +74,7 @@ function installReviewStopCleanup(db) {
                 AND EXISTS (SELECT 1 FROM film_final_request_reviews r
                     WHERE r.id = substr(NEW."${column}", instr(NEW."${column}", ':') + 1)
                     AND json_extract(r.snapshot_json, '$.provider') IN (${manualList})
-                    AND COALESCE(json_extract(r.snapshot_json, '$.capability'), '') <> 'llm')
+                    AND COALESCE(json_extract(r.snapshot_json, '$.capability'), '') <> 'llm'${sentClause})
                 BEGIN DELETE FROM "${table}" WHERE rowid = NEW.rowid; END`);
         }
     }
@@ -75,4 +85,4 @@ function installReviewStopCleanup(db) {
 // that meets one carries on to the next item so every prompt is handed over.
 function isReviewStop(error) { return /FINAL_REQUEST_REVIEW_REQUIRED:[A-Za-z0-9_-]+/.test(String(error || '')); }
 
-module.exports = { MANUAL_PROVIDERS, isManual, isReviewStop, manualError, assertSendable, installReviewStopCleanup };
+module.exports = { MANUAL_PROVIDERS, SENT, isManual, isReviewStop, manualError, assertSendable, installReviewStopCleanup };

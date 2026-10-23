@@ -1,11 +1,11 @@
-// 3D Models: search, sort and filter its two lists, the characters and props a model can be made from, and the models
+// 3D Models: search, sort and filter its two lists, the characters, locations and props a model is made from, and the models
 // made (src/lib/list-controls.jsx; held by src/pages/list-surfaces.test.jsx and, on the page, list-wiring.test.jsx).
 export default [
     {
         id: 'threed-subjects', noun: 'subjects',
         search: ['name'],
         sorts: [
-            { id: 'as-read', label: 'Characters, then props', field: 'order', dir: 'asc' },
+            { id: 'as-read', label: 'Characters, locations, props', field: 'order', dir: 'asc' },
             { id: 'name', label: 'Name A–Z', field: 'name', dir: 'asc' },
         ],
         filters: [{ id: 'kind', label: 'Kind', field: 'kind' }],

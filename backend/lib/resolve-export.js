@@ -616,6 +616,9 @@ function writeResolve(db, projectId, opts = {}) {
     fs.writeFileSync(path.join(dest, xmlName), buildResolveXml(plan, urlOf), 'utf8');
     fs.writeFileSync(path.join(dest, csvName), buildMetadataCsv(plan), 'utf8');
     fs.writeFileSync(path.join(dest, 'Import into Resolve.py'), buildImportScript(plan, xmlName, csvName).replace('"__HERE__"', JSON.stringify(dest)), 'utf8');
+    // Free Resolve runs Lua from its Scripts menu, not Python from outside: the same import as Lua, installed there.
+    const lua = require('./resolve-lua').writeLuaScript(plan, dest, xmlName,
+        plan.markers.map(m => ({ frame: msToFrames(m.at_ms, plan.fps), name: m.name, note: m.note || '', color: m.color })));
     const c = plan.counts;
     fs.writeFileSync(path.join(dest, 'READ ME.txt'), [
         `${plan.title} — DaVinci Resolve interchange package.`,
@@ -641,7 +644,7 @@ function writeResolve(db, projectId, opts = {}) {
         '',
     ].join('\n'), 'utf8');
     const { _files, ...pub } = plan;
-    const result = { ...pub, status: 'package_written', imported_into_resolve: false, dest, xml: xmlName, metadata: csvName, script: 'Import into Resolve.py', copied: _files.length,
+    const result = { ...pub, status: 'package_written', imported_into_resolve: false, dest, xml: xmlName, metadata: csvName, script: 'Import into Resolve.py', lua, copied: _files.length,
         relink:'After moving the package, relink media to these scene folders and update HERE in the import script if it is copied into Resolve Scripts.' };
     fs.writeFileSync(path.join(dest,'manifest.json'),JSON.stringify(result,null,2));
     return result;

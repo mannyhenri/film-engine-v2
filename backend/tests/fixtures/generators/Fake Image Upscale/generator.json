@@ -1,0 +1,6 @@
+{ "id": "fake-image-upscale", "name": "Fake Image Upscale", "description": "Image tool for tests.", "script": "../fake_engine.py",
+  "accepts": "image", "range": "whole", "out": { "flag": "--out", "kind": "file", "ext": ".png" },
+  "options": [ { "name": "engine", "flag": "--engine", "type": "select", "label": "Engine", "default": "ultrasharp",
+      "choices": [ { "value": "ultrasharp", "label": "4x-UltraSharp" }, { "value": "gigapixel", "label": "Topaz Gigapixel" } ] },
+    { "name": "size", "flag": "--size", "type": "select", "label": "Size", "default": "4k", "when": { "engine": ["ultrasharp"] },
+      "choices": [ { "value": "4k", "label": "4K" }, { "value": "2", "label": "2×" } ] } ] }

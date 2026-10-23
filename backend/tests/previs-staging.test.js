@@ -200,7 +200,9 @@ test('Blender\'s light units are converted before the Look view draws them', () 
 
 test('the page offers all three sources, and a staged figure is drawn in Look at its size', () => {
     const add = pageFn('stageOpenAdd');
-    for (const tab of ['people', 'furniture', 'models']) assert.ok(add.includes(`'${tab}'`), `no ${tab} tab`);
+    // The film's own cast and props by name (the 3D Models page makes them), then the library, then anything else.
+    for (const tab of ['characters', 'props', 'people', 'furniture', 'models']) assert.ok(add.includes(`'${tab}'`), `no ${tab} tab`);
+    assert.ok(/subject: \{ kind: m\.kind, id: m\.subject \}/.test(pageFn('stageAdd')), 'a staged character or prop keeps no link to its subject');
     assert.ok(/model_/.test(add), 'the project\'s models are not filtered to 3D models');
     const sync = pageFn('stageSyncLook');
     assert.ok(/sizeM/.test(sync), 'Look does not fit a model to its staged size');

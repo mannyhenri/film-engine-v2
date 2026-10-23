@@ -8,6 +8,21 @@
  */
 import { legacy } from '../../lib/legacy.js';
 import { configureExpressions, expressionSlotsHtml } from './expressions.jsx';
+import { createElement } from 'react';
+import { createRoot } from 'react-dom/client';
+import MainSheet from './MainSheet.jsx';
+
+/*
+ * The sheet's top is MainSheet (React): the main picture every generation uses, its variations, the description and
+ * the three steps that make it. What the sheet drew before (views, expressions, voice, references) follows, folded
+ * under "More", unchanged: expressions and the views still feed what they fed.
+ */
+let MAIN_ROOT = null, MAIN_EL = null;
+function mountMainSheet(el, characterId) {
+    if (MAIN_ROOT && MAIN_EL !== el) { try { MAIN_ROOT.unmount(); } catch (_) { /* its node is gone */ } MAIN_ROOT = null; }
+    if (!MAIN_ROOT) { MAIN_ROOT = createRoot(el); MAIN_EL = el; }
+    MAIN_ROOT.render(createElement(MainSheet, { key: characterId, characterId }));
+}
 
 // Core's functions, each called through the bridge by its own name. One destructuring statement on purpose:
 // a line reading `const esc = …` would be the first definition a backend test finds when it searches the page.
@@ -258,7 +273,11 @@ const { state } = Object.fromEntries(['state'].map(n => [n, live(n)]));
                 ? `<span class="cs-chip">${esc([c.age_range, c.gender].filter(Boolean).join(' · '))}</span>` : ''}
             <span class="cs-chip">${SHEET.gallery.length} reference(s)</span>`;
 
-        body.innerHTML = characterSheetHtml(c, plates);
+        body.innerHTML = `<div id="csMainRoot"></div>
+            <details class="cs-more"${SHEET.moreOpen ? ' open' : ''} ontoggle="window.__csMoreToggle && window.__csMoreToggle(this.open)">
+                <summary>More: views, expressions, voice and references</summary>${characterSheetHtml(c, plates)}</details>`;
+        window.__csMoreToggle = open => { SHEET.moreOpen = open; };
+        mountMainSheet(document.getElementById('csMainRoot'), id);
     }
 
     /**

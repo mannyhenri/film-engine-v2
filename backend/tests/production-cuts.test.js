@@ -84,6 +84,19 @@ test('every picture state is laid out as itself, in the cut\'s order, held for t
     assert.equal(c.total_ms, at['1D'][0] + at['1D'][1]);
 });
 
+test('a board holds for the shot\'s length as directed: Generate\'s length, else its card\'s; a hold in the Cut still wins', () => {
+    db.prepare("UPDATE film_shots SET scene_card_yaml = ? WHERE id = ?").run(JSON.stringify({ duration_seconds: 28 }), S[1].id);
+    let c = cuts.createCut(db, pid, { name: 'Lengths', shot_ids: [S[1].id] });
+    assert.equal(c.shots[0].duration_ms, 28000, 'the card\'s 28 s, not the five a still is held for elsewhere');
+    db.prepare("INSERT INTO production_directions (project_id, owner, data_json) VALUES (?, ?, ?)").run(pid, `shot:${S[1].id}`, JSON.stringify({ dur: 12 }));
+    assert.equal(cuts.getCut(db, c.id).shots[0].duration_ms, 12000, 'the length set in Generate reaches the Cut');
+    c = cuts.updateCut(db, c.id, { holds: { [S[1].id]: 3000 } });
+    assert.equal(c.shots[0].duration_ms, 3000, 'a hold set in the Cut wins');
+    assert.equal(cuts.createCut(db, pid, { name: 'Clip', shot_ids: [S[0].id] }).shots[0].duration_ms, 6000, 'a clip still plays its own length');
+    db.prepare("DELETE FROM production_directions WHERE owner = ?").run(`shot:${S[1].id}`);
+    db.prepare("UPDATE film_shots SET scene_card_yaml = '{}' WHERE id = ?").run(S[1].id);
+});
+
 test('every sound kind takes its own kind of file and refuses another', async () => {
     const c = (await call('POST', ['film', 'projects', pid, 'cuts'], { name: 'Kinds', shot_ids: [S[0].id] })).body.cut;
     for (const kind of cuts.KINDS) {
@@ -160,6 +173,36 @@ test('sending a cut writes its package into the film\'s Resolve project as a tim
     const out = require('child_process').spawnSync('python3', ['-m', 'py_compile', path.join(r.body.dest, 'Import into Resolve.py')]);
     assert.equal(out.status, 0, String(out.stderr));
     assert.ok(fs.readdirSync(r.body.dest, { recursive: true }).some(f => /theme/.test(String(f)) || /music/.test(String(f))), 'the wired music is in the package');
+});
+
+test('free Resolve gets the cut as a Lua menu script: a NEW project, every file of the package in its bins, the timeline, the markers', async () => {
+    const c = cuts.createCut(db, pid, { name: 'Lua', shot_ids: [S[0].id, S[1].id] });
+    cuts.addSound(db, c.id, { kind: 'music', start_shot_id: S[0].id, end_shot_id: S[1].id, asset_id: FILES.music });
+    const r = await call('POST', ['film', 'cuts', c.id, 'send-to-resolve']);
+    const dest = r.body.dest, file = path.join(dest, 'Load into Resolve.lua');
+    const lua = fs.readFileSync(file, 'utf8');
+    assert.match(lua, /local PROJECT = "Glass Harbour - Lua v1"/);
+    assert.match(lua, /pm:CreateProject\(name\)/);
+    assert.doesNotMatch(lua, /\bio\.|os\.execute|require/, 'free Resolve gives a script no io: everything is written in');
+    const media = fs.readdirSync(dest, { recursive: true }).map(String).filter(f => /\.(mp4|png|wav|mov)$/i.test(f));
+    assert.ok(media.length >= 3);
+    for (const f of media) assert.ok(lua.includes(JSON.stringify(path.join(dest, f)).slice(1, -1)), `${f} is not imported by the script`);
+    assert.ok(!fs.existsSync(path.join(require('../lib/resolve-lua').scriptsDir(), 'Film Engine - Load Latest Cut.lua')) || process.env.FILM_RESOLVE_SCRIPTS_DIR,
+        'an export alone never installs into the real Resolve Scripts menu');
+    const py = process.env.FILM_TEST_LUPA_PYTHON;
+    if (!py) return;   // run it too, against a stand-in Resolve, where a Python with lupa is named
+    const run = require('child_process').spawnSync(py, [path.join(__dirname, 'fixtures', 'resolve-lua-mock.py'), file], { encoding: 'utf8' });
+    assert.equal(run.status, 0, run.stderr);
+    const { calls, printed } = JSON.parse(run.stdout);
+    const names = calls.map(x => x[0]);
+    assert.deepEqual(calls.find(x => x[0] === 'CreateProject'), ['CreateProject', 'Glass Harbour - Lua v1']);
+    assert.deepEqual(calls.filter(x => x[0] === 'ImportMedia').flatMap(x => x[1]).sort(), media.map(f => path.join(dest, f)).sort(), 'every file imported, once');
+    const tl = calls.find(x => x[0] === 'ImportTimelineFromFile');
+    assert.equal(tl[1], path.join(dest, r.body.xml));
+    assert.deepEqual(tl[2], { timelineName: 'Lua v1', importSourceClips: false, sourceClipsPath: dest });
+    assert.ok(names.indexOf('ImportTimelineFromFile') > names.lastIndexOf('ImportMedia'), 'the media is in before the timeline links to it');
+    assert.ok(names.includes('AddMarker') && names.includes('SaveProject') && names.includes('OpenPage'));
+    assert.match(printed.join('\n'), /project Glass Harbour - Lua v1, timeline Lua v1, \d+ clips, \d+ markers/);
 });
 
 test.after(() => { assert.ok(shotSfx); fs.rmSync(process.env.FILM_DATA_DIR, { recursive: true, force: true }); });
