@@ -202,10 +202,6 @@ async function handleProductionStudio(req, res, parts) {
             traits: rec.TRAITS.map(t => ({ id: t.id, label: t.label })) });
     }
     if (sub === 'assemble-kinds' && req.method === 'GET') return json(res, 200, { kinds: assembleKinds() });
-    if (sub === 'runway-models' && req.method === 'GET') {
-        const rw = require('../lib/runway-catalog');
-        return json(res, 200, { models: rw.runwayModels(), connected: rw.connected(), usd_per_credit: rw.USD_PER_CREDIT });
-    }
     if (scoped && sub === 'direction') return direction(req, res, projectId, parts.slice(5));
     if (scoped && sub === 'seedance-prompt' && parts[5] === 'jobs' && parts[6] && req.method === 'GET') {
         try { return json(res, 200, { job: require('../lib/seedance-prompt').getJob(parts[6]) }); }

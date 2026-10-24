@@ -82,7 +82,7 @@ test('every provider shape carries the performance, not just the default', () =>
     // Runway leads with camera and Seedance with subject; a facet added to one
     // ordering and not the others is how two providers come to generate
     // different films from one card.
-    for (const shape of ['runway', 'seedance', 'default']) {
+    for (const shape of ['seedance', 'default']) {
         assert.ok(mp.SHAPES[shape].order.includes('performance'),
             `the ${shape} shape drops the performance clause`);
     }

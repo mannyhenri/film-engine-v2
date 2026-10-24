@@ -125,8 +125,8 @@ const NO_TIER_NOTE = Object.freeze({
 });
 
 const NO_SIZE_NOTE = Object.freeze({
-    video: 'A clip\'s size is its provider tier — Seedance sells 480p/720p/1080p/4K as separate '
-        + 'endpoints, and Runway takes a ratio rather than a raster. Choose it with the tier.',
+    video: 'A clip\'s size is its provider tier — Seedance sells 480p/720p/1080p as separate '
+        + 'tiers on Higgsfield and on MuAPI. Choose it with the tier.',
     ambient: 'Audio has no raster.',
     model3d: 'A mesh has no raster.',
 });

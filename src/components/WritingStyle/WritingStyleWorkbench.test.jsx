@@ -1,5 +1,5 @@
 import { beforeEach, afterAll, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import { createRequire } from 'node:module';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -25,7 +25,7 @@ beforeEach(()=>{
 });
 afterAll(()=>db.close());
 it('real UI-to-API handoff captures authorship, proposes inactive profile, approves and saves feedback',async()=>{
- render(<WritingStyleWorkbench />);fireEvent.click(screen.getByText('My Voice'));
+ render(<WritingStyleWorkbench />);act(()=>{window.dispatchEvent(new Event('film:open-my-voice'));});
  await screen.findByText('No approved profile. Your style is inactive.');
  expect(screen.getByText('Save draft profile').disabled).toBe(true);
  fireEvent.change(screen.getByLabelText('Writing sample'),{target:{value:'I watched the rain find its way down the window. The room stayed quiet.'}});
@@ -50,7 +50,7 @@ it('real UI-to-API handoff captures authorship, proposes inactive profile, appro
  expect(db.prepare('SELECT count(*) n FROM film_scripts WHERE project_id=?').get(bridge.state.currentProject.id).n).toBe(0);
 });
 it('AI-edited imports remain labelled, cannot be confirmed or selected for voice evidence',async()=>{
- render(<WritingStyleWorkbench />);fireEvent.click(screen.getByText('My Voice'));
+ render(<WritingStyleWorkbench />);act(()=>{window.dispatchEvent(new Event('film:open-my-voice'));});
  await screen.findByText('No approved profile. Your style is inactive.');
  fireEvent.change(screen.getByLabelText('Writing sample'),{target:{value:'A scene that was heavily edited by an AI assistant.'}});
  fireEvent.change(screen.getByLabelText('Source and provenance'),{target:{value:'AI screenplay rewrite'}});
@@ -62,7 +62,7 @@ it('AI-edited imports remain labelled, cannot be confirmed or selected for voice
  expect(screen.getByText('Save draft profile').disabled).toBe(true);
 });
 it('portable JSON import is passed to the real API without automatic approval',async()=>{
- render(<WritingStyleWorkbench />);fireEvent.click(screen.getByText('My Voice'));
+ render(<WritingStyleWorkbench />);act(()=>{window.dispatchEvent(new Event('film:open-my-voice'));});
  await screen.findByText('No approved profile. Your style is inactive.');
  const empty={schema_version:'1.0.0',profile_name:'Private writing profile',profile_version:'0.0.0',owner:'Manny',status:'empty',sources:[],approved_rules:[],approved_examples:[],pending_proposals:[],feedback:[],history:[],prior_snapshots:[],apply_instruction:'Use only approved rules.'};
  const file={name:'profile.json',size:500,text:async()=>JSON.stringify(empty)};
@@ -76,7 +76,7 @@ it('portable JSON import is passed to the real API without automatic approval',a
  expect(result.status).toBe('empty');expect(result.prior_snapshots[0].profile.profile_name).toBe('Private writing profile');
 });
 it('direct preferences can be approved with no samples and are visibly not a learned voice',async()=>{
- render(<WritingStyleWorkbench />);fireEvent.click(screen.getByText('My Voice'));
+ render(<WritingStyleWorkbench />);act(()=>{window.dispatchEvent(new Event('film:open-my-voice'));});
  await screen.findByText('No approved profile. Your style is inactive.');
  fireEvent.change(screen.getByLabelText('Proposed style guidance'),{target:{value:'Never use em dashes. Be personal and emotional. Use proper sentences.'}});
  fireEvent.click(screen.getByLabelText('These are my explicit preferences, not a voice learned from samples.'));
@@ -94,7 +94,7 @@ it('handoff identifies project and version and requires human approval without c
 });
 
 it('correction through the UI retains the old approval until the new version is reviewed',async()=>{
- render(<WritingStyleWorkbench />);fireEvent.click(screen.getByText('My Voice'));await screen.findByText('No approved profile. Your style is inactive.');
+ render(<WritingStyleWorkbench />);act(()=>{window.dispatchEvent(new Event('film:open-my-voice'));});await screen.findByText('No approved profile. Your style is inactive.');
  fireEvent.change(screen.getByLabelText('Proposed style guidance'),{target:{value:'Use ordinary words.'}});fireEvent.click(screen.getByLabelText('These are my explicit preferences, not a voice learned from samples.'));fireEvent.change(screen.getByLabelText('Preference provenance'),{target:{value:'Synthetic user instruction'}});fireEvent.click(screen.getByText('Save draft profile'));await screen.findByText('Version 1 · draft');fireEvent.click(screen.getByLabelText('I reviewed this Film profile, its direct preferences and any original sample evidence.'));fireEvent.click(screen.getByText('Approve reviewed profile'));await screen.findByText('Active approved profile: version 1');
  fireEvent.change(screen.getByLabelText('Correction to this Film guidance'),{target:{value:'Leave interruptions unfinished.'}});fireEvent.change(screen.getByLabelText('Correction provenance'),{target:{value:'Synthetic explicit author correction'}});fireEvent.click(screen.getByText('Propose corrected version'));await screen.findByText('Version 2 · draft');expect(screen.getByText('Active approved profile: version 1')).toBeTruthy();fireEvent.click(screen.getByLabelText('I reviewed this Film profile, its direct preferences and any original sample evidence.'));fireEvent.click(screen.getByText('Approve reviewed profile'));await screen.findByText('Active approved profile: version 2');
  const c=await bridge.api(`/projects/${bridge.state.currentProject.id}/writing-style/context`);expect(c.provenance.learned_voice).toBe(false);expect(c.provenance.voice_domain).toBe('screenplay_story');

@@ -46,12 +46,11 @@ test('the declared ceilings are not all the same number', () => {
         `every adapter declares ${[...limits][0]}, so nothing was actually made provider-specific`);
 });
 
-test('Runway keeps the limit that was measured against it', () => {
-    // The 1000 was not arbitrary — it is Runway's documented text_to_image cap,
-    // and the old constant's only mistake was applying it to everyone.
-    const runway = IMAGE_ADAPTERS.find(a => a.id === 'runway');
-    assert.ok(runway, 'runway no longer serves image');
-    assert.strictEqual(runway.promptLimit, 1000);
+test('Higgsfield keeps the ceiling it declares', () => {
+    // Held at the developer API's documented 4000 until the app tools publish their own.
+    const hf = IMAGE_ADAPTERS.find(a => a.id === 'higgsfield-mcp');
+    assert.ok(hf, 'higgsfield-mcp no longer serves image');
+    assert.strictEqual(hf.promptLimit, 4000);
 });
 
 test('allowances are a carve-up of the ceiling, not fixed numbers', () => {

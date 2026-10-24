@@ -8,7 +8,7 @@ const attempts = new AsyncLocalStorage();
 const approvedRequests = new WeakSet();
 const sha = bytes => crypto.createHash('sha256').update(bytes).digest('hex');
 // Every provider the final review can resolve, and the adapter file it reads.
-const REVIEW_PROVIDER_MODULES = Object.freeze({ openai:'openai-image', google:'google-image', muapi:'muapi-image', seedance:'seedance', runway:'runway', higgsfield:'higgsfield', 'muapi-upscale':'muapi-topaz-upscale', meshy:'meshy',worldlabs:'worldlabs',magnific:'magnific',elevenlabs:'elevenlabs' });
+const REVIEW_PROVIDER_MODULES = Object.freeze({ openai:'openai-image', google:'google-image', muapi:'muapi-image', seedance:'seedance', higgsfield:'higgsfield', 'muapi-upscale':'muapi-topaz-upscale', meshy:'meshy',worldlabs:'worldlabs',magnific:'magnific',elevenlabs:'elevenlabs','higgsfield-mcp':'higgsfield-mcp' });
 function adapterVersion(provider) {
  const files = REVIEW_PROVIDER_MODULES;
  if (!files[provider]) throw new Error(`Final request review is not supported for ${provider}`);
@@ -37,7 +37,7 @@ function validateEndpoint(value) {
 }
 function builder(provider, capability, payload) {
  let p = payload || {};
- const modules = {openai:'openai-image',google:'google-image',muapi:'muapi-image',seedance:'seedance',runway:'runway',higgsfield:'higgsfield',meshy:'meshy',worldlabs:'worldlabs',magnific:'magnific',elevenlabs:'elevenlabs'};
+ const modules = {openai:'openai-image',google:'google-image',muapi:'muapi-image',seedance:'seedance',higgsfield:'higgsfield',meshy:'meshy',worldlabs:'worldlabs',magnific:'magnific',elevenlabs:'elevenlabs','higgsfield-mcp':'higgsfield-mcp'};
  if(provider === 'muapi-upscale') {
   const parsed = require('./providers/muapi-upload').parseDataUri(p.image);
   if(!parsed) throw new Error('Upscale review needs immutable image bytes');
@@ -74,8 +74,8 @@ function builder(provider, capability, payload) {
  }
  if(provider==='worldlabs') return m.buildRequest(p);
  if(provider==='higgsfield') return m.buildRequest(capability,p);
+ if(provider==='higgsfield-mcp') return m.buildRequest(capability,p);
  if(provider==='seedance') return capability==='post'?m.buildPostRequest(p):m.buildVideoRequest(p);
- if(provider==='runway' && capability==='video') return p.runway_recipe==='multi_shot_video'?m.buildMultiShotRequest(p):m.buildVideoRequest(p);
  if(capability!=='image') throw new Error(`Final review is unavailable for ${provider}/${capability}`);
  return m.buildImageRequest(p);
 }
@@ -98,7 +98,7 @@ async function resolveFinalRequest(provider, capability, payload) {
    if(Array.isArray(value)!==Array.isArray(edited[key]) || typeof value!==typeof edited[key])throw new Error(`Invalid type for provider field ${key}`);
   }
   const fields=require('./providers/video-model-fields.json');
-  const specs = provider==='runway' ? fields.runway?.models?.[req.body.model] : (provider==='seedance'?fields.muapi?.endpoints?.[req.url.split('/').pop()]:null);
+  const specs = provider==='seedance'?fields.muapi?.endpoints?.[req.url.split('/').pop()]:null;
   for(const [key,spec] of Object.entries(specs||{})) {
    if(!Object.prototype.hasOwnProperty.call(edited,key))continue;
    const value=edited[key];
@@ -242,10 +242,12 @@ async function resolveFinalRequest(provider, capability, payload) {
  const editableInputs=new Set((validation.supportedInputFields[provider+'/'+capability] || '').split(' '));
  metadata.readOnlyInputFields=[...validation.metadataInputFields].filter(key=>!['final_prompt','final_request_body'].includes(key) && !editableInputs.has(key) && Object.prototype.hasOwnProperty.call(payload,key));
 
- return {provider,capability,endpoint:req.url,model:req.model || body.model || (provider==='runway' && payload.runway_recipe==='multi_shot_video'?'multi_shot_video':null),body,references,metadata,adapterVersion:adapterVersion(provider)};
+ return {provider,capability,endpoint:req.url,model:req.model || body.model || null,body,references,metadata,adapterVersion:adapterVersion(provider)};
 }
 function isMediaField(role) {
  const field=role.replace(/\[\d+\]/g,'').split('.').pop();
+ // A Higgsfield media entry ({ role, value }) carries its file in `value`.
+ if(/(?:^|\.)medias\[\d+\]\.value$/.test(role))return true;
  return /^(?:model_url|uri|url|image|images|image_url|image_uri|image_path|image_urls|images_list|init_image|source_image|promptImage|reference_image_urls|video|video_url|video_urls|videos_list|videoUri|source_video|audio|audio_url|audio_urls|audios_list|first_frame_image|last_frame_image|keyframes)$/.test(field) || /_(?:url|uri|path)$/.test(field);
 }
 function restore(snapshot) {

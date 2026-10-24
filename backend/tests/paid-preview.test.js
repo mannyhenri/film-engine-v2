@@ -259,35 +259,25 @@ test('every video adapter can say what it would actually send', () => {
     }
 });
 
-test('runway reports the model it will really use, not the one it was handed', () => {
+test('Higgsfield reports the model it will really use, not the one it was handed', () => {
     /*
      * The DESCRIBER comes from the registry, because that is the object every
      * caller gets. The BUILDER is internal and comes from the module — the
-     * whole point of this test is that those two agree, so they are deliberately
-     * fetched by different routes.
+     * whole point of this test is that those two agree.
      */
     const providers = require('../lib/providers');
-    const runway = providers.get('runway');
-    const internals = require('../lib/providers/runway');
+    const hf = providers.get('higgsfield-mcp');
+    const internals = require('../lib/providers/higgsfield-mcp');
     const asked = { prompt: 'x', model: 'animatediff-sdxl', duration_s: 5, width: 1280, height: 720 };
-
-    const described = runway.describeVideoRequest(asked);
-    const actual = internals.buildVideoRequest(asked);
-
+    const described = hf.describeVideoRequest(asked);
+    const actual = internals.buildRequest('video', asked);
     assert.strictEqual(described.model, actual.body.model,
-        'the description and the request disagree about the model — the preview is a separate '
-        + 'implementation and will drift from what is sent');
-    assert.notStrictEqual(described.model, 'animatediff-sdxl',
-        'the preview still reports a model runway has never heard of');
-
-    // And it must SAY that it substituted, or a director reads the swap as
-    // their own choice having been honoured.
+        'the description and the request disagree about the model — the preview will drift from what is sent');
+    assert.notStrictEqual(described.model, 'animatediff-sdxl', 'the preview still reports a model Higgsfield has never heard of');
     assert.ok(described.notes && described.notes.some(n => /animatediff-sdxl/.test(n)),
         `nothing tells the director their model was replaced: ${JSON.stringify(described.notes)}`);
-
-    // Duration is clamped too, and silently clamping is the same class of lie.
-    const long = runway.describeVideoRequest({ ...asked, duration_s: 47 });
-    assert.strictEqual(long.duration_s, internals.buildVideoRequest({ ...asked, duration_s: 47 }).body.duration);
+    const long = hf.describeVideoRequest({ ...asked, duration_s: 47 });
+    assert.strictEqual(long.duration_s, internals.buildRequest('video', { ...asked, duration_s: 47 }).body.duration);
     assert.ok(long.notes.some(n => /47/.test(n)), 'the clamped duration is not reported');
 });
 
@@ -496,73 +486,6 @@ test('every field the shot route accepts is offered to an agent', () => {
 //
 // The subject is the PRIMARY instruction, so when something genuinely must go
 // it is the last thing cut.
-
-test('a long motion description is not trimmed while it fits', () => {
-    const { buildVideoPrompt } = require('../lib/video-prompt');
-    const runway = require('../lib/providers/runway');
-
-    // 800 characters of motion: well over the old 500 cap, well under the real
-    // ceiling once assembled.
-    const action = ('The dragon climbs down from the shattered house and drives forward into the '
-        + 'narrow street, claws skidding on wet asphalt, wings half-open, tail whipping rainwater. ')
-        .repeat(4).slice(0, 800);
-
-    // (sceneCard, characters, location, stylePreset, options) — positional.
-    const built = buildVideoPrompt(
-        { shot_code: '2B', action, camera: { movement: 'tracking-forward' } }, [], null, null, {});
-    assert.ok(built.motion && built.motion.subject, 'no motion subject was built');
-    assert.strictEqual(built.motion.subject.length, action.length,
-        `the action was cut to ${built.motion.subject.length} of ${action.length} characters before `
-        + 'anything knew whether it would fit');
-
-    const sent = runway.buildVideoRequest({ ...built, duration_s: 5, width: 1280, height: 720 });
-    const limit = runway.promptLimit || 1000;
-    assert.ok(sent.body.promptText.length <= limit,
-        `the assembled prompt is ${sent.body.promptText.length}, over the ${limit} ceiling`);
-    assert.ok(sent.body.promptText.includes(action.slice(0, 700)),
-        'the motion description was cut even though the whole thing fits inside the ceiling');
-});
-
-test('when it genuinely does not fit, the subject is the last thing cut', () => {
-    const { buildVideoPrompt } = require('../lib/video-prompt');
-    const runway = require('../lib/providers/runway');
-
-    /*
-     * Over the ceiling on purpose. Something has to go, and it must not be the
-     * primary instruction — cutting the thing the shot is ABOUT to keep an
-     * atmosphere note is the wrong trade every time.
-     */
-    const action = 'A '.repeat(600);                  // 1200 chars
-    const environment = 'rain falls steadily. '.repeat(30);
-    const built = buildVideoPrompt(
-        { shot_code: '2B', action, environment_motion: environment, camera: { movement: 'dolly-in' } },
-        [], null, null, {});
-    const sent = runway.buildVideoRequest({ ...built, duration_s: 5, width: 1280, height: 720 });
-    const limit = runway.promptLimit || 1000;
-
-    assert.ok(sent.body.promptText.length <= limit,
-        `${sent.body.promptText.length} characters sent against a ${limit} ceiling`);
-    assert.ok(sent.body.promptText.includes('A A A'),
-        'the subject was dropped to make room for something else');
-    // The camera move is short and load-bearing; it survives too.
-    assert.ok(/camera performs/i.test(sent.body.promptText),
-        'the camera instruction was cut, so the clip has no move');
-});
-
-test('the ceiling comes from the adapter, not from a number in the builder', () => {
-    const src = fs.readFileSync(path.join(ROOT, 'lib', 'providers', 'runway.js'), 'utf8')
-        .replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
-    const fn = src.slice(src.indexOf('function buildRunwayMotionPrompt('));
-    const body = fn.slice(0, fn.indexOf('\n}'));
-    assert.ok(!/\.slice\(0,\s*1000\)/.test(body),
-        'the motion prompt still carries a hardcoded ceiling — the same literal that made the image '
-        + 'prompt trim against a limit belonging to a provider it never called');
-
-    const video = fs.readFileSync(path.join(ROOT, 'lib', 'video-prompt.js'), 'utf8')
-        .replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
-    assert.ok(!/slice\(0,\s*500\)/.test(video) && !/slice\(0,\s*300\)/.test(video),
-        'the unconditional per-field caps are still applied before anything knows whether they fit');
-});
 
 test('every paid control shows the actual PROMPT, not just a warning', () => {
     /*

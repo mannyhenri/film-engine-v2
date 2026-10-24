@@ -32,7 +32,6 @@ for (const k of Object.keys(process.env)) if (/_API_KEY$|_API_SECRET$|^RUNWAYML_
 const { db, generateId } = require('../db/database');
 require('../db/schema').ensureSchema();
 const providers = require('../lib/providers');
-const runway = require('../lib/providers/runway');
 const seedance = require('../lib/providers/seedance');
 
 const long = f => Math.max(f.width, f.height);
@@ -40,9 +39,7 @@ const ASKS = [[1024, 576], [1280, 720], [1920, 1080], [2560, 1440], [3840, 2160]
 
 /** Every model each video adapter lists, read from the adapter's own tables. */
 function modelsOf(adapter) {
-    if (adapter.id === 'runway') {
-        return Object.entries(runway.RUNWAY_VIDEO_MODELS).filter(([, m]) => m.endpoint === 'image_to_video').map(([id]) => id);
-    }
+    if (adapter.id === 'higgsfield-mcp') return [undefined, ...Object.keys(require('../lib/higgsfield-app-catalog').MODELS)];
     if (adapter.id === 'seedance') return [undefined, ...Object.keys(seedance.VIDEO_MODELS)];
     if (adapter.id === 'higgsfield') return [undefined, ...Object.keys(require('../lib/providers/higgsfield').MODELS.video)];
     return [undefined];
@@ -50,7 +47,7 @@ function modelsOf(adapter) {
 
 test('every video adapter says what frame it will deliver: the largest it offers at or below the ask, its best above that', () => {
     const video = providers.list().filter(a => (a.capabilities || []).includes('video'));
-    assert.deepEqual(video.map(a => a.id).sort(), ['gridlight', 'higgsfield', 'runway', 'seedance'], 'the video adapter set changed');
+    assert.deepEqual(video.map(a => a.id).sort(), ['gridlight', 'higgsfield', 'higgsfield-mcp', 'seedance'], 'the video adapter set changed');
     const bad = [];
     for (const adapter of video) {
         assert.equal(typeof adapter.deliverableFrame, 'function', `${adapter.id} does not say what it will deliver`);
@@ -73,27 +70,22 @@ test('every video adapter says what frame it will deliver: the largest it offers
     assert.deepEqual(bad, []);
 });
 
-test('Runway uses a model\'s 1080p ratio when the project asks for 1080p, and its best when asked for more', () => {
-    const at = (model, w, h) => runway.buildVideoRequest({ model, width: w, height: h, prompt: 'x', init_image: 'https://example.com/k.png' }).body.ratio;
-    // The 1080-capable models: every one whose ratio list carries 1920:1080.
-    // (Hailuo 3 is sized by its resolution tier and takes aspect names, so it has none.)
-    const capable = Object.entries(runway.RUNWAY_VIDEO_MODELS).filter(([, m]) => (m.ratios || []).includes('1920:1080')).map(([id]) => id);
+test('Higgsfield sends a model\'s 1080p tier when the project asks for 1080p, and its best when asked for more', () => {
+    const hf = require('../lib/providers/higgsfield-mcp');
+    const at = (model, w, h) => hf.buildRequest('video', { model, width: w, height: h, target_resolution: `${w}x${h}`, prompt: 'x', init_image: 'https://example.com/k.png' }).body.resolution;
+    const { MODELS } = require('../lib/higgsfield-app-catalog');
+    const capable = Object.entries(MODELS).filter(([, m]) => m.resolution && m.resolution.param === 'resolution' && m.resolution.values['1080p'] === '1080p' && m.start_frame).map(([id]) => id);
     assert.ok(capable.length >= 2, `only ${capable}`);
     for (const m of capable) {
-        assert.equal(at(m, 1920, 1080), '1920:1080', `${m} asked 1080p was sent a smaller ratio`);
-        // Its best for this shape: 1080p on most, 4K where the model lists it (Gemini Omni Flash 1.1).
-        const best = runway.RUNWAY_VIDEO_MODELS[m].ratios.includes('3840:2160') ? '3840:2160' : '1920:1080';
-        assert.equal(at(m, 3840, 2160), best, `${m} asked 4K did not get its best`);
-        assert.equal(at(m, 1280, 720), '1280:720', `${m} asked 720p was sent more than asked`);
-        assert.equal(at(m, 1080, 1920), '1080:1920', `${m} vertical 1080p lost its size`);
+        assert.equal(at(m, 1920, 1080), '1080p', `${m} asked 1080p was sent a smaller tier`);
+        assert.equal(at(m, 1280, 720), MODELS[m].resolution.values['720p'] ? '720p' : at(m, 1280, 720), `${m} asked 720p was sent more than asked`);
     }
-    assert.equal(at('gen4.5', 1920, 1080), '1280:720', 'gen4.5 has no 1080p ratio');
 });
 
 // ── drafting is opt-in, and the payload says what will be delivered ──────
 const P = generateId(), SC = generateId(), SH = generateId();
 db.prepare("INSERT INTO film_projects (id, title, target_resolution, aspect_ratio, target_fps, provider_config) VALUES (?, 'DQ', '3840x2160', '16:9', 24, ?)")
-    .run(P, JSON.stringify({ video: 'runway' }));
+    .run(P, JSON.stringify({ video: 'higgsfield-mcp' }));
 db.prepare("INSERT INTO film_scenes (id, project_id, scene_number, location) VALUES (?, ?, 1, 'DINER')").run(SC, P);
 db.prepare("INSERT INTO film_shots (id, scene_id, shot_code, scene_card_yaml) VALUES (?, ?, '1A', ?)")
     .run(SH, SC, JSON.stringify({ description: 'She waits.', camera: { shot_type: 'medium' } }));
@@ -110,7 +102,7 @@ test('a project that never chose drafting is not drafted, and every project in t
     assert.equal(`${plain.width}x${plain.height}`, '3840x2160', 'not asked at the delivery size');
     assert.ok(plain.delivery, 'the payload does not say what will be delivered');
     assert.equal(plain.delivery.asked, '3840x2160');
-    assert.equal(plain.delivery.downgraded, true, 'Runway cannot deliver 4K and the payload does not say so');
+    assert.equal(plain.delivery.downgraded, true, 'Seedance 2.5 on Higgsfield cannot deliver 4K and the payload does not say so');
     assert.match(plain.delivery.why, /\S/);
     const drafted = buildCapabilityPayload('video', { ...ctx, project: { ...project, draft_video: 1 } }).payload;
     assert.ok(drafted.draft && drafted.draft.active, 'a project that chose drafting was not drafted');

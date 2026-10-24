@@ -57,8 +57,8 @@
  */
 
 const HOUSE = Object.freeze({
-    provider: 'muapi',
-    model: 'nano-banana-pro',
+    provider: 'higgsfield-mcp',
+    model: 'nano_banana_pro',
     label: 'Nano Banana Pro',
 });
 
@@ -67,9 +67,8 @@ const HOUSE = Object.freeze({
  * Banana Pro. Same model, three vendors; the order is the house's.
  */
 const STANDARD_MODELS = Object.freeze({
-    muapi: 'nano-banana-pro',
-    google: 'gemini-3-pro-image',
-    meshy: 'nano-banana-pro',
+    // Higgsfield only (2026-10-24): a refusal is shown, never walked onto another vendor of the same model.
+    'higgsfield-mcp': 'nano_banana_pro',
 });
 const STANDARD_PROVIDERS = Object.freeze(Object.keys(STANDARD_MODELS));
 

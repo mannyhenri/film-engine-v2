@@ -163,11 +163,11 @@ test('every video adapter compiles the structure, or says it does not', () => {
 });
 
 test('a provider with the room is given more than one with none', () => {
-    // Runway 1,000 vs Seedance 16,000. One shape cannot serve a 16x difference.
+    // Higgsfield's app 4,000 vs Seedance on MuAPI 16,000. One shape cannot serve a 4x difference.
     const limits = {};
     for (const id of VIDEO_ADAPTERS) limits[id] = M.compileFor(id, { card: CARD, previs: PREVIS, durationS: 5 }).limit;
-    assert.ok(limits.seedance > limits.runway,
-        `seedance (${limits.seedance}) should have more room than runway (${limits.runway})`);
+    assert.ok(limits.seedance > limits['higgsfield-mcp'],
+        `seedance (${limits.seedance}) should have more room than higgsfield-mcp (${limits['higgsfield-mcp']})`);
 });
 
 /* ── the new card fields are real ─────────────────────────────────────── */

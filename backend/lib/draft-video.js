@@ -8,11 +8,6 @@
  * — and the specific number asked for is not available everywhere, which is
  * worth stating rather than quietly rounding.
  *
- *   Runway gen4.5 / gen4_turbo   smallest documented raster is 1280x720. There
- *                                is no 480p: `image_to_video` takes a RATIO
- *                                string, so the size IS the ratio, and a
- *                                request for 854x480 is a request to be
- *                                refused or silently snapped.
  *   Seedance 2.5 (via MuAPI)     480p is real and reachable: $0.17/s against
  *                                $0.85 at 1080p, and `lib/providers/seedance.js`
  *                                takes `resolution` as an explicit keyword. The
@@ -20,15 +15,11 @@
  *                                be one that adapter documents — an unknown one
  *                                is a 404, not a parameter quietly ignored.
  *
- * So 480p is a PROVIDER choice, not a setting: on Runway the floor is 720p and
- * the saving is the model, and on Seedance the floor is 480p and the saving is
- * five-fold. Draft asks for the smallest raster THE RESOLVED MODEL DOCUMENTS
+ * So 480p is a PROVIDER choice, not a setting: on Seedance (MuAPI or Higgsfield)
+ * the floor is 480p and the saving is five-fold, and on Veo the floor is 720p. Draft asks for the smallest raster THE RESOLVED MODEL DOCUMENTS
  * and reports which it got — telling a director they are drafting at 480p while
  * sending 720p gives them a number to budget on that is wrong by a factor of
  * five.
- *
- * On Runway the saving is the MODEL rather than the raster — gen4_turbo at 5
- * credits a second — which is what `VIDEO_TIERS.draft` already says.
  *
  * Pure: no database, no I/O.
  */
@@ -42,29 +33,20 @@
  * under-asking is a smaller picture generated where the choice can be reported.
  */
 const DRAFT_FLOORS = {
-    'gen4.5':      { width: 1280, height: 720, why: 'Runway documents 1280:720 as its smallest gen4.5 ratio; there is no 480p' },
-    gen4_turbo:    { width: 1280, height: 720, why: 'Runway documents 1280:720 as its smallest ratio; the saving here is the model, at 5 credits/second' },
     veo3_1:        { width: 1280, height: 720, why: 'Veo documents 1280:720 and 720:1280 only' },
-    'veo3.1':      { width: 1280, height: 720, why: 'Veo documents 1280:720 and 720:1280 only' },
-    'veo3.1_fast': { width: 1280, height: 720, why: 'Veo documents 1280:720 and 720:1280 only' },
-    seedance2:     { width: 1280, height: 720, why: 'Seedance 2.0 documents 1280:720 as its smallest' },
     /*
      * Seedance through MuAPI. `resolution` is the keyword its adapter reads,
      * and the model is built into the URL there — so it is carried as a keyword
      * rather than as a raster, and it must be one that adapter documents.
-     *
-     * Note the two paths to the same model: reached through RUNWAY, Seedance
-     * documents 1280:720 as its smallest and there is no 480p. Reached through
-     * MuAPI it is $0.17/s. Which one you get is a provider choice.
      */
     'seedance-2.5': { width: 854, height: 480, resolution: '480p',
         why: 'Seedance via MuAPI documents a 480p tier at $0.17/s against $0.85 at 1080p' },
-    seedance2_5:    { width: 1280, height: 720,
-        why: 'reached through RUNWAY, Seedance documents 1280:720 as its smallest — the 480p tier is on the MuAPI adapter, which is a different provider choice' },
-    hailuo3:       { width: 1280, height: 720, why: 'Hailuo 3 documents 720P as its smallest' },
     // Higgsfield's Seedance 2.5 endpoints document 480p, 720p and 1080p (higgsfield-models.json).
     'seedance-2-5': { width: 854, height: 480, resolution: '480p',
         why: 'Seedance 2.5 on Higgsfield documents a 480p tier as its smallest' },
+    // The same model in Higgsfield's app (signed in): 480p, 720p and 1080p (higgsfield-app-models.json).
+    seedance_2_5: { width: 854, height: 480, resolution: '480p',
+        why: 'Seedance 2.5 in the Higgsfield app offers a 480p tier as its smallest' },
     'gridlight-video': { width: 1280, height: 720, why: 'a swappable local agent — what it runs '
         + 'is unknowable from here, so the conservative floor every adapter documents is used' },
 };

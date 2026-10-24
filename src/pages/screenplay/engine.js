@@ -1943,7 +1943,7 @@ const { AI_PATH, TYPEWRITER, state } = Object.fromEntries(['AI_PATH', 'TYPEWRITE
             // FILM-111: Ctrl/Cmd + Shift + A for AI chat
             if ((event.key === 'a' || event.key === 'A') && event.shiftKey) {
                 event.preventDefault();
-                if (window.__filmOpenAIWorkspace) window.__filmOpenAIWorkspace();
+                if (window.__filmOpenAskAI) window.__filmOpenAskAI();
                 else toggleAIChat();
                 return;
             }
@@ -4955,7 +4955,7 @@ const { AI_PATH, TYPEWRITER, state } = Object.fromEntries(['AI_PATH', 'TYPEWRITE
 
     // FILM-111: AI Chat Panel functions
     function toggleAIChat() {
-        if (window.__filmOpenAIWorkspace) return window.__filmOpenAIWorkspace();
+        if (window.__filmOpenAskAI) return window.__filmOpenAskAI();
         const panel = document.getElementById('aiChatPanel');
         const btn = document.getElementById('aiChatToggle');
         if (panel) {

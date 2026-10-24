@@ -54,41 +54,26 @@ test('every video adapter declares its keyframe ceiling, with a reason', () => {
 // ── 2. Two keyframes actually reach the request ─────────────────────────
 
 test('a first and last frame reach the provider as positioned images', () => {
-    const runway = require('../lib/providers/runway');
-    const build = runway.buildVideoRequest || runway.__buildVideoRequest;
-    assert.ok(typeof build === 'function',
-        'runway does not expose its video request builder, so nothing can check what it sends');
-
-    const one = build({ promptText: 'a push in', init_image: 'data:image/png;base64,AAA' });
-    assert.strictEqual(one.mode, 'image_to_video');
-    assert.ok(one.body.promptImage, 'a single keyframe stopped reaching the request');
+    const hf = require('../lib/providers/higgsfield-mcp');
+    const build = p => hf.buildRequest('video', p);
+    const one = build({ prompt: 'a push in', init_image: 'data:image/png;base64,AAA' });
+    assert.deepStrictEqual(one.body.medias.map(m => m.role), ['start_image'], 'a single keyframe stopped reaching the request');
 
     const two = build({
-        promptText: 'the dragon crosses the road',
-        keyframes: [
-            { uri: 'data:image/png;base64,AAA', position: 'first' },
-            { uri: 'data:image/png;base64,BBB', position: 'last' },
-        ],
+        prompt: 'the dragon crosses the road',
+        keyframes: [{ uri: 'data:image/png;base64,AAA', position: 'first' }, { uri: 'data:image/png;base64,BBB', position: 'last' }],
     });
-    assert.ok(Array.isArray(two.body.promptImage),
-        'two keyframes collapsed to one image — the shot has a start and no destination');
-    assert.deepStrictEqual(two.body.promptImage.map(i => i.position), ['first', 'last'],
-        'the keyframes lost their positions, so which frame is the start is anyone’s guess');
-    assert.strictEqual(two.body.promptImage[0].uri, 'data:image/png;base64,AAA');
+    assert.deepStrictEqual(two.body.medias.map(m => m.role), ['start_image', 'end_image'],
+        'two keyframes collapsed or lost their places, so which frame is the start is anyone’s guess');
+    assert.strictEqual(two.body.medias[0].value, 'data:image/png;base64,AAA');
 
     /*
-     * Over the ceiling, the extra frames are NOT silently dropped. A director
-     * who selected four shots and got a two-shot interpolation with no message
-     * would read it as the feature not working — the exact failure mode the
-     * reference-limit and prompt-ceiling work each hit once.
+     * Over the ceiling, the extra frames are REFUSED by name rather than
+     * silently dropped: a director who selected four shots and got a two-shot
+     * interpolation with no message would read it as the feature not working.
      */
-    const many = build({
-        promptText: 'x',
-        keyframes: ['a', 'b', 'c', 'd'].map((u, i) => ({ uri: u, position: i === 0 ? 'first' : 'last' })),
-    });
-    assert.ok(many.body.promptImage.length <= 2, 'more keyframes were sent than the endpoint accepts');
-    assert.ok(many.dropped && many.dropped.length,
-        'keyframes beyond the ceiling were dropped without saying so');
+    assert.throws(() => build({ prompt: 'x', keyframes: ['a', 'b', 'c', 'd'].map((u, i) => ({ uri: u, position: i === 0 ? 'first' : 'last' })) }),
+        /at most 2 keyframe/);
 });
 
 // ── 3. N shots become N-1 segments, in order ────────────────────────────
@@ -194,7 +179,7 @@ test('a sequence is created, planned, refused for a missing frame, and takes an 
      * one. The degraded path has its own assertions above.
      */
     db.prepare('INSERT INTO film_projects (id, title, provider_config) VALUES (?, ?, ?)')
-        .run(projectId, 'Seq', JSON.stringify({ video: 'runway' }));
+        .run(projectId, 'Seq', JSON.stringify({ video: 'higgsfield-mcp' }));
     db.prepare('INSERT INTO film_scenes (id, project_id, scene_number) VALUES (?, ?, ?)').run(sceneId, projectId, '1');
 
     const dir = path.join(process.env.FILM_DATA_DIR, 'storyboards', projectId);
@@ -462,7 +447,7 @@ test('a sequence joins its own clips into one file, and refuses a short one', as
     const projectId = generateId();
     const sceneId = generateId();
     db.prepare('INSERT INTO film_projects (id, title, provider_config, target_fps) VALUES (?, ?, ?, ?)')
-        .run(projectId, 'Join', JSON.stringify({ video: 'runway' }), 24);
+        .run(projectId, 'Join', JSON.stringify({ video: 'higgsfield-mcp' }), 24);
     db.prepare('INSERT INTO film_scenes (id, project_id, scene_number) VALUES (?, ?, ?)').run(sceneId, projectId, '1');
 
     const sbDir = path.join(process.env.FILM_DATA_DIR, 'storyboards', projectId);

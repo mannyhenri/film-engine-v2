@@ -40,22 +40,6 @@ test('every async adapter declares whether its provider can really cancel', () =
     assert.deepEqual(lying, [], 'claims provider cancel but implements none');
 });
 
-test('Runway really cancels: DELETE on its own task, and a refusal is reported, not hidden', async () => {
-    const runway = providers.get('runway');
-    const real = globalThis.fetch;
-    const seen = [];
-    try {
-        globalThis.fetch = async (url, init) => { seen.push(`${init && init.method} ${url}`); return { ok: true, status: 204, json: async () => ({}), text: async () => '' }; };
-        const r = await runway.cancelJob('task-1');
-        assert.equal(r.ok, true);
-        assert.match(seen[0], /^DELETE .*\/tasks\/task-1$/);
-        globalThis.fetch = async () => ({ ok: false, status: 404, json: async () => ({ error: 'not found' }), text: async () => 'not found' });
-        const bad = await runway.cancelJob('task-2');
-        assert.equal(bad.ok, false);
-        assert.match(bad.error, /404|not found/);
-    } finally { globalThis.fetch = real; }
-});
-
 const P = generateId();
 db.prepare("INSERT INTO film_projects (id, title) VALUES (?, 'Cancel')").run(P);
 function job(provider, collectable = 1) {
@@ -97,7 +81,7 @@ test('a stopped-waiting job moves from "running" to "awaiting collection" in the
 });
 
 test('the queue says, per running job, which kind of cancel it offers', () => {
-    const id = job('runway');
+    const id = job('higgsfield');
     const item = q.projectQueue(P).running.find(x => x.job_id === id);
     assert.equal(item.cancel, 'provider');
     const s = job('muapi');

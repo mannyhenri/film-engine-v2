@@ -1272,7 +1272,7 @@ const PRODUCTION_TOOLS = [
         name: 'generation_cancel',
         handler: handleGenerationJobs, method: 'POST',
         path: a => `/film/generation-jobs/${a.job_id}/cancel`,
-        description: 'Cancel one running generation. FREE. Where the provider really cancels (Runway) it is cancelled there; '
+        description: 'Cancel one running generation. FREE. Where the provider really cancels it is cancelled there; '
             + 'everywhere else Film Engine STOPS WAITING and says the provider may still finish and bill — the job stays '
             + 'collectable with generation_collect. A synchronous call has nothing to cancel and says so.',
         schema: { job_id: { type: 'string' } }, required: ['job_id'],
@@ -1592,7 +1592,7 @@ const PRODUCTION_TOOLS = [
         schema: {
             character_id: { type: 'string' },
             seconds: { type: 'number', description: 'Clip length in seconds; 5 by default.' },
-            model: { type: 'string', description: 'Video model; gen4_turbo by default (5 credits/second).' },
+            model: { type: 'string', description: 'Video model; the provider default when omitted (Seedance 2.5 on Higgsfield).' },
         },
         required: ['character_id'],
     },
@@ -1628,7 +1628,7 @@ const PRODUCTION_TOOLS = [
             tier: { type: 'string', enum: ['draft', 'production', 'hero'], description: 'Price and plan this tier. draft = Gen-4 Turbo, 5s, 25 credits — the blocking check. production = H3 768P with the reference package. hero = your choice.' },
             video: { type: 'string', description: 'Preview a different provider for this one clip — the same override video_generate takes.' },
             video_model: { type: 'string', description: 'Preview a different model for this one clip.' },
-            use_dialogue_audio: { type: 'boolean', description: 'Preview sending the shot\'s recorded dialogue as an audio reference (Seedance 2.5 on MuAPI, or seedance2_5 on Runway). The preview says how many lines would go, or why none can.' },
+            use_dialogue_audio: { type: 'boolean', description: 'Preview sending the shot\'s recorded dialogue as an audio reference (Seedance 2.5 on Higgsfield or MuAPI). The preview says how many lines would go, or why none can.' },
             options: { type: 'object', description: 'The model\'s own options for this one clip, as an object: duration (seconds, or \'auto\' where the model takes it), ratio, resolution, audio (true/false), last_frame (the id of another shot in this project whose board frame the clip ends on), output_format (Gen-4.5: mp4, prores, hdr10, hlg...), negative_prompt, seed, draft (MuAPI). Which of these a model takes, and their allowed values, is in video_preview\'s `options.controls`, read from the provider\'s own schema; a value outside it is refused by name and nothing is sent. Unset means as the project would have it. Returned as `options`: the controls this model takes, what is chosen, and the shots whose frame it could end on.' } },
         required: ['shot_id'],
     },
@@ -1915,8 +1915,8 @@ const PRODUCTION_TOOLS = [
         path: a => `/film/sequences/${a.sequence_id}/generate-native`,
         body: a => ({ ratio: a.ratio || '1280:720' }),
         description:
-            'Runway native multi-shot recipe. SPENDS CREDITS and creates one clip containing 3–5 editorial cuts. '
-            + 'Less deterministic than generating approved shots independently; call sequence_plan first for the exact body and cost.',
+            'Native multi-shot through the local Gridlight gateway only (the Runway recipe was removed). SPENDS on the gateway and creates one clip containing 3–5 cuts. '
+            + 'Elsewhere it refuses: generate the approved shots independently instead.',
         schema: { sequence_id: { type: 'string' }, ratio: { type: 'string' } }, required: ['sequence_id'],
     },
     {
@@ -2354,7 +2354,7 @@ const PRODUCTION_TOOLS = [
             provider_config: {
                 type: 'object',
                 description: 'Which generator this project uses, per capability — '
-                    + '{"image":"meshy","video":"runway"}. MERGED, never replaced: keys you omit keep '
+                    + '{"image":"higgsfield-mcp","video":"higgsfield-mcp"}. MERGED, never replaced: keys you omit keep '
                     + 'their stored value, so configuring one capability cannot drop the others. Send '
                     + 'null as a value to clear one and fall back to automatic resolution. Also '
                     + 'accepts image_quality (draft/standard/precision/auto) and image_model. '
@@ -3355,7 +3355,7 @@ const PRODUCTION_TOOLS = [
     {
         name: 'spend_report',
         handler: handleBudget, method: 'GET',
-        description: 'What this project has actually cost in AI generation \u2014 dollars, and the provider units underneath them (tokens at Anthropic, credits at Meshy and Runway, characters and seconds at ElevenLabs). Broken down by capability, provider, model, day and shot, with cost per minute of finished footage and cost per shot. Spend is recorded automatically at the moment of every provider call; nothing needs to be entered by hand. `estimated_usd` is the part that was reconstructed from assets generated before tracking existed \u2014 a floor, since failed generations cost money and left nothing to count. This is NOT the live-action budget estimator (budget_estimate): that one prices crew, cast and shooting days, which this pipeline does not have.',
+        description: 'What this project has actually cost in AI generation \u2014 dollars, and the provider units underneath them (tokens at Anthropic, credits at Meshy and Higgsfield, characters and seconds at ElevenLabs). Broken down by capability, provider, model, day and shot, with cost per minute of finished footage and cost per shot. Spend is recorded automatically at the moment of every provider call; nothing needs to be entered by hand. `estimated_usd` is the part that was reconstructed from assets generated before tracking existed \u2014 a floor, since failed generations cost money and left nothing to count. This is NOT the live-action budget estimator (budget_estimate): that one prices crew, cast and shooting days, which this pipeline does not have.',
         path: a => `/film/projects/${a.project_id}/spend`,
         schema: { project_id: { type: 'string' } },
         required: ['project_id'],
@@ -3374,7 +3374,7 @@ const PRODUCTION_TOOLS = [
         schema: {
             project_id: { type: 'string' },
             capability: { type: 'string', description: 'image, video, voice, music, sfx, ambient, llm, model3d, lipsync, post' },
-            provider: { type: 'string', description: 'anthropic, meshy, elevenlabs, runway, openai, gridlight' },
+            provider: { type: 'string', description: 'anthropic, meshy, elevenlabs, higgsfield-mcp, openai, gridlight' },
             limit: { type: 'number' },
         },
         required: ['project_id'],
@@ -3397,7 +3397,7 @@ const PRODUCTION_TOOLS = [
         description:
             'Compare every generator that can produce images or video, priced against ONE UNIT OF '
             + 'REAL WORK so the numbers are commensurable \u2014 the providers do not bill in the same '
-            + 'unit (Runway and OpenAI per image, Meshy per call, BFL per megapixel, video per '
+            + 'unit (Higgsfield and OpenAI per image, Meshy per call, BFL per megapixel, video per '
             + 'second), so a raw rate cannot be ranked. FREE: reads the registries, generates '
             + 'nothing. Each row carries the price for one frame or clip, the price for a scene of '
             + 'them, whether a credential exists (a price you cannot use is not a choice, so '
@@ -4432,7 +4432,7 @@ const PRODUCTION_TOOLS = [
              */
             environment_motion: { type: 'string', description: 'What the WORLD does while the subject acts \u2014 "flames erupt from the struck house; debris falls into the street". Reaches the video prompt on every provider; it is NOT the subject\u2019s action and NOT scenery, which the keyframe already shows.' },
             end_state: { type: 'string', description: 'Where things must BE when the clip ends \u2014 "the dragon fills the near foreground; Maya is small at the far kerb". Compiled into a closing clause, never sent as a labelled section.' },
-            generation: { type: 'object', description: '{negative_prompt} \u2014 what this shot\u2019s frame and clip must avoid, added to the default negatives. MERGES; null on a key clears it. Some video providers (Runway) accept no negative prompt at all, so a rule that must hold everywhere belongs in the description too.' },
+            generation: { type: 'object', description: '{negative_prompt} \u2014 what this shot\u2019s frame and clip must avoid, added to the default negatives. MERGES; null on a key clears it. Some video providers (the Higgsfield app models) accept no negative prompt at all, so a rule that must hold everywhere belongs in the description too.' },
             beats: { type: 'array', items: { type: 'string' }, description: 'Ordered subject beats for a shot that evolves, compiled as "First X, then Y". Write these ONLY when the shot genuinely has stages \u2014 micromanaging every second makes some models less reliable, and a shot needing more than a few beats is usually one that should be split.' },
             duration_seconds: { type: 'number' },
             notes: { type: 'string' },
@@ -5378,7 +5378,7 @@ const BATCH_TOOLS = [
     {
         name: 'media_upload',
         description:
-            'Add FOOTAGE OR SOUND made outside Film Engine \u2014 a clip cut in Runway or Kling, dialogue '
+            'Add FOOTAGE OR SOUND made outside Film Engine \u2014 a clip cut in another app, dialogue '
             + 'recorded properly, a licensed music bed. FREE: nothing is generated. capability is one of '
             + 'video, voice, lipsync, sfx, post (these belong to a SHOT) or music, ambient (these belong '
             + 'to a SCENE) \u2014 call media_kinds to see which, and what each accepts. The file is a '

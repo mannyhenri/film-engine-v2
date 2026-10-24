@@ -14,8 +14,10 @@
  * LLM text. OpenAI is manual for images only.
  */
 const MANUAL_PROVIDERS = new Set([
-    'muapi', 'muapi-upscale', 'seedance', 'higgsfield', 'runway', 'meshy',
+    'muapi', 'muapi-upscale', 'seedance', 'higgsfield', 'meshy',
     'elevenlabs', 'worldlabs', 'google', 'openai', 'magnific', 'topaz',
+    // Signed in to the person's Higgsfield plan (2026-10-24): wired and reviewed, still handed over until sending is switched on.
+    'higgsfield-mcp',
 ]);
 
 /*
@@ -27,6 +29,9 @@ const SENT = Object.freeze({ meshy: new Set(['model3d']) });
 
 function isManual(provider, capability) {
     if (capability === 'llm') return false;
+    // Test mode: Higgsfield runs the real approve-and-send path, and the adapter writes the request down
+    // at the point it would leave the machine (lib/generation-test-mode.js). Nothing is sent either way.
+    if (require('./generation-test-mode').appliesTo(provider)) return false;
     if (SENT[String(provider || '')]?.has(capability)) return false;
     return MANUAL_PROVIDERS.has(String(provider || ''));
 }

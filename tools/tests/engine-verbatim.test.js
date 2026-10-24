@@ -25,9 +25,17 @@ const ROOT = path.join(__dirname, '..', '..');
  * differs from the reference fails, so the list cannot outlive the change it records.
  */
 const CHANGED = {
+    "src/components/VideoPipeline/engine.js": {
+        "loadSequences": "Runway removed (2026-10-24): no Runway multi-shot button; the upload hint names Higgsfield",
+        "previewSequence": "Runway removed (2026-10-24): the native multi-shot line no longer names Runway",
+        "generateNativeMultiShot": "Runway removed (2026-10-24): the recipe is the local gateway's"
+    },
+    "src/pages/videoshots/engine.js": {
+        "replaceBackground": "Runway removed (2026-10-24): background replacement runs on Higgsfield, which bills the clip handed in"
+    },
     "src/pages/screenplay/engine.js": {
         "onEditorKeydown": "Preserve the live writer-focus shortcut and Escape exit before typewriter input",
-        "toggleAIChat": "the existing AI Chat button and keyboard shortcut enter the App-mounted durable project workspace when available; the legacy panel remains the fallback",
+        "toggleAIChat": "the existing AI Chat button and keyboard shortcut open Ask AI (the project AI workspace was removed as its duplicate, 2026-10-24); the legacy panel remains the fallback",
         "renderIndexCards": "Authorized independent scene summaries and notes; screenplay changes stay in the Editor",
         "openIndexCard": "Authorized independent scene summaries and notes; screenplay changes stay in the Editor",
         "saveIndexCard": "Authorized independent scene summaries and notes; screenplay changes stay in the Editor",
@@ -47,6 +55,7 @@ const CHANGED = {
         "exportCharacterSheet": "the director's sheet: the main picture on top, its variations below, then the description (MainSheet), replacing the four official views"
     },
     "src/pages/flows/engine.js": {
+        "renderFlowInspector": "Runway removed (2026-10-24): the fan-out provider list offers Higgsfield (signed in) in its place",
         "flowPaintRun": "user-approved staged request review: paused provider chains visibly require a fresh review after the previous result is saved",
         "flowCanvasRun": "user-approved exact final review: every flow run and budget override prepares all provider requests before the original POST; unsupported planners fail closed"
     },

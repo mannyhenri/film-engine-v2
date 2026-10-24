@@ -73,6 +73,8 @@ const EXPECTED = {
      * documented figure, and marked undocumented as a whole-provider number.
      */
     higgsfield: { exact: 4000, documented: false },
+    // The app's tools take a free-text prompt with no published ceiling; held at the developer API's 4000.
+    'higgsfield-mcp': { exact: 4000, documented: false },
     /*
      * BFL publishes no character limit for FLUX.2. Held at 4000, matching
      * OpenAI's documented figure, on the same reasoning Meshy's was set:

@@ -89,6 +89,7 @@ export default function SettingsPage() {
     const [folder, setFolder] = useState({ title: 'Where this project is saved', info: null, error: '', moveRow: false, moveLabel: 'Move', moving: false });
     const [backup, setBackup] = useState({ every: '', keep: '', projects: false, status: '' });
     const [author, setAuthor] = useState('');
+    const [testMode, setTestMode] = useState(false);
     const [apiUrl, setApiUrl] = useState('');
     const [gridlight, setGridlight] = useState({ on: false, serves: '' });
 
@@ -320,6 +321,7 @@ export default function SettingsPage() {
         try {
             const res = await legacy.api('/settings');
             setAuthor((res.settings && res.settings.author) || '');
+            setTestMode(!!(res.settings && res.settings.generation_test_mode));
             const on = !!String((res.settings && res.settings.gridlight_enabled) || '').trim();
             let serves = '';
             try {
@@ -336,6 +338,15 @@ export default function SettingsPage() {
             setLegacy('APP_AUTHOR', a); // the cached copy, or the next title page uses the old name
             legacy.setStatus('Author saved.');
         } catch (err) { legacy.setStatus('Could not save: ' + err.message); }
+    }
+    // Saved on the click, and announced, so the badge and every open review agree with the switch at once.
+    async function saveTestMode(on) {
+        setTestMode(on);
+        try {
+            await legacy.api('/settings', { method: 'PUT', body: JSON.stringify({ generation_test_mode: on }) });
+            window.dispatchEvent(new CustomEvent('film:test-mode', { detail: { on } }));
+            legacy.setStatus(on ? 'Test mode on: Higgsfield requests are saved, not sent.' : 'Test mode off.');
+        } catch (err) { setTestMode(!on); legacy.setStatus('Could not save: ' + err.message); }
     }
     // Saved on the click: a switch that looks flipped and has not been saved is how the local endpoints
     // seem on while every generation resolves elsewhere.
@@ -438,7 +449,7 @@ export default function SettingsPage() {
                                     <input type="checkbox" id="settingsVideoDraft" data-field="video_draft" checked={proj.draft} onChange={setP('draft')} />
                                     <span>Generate clips at the provider's smallest raster, and finish at delivery size later</span></label>
                                 {why(<>Most generated clips are thrown away, so paying delivery rates for them is the largest avoidable cost here. Off by default: every clip is asked at the
-                                    delivery size. The floor is the <em>model's</em>: on Seedance that is 480p and roughly a fifth of the price; on Runway the smallest ratio is 720p.</>)}</div>
+                                    delivery size. The floor is the <em>model's</em>: on Seedance that is 480p and roughly a fifth of the price; on Veo it is 720p.</>)}</div>
                             <div className="form-group"><label>Status</label>
                                 <select id="settingsStatus" data-field="status" value={proj.status} onChange={setP('status')}>{STATUSES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></div>
                             <div className="btn-row">
@@ -545,6 +556,19 @@ export default function SettingsPage() {
                                 {why(<>The written-by credit on every screenplay title page and every Final Draft export. Set once here rather than retyped per project — it fills a blank author
                                     and never overwrites one, so a screenplay written by someone else keeps their name.</>)}</div>
                             <div className="btn-row"><button className="btn btn-primary" onClick={saveAppSettings}>Save</button></div>
+                        </div>
+                        <div className={cardClass('settingsTestModeCard', 'you')} id="settingsTestModeCard" data-set-section="you">
+                            <h3 className="mb-8">Test mode</h3>
+                            <label className="ps-inline"><input type="checkbox" id="settingsTestMode" checked={testMode} onChange={(e) => saveTestMode(e.target.checked)} /> Save Higgsfield requests instead of sending them</label>
+                            <p className="set-lede">Use the app as normal. Every generation that would go to Higgsfield is reviewed as usual, and Approve saves the exact
+                                request (a <code>request.json</code> with the prompt, settings and credits) and the pictures it would upload into the project's
+                                <em> exports/Higgsfield test requests</em> folder. Nothing is sent and no credits are spent.</p>
+                        </div>
+                        <div className={cardClass('settingsMyVoiceCard', 'you')} id="settingsMyVoiceCard" data-set-section="you">
+                            <h3 className="mb-8">My Voice</h3>
+                            <p className="set-lede">Your screenplay and story voice for the open project: samples, approved guidance and versions.</p>
+                            <div className="btn-row"><button type="button" className="btn btn-primary" disabled={!hasProject} title={hasProject ? '' : 'Open a project first'}
+                                onClick={() => window.dispatchEvent(new Event('film:open-my-voice'))}>Open My Voice</button></div>
                         </div>
                         <div className={cardClass('settingsConnectionCard', 'you')} id="settingsConnectionCard" data-set-section="you">
                             <h3 className="mb-8">Backend Connection</h3>

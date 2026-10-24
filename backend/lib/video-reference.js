@@ -71,20 +71,18 @@ const KEYFRAME_ONLY = Object.freeze({
 });
 
 const CONTRACTS = Object.freeze({
-    hailuo3: Object.freeze({
+    // Keyed by Higgsfield app model ids (higgsfield-app-models.json), the only video vendor since 2026-10-24.
+    minimax_h3: Object.freeze({
         roles: Object.freeze(['keyframe', 'character', 'creature', 'prop', 'location', 'style', 'motion', 'audio']),
         maxImages: 9, maxVideos: 3, maxAudio: 3,
-        why: 'Runway documents H3 taking keyframes plus image, video and audio references; '
-            + 'at 2 credits per image a full role package costs about 18 credits',
+        why: 'MiniMax H3 takes keyframes plus image, video and audio references',
     }),
-    seedance2_5: Object.freeze({
+    seedance_2_5: Object.freeze({
         // The only model that documents room for a strip: 30 images, free.
-        // hailuo3 charges 2 credits an image and takes 9 of them, so a
-        // per-second strip would be most of its budget and a rejection past it.
         roles: Object.freeze(['keyframe', 'inbetween', 'character', 'creature', 'prop', 'location', 'style', 'motion', 'audio']),
         maxImages: 30, maxVideos: 10, maxAudio: 10,
-        why: 'Runway documents Seedance 2.5 at up to 30 images, 10 videos and 10 audio; '
-            + 'the images are free and the VIDEO is billed per second, so a clip is a cost decision',
+        why: 'Seedance 2.5 takes up to 30 images, 10 videos and 10 audio in omni-reference; '
+            + 'the images add nothing to the price and the clip is billed per second',
     }),
 });
 

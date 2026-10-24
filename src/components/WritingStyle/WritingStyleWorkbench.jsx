@@ -40,6 +40,9 @@ export default function WritingStyleWorkbench() {
  const toolbar=useScreenplayToolbar();
  function close(){requestVersion.current++;setProject(null);setView(null);setError('');setBusy(false);setEditing(null);setImportReview(null);}
  useEffect(()=>subscribeProjectEpoch(close),[]);
+ // Opened from Setup › You (the floating corner button is gone), and from the screenplay toolbar.
+ const openRef=useRef(null);openRef.current=()=>open();
+ useEffect(()=>{const go=()=>openRef.current();window.addEventListener('film:open-my-voice',go);return()=>window.removeEventListener('film:open-my-voice',go);},[]);
  const latest=view?.profiles[0], base=project ? `/projects/${project.id}/writing-style` : '';
  async function open() {
   const p=legacy.state.currentProject; if (!p) { setError('Open a project first.'); return; }
@@ -80,7 +83,6 @@ export default function WritingStyleWorkbench() {
  }
  const field={ display:'block',width:'100%',margin:'6px 0 12px' };
  return <>
-  <button type="button" className="btn btn-secondary" style={{ position:'fixed',right:18,bottom:38,zIndex:100 }} onClick={open}>My Voice</button>
   {toolbar && createPortal(<button type="button" className="toolbar-btn learn-my-style" onClick={open} data-tooltip="Your independent Film screenplay/story voice">My Voice</button>,toolbar)}
   {error && !project && <div role="alert" style={{ position:'fixed',right:18,bottom:80,zIndex:100 }}>{error}</div>}
   {project && <section role="dialog" aria-modal="true" aria-label="Film My Voice workbench" style={{ position:'fixed',inset:'6% 12%',zIndex:1100,overflowY:'auto',background:'var(--gl-bg,#171923)',color:'var(--gl-text,#eee)',padding:24,border:'1px solid #666',borderRadius:12 }}>

@@ -67,9 +67,9 @@ const IMAGE_TIERS = Object.freeze({
             + 'Exploration has to be cheap, or nobody explores and every idea costs a finished frame.',
         // Black Forest Labs led here until it was removed (2026-09-30); Meshy's
         // nano-banana is the cheapest vendor left for this tier.
-        order: ['meshy', 'google', 'openai', 'gridlight'],
+        order: ['higgsfield-mcp', 'gridlight'],
         models: Object.freeze({
-            meshy: 'nano-banana', google: 'gemini-3.1-flash-lite-image',
+            'higgsfield-mcp': 'nano_banana_2_lite', meshy: 'nano-banana', google: 'gemini-3.1-flash-lite-image',
         }),
     }),
     standard: Object.freeze({
@@ -88,9 +88,9 @@ const IMAGE_TIERS = Object.freeze({
          * Meshy stays next in line: it is what this board has been generating
          * on, and it is the fallback when no Google key is present.
          */
-        order: ['muapi', 'google', 'meshy', 'openai', 'runway', 'gridlight'],
+        order: ['higgsfield-mcp', 'gridlight'],
         models: Object.freeze({
-            google: 'gemini-3.1-flash-image', meshy: 'nano-banana-2',
+            'higgsfield-mcp': 'nano_banana_2', google: 'gemini-3.1-flash-image', meshy: 'nano-banana-2',
         }),
     }),
     precision: Object.freeze({
@@ -107,9 +107,9 @@ const IMAGE_TIERS = Object.freeze({
          * camera change at once, which is exactly the work edit-mode handles
          * worst. Meshy stays next in line for when the Google key is absent.
          */
-        order: ['google', 'meshy', 'openai', 'gridlight'],
+        order: ['higgsfield-mcp', 'gridlight'],
         models: Object.freeze({
-            google: 'gemini-3-pro-image', meshy: 'nano-banana-pro',
+            'higgsfield-mcp': 'nano_banana_pro', google: 'gemini-3-pro-image', meshy: 'nano-banana-pro',
         }),
     }),
 });
@@ -255,6 +255,8 @@ function resolveTier(tier, config, request) {
          */
         if (id === 'gridlight' && !providers.isProviderConfigured('gridlight')) { skipped.push(id); continue; }
         if (adapter.requiresKey && !hasCredential(id)) { skipped.push(id); continue; }
+        // Nothing to paste is not the same as ready: a sign-in (Higgsfield) says whether it is signed in.
+        if (!adapter.requiresKey && typeof adapter.available === 'function' && !providers.isProviderConfigured(id)) { skipped.push(id); continue; }
         const first = spec.order.find(x => providers.get(x));
         return {
             provider: id,

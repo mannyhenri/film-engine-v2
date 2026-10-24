@@ -294,7 +294,7 @@ const VIDEO_EDIT_REFUSAL =
     + '(docs/plans/rbf-001-video-edit-probe.md): images_list entries are STYLE REFERENCES '
     + 'composited into the scene rather than keyframes, `duration` is ignored, billing follows '
     + 'the SOURCE length rather than the duration asked for, and a FAILED job is still charged — '
-    + '$3.205 actual against a $0.68 estimate. Use Runway `aleph2`, which is a real '
+    + '$3.205 actual against a $0.68 estimate. Use Higgsfield Seedance 2.5 video_edit, which is a real '
     + 'video-to-video model with documented keyframes: POST /film/shots/:id/video/background/'
     + 'generate, or the video_background_replace tool. This endpoint is still used for the '
     + 'UPSCALE, which is not an edit.';
@@ -1018,8 +1018,8 @@ const seedanceAdapter = {
     /*
      * WHAT THIS ADAPTER WILL CARRY, in the shape lib/video-reference speaks.
      *
-     * `CONTRACTS` over there is keyed by RUNWAY's model catalogue — `hailuo3`,
-     * `seedance2_5` — because that is where reference contracts were first
+     * `CONTRACTS` over there is keyed by Higgsfield's app model ids — `minimax_h3`,
+     * `seedance_2_5` — because that is where reference contracts were first
      * needed. A project on THIS adapter reaches Seedance directly through
      * MuAPI, so `contractFor()` was handed a null model, fell to KEYFRAME_ONLY,
      * and dropped every `inbetween` reference on the floor.

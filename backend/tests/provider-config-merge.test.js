@@ -164,7 +164,8 @@ test('a resolution says where it came from, and whether anyone chose it', () => 
      * whether the person happened to have set one.
      */
     providers.refreshAccountDefaults();
-    const guessed = providers.resolveIdWithReason('image', {});
+    // Video, not image: images are decided by the house standard, a stated rule (provider-resolution-visible).
+    const guessed = providers.resolveIdWithReason('video', {});
     assert.strictEqual(guessed.explicit, false,
         'a project that pinned nothing must report its provider as a guess, not a choice');
 

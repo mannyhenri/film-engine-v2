@@ -405,6 +405,47 @@ const RATE_BOOK = {
         unit: 'second', native_unit: 'second', native_per_unit: 1,
         models: {},
     },
+    /*
+     * Higgsfield, SIGNED IN (lib/providers/higgsfield-mcp.js): the person's plan
+     * credits, at the plan's price per credit (higgsfield-app-catalog's
+     * usd_per_credit; set FILM_HIGGSFIELD_USD_PER_CREDIT or a rate override if
+     * credits were bought another way). The meter reports each call's credits
+     * from Higgsfield's own quotes, so this row only converts them to money.
+     */
+    'higgsfield-mcp:image': {
+        unit: 'image', native_unit: 'credit', native_per_unit: 2,
+        usd_per_native: require('./higgsfield-app-catalog').SNAPSHOT.credit_usd.usd_per_credit,
+        inferred: true,
+        source: 'https://higgsfield.ai/pricing',
+        checked: '2026-10-24',
+        note: 'Credits per image from Higgsfield’s own quotes (Nano Banana Pro 2 at 1k/2k, 4 at 4k). Plan credits at the Ultra rate.',
+    },
+    'higgsfield-mcp:video': {
+        unit: 'second', native_unit: 'credit', native_per_unit: 7,
+        usd_per_native: require('./higgsfield-app-catalog').SNAPSHOT.credit_usd.usd_per_credit,
+        inferred: true,
+        source: 'https://higgsfield.ai/pricing',
+        checked: '2026-10-14',
+        note: 'Credits per second by model, resolution and sound, from the app catalogue. Plan credits at the Ultra rate.',
+    },
+    'higgsfield-mcp:voice': {
+        unit: 'call', native_unit: 'credit', native_per_unit: 0.4,
+        usd_per_native: require('./higgsfield-app-catalog').SNAPSHOT.credit_usd.usd_per_credit,
+        inferred: true, source: 'https://higgsfield.ai/pricing', checked: '2026-10-24',
+        note: 'Seed Audio quoted 0.4 credits for one line of dialogue.',
+    },
+    'higgsfield-mcp:post': {
+        unit: 'call', native_unit: 'credit', native_per_unit: 10,
+        usd_per_native: require('./higgsfield-app-catalog').SNAPSHOT.credit_usd.usd_per_credit,
+        inferred: true, source: 'https://higgsfield.ai/pricing', checked: '2026-10-24',
+        note: 'AN ESTIMATE, not a quote: Higgsfield’s video upscale offers no price before it runs. The real spend shows on the account afterwards.',
+    },
+    'higgsfield-mcp:model3d': {
+        unit: 'call', native_unit: 'credit', native_per_unit: 30,
+        usd_per_native: require('./higgsfield-app-catalog').SNAPSHOT.credit_usd.usd_per_credit,
+        inferred: true, source: 'https://higgsfield.ai/pricing', checked: '2026-10-24',
+        note: 'AN ESTIMATE, not a quote: Higgsfield prices a mesh only for an actual picture. The real spend shows on the account afterwards.',
+    },
     'midjourney:image': {
         unit: 'image', native_unit: 'gpu_minute', native_per_unit: 1,
         usd_per_native: 0.0333,
@@ -444,54 +485,6 @@ const RATE_BOOK = {
         source: 'https://platform.openai.com/docs/pricing',
         checked: '2026-08-22',
         note: 'gpt-image-1 at 1024x1024: low $0.011, medium $0.042, high $0.167 per image. Defaults to medium, which is what the adapter requests.',
-    },
-
-    // ── Runway ────────────────────────────────────────────────────────────
-    // Video is credits per SECOND of output; images are credits per image. One
-    // credit is one cent in the developer portal, which is a different pool
-    // from a Runway app subscription.
-    'runway:video': {
-        unit: 'second', native_unit: 'credit', native_per_unit: 12, usd_per_native: 0.01,
-        models: {
-            'gen4.5':       { native_per_unit: 12 },
-            'gen4_turbo':   { native_per_unit: 5 },
-            'gen4':         { native_per_unit: 5 },
-            'gen3a_turbo':  { native_per_unit: 5 },
-            'act_two':      { native_per_unit: 5 },
-            'veo3':         { native_per_unit: 12 },
-            /*
-             * The first VIDEO-TO-VIDEO row, and the only one with a minimum.
-             * It bills by the length of the SOURCE clip rather than the clip
-             * produced — there is no duration field on that endpoint — so a
-             * careless 30-second input is $8.40, not the $1.40 a five-second
-             * request would suggest.
-             */
-            'aleph2':       { native_per_unit: 28, minimum_native: 56 },
-            // Wired 2026-09-30, at each model's default tier; the tier actually
-            // sent is priced from the model's own resolutions in runway.js.
-            'grok_imagine_1_5':      { native_per_unit: 16 },
-            'wan3':                  { native_per_unit: 10 },
-            'wan3_prime':            { native_per_unit: 14 },
-            'h3_max':                { native_per_unit: 8 },
-            'gemini_omni_flash_1.1': { native_per_unit: 10 },
-        },
-        source: 'https://docs.dev.runwayml.com/guides/pricing/',
-        checked: '2026-09-30',
-        note: 'aleph2 is 28 credits/second of SOURCE with a 56-credit minimum, verified first-party in backend/tests/fixtures/aleph-contract.json. gen4.5 is 12 credits/second — a 5s clip is $0.60. gen3a_turbo and veo3 are not in the published table; they inherit their tier and are flagged as inferred. Grok Imagine 1.5 is 10/16/29 at 480p/720p/1080p plus 1 per image or audio reference; Wan 3 is 5/10/20; Wan 3 Prime 6.8/14/28; H3 Max 5/8 at 480p/768p; Gemini Omni Flash 1.1 is 3.4/10/15/30 at 360p/720p/1080p/4K plus 1 per reference image and 1 per second of input.',
-        inferred_models: ['gen3a_turbo', 'veo3'],
-    },
-    'runway:image': {
-        unit: 'image', native_unit: 'credit', native_per_unit: 5, usd_per_native: 0.01,
-        models: {
-            'gen4_image':        { native_per_unit: 5 },    // 720p; 1080p is 8
-            'gen4_image_1080p':  { native_per_unit: 8 },
-            'gen4_image_turbo':  { native_per_unit: 2 },
-            'gemini_2.5_flash':  { native_per_unit: 5 },
-        },
-        source: 'https://docs.dev.runwayml.com/guides/pricing/',
-        checked: '2026-08-22',
-        note: 'gen4_image: 5 credits at 720p, 8 at 1080p. gemini_2.5_flash is unpublished and inherits the base rate.',
-        inferred_models: ['gemini_2.5_flash'],
     },
 
     // ── Meshy ─────────────────────────────────────────────────────────────

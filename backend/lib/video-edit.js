@@ -13,7 +13,7 @@
  * absent because a background replacement is not a splice — the whole clip is
  * re-rendered, so there is nothing to extract and nothing to join back in.
  *
- * WHAT MAKES THIS DIFFERENT FROM EVERY OTHER GENERATION HERE: Runway bills
+ * WHAT MAKES THIS DIFFERENT FROM EVERY OTHER GENERATION HERE: the provider bills
  * this endpoint by the length of the clip handed IN, and there is no duration
  * field to carry it. So the source has to be MEASURED before it can be priced,
  * and a clip nobody measured is refused rather than guessed — ICP-013 records
@@ -28,10 +28,45 @@ const { inspectMedia } = require('./ffmpeg');
 const { mintHandle, revokeScope } = require('./frame-handles');
 const { budgetStatus } = require('./flow-cost');
 const { ensureDir } = require('./file-storage');
-const { RUNWAY_VIDEO_MODELS, quoteVideo, checkBudget } = require('./providers/runway');
+/*
+ * The only model here that can edit footage: Seedance 2.5's video_edit mode on
+ * Higgsfield (lib/providers/higgsfield-mcp.js), since Runway's aleph2 was
+ * removed on 2026-10-24. Read, never retyped.
+ */
+const EDIT_MODEL = require('./providers/higgsfield-mcp').adapter.editModel;
+const EDIT_POLICY = Object.freeze({
+    promptLimit: 2000,
+    // The clip handed in: Seedance 2.5 takes 4-30 seconds, and bills the length of the source.
+    duration: { min: 4, max: 30, ofSource: true },
+});
 
-/** The only model here that can edit footage. Read, never retyped. */
-const EDIT_MODEL = 'aleph2';
+/** What editing a clip of this measured length costs, in Higgsfield credits. */
+function quoteVideo(body) {
+    const seconds = Number(body && body.__sourceSeconds);
+    const worstQ = require('./higgsfield-app-catalog').priceFor(EDIT_MODEL, { duration_s: EDIT_POLICY.duration.max, resolution: '720p', audio: false });
+    const worst = worstQ ? worstQ.credits : null;
+    const usdPer = require('./higgsfield-app-catalog').SNAPSHOT.credit_usd.usd_per_credit;
+    if (Number.isFinite(seconds) && seconds > 0) {
+        const q = require('./higgsfield-app-catalog').priceFor(EDIT_MODEL, { duration_s: Math.ceil(seconds), resolution: '720p', audio: false });
+        if (q && q.credits !== null) return { known: true, credits: q.credits, worst_case_credits: worst, usd: q.usd, why: null };
+    }
+    return { known: false, credits: null, worst_case_credits: worst, usd: null, worst_case_usd: worst === null ? null : Math.round(worst * usdPer * 100) / 100,
+        why: `${EDIT_MODEL} bills by the length of the SOURCE clip and this one has not been measured.` };
+}
+
+/** May this edit be sent? Refuses what it cannot price as well as what it cannot afford. */
+function checkBudget(body, opts) {
+    const remaining = opts && Number(opts.remainingUsd);
+    const q = quoteVideo(body);
+    if (!q.known) return { ok: false, why: `${q.why}${q.worst_case_usd !== null ? ` Its worst case is $${q.worst_case_usd.toFixed(2)}.` : ''} Measure the clip and try again.` };
+    if (!Number.isFinite(remaining)) return { ok: true, why: null, usd: q.usd };
+    if (q.usd > remaining) {
+        return { ok: false, usd: q.usd,
+            why: `This edit costs about $${q.usd.toFixed(2)} and $${remaining.toFixed(2)} of budget remains. `
+                + 'Higgsfield bills the length of the clip handed in, so trimming the source is what makes it cheaper.' };
+    }
+    return { ok: true, why: null, usd: q.usd };
+}
 
 /**
  * The stages, in order, each saying why it is its own step.
@@ -72,7 +107,7 @@ const EDIT_STAGES = Object.freeze([
  * looking like something nobody thought about.
  */
 function buildBackgroundPrompt(instruction, opts) {
-    const policy = RUNWAY_VIDEO_MODELS[EDIT_MODEL] || {};
+    const policy = EDIT_POLICY;
     const ceiling = policy.promptLimit || 1000;
     const KEEP = ' Keep everything else exactly as it is: the same people, the same faces and '
         + 'wardrobe, the same positions and movement, the same framing, lens and camera move.';
@@ -102,7 +137,7 @@ const refuse = (stage, reason, extra) => ({ refused: true, stage, reason, ...(ex
  */
 function planBackgroundEdit(input) {
     const o = input || {};
-    const policy = RUNWAY_VIDEO_MODELS[EDIT_MODEL];
+    const policy = EDIT_POLICY;
     const win = policy.duration || {};
 
     const instruction = String(o.instruction || '').trim();
@@ -251,12 +286,12 @@ async function runBackgroundEdit(input) {
                         format, mime_type, duration_ms, version,
                         provider, provider_model, provider_job_id,
                         license_source, license_status, input_refs
-                     ) VALUES (?, ?, ?, 'video_raw', ?, ?, 'mp4', 'video/mp4', ?, ?, 'runway', ?, ?,
+                     ) VALUES (?, ?, ?, 'video_raw', ?, ?, 'mp4', 'video/mp4', ?, ?, ?, ?, ?,
                                'generated', 'generated', ?)`
                 ).run(
                     crypto.randomUUID(), o.projectId, o.shotId, made.path, name,
                     Math.round(plan.source.durationSeconds * 1000), version,
-                    plan.model, made.jobId || null,
+                    made.provider || 'higgsfield-mcp', plan.model, made.jobId || null,
                     JSON.stringify({ background_replaced_from: plan.source.path, instruction: plan.instruction }),
                 );
                 return { ok: true, output: made.path, version, scope, handles: minted,
@@ -325,7 +360,7 @@ async function backgroundGenerator(request) {
         return { ok: false, reason:
             `${provider.id || 'that provider'} has no video-to-video model, so it cannot edit `
             + 'footage — handed a source clip it would ignore it and generate a NEW one from the '
-            + 'prompt, and report success. Pin Runway for video (it serves aleph2) or pass a '
+            + 'prompt, and report success. Sign in to Higgsfield (Seedance 2.5 edits footage) or pass a '
             + 'provider that declares videoToVideoModels.' };
     }
 
@@ -354,7 +389,7 @@ async function backgroundGenerator(request) {
         if (gen.projectId) { try { ensureDir(gen.projectId, 'video'); } catch (_) { /* reported below */ } }
         const stored = await persistProviderMedia(gen.projectId, 'video',
             `background_${Date.now().toString(36)}.mp4`, result.data || result, { serveDir: 'videos' });
-        return { ok: true, path: stored, jobId: result.jobId || result.id || null };
+        return { ok: true, path: stored, jobId: result.jobId || result.provider_job_id || result.id || null, provider: provider.id };
     } catch (err) {
         return { ok: false, reason: `the edit generated but could not be stored: ${err.message}` };
     }

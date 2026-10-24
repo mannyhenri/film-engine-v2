@@ -178,28 +178,28 @@ test('no tier moves a Nano Banana Pro vendor off the house model, and a chosen m
      * silently, which is the only way features like this ever fail.
      */
     const { withTierModel } = require('../lib/capability-payloads');
-    const adapter = providers.get('google');
+    const adapter = providers.get('higgsfield-mcp');
     const ctxFor = extra => ({
-        project: { provider_config: JSON.stringify({ image: 'google', ...extra }) },
+        project: { provider_config: JSON.stringify({ image: 'higgsfield-mcp', ...extra }) },
     });
 
     /*
      * THE HOUSE STANDARD IS THE DEFAULT (lib/image-standard.js): with no model
-     * chosen, no tier moves a vendor of Nano Banana Pro off it. A model somebody
-     * CHOSE is another matter, and is what is sent.
+     * chosen, no tier moves the house vendor off Nano Banana Pro. A model
+     * somebody CHOSE is another matter, and is what is sent.
      */
     for (const tier of ['draft', 'standard', 'precision']) {
         const payload = withTierModel({ prompt: 'x' }, ctxFor({ image_quality: tier }), adapter);
-        assert.strictEqual(payload.model, 'gemini-3-pro-image',
-            `${tier} moved Google off Nano Banana Pro to ${payload.model}`);
+        assert.strictEqual(payload.model, 'nano_banana_pro',
+            `${tier} moved Higgsfield off Nano Banana Pro to ${payload.model}`);
     }
     const pinned = withTierModel({ prompt: 'x' },
-        ctxFor({ image_quality: 'draft', image_model: 'gemini-3.1-flash-image' }), adapter);
-    assert.strictEqual(pinned.model, 'gemini-3.1-flash-image', `a chosen model was replaced by ${pinned.model}`);
+        ctxFor({ image_quality: 'draft', image_model: 'nano_banana_2' }), adapter);
+    assert.strictEqual(pinned.model, 'nano_banana_2', `a chosen model was replaced by ${pinned.model}`);
 
     // A model belonging to one provider must never be sent to another.
     const wrong = withTierModel({ prompt: 'x' }, ctxFor({ image_quality: 'precision' }), providers.get('openai'));
-    assert.ok(!wrong.model, 'a Google model was named on a request going to OpenAI');
+    assert.ok(!wrong.model, 'a Higgsfield model was named on a request going to OpenAI');
 });
 
 test('setting the quality tier does not wipe the provider choices', () => {
@@ -298,9 +298,9 @@ test('a project that states no tier still gets a named model', () => {
          ON CONFLICT(provider) DO UPDATE SET api_key = excluded.api_key`).run();
 
     const payload = withTierModel({ prompt: 'x' },
-        { project: { provider_config: JSON.stringify({}) } }, providers.get('meshy'));
+        { project: { provider_config: JSON.stringify({}) } }, providers.get('higgsfield-mcp'));
     // The house standard, not the Standard tier: every image is Nano Banana Pro.
-    assert.strictEqual(payload.model, 'nano-banana-pro',
+    assert.strictEqual(payload.model, 'nano_banana_pro',
         'an unstated tier did not resolve to the house model');
 });
 
@@ -373,8 +373,8 @@ test('neither the project tier nor a per-call one moves the house model, and the
      * difficult shot needed.
      */
     const { withTierModel } = require('../lib/capability-payloads');
-    const adapter = providers.get('meshy');
-    const project = { id: 'p1', provider_config: JSON.stringify({ image: 'meshy', image_quality: 'draft' }) };
+    const adapter = providers.get('higgsfield-mcp');
+    const project = { id: 'p1', provider_config: JSON.stringify({ image: 'higgsfield-mcp', image_quality: 'draft' }) };
     const before = project.provider_config;
 
     const standing = withTierModel({ prompt: 'x' }, { project }, adapter);
@@ -382,8 +382,8 @@ test('neither the project tier nor a per-call one moves the house model, and the
         { project, tierOverride: { image_quality: 'precision' } }, adapter);
 
     // The house standard outranks both the project tier and the per-call one.
-    assert.strictEqual(standing.model, 'nano-banana-pro', 'the project tier moved Meshy off the house model');
-    assert.strictEqual(overridden.model, 'nano-banana-pro', 'the per-call tier moved Meshy off the house model');
+    assert.strictEqual(standing.model, 'nano_banana_pro', 'the project tier moved Higgsfield off the house model');
+    assert.strictEqual(overridden.model, 'nano_banana_pro', 'the per-call tier moved Higgsfield off the house model');
     assert.strictEqual(project.provider_config, before,
         'the override rewrote the project, so the next frame would inherit it');
 });
@@ -447,7 +447,7 @@ test('a per-generation quality moves neither the provider nor the model off the 
      */
     assert.strictEqual(new Set(Object.values(seen)).size, 1,
         `a quality moved the request off the house standard: ${JSON.stringify(seen)}`);
-    assert.strictEqual(seen.standing, 'google/gemini-3-pro-image');
+    assert.strictEqual(seen.standing, 'higgsfield-mcp/nano_banana_pro');
     for (const [tier, pair] of Object.entries(seen)) {
         const [provider, model] = pair.split('/');
         assert.ok(model && model !== 'undefined',

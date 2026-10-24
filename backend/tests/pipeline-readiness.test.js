@@ -138,11 +138,12 @@ test('an explicit project choice still wins over the preference', () => {
 test('an uncredentialed preference does not hijack the capability', () => {
     // isProviderConfigured guards this: preferring a provider whose key is
     // absent would swap a reachable service for an unusable one.
-    const runway = providers.get('runway');
-    assert.ok(runway, 'runway is no longer registered; this check needs rewriting');
-    if (!providers.isProviderConfigured('runway')) {
-        assert.notStrictEqual(providers.resolveId('video', {}), 'runway',
-            'video preferred runway with no credential stored');
+    // Higgsfield leads the video preference and is configured only once signed in.
+    const hf = providers.get('higgsfield-mcp');
+    assert.ok(hf, 'higgsfield-mcp is no longer registered; this check needs rewriting');
+    if (!providers.isProviderConfigured('higgsfield-mcp')) {
+        assert.notStrictEqual(providers.resolveId('video', {}), 'higgsfield-mcp',
+            'video preferred Higgsfield with nobody signed in');
     }
 });
 

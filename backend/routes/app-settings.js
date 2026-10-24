@@ -141,6 +141,17 @@ const SETTINGS = {
             + 'the built-in preference order.',
         default: '',
     },
+    /*
+     * TEST MODE: play with the app as normal, and every generation that would go to Higgsfield
+     * is reviewed as usual and then WRITTEN DOWN instead of sent — the exact tool call and the
+     * pictures it would upload, in a folder per request. Nothing reaches Higgsfield (not even an
+     * upload) and no credit is spent, so the requests can be checked before real ones are paid for.
+     */
+    generation_test_mode: {
+        description: 'Test mode. On: every generation that would go to Higgsfield is saved as a JSON request plus its pictures '
+            + '(the project\'s exports/Higgsfield test requests folder) instead of being sent. Nothing is sent and no credits are spent.',
+        default: false,
+    },
     subscription_pro_baseline_tokens: {
         description: 'A Pro-plan 5-hour baseline. Set this instead of the above and the published plan multipliers (Max 5x, Max 20x) scale it for you, so one measurement calibrates every plan.',
         default: '',

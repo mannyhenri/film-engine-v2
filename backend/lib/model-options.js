@@ -6,20 +6,17 @@
  * to up to 30 seconds, resolution quality, screen ratio and HDR — those options
  * should appear in the modal."
  *
- * THE PROVIDER'S OWN STATEMENT, NEVER A LIST TYPED HERE. Every option is read
- * from `providers/video-model-fields.json`: Runway's per-model schemas from its
- * published OpenAPI spec, MuAPI's from the fields its endpoints accept (read
- * from a free 422). The hand-kept table in runway.js had already drifted from
- * the spec in five places — a Gen-4.5 ratio Runway refuses, Seedance 2.0 at 30s
- * where Runway allows 15, Hailuo 3 sent pixel ratios where it takes aspect
- * names — so a second hand-kept list would drift the same way.
+ * THE PROVIDER'S OWN STATEMENT, NEVER A LIST TYPED HERE. Higgsfield's options
+ * are read from its app catalogue (higgsfield-app-models.json, from
+ * models_explore), MuAPI's from `providers/video-model-fields.json` (the fields
+ * its endpoints accept, read from a free 422). A hand-kept list drifts.
  *
  * AN OPTION IS OFFERED ONLY WHERE IT REACHES THE REQUEST. Each control names
  * the payload field it sets, and each adapter sends that field only when its
  * own snapshot says the model takes it. A control that reaches nothing is the
  * failure this codebase keeps paying for, so what a model does NOT take is said
  * in `notes` rather than offered and dropped: MuAPI accepts no sound switch and
- * no HDR on Seedance 2.5, and HDR on Runway is an output format of Gen-4.5.
+ * no HDR on Seedance 2.5.
  *
  * Unset means "as the project would have it": the shot's own length, a ratio
  * matched to the project's frame, the provider's own default. So a generation
@@ -28,7 +25,6 @@
 
 const FIELDS = require('./providers/video-model-fields.json');
 
-const RUNWAY = (FIELDS.runway && FIELDS.runway.models) || {};
 const MUAPI = (FIELDS.muapi && FIELDS.muapi.endpoints) || {};
 
 /** A pixel ratio reads better with its shape beside it. */
@@ -54,66 +50,38 @@ const FORMAT_LABEL = {
     hdr_exr_acescg_sequence_1_3: 'HDR EXR ACEScg (1.3)', hdr_exr_acescg_sequence_2_0: 'HDR EXR ACEScg (2.0)',
 };
 
-/** Runway: one schema per model, read straight out of the spec. */
-function runwayControls(model) {
-    const f = RUNWAY[model];
-    if (!f) {
-        return { controls: [], notes: [`${model} is not in Runway's image-to-video schema `
-            + '(a video-to-video model takes its length from the source clip), so it has no options here.'] };
-    }
-    const controls = [];
-    const notes = [];
-    const d = f.duration || {};
-    if (Array.isArray(d.enum)) {
+/** Higgsfield (signed in): one entry per app model, from the app catalogue (higgsfield-app-models.json). */
+function higgsfieldControls(model) {
+    const catalog = require('./higgsfield-app-catalog');
+    const id = model || require('./providers/higgsfield-mcp').adapter.defaultModel;
+    const m = catalog.MODELS[id];
+    if (!m) return { controls: [], notes: [`${id} is not in the Higgsfield app catalogue, so it has no options here.`] };
+    const controls = [], notes = [];
+    const d = m.duration || {};
+    if (Array.isArray(d.values) && d.values.length > 1) {
         controls.push({ key: 'duration', label: 'Length', type: 'choice', field: 'duration_s',
-            choices: d.enum.map(n => ({ id: n, label: `${n}s` })), note: 'Unset: the shot\'s own length, fitted to what this model takes.' });
-    } else if (d.minimum !== undefined) {
-        controls.push({ key: 'duration', label: 'Length', type: 'range', field: 'duration_s',
-            min: d.minimum, max: d.maximum, step: 1, unit: 's', allow_auto: !!d.auto,
-            note: 'Unset: the shot\'s own length, fitted to what this model takes.'
-                + (d.auto ? ' Auto lets the model choose.' : '') });
+            choices: d.values.map(n => ({ id: n, label: `${n}s` })), note: 'Unset: the shot\'s own length, fitted to what this model takes.' });
+    } else if (d.min !== undefined && d.max > d.min) {
+        controls.push({ key: 'duration', label: 'Length', type: 'range', field: 'duration_s', min: d.min, max: d.max, step: 1, unit: 's',
+            note: 'Unset: the shot\'s own length, fitted to what this model takes.' });
     }
-    if (f.ratio && Array.isArray(f.ratio.enum)) {
-        controls.push({ key: 'ratio', label: 'Frame', type: 'choice', field: 'ratio',
-            choices: f.ratio.enum.map(r => ({ id: r, label: ratioLabel(r) })),
-            note: 'Unset: the size closest to the project\'s frame.' });
+    // A choice of one is not a choice: offered only where the model takes more than one.
+    if (Array.isArray(m.aspects) && m.aspects.length > 1) {
+        controls.push({ key: 'ratio', label: 'Frame', type: 'choice', field: 'aspect_ratio',
+            choices: m.aspects.map(r => ({ id: r, label: ratioLabel(r) })), note: 'Unset: the shape closest to the project\'s frame.' });
     }
-    if (f.resolution && Array.isArray(f.resolution.enum)) {
-        const seen = new Set();
-        const choices = f.resolution.enum.filter(r => {
-            const k = String(r).toLowerCase();
-            if (seen.has(k)) return false;
-            seen.add(k); return true;
-        }).map(r => ({ id: r, label: String(r).toUpperCase().replace('P', 'p') }));
-        controls.push({ key: 'resolution', label: 'Resolution', type: 'choice', field: 'resolution', choices,
-            note: 'Unset: the model\'s own default.' });
+    if (m.resolution && m.resolution.values && Object.keys(m.resolution.values).length > 1) {
+        controls.push({ key: 'resolution', label: 'Resolution', type: 'choice', field: 'resolution',
+            choices: Object.keys(m.resolution.values).map(r => ({ id: r, label: r })), note: 'Unset: the largest tier at or below the project\'s frame.' });
     }
-    if (f.audio) {
-        controls.push({ key: 'audio', label: 'Generate sound', type: 'toggle', field: 'audio',
-            default: f.audio.default === undefined ? null : !!f.audio.default,
-            note: f.audio.default === true
-                ? 'On by default at Runway. Film Engine scores the film separately; off keeps the clip silent.'
-                : 'The model\'s own sound. Film Engine scores the film separately.' });
+    if (m.audio && m.audio.param) {
+        controls.push({ key: 'audio', label: 'Generate sound', type: 'toggle', field: 'audio', default: false,
+            note: 'Off by default: Film Engine owns the sound. On adds the model\'s own audio (and its price).' });
     }
-    const positions = (f.promptImage && f.promptImage.positions) || [];
-    if (positions.includes('last')) {
+    if (m.end_frame) {
         controls.push({ key: 'last_frame', label: 'Ends on', type: 'frame', field: 'last_frame',
             note: 'The board frame is the first frame. Pick a shot whose frame this clip should arrive at.' });
-    } else {
-        notes.push(`${model} takes one keyframe: the board frame. It cannot be given an ending frame.`);
-    }
-    if (f.outputFormat && Array.isArray(f.outputFormat.enum)) {
-        controls.push({ key: 'output_format', label: 'Output format', type: 'choice', field: 'output_format',
-            choices: f.outputFormat.enum.map(x => ({ id: x, label: FORMAT_LABEL[x] || x })),
-            note: 'HDR and ProRes are delivered as this model\'s output formats.' });
-    }
-    if (f.negativePrompt) {
-        controls.push({ key: 'negative_prompt', label: 'Avoid', type: 'text', field: 'video_negative_prompt',
-            max: 1000, note: 'What should not appear in the clip.' });
-    }
-    if (f.seed) controls.push({ key: 'seed', label: 'Seed', type: 'number', field: 'seed',
-        min: f.seed.minimum || 0, max: f.seed.maximum || 4294967295, note: 'Same seed, same inputs: the closest this model gets to repeating a take.' });
-    if (!f.audio) notes.push(`${model} has no sound switch.`);
+    } else notes.push(`${m.label} takes one keyframe: the board frame. It cannot be given an ending frame.`);
     return { controls, notes };
 }
 
@@ -143,7 +111,7 @@ function seedanceControls(model) {
         notes: [
             `The resolution is the model you picked (${model || 'Seedance 2.5'}): pick another Seedance model for 480p, 720p, 1080p or 4K.`,
             'MuAPI accepts no sound switch on Seedance 2.5 (probed 2026-09-30), so whether the clip carries Seedance\'s own sound is MuAPI\'s default.',
-            'No HDR: MuAPI offers none for Seedance 2.5. Runway\'s Gen-4.5 has HDR output formats.',
+            'No HDR: MuAPI offers none for Seedance 2.5.',
         ],
     };
 }
@@ -155,14 +123,14 @@ function seedanceControls(model) {
 function optionsFor(providerId, model) {
     const id = String(providerId || '');
     let out = null;
-    if (id === 'runway') out = runwayControls(String(model || require('./providers/runway').adapter.defaultModel || 'gen4.5'));
+    if (id === 'higgsfield-mcp') out = higgsfieldControls(model);
     else if (id === 'seedance') out = seedanceControls(model);
     if (!out) return null;
     return {
         provider: id, model: model || null,
         controls: out.controls, notes: out.notes,
-        source: id === 'runway' ? FIELDS.runway.source : FIELDS.muapi.source,
-        checked: FIELDS.checked,
+        source: id === 'higgsfield-mcp' ? 'https://higgsfield.ai/ai/video' : FIELDS.muapi.source,
+        checked: id === 'higgsfield-mcp' ? require('./higgsfield-app-catalog').SNAPSHOT.checked : FIELDS.checked,
     };
 }
 

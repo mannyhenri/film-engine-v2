@@ -2,148 +2,85 @@
  * What pressing Generate will cost, worked out locally and before anything runs.
  *
  * Deliberately NOT a call to a provider's estimate endpoint. A local estimate
- * works before you have an account, works when the network does not, and cannot
- * itself fail in a way that blocks the check it exists to provide. The registry
- * already carries every number Runway publishes, so the arithmetic is ours.
+ * works before you have signed in, works when the network does not, and cannot
+ * itself fail in a way that blocks the check it exists to provide.
  *
- * Three things make an estimate wrong if they are missed, and all three are
- * modelled here because each was found in the published rate card rather than
- * assumed:
+ * Priced from Higgsfield's own credit quotes for each app model (one quote per
+ * resolution and sound setting, kept in providers/higgsfield-app-models.json),
+ * which is the only video vendor Film Engine generates with since Runway was
+ * removed (2026-10-24). Resolution changes the rate, and by a lot — Seedance
+ * 2.5 is 3 credits a second at 480p and 16 at 1080p — so the tier the frame
+ * lands on is part of every estimate.
  *
- *  1. RESOLUTION changes the rate, and by a lot — Seedance 2.5 is 20 credits a
- *     second at 480p and 68 at 1080p.
- *  2. REFERENCE VIDEO is billed per second, at roughly half the output rate.
- *     Three 5-second reference clips on a 10-second Seedance shot add 225
- *     credits — more than the shot itself. Reference IMAGES are usually free
- *     (Seedance) or nearly so (H3 at 2 credits).
- *  3. MINIMUM CHARGES exist. A 2-second Seedance 2.5 clip bills at its
- *     80-credit floor, so short clips cost more per second than long ones.
- *
- * Credits are $0.01 on Runway. That is the only currency conversion here.
+ * A model with no quote says so rather than pricing at zero.
  */
-const { RUNWAY_VIDEO_MODELS } = require('./providers/runway');
+const catalog = require('./higgsfield-app-catalog');
 
-const USD_PER_CREDIT = 0.01;
+const USD_PER_CREDIT = catalog.SNAPSHOT.credit_usd.usd_per_credit;
 
-/**
- * The billing tier a delivered frame falls in. A model with resolution tiers
- * (Seedance 2.5 480p/720p/1080p, Hailuo 3 768P/2K) bills the tier its ratio
- * renders at, and now that a 1080p project is sent 1920:1080 the estimate has
- * to follow the frame or it quotes 720p for a 1080p clip. The smallest tier
- * whose short edge covers the frame; above them all, the highest — so an
- * estimate never under-counts.
- */
+/** The tier a delivered frame lands on: the smallest the model offers that covers the frame's short edge. */
 function tierForFrame(model, frame) {
-    const m = RUNWAY_VIDEO_MODELS[String(model || '').trim()];
-    if (!m || !m.resolutions) return null;
+    const m = catalog.MODELS[String(model || '').trim()];
+    if (!m || !m.resolution) return null;
     const f = /^(\d+)\s*[x:]\s*(\d+)$/i.exec(String(frame || ''));
     if (!f) return null;
     const short = Math.min(Number(f[1]), Number(f[2]));
     const edge = label => {
-        const k = /^(\d+(?:\.\d+)?)\s*k$/i.exec(label);
-        if (k) return Math.round(Number(k[1]) * 1024 * 9 / 16);
+        const k = /^(\d+)\s*k$/i.exec(label);
+        if (k) return { 1: 1080, 2: 1440, 4: 2160 }[Number(k[1])] || 0;
         const p = /^(\d+)\s*p$/i.exec(label);
         return p ? Number(p[1]) : 0;
     };
-    const tiers = Object.keys(m.resolutions).map(l => ({ l, e: edge(l) })).sort((a, b) => a.e - b.e);
+    const tiers = Object.keys(m.resolution.values).map(l => ({ l, e: edge(l) })).sort((a, b) => a.e - b.e);
     const fit = tiers.find(t => t.e >= short);
     return (fit || tiers[tiers.length - 1]).l;
 }
 
-/** The rate card for a model at a resolution, falling back to its base rate. */
+/** The per-second credits a model is quoted at, at a resolution (its default when none is given). */
 function ratesFor(model, resolution) {
-    const m = RUNWAY_VIDEO_MODELS[String(model || '').trim()];
+    const m = catalog.MODELS[String(model || '').trim()];
     if (!m) return null;
-    const label = String(resolution || m.defaultResolution || '').trim();
-    // Case-blind: Runway's schema says 768p where the rate card says 768P.
-    const key = m.resolutions && Object.keys(m.resolutions).find(k => k.toLowerCase() === label.toLowerCase());
-    const tier = (m.resolutions && (m.resolutions[key] || m.resolutions[m.defaultResolution])) || {};
-    return {
-        model: m,
-        resolution: label || null,
-        creditsPerSecond: tier.creditsPerSecond ?? m.creditsPerSecond ?? 0,
-        imageReferenceCredits: tier.imageReferenceCredits ?? m.imageReferenceCredits ?? 0,
-        videoReferenceCreditsPerSecond:
-            tier.videoReferenceCreditsPerSecond ?? m.videoReferenceCreditsPerSecond ?? 0,
-        audioReferenceCredits: tier.audioReferenceCredits ?? m.audioReferenceCredits ?? 0,
-        minimumCredits: tier.minimumCredits ?? m.minimumCredits ?? 0,
-        firstFrameCredits: m.firstFrameCredits ?? 0,
-    };
+    const price = catalog.priceFor(model, { duration_s: 10, resolution: resolution || undefined });
+    return { model: m, resolution: (price && price.resolution) || null,
+        creditsPerSecond: price && price.per_second !== null ? price.per_second : null };
 }
 
-/**
- * Estimate one generation.
- *
- * Returns the total AND the lines it is made of, because a number with no
- * breakdown cannot be checked — and the line a director most needs to see is
- * the one they did not expect, which is nearly always the reference video.
- */
 function estimateVideoCost(opts) {
     const o = opts || {};
-    const r = ratesFor(o.model, o.resolution || tierForFrame(o.model, o.frame));
-    if (!r) {
+    const m = catalog.MODELS[String(o.model || '').trim()];
+    if (!m) {
         return { model: o.model || null, credits: 0, usd: 0, lines: [],
             unknownModel: true,
-            note: `no rate card for "${o.model}" — it is not a model this adapter forwards` };
+            note: `no Higgsfield quote for "${o.model}" — it is not a model in the Higgsfield app catalogue` };
     }
-
     const seconds = Number(o.durationSeconds) > 0 ? Number(o.durationSeconds) : 0;
-    const images = Math.max(0, Number(o.imageReferences) || 0);
-    const audio = Math.max(0, Number(o.audioReferences) || 0);
-    const refSeconds = Math.max(0, Number(o.videoReferenceSeconds) || 0);
-    const firstFrame = o.firstFrame ? r.firstFrameCredits : 0;
-
-    const lines = [];
-    const push = (label, credits, detail) => {
-        if (!credits) return;
-        lines.push({ label, credits, usd: credits * USD_PER_CREDIT, detail });
-    };
-
-    const output = Math.round(seconds * r.creditsPerSecond);
-    push(`${seconds}s of video`, output, `${r.creditsPerSecond} credits/second`
-        + (r.resolution ? ` at ${r.resolution}` : ''));
-    push(`${images} reference image${images === 1 ? '' : 's'}`,
-        images * r.imageReferenceCredits, `${r.imageReferenceCredits} credits each`);
-    push(`${refSeconds}s of reference video`,
-        Math.round(refSeconds * r.videoReferenceCreditsPerSecond),
-        `${r.videoReferenceCreditsPerSecond} credits/second — billed like output`);
-    push(`${audio} reference audio`, audio * r.audioReferenceCredits,
-        `${r.audioReferenceCredits} credits each`);
-    push('first frame', firstFrame, `${r.firstFrameCredits} credits`);
-
-    let credits = lines.reduce((sum, l) => sum + l.credits, 0);
-    let minimumApplied = false;
-    if (r.minimumCredits && credits < r.minimumCredits) {
-        // Named, not folded into the total: a short clip costing the same as a
-        // longer one is surprising, and a surprise in a bill is a support
-        // question.
-        lines.push({
-            label: `minimum charge for this model`,
-            credits: r.minimumCredits - credits,
-            usd: (r.minimumCredits - credits) * USD_PER_CREDIT,
-            detail: `billed at a floor of ${r.minimumCredits} credits`,
-        });
-        credits = r.minimumCredits;
-        minimumApplied = true;
+    const resolution = o.resolution || tierForFrame(o.model, o.frame) || undefined;
+    const price = catalog.priceFor(o.model, { duration_s: seconds || 5, resolution, audio: o.audio });
+    if (!price || price.credits === null) {
+        return { model: o.model, credits: 0, usd: 0, lines: [], unknownModel: false, unpriced: true,
+            note: (price && price.note) || `no Higgsfield quote for ${o.model} at this setting` };
     }
-
+    const credits = price.credits;
     return {
         model: o.model,
-        resolution: r.resolution,
-        durationSeconds: seconds,
+        resolution: price.resolution,
+        durationSeconds: price.billed_seconds,
         credits,
-        usd: credits * USD_PER_CREDIT,
+        usd: Math.round(credits * USD_PER_CREDIT * 100) / 100,
         usdPerCredit: USD_PER_CREDIT,
-        minimumApplied,
-        lines,
-        source: r.model.source,
+        minimumApplied: price.billed_seconds > seconds,
+        exact: price.exact,
+        lines: [{ label: `${price.billed_seconds}s of video`, credits, usd: Math.round(credits * USD_PER_CREDIT * 100) / 100,
+            detail: (price.per_second !== null ? `${price.per_second} credits/second` : 'credits per clip') + (price.resolution ? ` at ${price.resolution}` : '') }],
+        note: price.note,
+        source: 'https://higgsfield.ai/pricing',
     };
 }
 
-/** Price the same shot across every model, for a comparison a director reads. */
 function compareVideoModels(opts) {
-    return Object.keys(RUNWAY_VIDEO_MODELS)
+    return Object.keys(catalog.MODELS)
         .map(model => estimateVideoCost({ ...(opts || {}), model }))
+        .filter(e => !e.unpriced)
         .sort((a, b) => a.credits - b.credits);
 }
 

@@ -65,8 +65,9 @@ export function higgsfieldRecipe({ model, prompt, references, start, durationS, 
     // A model with no first-frame input (Cinema Studio) still sees the keyframe, as its first reference picture.
     const asFrame = start && startFrame;
     const pictures = asFrame || !start ? references : [start, ...references];
-    const recipe = { provider: 'higgsfield', model, prompt,
-        settings: { duration_s: durationS, aspect_ratio: aspect, generate_audio: !!audio, ...(resolution ? { higgsfield_options: { resolution } } : {}) },
+    // The signed-in Higgsfield connection runs the app's own models by their app ids (seedance_2_5, kling3_0…).
+    const recipe = { provider: 'higgsfield-mcp', model, prompt,
+        settings: { duration_s: durationS, aspect_ratio: aspect, generate_audio: !!audio, ...(resolution ? { resolution } : {}) },
         reference_images: pictures.slice(0, Math.max(0, (maxImages ?? pictures.length) - (asFrame ? 1 : 0))), audio_references: [] };
     if (asFrame) recipe.init_image = start;
     return recipe;
@@ -95,31 +96,4 @@ export function cutLanes(cut) {
     for (const s of cut?.shots || []) if (s.start_ms !== null) lanes.video.push({ key: s.shot_id, label: s.picture === 'board' ? `${s.shot_code} · board` : s.shot_code, start: s.start_ms, length: s.duration_ms, picture: s.picture });
     for (const n of cut?.sounds || []) if (n.placed) lanes[n.kind].push({ key: n.id, label: n.label || n.asset?.file_name || 'no file yet', start: n.start_ms, length: n.end_ms - n.start_ms, empty: !n.asset });
     return { total: cut?.total_ms || 0, lanes };
-}
-
-/** The frame Runway is asked for per shape: its own published ratios (lib/providers/runway.js VIDEO_RATIOS). */
-const RUNWAY_FRAMES = { '16:9': [1280, 720], '9:16': [720, 1280], '1:1': [960, 960], '4:3': [1104, 832], '21:9': [1584, 672] };
-
-/**
- * The same request for Runway: the director's prompt, the start frame and the plates, the length and shape.
- * Runway's adapter picks the nearest ratio and length the model allows and prices it from its own rates.
- */
-export function runwayRecipe({ model, prompt, references, start, durationS, aspect, resolution, audio, maxImages }) {
-    const [width, height] = RUNWAY_FRAMES[aspect] || RUNWAY_FRAMES['16:9'];
-    const room = Math.max(0, (maxImages ?? (references.length + (start ? 1 : 0))) - (start ? 1 : 0));
-    const recipe = { provider: 'runway', model, prompt,
-        settings: { duration_s: durationS, width, height, generate_audio: !!audio, ...(resolution ? { resolution } : {}) },
-        reference_images: references.slice(0, room), audio_references: [] };
-    if (start) recipe.init_image = start;
-    return recipe;
-}
-
-/** What Runway bills for a clip: its rate (per resolution where it has tiers) times the seconds it will make, never under its minimum. */
-export function runwayCredits(m, seconds, resolution) {
-    if (!m) return null;
-    const d = m.duration || {};
-    const want = Math.max(1, Math.round(Number(seconds) || 0));
-    const secs = Array.isArray(d.allowed) && d.allowed.length ? d.allowed.reduce((b, n) => (Math.abs(n - want) < Math.abs(b - want) ? n : b)) : Math.min(d.max ?? want, Math.max(d.min ?? want, want));
-    const rate = (m.resolutions && resolution && m.resolutions[resolution]) || m.credits_per_second;
-    return Math.max(m.minimum_credits || 0, Math.round(rate * secs * 10) / 10);
 }

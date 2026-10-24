@@ -87,11 +87,10 @@ function videoTierOf(req, query) {
 function applyTier(tier, req, query, pinned, providerId) {
     const src = { ...(query || {}), ...((req && req.body) || {}) };
     /*
-     * The tier's preferred model is a RUNWAY model (Hailuo 3, Gen-4 Turbo).
-     * Picked on the dialog, another provider must not be sent it: the preview
-     * priced and described Hailuo 3 for a clip going to MuAPI's Seedance, whose
-     * own models are its resolutions. So it applies only where the provider
-     * that will run actually offers it.
+     * The tier's preferred model is a HIGGSFIELD app model (seedance_2_5).
+     * Picked on the dialog, another provider must not be sent it: MuAPI's
+     * Seedance names its models by resolution. So it applies only where the
+     * provider that will run actually offers it.
      */
     let tierModel = tier.preferredModel || undefined;
     if (tierModel && providerId) {
@@ -291,12 +290,11 @@ async function previewVideo(res, shotId, previewOverride, tierChoice, query) {
     });
 
     /*
-     * A provider whose clips are not on Runway's rate card (MuAPI's Seedance)
-     * is priced the way it will be BILLED: its own meter over this payload,
-     * then the rate book. Runway's estimator knows only Runway's models, so a
-     * clip picked for Seedance showed Hailuo 3's price, and then none.
+     * A clip is priced the way it will be BILLED: the provider's own meter over
+     * this payload, then the rate book. The local estimate knows only the
+     * Higgsfield app catalogue's models; the adapter's meter knows its own.
      */
-    if (provider && provider.id !== 'runway' && typeof provider.meter === 'function') {
+    if (provider && typeof provider.meter === 'function') {
         try {
             const dur = chosenOptions.values.duration > 0 ? chosenOptions.values.duration : payload.duration_s;
             const u = provider.meter('video', { ...payload, duration_s: dur }, null);
@@ -1074,7 +1072,7 @@ async function previewBackground(res, shotId, query) {
     if (src.error) return json(res, src.error, { error: src.why });
 
     const instruction = String((query && query.instruction) || '').trim();
-    const provider = 'runway';
+    const provider = 'higgsfield-mcp';
     /*
      * A refusal is a 200 CARRYING ITS REASON, not a 4xx. "This shot has no
      * footage yet" is an ANSWER to the question the dialog is asking, and a
@@ -1109,7 +1107,7 @@ async function previewBackground(res, shotId, query) {
             usd: plan.quote.usd, native: plan.quote.credits, native_unit: 'credits',
         },
         notes,
-        note: 'Runway bills this by the length of the clip handed IN, not the length asked for, '
+        note: 'Higgsfield bills this by the length of the clip handed IN, not the length asked for, '
             + 'so a longer source costs more even though nothing else changes.',
     });
 }

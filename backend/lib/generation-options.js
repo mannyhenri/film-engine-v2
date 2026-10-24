@@ -89,12 +89,12 @@ function imageControls(providerId, model) {
             choices: ratioChoices(list), note: 'Unset: the shot\'s own shape, snapped to what this model takes.' });
         controls.push(NEGATIVE);
         notes.push('Meshy returns about one megapixel whatever size is asked for, and takes no seed.');
-    } else if (providerId === 'runway') {
-        const { IMAGE_RATIOS } = require('./providers/runway');
-        controls.push({ key: 'frame', label: 'Frame', type: 'choice', field: 'ratio',
-            choices: ratioChoices(IMAGE_RATIOS), note: 'Unset: the size closest to the shot\'s own shape.' });
-        controls.push(NEGATIVE);
-        notes.push('Runway\'s text_to_image takes no seed.');
+    } else if (providerId === 'higgsfield-mcp') {
+        const { IMAGE_MODELS } = require('./providers/higgsfield-mcp');
+        const m = IMAGE_MODELS[model] || IMAGE_MODELS[require('./providers/higgsfield-mcp').adapter.defaultImageModel];
+        controls.push({ key: 'frame', label: 'Frame', type: 'choice', field: 'aspect_ratio',
+            choices: ratioChoices(m.aspects), note: 'Unset: the shot\'s own shape, snapped to what this model takes.' });
+        notes.push('Higgsfield image models take no negative prompt and no seed; the size tier follows the project resolution.');
     } else if (providerId === 'openai') {
         const { VALID_SIZES, VALID_QUALITY } = require('./providers/openai-image');
         controls.push({ key: 'frame', label: 'Size', type: 'choice', field: 'size',

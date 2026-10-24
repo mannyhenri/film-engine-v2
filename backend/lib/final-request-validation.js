@@ -17,16 +17,6 @@ function schemaFor(provider,capability,request,nativeBody=request.body){
  const schema=inferred(nativeBody || {});
  const props=schema.properties || {};
  const fields=require('./providers/video-model-fields.json');
- if(provider==='runway'){
-  const specs=fields.runway?.models?.[nativeBody.model] || {};
-  for(const [key,spec]of Object.entries(specs))if(spec.type)props[key]=fieldSchema(spec);
-  const imagePosition={type:'string',enum:specs.promptImage?.positions || ['first','last']};
-  if(nativeBody.promptImage!==undefined)props.promptImage={oneOf:[media,{type:'array',maxItems:specs.promptImage?.maxItems||1,minItems:1,items:object({uri:media,position:imagePosition},['uri'])}]};
-  if(nativeBody.referenceImages!==undefined)props.referenceImages={type:'array',minItems:1,maxItems:3,items:object({uri:media,tag:text},['uri'])};
-  if(nativeBody.referenceAudio!==undefined)props.referenceAudio={type:'array',minItems:1,maxItems:specs.referenceAudio?.maxItems||2,items:object({uri:media,type:{type:'string',enum:['audio']}},['uri','type'])};
-  if(nativeBody.shots!==undefined)props.shots={type:'array',minItems:3,maxItems:5,items:object({prompt:{type:'string',minLength:1,maxLength:1000},duration:{type:'integer',minimum:1,maximum:15}},['prompt','duration'])};
-  if(request.mode==='multi_shot_video'){props.duration={type:'integer',minimum:5,maximum:15};props.ratio={type:'string',enum:['1280:720','1920:1080']};}
- }
  if(provider==='seedance'){
   const slug=request.url.split('/').pop();
   const specs=fields.muapi?.endpoints?.[slug] || {};
@@ -51,6 +41,10 @@ function schemaFor(provider,capability,request,nativeBody=request.body){
   props.input.items.oneOf[0].required=['type','text'];
   props.response_format=object({type:{type:'string',enum:['image']},mime_type:{type:'string',enum:['image/jpeg']},image_size:{type:'string',enum:m.MODELS[request.model]?.sizes||[]},aspect_ratio:{type:'string',enum:m.ASPECTS}},['type','mime_type','image_size']);
   schema.required=['input','response_format','model'];
+ }
+ if(provider==='higgsfield-mcp' && Array.isArray(nativeBody.medias)){
+  // Each picture, clip or line travels under a role Higgsfield reads; an edited role it does not is refused.
+  props.medias={type:'array',minItems:1,maxItems:nativeBody.medias.length,items:object({role:{type:'string',enum:['image_references','image','start_image','end_image','audio_references','video_references','video','mask']},value:media},['role','value'])};
  }
  if(provider==='higgsfield'){
   const native=require('./providers/higgsfield-models.json').models[request.endpoint]?.schema;
@@ -87,14 +81,13 @@ function validate(value,schema={},label='request'){
 function validateWireRequest(provider,capability,request,body,nativeBody){
  const schema=schemaFor(provider,capability,request,nativeBody);
  validate(body,schema);
- if(provider==='runway' && Array.isArray(body.shots) && body.shots.reduce((sum,shot)=>sum+shot.duration,0)!==body.duration)fail('The multi-shot durations must match the reviewed total duration');
  if(provider==='google')for(const part of body.input||[])if(part.type==='image'&&!/^[A-Za-z0-9+/]+={0,2}$/.test(part.data))fail('Google image parts need base64 content');
  return schema;
 }
 module.exports={schemaFor,validateWireRequest,validate};
 
 function validateEditableInput(provider, capability, payload, request) {
- const files = {openai:'openai-image',google:'google-image',muapi:'muapi-image',runway:'runway',seedance:'seedance',higgsfield:'higgsfield',meshy:'meshy',worldlabs:'worldlabs',magnific:'magnific',elevenlabs:'elevenlabs','muapi-upscale':'muapi-topaz-upscale'};
+ const files = {openai:'openai-image',google:'google-image',muapi:'muapi-image',seedance:'seedance',higgsfield:'higgsfield','higgsfield-mcp':'higgsfield-mcp',meshy:'meshy',worldlabs:'worldlabs',magnific:'magnific',elevenlabs:'elevenlabs','muapi-upscale':'muapi-topaz-upscale'};
  const shared = new Set(('prompt negative_prompt video_negative_prompt audio_policy video_audio_policy model stream num_frames fps __model_explicit __not_sent_input_fields preview_task_id texture_prompt steps cfg_scale guidance_scale strength denoise_strength sampler scheduler style preset safety_tolerance reference_images reference_assets init_image end_image image image_url image_path file_path source_video video_url source_width source_height source_bytes source_seconds source_frames source_fps camera_control interpolation delivery duration duration_s duration_ms width height aspect_ratio ratio resolution quality size seed format target_polycount texture_resolution symmetry pbr remove_background input_url output_format scale_factor operation workflow provider endpoint type final_prompt final_request_body final_request_approvals options provenance project_id shot_id scene_id subject_id subject_kind world_version_id source_paths generation_choices __project_id __shot_id __scene_id __seed __default_seed').split(' '));
  const file=files[provider];
  for(const field of (supportedInputFields[provider+'/'+capability]||'').split(' '))if(field)shared.add(field);
@@ -102,7 +95,7 @@ function validateEditableInput(provider, capability, payload, request) {
  for(const key of Object.keys(payload || {}))if(!shared.has(key))fail(`Unsupported editable input field: ${key}`);
  for(const key of unsupportedInheritedFields(capability,payload,request,provider))fail(`Unsupported editable ${provider} ${capability} option: ${key}`);
  if(capability==='image'){
-  const referenceLimit={muapi:8,google:8,openai:8,runway:3}[provider];
+  const referenceLimit={muapi:8,google:8,openai:8,'higgsfield-mcp':8}[provider];
   if(referenceLimit && Array.isArray(payload.reference_images) && payload.reference_images.length>referenceLimit)fail(`Too many reference images: ${provider} supports ${referenceLimit}`);
   if(['muapi','google'].includes(provider) && payload.resolution!==undefined)fail('Select width and height for this image provider; an outer resolution option is unsupported');
   if(provider==='openai'){const m=require('./providers/openai-image');if(payload.size && !m.VALID_SIZES.includes(payload.size))fail('Unsupported OpenAI size');if(payload.quality && !m.VALID_QUALITY.includes(payload.quality))fail('Unsupported OpenAI quality');}
@@ -117,12 +110,15 @@ const supportedInputFields = {
  'muapi/image':'prompt model width height aspect_ratio reference_images',
  'google/image':'prompt negative_prompt model width height aspect_ratio reference_images',
  'openai/image':'prompt negative_prompt model openai_model width height size quality reference_images',
- 'runway/image':'model prompt promptText negative_prompt width height ratio aspect_ratio aspectRatio reference_images referenceImages seed',
- 'runway/video':'model prompt promptText negative_prompt motion_prompt motion camera_control reference_images referenceImages keyframes promptImage init_image image_url ratio width height duration_s duration duration_auto resolution video_audio_policy audio generate_audio output_format video_negative_prompt audio_references seed runway_recipe mode shots videoUri video_uri references strength',
  'seedance/video':'model prompt motion_prompt negative_prompt seed duration_s duration duration_ms muapi_draft generate_audio audio video_audio_policy source_video video_url audio_references reference_images reference_videos init_image image_url end_image last_frame keyframes workflow aspect_ratio ratio resolution width height muapi_options',
  'seedance/post':'model type job_type upscaler source_video video_url input_url input_video init_video resolution quality duration_s duration_ms source_seconds source_duration_ms prompt aspect_ratio target_resolution',
  'higgsfield/image':'model prompt negative_prompt seed width height aspect_ratio reference_images init_image image_url higgsfield_options',
  'higgsfield/video':'model prompt motion_prompt negative_prompt duration_s duration duration_ms audio_references generate_audio audio seed higgsfield_options reference_images init_image image_url end_image workflow aspect_ratio width height',
+ 'higgsfield-mcp/image':'model prompt negative_prompt seed width height aspect_ratio resolution target_resolution reference_images init_image image_url keyframes soul_id',
+ 'higgsfield-mcp/video':'model prompt motion_prompt promptText negative_prompt seed duration_s duration duration_ms audio_references generate_audio audio video_audio_policy reference_images init_image image_url end_image last_frame keyframes aspect_ratio resolution target_resolution width height videoUri video_uri source_video video_url sourceSeconds source_seconds',
+ 'higgsfield-mcp/voice':'text prompt voice_id higgsfield_voice_id higgsfield_voice_type model',
+ 'higgsfield-mcp/post':'model source_video video_url input_video input_url target_resolution source_width source_height source_fps width height duration_s duration_ms source_seconds source_duration_ms',
+ 'higgsfield-mcp/model3d':'model operation prompt image image_url image_urls should_texture enable_pbr pose_mode target_polycount topology symmetry_mode should_remesh texture_prompt seed',
  'meshy/image':'model prompt promptText negative_prompt width height aspect_ratio ratio reference_images generate_multi_view multi_view pose_mode',
  'meshy/model3d':'operation image_url image image_urls model prompt art_style style should_remesh negative_prompt seed should_texture texture_prompt input_task_id model_url height_meters animation_id animation_prompt preview_task_id refine',
  'worldlabs/world':'model display_name seed prompt images video is_pano',

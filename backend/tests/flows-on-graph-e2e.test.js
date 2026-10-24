@@ -94,6 +94,8 @@ test('select 2 shots → plan → apply a variations template → pause → pick
     const proj = await api('/film/projects', { method: 'POST', body: { title: 'Flows on the graph', provider_config: { image: 'gridlight', video: 'gridlight' } } });
     assert.equal(proj.status, 201, JSON.stringify(proj.data));
     const P = proj.data.id;
+    // A new project pins nothing, and Higgsfield (a hand-over) is the default; this run is the local gateway's.
+    await api(`/film/projects/${P}/providers`, { method: 'PUT', body: { image: 'gridlight', video: 'gridlight' } });
     await api(`/film/projects/${P}/script`, { method: 'POST', body: { format: 'fountain',
         content: 'Title: Flows\n\nINT. DINER - NIGHT\n\nMAYA waits by the window.\n\nMAYA\nHe is late.\n' } });
     const scenes = await api(`/film/projects/${P}/scenes`);

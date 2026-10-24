@@ -22,7 +22,6 @@ const CUT_KINDS_SERVER = backend('lib/production-cuts.js').KINDS;
 const MEDIA_KINDS = backend('lib/media-kinds.js').MEDIA_KINDS;
 const rec = backend('lib/model-recommender.js');
 const catalog = backend('lib/higgsfield-catalog.js');
-const RUNWAY = backend('lib/runway-catalog.js').runwayModels();
 
 const P = BASE.project_id;
 const [A, B] = BASE.nodes.filter(n => n.type === 'shot');
@@ -46,7 +45,7 @@ const SEEDANCE = (body) => ({ prompt: `[GOAL] Seedance prompt for ${body.label}.
     refs: [{ order: 1, label: '@Image 1', kind: 'image', role: 'character sheet', name: 'MARA', file: '/x/01 @Image 1 - MARA character sheet.png', file_name: '01 @Image 1 - MARA character sheet.png', use: 'her appearance', in_prompt: true },
            { order: 2, label: '@Video 1', kind: 'video', role: 'dialogue audio', name: 'dialogue', file: '/x/02 @Video 1 - dialogue (black screen).mp4', file_name: '02 @Video 1 - dialogue (black screen).mp4', use: 'voices and timing', in_prompt: false }],
     notes: ['Check the cup is the same in both shots'], model: 'gpt-6-astra', created_at: '2026-10-23T10:00:00Z' });
-const STARTER = (code) => ({ recipe: { provider: 'runway', model: 'gen4.5', prompt: `Composed prompt for ${code}`,
+const STARTER = (code) => ({ recipe: { provider: 'higgsfield-mcp', model: 'seedance_2_5', prompt: `Composed prompt for ${code}`,
     reference_images: [{ asset_id: 'plate-char', reference_role: 'character', name: 'Mara' }, { asset_id: 'plate-loc', reference_role: 'location', name: 'Diner', location_id: 'loc-1' }],
     init_image: { asset_id: `frame-${code}`, reference_role: 'keyframe' } } });
 
@@ -79,7 +78,6 @@ function open(extra = {}) {
         [`POST /projects/${P}/production-studio/send-to-resolve`]: { imported_into_resolve: true, dest: '/films/Demo/07 Delivery/Exports/Demo_Resolve', copied: 5, launch: { imported: true } },
         'PUT /providers/higgsfield/credentials': { ok: true },
         [`GET /projects/${P}/production-studio/direction`]: DIRECTION,
-        'GET /production-studio/runway-models': { models: RUNWAY, connected: true, usd_per_credit: 0.01 },
         [`PUT /projects/${P}/production-studio/direction/studio`]: { revision: 1 },
         [`PUT /projects/${P}/production-studio/direction/shots/${A.id}`]: { revision: 1 },
         [`PUT /projects/${P}/production-studio/direction/shots/${B.id}`]: { revision: 1 },
@@ -277,7 +275,7 @@ describe('Generate (Direct studio): pick, direct, watch the prompt, check, send'
         const model = screen.getByLabelText('Send to Higgsfield model').value;
         await click(screen.getByRole('button', { name: /^Generate 1A · / }));
         const put = calls.find(c => c.method === 'PUT' && c.path.endsWith(`${enc(A.key)}/draft`));
-        expect(put.body.payload.video).toMatchObject({ provider: 'higgsfield', model, init_image: { asset_id: 'frame-1A' }, settings: { duration_s: 6 } });
+        expect(put.body.payload.video).toMatchObject({ provider: 'higgsfield-mcp', model, init_image: { asset_id: 'frame-1A' }, settings: { duration_s: 6 } });
         expect(put.body.payload.video.prompt).toContain('{MARA: “Where were you?”}');
         expect(put.body.expected_revision).toBe(0);
         expect(calls.find(c => c.path === `/shots/${A.id}/video/generate`).body).toEqual({ production_draft: { node_key: A.key, revision: 1 } });
@@ -396,28 +394,6 @@ describe('Generate (Direct studio): pick, direct, watch the prompt, check, send'
             shots: { ...DIRECTION.shots, [A.id]: { ...DIRECTION.shots[A.id], direction: { ...SEEDED_A(), lines: [{ id: 'l1', ch: 'MARA', text: 'Saved line.', orig: 'Where were you?', t: 1, del: '', pause: 0, src: 'native' }] }, revision: 2 } } };
         open({ [`GET /projects/${P}/production-studio/direction`]: saved }); await flush();
         expect(prompt().textContent).toContain('Mara says: “Saved line.”');
-    });
-
-    it('Runway is a provider at the bottom: same ranking, its twins of the ranked models, its own credits, and Send goes to Runway', async () => {
-        const { calls } = open(); await flush(); await pick('1A'); await wait(600);
-        const gen = () => within(direct()).getByRole('heading', { name: 'Generate' }).closest('.ds-gen');
-        const hfChips = [...gen().querySelectorAll('.ds-chips .ds-chip')].map(c => c.firstChild.textContent);
-        await click(within(gen()).getByRole('button', { name: 'Runway' }));
-        const rwChips = [...gen().querySelectorAll('.ds-chips .ds-chip')].map(c => c.firstChild.textContent);
-        const twins = hfChips.map(l => RUNWAY.find(m => m.same_as.some(id => MODELS.find(x => x.id === id)?.label === l))?.label).filter(Boolean);
-        expect(rwChips.length).toBeGreaterThan(0);
-        expect(rwChips.slice(0, twins.length)).toEqual(twins.slice(0, rwChips.length));
-        const offered = [...screen.getByLabelText('Send to Runway model').querySelectorAll('option')].map(o => o.value);
-        expect(offered.sort()).toEqual(RUNWAY.map(m => m.id).sort());
-        expect(screen.getByLabelText('Send to Runway model').textContent).toContain("Runway's own");
-        fireEvent.change(screen.getByLabelText('Send to Runway model'), { target: { value: 'gen4.5' } }); await flush();
-        const btn = screen.getByRole('button', { name: /^Generate 1A · 72 Runway credits \(≈\$0\.72\)/ });
-        await click(btn);
-        const put = calls.find(c => c.method === 'PUT' && c.path.endsWith(`${enc(A.key)}/draft`));
-        expect(put.body.payload.video).toMatchObject({ provider: 'runway', model: 'gen4.5', init_image: { asset_id: 'frame-1A' }, settings: { duration_s: 6, width: 1280, height: 720, generate_audio: false } });
-        expect(put.body.payload.video.prompt).toContain('Where were you?');
-        expect(calls.find(c => c.path === `/shots/${A.id}/video/generate`).body).toEqual({ production_draft: { node_key: A.key, revision: 1 } });
-        expect(calls.filter(c => c.path.endsWith('/direction/studio')).pop().body.data).toMatchObject({ provider: 'runway', runwayModel: 'gen4.5' });
     });
 
     it('API keys live in Settings only: Production shows no key button or key status', async () => {

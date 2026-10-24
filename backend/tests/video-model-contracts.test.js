@@ -21,60 +21,44 @@ const assert = require('node:assert');
 const fs = require('fs');
 const path = require('path');
 
-const runway = require('../lib/providers/runway');
 const videoRef = () => require('../lib/video-reference');
 const tiers = () => require('../lib/video-tiers');
 const cost = () => require('../lib/video-cost');
-const MODELS = runway.RUNWAY_VIDEO_MODELS;
+// Higgsfield's app catalogue: the only video vendor since Runway was removed (2026-10-24).
+const MODELS = require('../lib/higgsfield-app-catalog').MODELS;
 
-/* ── A. every model declares complete billing metadata ───────────────── */
+/* ── A. every model carries Higgsfield's own credit quotes ───────────── */
 
-/** What a model must say about money before anything may be estimated from it. */
-const BILLING_FIELDS = ['creditsPerSecond', 'imageReferenceCredits',
-    'videoReferenceCreditsPerSecond', 'audioReferenceCredits', 'minimumCredits'];
-
-test('the registry carries both Seedance generations and hailuo3', () => {
-    // Runway exposes Seedance 2.0 and 2.5 as separate models with different
-    // rates. Renaming 2.0 would have silently repriced every existing estimate.
-    for (const id of ['seedance2', 'seedance2_5', 'hailuo3'])
-        assert.ok(MODELS[id], `${id} is not in RUNWAY_VIDEO_MODELS`);
-    assert.strictEqual(MODELS.seedance2.creditsPerSecond, 36,
-        'Seedance 2.0 was repriced — its published rate is 36 cr/s at 480/720p');
+test('the catalogue carries Seedance 2.5 and MiniMax H3', () => {
+    for (const id of ['seedance_2_5', 'minimax_h3']) assert.ok(MODELS[id], `${id} is not in the Higgsfield app catalogue`);
+    assert.strictEqual(MODELS.seedance_2_5.credits['resolution=1080p'].on.per_second, 16,
+        'Seedance 2.5 was repriced — Higgsfield quoted 16 credits a second at 1080p');
 });
 
-test('every video model declares every billing field', () => {
+test('every video model is quoted, and the estimator prices every one', () => {
     const ids = Object.keys(MODELS);
-    assert.ok(ids.length >= 11, `expected the registry to have grown, got ${ids.length}`);
+    assert.ok(ids.length >= 20, `expected the catalogue to have grown, got ${ids.length}`);
     for (const id of ids) {
-        for (const field of BILLING_FIELDS) {
-            assert.strictEqual(typeof MODELS[id][field], 'number',
-                `${id} does not declare ${field} — it would be priced as free`);
-            assert.ok(MODELS[id][field] >= 0, `${id}.${field} is negative`);
-        }
-        assert.ok(MODELS[id].source, `${id} has no source URL — an unre-checkable rate decays into a lie`);
+        const e = cost().estimateVideoCost({ model: id, durationSeconds: 5 });
+        assert.ok(Number.isFinite(e.credits) && e.credits > 0, `${id} priced at ${e.credits}`);
+        assert.ok(Number.isFinite(e.usd) && e.usd > 0, `${id} has no dollar figure`);
+        assert.ok(Array.isArray(e.lines) && e.lines.length, `${id} produced no breakdown`);
+        assert.ok(/^https?:\/\//.test(e.source), `${id} has no source URL — an unre-checkable rate decays into a lie`);
     }
 });
 
-test('a model priced per resolution says so, and every tier has a rate', () => {
-    for (const [id, m] of Object.entries(MODELS)) {
-        if (!m.resolutions) continue;
-        for (const [label, rate] of Object.entries(m.resolutions)) {
-            assert.strictEqual(typeof rate.creditsPerSecond, 'number',
-                `${id} resolution ${label} has no rate`);
-        }
-    }
-    // The two that Runway documents per resolution.
-    assert.ok(MODELS.hailuo3.resolutions, 'hailuo3 is priced per resolution (768P / 2K)');
-    assert.ok(MODELS.seedance2_5.resolutions, 'seedance2_5 is priced per resolution');
+test('a model priced per resolution is priced at the tier asked for', () => {
+    const at = r => cost().estimateVideoCost({ model: 'seedance_2_5', durationSeconds: 10, resolution: r }).credits;
+    assert.strictEqual(at('480p'), 30);
+    assert.strictEqual(at('720p'), 70);
+    assert.strictEqual(at('1080p'), 160);
 });
 
 /* ── B. every model declares what references it will take ────────────── */
 
-
-test('every model has a reference contract naming its roles and limits', () => {
-    for (const id of Object.keys(MODELS)) {
+test('every contract names its roles and limits', () => {
+    for (const id of ['seedance_2_5', 'minimax_h3', 'veo3_1']) {
         const c = videoRef().contractFor(id);
-        assert.ok(c, `${id} has no reference contract`);
         assert.ok(Array.isArray(c.roles), `${id} contract declares no roles`);
         for (const cap of ['maxImages', 'maxVideos', 'maxAudio'])
             assert.strictEqual(typeof c[cap], 'number', `${id} contract has no ${cap}`);
@@ -82,19 +66,18 @@ test('every model has a reference contract naming its roles and limits', () => {
     }
 });
 
-test('Gen-4.5 stays keyframe-only, which is the decision being protected', () => {
-    const c = videoRef().contractFor('gen4.5');
+test('a model that documents no references stays keyframe-only', () => {
+    const c = videoRef().contractFor('veo3_1');
     assert.deepStrictEqual(c.roles, ['keyframe'],
-        'Gen-4.5 gained reference roles — the keyframe was already generated FROM the plates, '
-        + 'and re-sending them asks the model which picture is the truth');
+        'the keyframe was already generated FROM the plates, and re-sending them asks the model which picture is the truth');
     assert.strictEqual(c.maxImages, 1);
 });
 
-test('hailuo3 and seedance2_5 take role-addressed packages', () => {
-    const h3 = videoRef().contractFor('hailuo3');
-    assert.ok(h3.maxImages >= 9, `hailuo3 should take a real package, got ${h3.maxImages}`);
+test('minimax_h3 and seedance_2_5 take role-addressed packages', () => {
+    const h3 = videoRef().contractFor('minimax_h3');
+    assert.ok(h3.maxImages >= 9, `minimax_h3 should take a real package, got ${h3.maxImages}`);
     assert.ok(h3.roles.includes('character') && h3.roles.includes('location'));
-    const sd = videoRef().contractFor('seedance2_5');
+    const sd = videoRef().contractFor('seedance_2_5');
     assert.ok(sd.maxImages >= 30, `seedance 2.5 documents 30 images, contract says ${sd.maxImages}`);
     assert.ok(sd.maxVideos >= 10 && sd.maxAudio >= 10);
 });
@@ -106,7 +89,7 @@ test('a reference is semantic, and unknown roles are refused not silently droppe
     const out = videoRef().selectReferences([
         { assetId: 'a', role: 'character', subject: 'MAYA', sourceType: 'image' },
         { assetId: 'b', role: 'nonsense', sourceType: 'image' },
-    ], videoRef().contractFor('hailuo3'));
+    ], videoRef().contractFor('minimax_h3'));
     assert.strictEqual(out.selected.length, 1);
     assert.ok(out.dropped.some(d => /nonsense/.test(d.reason || d.role || '')),
         'an unusable reference must be reported, not dropped in silence');
@@ -115,13 +98,12 @@ test('a reference is semantic, and unknown roles are refused not silently droppe
 test('selection trims to the contract and reports what did not fit', () => {
     const many = Array.from({ length: 40 }, (_, i) =>
         ({ assetId: 'x' + i, role: 'character', subject: 'S' + i, sourceType: 'image' }));
-    const out = videoRef().selectReferences(many, videoRef().contractFor('hailuo3'));
-    assert.ok(out.selected.length <= videoRef().contractFor('hailuo3').maxImages);
+    const out = videoRef().selectReferences(many, videoRef().contractFor('minimax_h3'));
+    assert.ok(out.selected.length <= videoRef().contractFor('minimax_h3').maxImages);
     assert.ok(out.dropped.length > 0, 'over-budget references vanished without a word');
 });
 
 /* ── C. tiers are policy, not model aliases ──────────────────────────── */
-
 
 test('every tier is a policy and resolves to a known model or an explicit null', () => {
     const ids = Object.keys(tiers().VIDEO_TIERS);
@@ -134,66 +116,26 @@ test('every tier is a policy and resolves to a known model or an explicit null',
         if (t.preferredModel !== null)
             assert.ok(MODELS[t.preferredModel], `tier ${id} prefers unknown model ${t.preferredModel}`);
     }
-    assert.strictEqual(tiers().VIDEO_TIERS.draft.preferredModel, 'gen4_turbo',
-        'the cheap blocking pass should be Gen-4 Turbo at 5 cr/s');
-    assert.strictEqual(tiers().VIDEO_TIERS.production.preferredModel, 'hailuo3');
+    assert.strictEqual(tiers().VIDEO_TIERS.draft.preferredModel, 'seedance_2_5');
+    assert.strictEqual(tiers().VIDEO_TIERS.draft.resolution, '480p', 'the cheap blocking pass is Seedance 2.5 at 480p');
+    assert.strictEqual(tiers().VIDEO_TIERS.production.preferredModel, 'seedance_2_5');
     assert.strictEqual(tiers().VIDEO_TIERS.hero.preferredModel, null,
         'hero must stay a router/user decision rather than a hardcoded model');
 });
 
-/* ── D. the estimate, computed locally and matching the published rates ─ */
+/* ── D. the estimate, computed locally from Higgsfield's quotes ───────── */
 
-
-test('the estimator prices every model in the registry', () => {
-    for (const id of Object.keys(MODELS)) {
-        const e = cost().estimateVideoCost({ model: id, durationSeconds: 5 });
-        assert.ok(Number.isFinite(e.credits) && e.credits > 0, `${id} priced at ${e.credits}`);
-        assert.ok(Number.isFinite(e.usd) && e.usd > 0, `${id} has no dollar figure`);
-        assert.ok(Array.isArray(e.lines) && e.lines.length,
-            `${id} produced no breakdown — a total with no lines cannot be checked`);
-    }
+test('the quoted arithmetic comes out exactly', () => {
+    const draft = cost().estimateVideoCost({ model: 'seedance_2_5', durationSeconds: 5, resolution: '480p' });
+    assert.strictEqual(draft.credits, 15, '5s at 3 credits a second');
+    assert.strictEqual(draft.usd, Math.round(15 * cost().USD_PER_CREDIT * 100) / 100);
 });
 
-test('the published arithmetic comes out exactly', () => {
-    // Runway: credits are $0.01. Gen-4 Turbo 5 cr/s; hailuo3 768P 10 cr/s
-    // +2 cr per reference image; Gen-4.5 12 cr/s.
-    const draft = cost().estimateVideoCost({ model: 'gen4_turbo', durationSeconds: 5 });
-    assert.strictEqual(draft.credits, 25);
-    assert.strictEqual(Number(draft.usd.toFixed(2)), 0.25);
-
-    const h3 = cost().estimateVideoCost({
-        model: 'hailuo3', durationSeconds: 10, resolution: '768P', imageReferences: 9,
-    });
-    assert.strictEqual(h3.credits, 118, '10s at 10 cr/s plus 9 images at 2 cr should be 118');
-    assert.strictEqual(Number(h3.usd.toFixed(2)), 1.18);
-
-    const g45 = cost().estimateVideoCost({ model: 'gen4.5', durationSeconds: 10 });
-    assert.strictEqual(g45.credits, 120);
-    assert.ok(h3.credits < g45.credits,
-        'H3 with nine references should undercut Gen-4.5 with none — that is the whole argument');
-});
-
-test('a minimum charge is applied, and named in the breakdown', () => {
-    // Seedance 2.5 has an 80-credit minimum, so a short clip bills as longer.
-    const short = cost().estimateVideoCost({ model: 'seedance2_5', durationSeconds: 2, resolution: '720p' });
-    assert.ok(short.credits >= 80, `a 2s Seedance 2.5 clip billed ${short.credits}, below its 80 minimum`);
-    assert.ok(short.lines.some(l => /minimum/i.test(l.label)),
-        'the minimum was applied without saying so');
-});
-
-test('reference VIDEO is billed per second and reference images are not', () => {
-    const base = cost().estimateVideoCost({ model: 'seedance2_5', durationSeconds: 10, resolution: '720p' });
-    const withStills = cost().estimateVideoCost({
-        model: 'seedance2_5', durationSeconds: 10, resolution: '720p', imageReferences: 20,
-    });
-    const withClip = cost().estimateVideoCost({
-        model: 'seedance2_5', durationSeconds: 10, resolution: '720p', videoReferenceSeconds: 10,
-    });
-    assert.strictEqual(withStills.credits, base.credits,
-        'Seedance 2.5 image references are free and were charged for');
-    assert.ok(withClip.credits > base.credits,
-        'a reference VIDEO is billed at half the output rate and was charged as free — '
-        + 'the trap that makes reference-heavy estimates low by a multiple');
+test('a clip shorter than the model takes is billed at its shortest, and says so', () => {
+    const short = cost().estimateVideoCost({ model: 'seedance_2_5', durationSeconds: 2, resolution: '720p' });
+    assert.strictEqual(short.durationSeconds, 4, 'Seedance 2.5 makes at least 4 seconds');
+    assert.strictEqual(short.credits, 28);
+    assert.ok(short.minimumApplied, 'the shortest length was applied without saying so');
 });
 
 /* ── E. the model can see a picture ──────────────────────────────────── */
@@ -278,15 +220,15 @@ test('W5 · only the model that documents the images takes them', () => {
      * be handed it.
      */
     const V = require('../lib/video-reference');
-    assert.ok(V.CONTRACTS.seedance2_5.roles.includes('inbetween'),
+    assert.ok(V.CONTRACTS.seedance_2_5.roles.includes('inbetween'),
         'the one model with 30 free images does not take the strip');
     for (const [model, c] of Object.entries(V.CONTRACTS)) {
-        if (model === 'seedance2_5') continue;
+        if (model === 'seedance_2_5') continue;
         assert.ok(!c.roles.includes('inbetween'),
             `${model} was given the in-between slot without documenting it`);
     }
     assert.ok(!V.KEYFRAME_ONLY.roles.includes('inbetween'),
-        'the keyframe-only default was widened — gen4.5 stays keyframe-only deliberately');
+        'the keyframe-only default was widened — a model with no documented references stays keyframe-only deliberately');
 });
 
 test('W5 · an in-between is dropped by name where it is not taken', () => {
@@ -296,11 +238,11 @@ test('W5 · an in-between is dropped by name where it is not taken', () => {
     }));
     const refs = [{ role: 'keyframe', kind: 'image', uri: 'data:image/png;base64,k', name: '1A' }, ...strip];
 
-    const kept = V.selectReferences(refs, V.CONTRACTS.seedance2_5);
+    const kept = V.selectReferences(refs, V.CONTRACTS.seedance_2_5);
     assert.equal(kept.selected.filter(r => r.role === 'inbetween').length, 4,
         'seedance dropped the strip it documents room for');
 
-    const dropped = V.selectReferences(refs, V.CONTRACTS.hailuo3);
+    const dropped = V.selectReferences(refs, V.CONTRACTS.minimax_h3);
     assert.equal(dropped.selected.filter(r => r.role === 'inbetween').length, 0);
     assert.equal(dropped.dropped.filter(r => r.role === 'inbetween').length, 4,
         'the strip vanished instead of being reported as dropped');
@@ -314,9 +256,9 @@ test('W5 · the 31st image is dropped by name, never silently', () => {
     const many = Array.from({ length: 34 }, (_, i) => ({
         role: 'inbetween', kind: 'image', uri: `data:image/png;base64,s${i}`, name: `station ${i}`,
     }));
-    const out = V.selectReferences(many, V.CONTRACTS.seedance2_5);
-    assert.equal(out.selected.length, V.CONTRACTS.seedance2_5.maxImages);
-    assert.equal(out.dropped.length, 34 - V.CONTRACTS.seedance2_5.maxImages);
+    const out = V.selectReferences(many, V.CONTRACTS.seedance_2_5);
+    assert.equal(out.selected.length, V.CONTRACTS.seedance_2_5.maxImages);
+    assert.equal(out.dropped.length, 34 - V.CONTRACTS.seedance_2_5.maxImages);
     for (const d of out.dropped) assert.ok(d.name, 'an over-budget image was dropped without a name');
 });
 

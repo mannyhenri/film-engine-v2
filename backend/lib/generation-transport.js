@@ -6,7 +6,8 @@ const canonical=value=>require('./final-request-review').canonical(value);
 function attach(request,context){requests.set(request,{...context,hosted:new Map()});return request;}
 function hosted(request,source,url){
  const context=requests.get(request);if(!context)throw new Error('Hosted media needs an approved request');
- const ref=context.snapshot.references.find(r=>r.data===source);
+ // A large file (a clip) is frozen by path and digest rather than inlined.
+ const ref=context.snapshot.references.find(r=>r.data===source)||context.snapshot.references.find(r=>!r.data&&r.path&&r.path===source);
  if(!ref)throw new Error('Uploaded bytes were not part of this approved request');
  const values=context.hosted.get(ref.sha256)||new Set();values.add(url);context.hosted.set(ref.sha256,values);
 }
@@ -62,17 +63,25 @@ function redactMediaCredentials(value,redactions,path='body'){
  }
  return value;
 }
-async function dispatch(request,url,init){
+/*
+ * `envelope` wraps the approved creative body for a transport that carries it inside
+ * a fixed frame (an MCP tools/call). Every check runs on the creative body; the
+ * receipt records it and names the envelope, which adds nothing a person approves.
+ */
+async function dispatch(request,url,init,{envelope}={}){
  const context=requests.get(request);if(!context)throw new Error('Creative dispatch needs a claimed approved request');
  require('./manual-generation').assertSendable(context.snapshot.provider,context.snapshot.capability);
+ // Test mode writes the request down in the adapter; reaching the wire in it is a bug, and is refused.
+ if(require('./generation-test-mode').appliesTo(context.snapshot.provider))throw Object.assign(new Error('Test mode is on: nothing is sent to '+context.snapshot.provider),{status:409});
  if(url!==context.snapshot.endpoint)throw new Error('Provider endpoint changed after approval');
  const encoded=await serialize(url,init),references=transportReferences(context,encoded.body);
  assertApprovedSemantics(context,encoded.body);
  const redactions=[],safeBody=redactMediaCredentials(encoded.body,redactions),safeReferences=redactMediaCredentials(references,redactions,'references');
- const id=context.store.recordTransport(context.reviewId,{endpoint:url,method:String(init.method||'POST').toUpperCase(),body:safeBody,serialized_body:redactions.length?null:encoded.serialized_body,serialized_base64:redactions.length?null:encoded.serialized_base64,serialization_exact:!redactions.length,redactions,body_sha256:sha(encoded.bytes),references:safeReferences,sent_at:new Date().toISOString()});
+ const id=context.store.recordTransport(context.reviewId,{endpoint:url,method:String(init.method||'POST').toUpperCase(),body:safeBody,serialized_body:redactions.length?null:encoded.serialized_body,serialized_base64:redactions.length?null:encoded.serialized_base64,serialization_exact:!redactions.length,redactions,body_sha256:sha(encoded.bytes),references:safeReferences,sent_at:new Date().toISOString(),...(envelope?{envelope:'mcp tools/call'}:{})});
  // Failure to persist above stops before paid dispatch. Once attempted, a
  // bookkeeping failure must not hide an accepted provider response.
- try{const response=await fetch(url,encoded.init);try{context.store.settleTransport(id,'http_response',response.status);}catch(_){}return response;}
+ const wire=envelope?{...encoded.init,body:envelope(encoded.serialized_body)}:encoded.init;
+ try{const response=await fetch(url,wire);try{context.store.settleTransport(id,'http_response',response.status);}catch(_){}return response;}
  catch(error){try{context.store.settleTransport(id,'acceptance_unknown',null);}catch(_){}throw error;}
 }
 module.exports={attach,hosted,hostedList,dispatch};

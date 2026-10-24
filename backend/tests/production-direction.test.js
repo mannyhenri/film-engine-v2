@@ -94,23 +94,3 @@ test('the route: GET the film, PUT the studio and a shot, DELETE a shot back to 
     r = await call('POST', ['direction', 'shots', SH], {});
     assert.strictEqual(r.status, 405);
 });
-
-test('Runway: every video model the adapter sends is listed, named, priced, and tied to the Higgsfield model it is', async () => {
-    const rw = require('../lib/runway-catalog');
-    const { factsFor } = require('../lib/video-model-facts');
-    const adapter = Object.keys(require('../lib/providers/runway').RUNWAY_VIDEO_MODELS);
-    const list = rw.runwayModels();
-    assert.deepStrictEqual(list.map(m => m.id).sort(), adapter.sort());
-    for (const m of list) {
-        assert.ok(rw.RUNWAY_MODELS[m.id], `${m.id}: no label`);
-        assert.ok(Number.isFinite(m.credits_per_second) && m.credits_per_second > 0, `${m.id}: no rate`);
-        for (const id of m.same_as) assert.ok(factsFor(id), `${m.id}: maps to unknown Higgsfield model ${id}`);
-    }
-    assert.deepStrictEqual(list.find(m => m.id === 'seedance2_5').same_as, ['seedance-2-5']);
-    assert.strictEqual(list.find(m => m.id === 'gen4.5').own, true);
-    const res = await new Promise(resolve => handleProductionStudio({ method: 'GET' },
-        { writeHead(s) { this.s = s; }, end(t) { resolve({ status: this.s, body: JSON.parse(t) }); } }, ['film', 'production-studio', 'runway-models']));
-    assert.strictEqual(res.status, 200);
-    assert.strictEqual(res.body.models.length, adapter.length);
-    assert.strictEqual(res.body.usd_per_credit, 0.01);
-});

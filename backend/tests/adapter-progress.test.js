@@ -57,7 +57,6 @@ const generating = () => providers.list().filter(a => typeof a.generate === 'fun
  * the test ends without fetching media. The progress is what is under test.
  */
 const RUNNING = {
-    runway: { status: 'RUNNING', progress: 0.5 },
     muapi: { status: 'processing', progress: 50 },
     seedance: { status: 'processing', progress: 50 },
     meshy: { status: 'IN_PROGRESS', progress: 50 },
@@ -65,9 +64,9 @@ const RUNNING = {
     topaz: { status: 'processing', progress: 50 },
     magnific: { data: { task_id: 't1', status: 'IN_PROGRESS' } },
     higgsfield: { status: 'in_progress', request_id: 't1' },
+    'higgsfield-mcp': { jobs: [{ index: 0, status: 'in_progress' }] },
 };
 const FINISHED = {
-    runway: { status: 'FAILED', failure: 'stub' },
     muapi: { status: 'failed', error: 'stub' },
     seedance: { status: 'failed', error: 'stub' },
     meshy: { status: 'FAILED', task_error: { message: 'stub' } },
@@ -75,9 +74,9 @@ const FINISHED = {
     topaz: { status: 'failed', message: 'stub' },
     magnific: { data: { task_id: 't1', status: 'FAILED' } },
     higgsfield: { status: 'failed', request_id: 't1', error: 'stub' },
+    'higgsfield-mcp': { jobs: [{ index: 0, status: 'failed', error: 'stub' }] },
 };
 const FIXTURES = {
-    runway: { cap: 'video', payload: { prompt: 'a quiet street at dusk', init_image: 'data:image/png;base64,iVBORw0KGgo=', duration: 5 } },
     muapi: { cap: 'image', payload: { prompt: 'a quiet street at dusk' } },
     seedance: { cap: 'video', payload: { prompt: 'a quiet street at dusk', init_image: 'https://example.com/a.png', duration: 5 } },
     meshy: { cap: 'model3d', payload: { prompt: 'a wooden chair', refine: false } },
@@ -90,6 +89,7 @@ const FIXTURES = {
     magnific: { cap: 'post', payload: { model: 'magnific-video-upscaler-precision', source_video: TOPAZ_CLIP,
         source_seconds: 2, source_fps: 24, target_resolution: '1920x1080' } },
     higgsfield: { cap: 'video', payload: { model: 'seedance-2-5', prompt: 'a quiet street at dusk', init_image: 'https://example.com/a.png', duration: 5 } },
+    'higgsfield-mcp': { cap: 'image', payload: { prompt: 'a quiet street at dusk' } },
 };
 
 function stubFetch(id) {

@@ -30,7 +30,7 @@ function credential(id) {
     db.prepare(`INSERT OR REPLACE INTO film_provider_credentials (provider, api_key, meta, updated_at)
         VALUES (?, 'test-key-not-a-real-one', '{}', datetime('now'))`).run(id);
 }
-for (const id of ['muapi', 'google', 'meshy', 'openai', 'runway']) credential(id);
+for (const id of ['muapi', 'google', 'meshy', 'openai']) credential(id);
 
 test('every vendor the standard names is a registered image adapter that sells the model', () => {
     for (const [id, model] of Object.entries(std.STANDARD_MODELS)) {
@@ -39,7 +39,8 @@ test('every vendor the standard names is a registered image adapter that sells t
         const ids = providers.modelIdsFor(a, 'image');
         assert.ok(!ids || ids.includes(model), `${id} does not offer ${model}`);
     }
-    assert.strictEqual(std.STANDARD_PROVIDERS[0], 'muapi', 'MuAPI is not first');
+    // Higgsfield only (2026-10-24): one vendor of the house model, and no other to walk to.
+    assert.deepStrictEqual([...std.STANDARD_PROVIDERS], ['higgsfield-mcp'], 'the standard names a vendor other than Higgsfield');
 });
 
 /*
@@ -64,7 +65,7 @@ function withGateway(on, fn) {
 test('with nothing chosen an image resolves to the house vendor, over tier and default', () => {
     for (const cfg of [{}, { image_quality: 'draft' }, { image_quality: 'precision' }]) {
         const r = providers.resolveIdWithReason('image', cfg);
-        assert.strictEqual(r.id, 'muapi', `${JSON.stringify(cfg)} resolved ${r.id}`);
+        assert.strictEqual(r.id, 'higgsfield-mcp', `${JSON.stringify(cfg)} resolved ${r.id}`);
         assert.strictEqual(r.source, 'house_standard');
     }
 });
@@ -129,10 +130,10 @@ test('a chosen model is the model asked for, on every provider that offers it', 
     }
 });
 
-test('with nothing chosen a refusal walks only to another vendor of the same model', () => {
+test('with nothing chosen a refusal is shown, never walked onto another vendor', () => {
     const { imageProviderChain } = require('../lib/image-fallback');
     const ids = imageProviderChain({}).map(a => a.id);
-    assert.ok(ids.length >= 2, `the walk has ${ids.length} vendor(s)`);
+    assert.deepStrictEqual(ids, ['higgsfield-mcp'], `the walk would leave Higgsfield for ${ids.slice(1).join(', ')}`);
     for (const id of ids) {
         assert.ok(std.isStandardProvider(id), `${id} is in the image walk and does not sell Nano Banana Pro`);
     }
@@ -140,7 +141,7 @@ test('with nothing chosen a refusal walks only to another vendor of the same mod
 
 test('a chosen provider outside the standard is never walked away from', () => {
     const { imageProviderChain } = require('../lib/image-fallback');
-    for (const id of ['openai', 'runway']) {
+    for (const id of ['openai']) {
         const ids = imageProviderChain({ image: id }).map(a => a.id);
         assert.deepStrictEqual(ids, [id], `chose ${id}; a refusal would walk to ${ids.slice(1).join(', ')}`);
     }

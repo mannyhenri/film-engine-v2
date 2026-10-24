@@ -1,10 +1,9 @@
-// Set-based: every chat surface renders Markdown, streams, styles its buttons, and offers each direct edit target.
+// Set-based: every chat surface renders Markdown, streams and styles its buttons.
 import fs from 'node:fs';
 import {render,screen,act} from '@testing-library/react';
 import {describe,it,expect,afterEach,vi} from 'vitest';
 import {legacy} from '../../lib/legacy.js';
 import {installLegacy} from '../../test/setup.js';
-import AIWorkspace from './AIWorkspace.jsx';
 import AskAI from './AskAI.jsx';
 const MD='**Do I need a reason?** sounds natural.\n\n- keeps `Ray` defensive\n- *softer* option';
 const providers=[{id:'codex',label:'Codex',available:true,note:'Connected'}];
@@ -14,7 +13,6 @@ const appCatalog={application_id:'film-engine-v2',projects:[],providers,uploads:
 const base={provider:'codex',events:[],apply_state:'none',application:{}};
 // Every chat surface, with a way to open it showing the given tasks.
 const SURFACES={
- project:{Component:AIWorkspace,async open(tasks){const out=installLegacy({routes:{['GET '+projectBase]:projectCatalog,['GET '+projectBase+'/conversations?feature=screenplay']:{conversations:[{id:'c1',title:'C'}]},['GET '+projectBase+'/conversations/c1']:{tasks}},project:{id:'p1',title:'Fixture'}});out.fake.state.currentPage='screenplay';render(<AIWorkspace/>);await act(async()=>{await window.__filmOpenAIWorkspace();});}},
  application:{Component:AskAI,async open(tasks){const out=installLegacy({routes:{['GET '+appBase]:appCatalog,['GET '+appBase+'/conversations']:{conversations:[{id:'g1',title:'G'}]},['GET '+appBase+'/conversations/g1']:{tasks,uploads:[]}}});out.fake.state.currentProject=null;render(<AskAI/>);await act(async()=>{await window.__filmOpenAskAI();});}},
 };
 const chat=(id,status,extra={})=>({...base,id,status,request:{prompt:'Ask '+id,operation:{kind:'chat'}},result:'',...extra});
@@ -23,7 +21,7 @@ const answer=()=>conversation().querySelector('.ai-markdown');
 // Every selector in the chat stylesheet that gives a button an explicit background.
 const css=fs.readFileSync('src/components/AIWorkspace/AIChatLayout.css','utf8').replace(/\/\*[\s\S]*?\*\//g,'');
 const styledButtonSelectors=[...css.matchAll(/([^{}]+)\{([^}]*)\}/g)].filter(([, ,body])=>/background/.test(body)).flatMap(([,sel])=>sel.split(',').map(s=>s.trim())).filter(s=>/\.btn|button/.test(s)&&!s.startsWith('@'));
-afterEach(()=>{delete window.__filmOpenAIWorkspace;delete window.__filmOpenAskAI;});
+afterEach(()=>{delete window.__filmOpenAskAI;});
 describe.each(Object.entries(SURFACES))('%s chat surface',(name,surface)=>{
  it('renders a completed answer as Markdown, not raw markers',async()=>{
   await surface.open([chat('done','completed',{result:MD})]);const view=answer();expect(conversation().textContent).not.toContain('**');
@@ -49,16 +47,6 @@ describe.each(Object.entries(SURFACES))('%s chat surface',(name,surface)=>{
    expect(rule,`${cls} has a rule`).toBeTruthy();
    for(const d of ['display:inline-flex','align-items:center','justify-content:center'])expect(rule[1],`${cls}: ${d}`).toContain(d);
   }
- });
-});
-// Every direct edit target the project chat can propose.
-const TARGETS={scene:{block:'fountain',proposal:{kind:'replace',scene_index:0,text:'INT. KITCHEN - NIGHT\n\nRevised.'},button:'Review & apply'},image:{block:'image-prompt',proposal:{kind:'node_prompt',node_key:'shot:a',recipe_kind:'image',text:'New image prompt'},button:/Apply/},video:{block:'video-prompt',proposal:{kind:'node_prompt',node_key:'shot:a',recipe_kind:'video',text:'New video prompt'},button:/Apply/}};
-describe.each(Object.entries(TARGETS))('direct %s edit from chat',(name,target)=>{
- it('shows the proposal separately from the answer with an apply action',async()=>{
-  await SURFACES.project.open([chat('edit','completed',{result:'Here you go.\n\n```'+target.block+'\n'+target.proposal.text+'\n```',proposal:target.proposal})]);
-  const card=conversation().querySelector('.ai-draft-proposal');expect(card).toBeTruthy();expect(card.textContent).toContain(target.proposal.text.split('\n').at(-1));
-  expect(conversation().textContent.split(target.proposal.text.split('\n').at(-1)).length).toBe(2);
-  expect(screen.getByRole('button',{name:target.button})).toBeTruthy();
  });
 });
 vi.mock('../../lib/ai-api.js',()=>({aiAPI:(...args)=>legacy.api(...args)}));

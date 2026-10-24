@@ -21,8 +21,8 @@
  * And priced the way the generation will be BILLED: through the adapter's own
  * meter over a payload at the chosen size, then the rate book. That is the path
  * the video preview already prices a clip by, so the estimate and the
- * confirmation cannot disagree about one shot. Runway video goes through the
- * Runway estimator, which knows its per-resolution rates and minimum charges.
+ * confirmation cannot disagree about one shot. Every clip goes through its
+ * adapter's own meter and the rate book.
  *
  * Nothing here generates, spends or writes. Every number is a FIRST ATTEMPT;
  * `takes` multiplies a category for the regenerations a director expects, and
@@ -172,7 +172,7 @@ function priceImage(gen, size) {
     return { usd: p.amount_usd, model: usage.model || gen.model, inferred: !!r.inferred, self_hosted: !!r.self_hosted };
 }
 
-/** One clip of a length at a size. Runway through its estimator (tiers, minimums), the rest through their meter. */
+/** One clip of a length at a size, through its adapter's meter. */
 /** The frame a video generator will really deliver when asked for this one. */
 function deliveredFrame(gen, frame) {
     const adapter = providers.get(gen.provider);
@@ -186,14 +186,6 @@ function deliveredFrame(gen, frame) {
 function priceClip(gen, seconds, frame) {
     const secs = Math.max(1, Math.round(seconds));
     const out = deliveredFrame(gen, frame);
-    if (gen.provider === 'runway') {
-        // Priced at the tier of the frame Runway will actually send, as the confirmation is.
-        const est = require('./video-cost').estimateVideoCost({
-            model: gen.model || process.env.RUNWAY_VIDEO_MODEL || 'gen4.5',
-            frame: out.delivered || `${frame.width}x${frame.height}`, durationSeconds: secs });
-        if (est.unknownModel) return { usd: null, why: est.note };
-        return { usd: est.usd, model: est.model, resolution: est.resolution, minimum: est.minimumApplied, ...out };
-    }
     const adapter = providers.get(gen.provider);
     if (!adapter || typeof adapter.meter !== 'function') return { usd: null, why: `${gen.provider} cannot price a clip` };
     let usage = null;

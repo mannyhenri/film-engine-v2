@@ -44,24 +44,14 @@ test('every model declares the smallest raster it will actually accept', () => {
      * provider rejects, and a rejection is a paid generation that returns
      * nothing.
      */
-    const runway = require('../lib/providers/runway');
     for (const [model, floor] of Object.entries(DRAFT_FLOORS)) {
         assert.ok(floor.width > 0 && floor.height > 0, `${model} has no draft raster`);
         assert.ok(floor.why, `${model} does not say why that is its floor`);
-
-        // If the model is one Runway documents, the floor must be a ratio it
-        // actually lists — anything else is a request built to be refused.
-        const spec = (runway.RUNWAY_VIDEO_MODELS || {})[model];
-        if (spec && Array.isArray(spec.ratios)) {
-            // A model that takes aspect NAMES (Hailuo 3) is sized by its tier:
-            // what must be listed is the floor's shape.
-            const g = (x, y) => (y ? g(y, x % y) : x);
-            const d = g(floor.width, floor.height);
-            const named = spec.ratios.every(r => r.split(':').every(n => Number(n) < 100));
-            const want = named ? `${floor.width / d}:${floor.height / d}` : `${floor.width}:${floor.height}`;
-            assert.ok(spec.ratios.includes(want),
-                `${model}'s draft floor ${floor.width}:${floor.height} is not one of its documented `
-                + `ratios (${spec.ratios.join(', ')}) — the request would be refused`);
+        // A Higgsfield app model's floor is a tier it offers, or the request would be refused.
+        const app = require('../lib/higgsfield-app-catalog').MODELS[model];
+        if (app && app.resolution && floor.resolution) {
+            assert.ok(Object.keys(app.resolution.values).includes(floor.resolution),
+                `${model}'s draft floor ${floor.resolution} is not one of its tiers (${Object.keys(app.resolution.values).join(', ')})`);
         }
     }
 });
@@ -125,11 +115,10 @@ test('the finishing pass targets the delivery size, not a constant', () => {
 });
 
 test('draft is a tier that already exists, not a second idea about cheapness', () => {
-    // The saving on Runway is the MODEL, not the raster: gen4_turbo at 5
-    // credits a second is what makes trying three angles a question of taste.
+    // The saving is the RASTER on Seedance 2.5: 480p at 3 credits a second against 16 at 1080p.
     assert.ok(VIDEO_TIERS.draft, 'the draft tier is gone');
-    assert.equal(VIDEO_TIERS.draft.preferredModel, 'gen4_turbo',
-        'the draft tier no longer prefers the cheap model, so draft mode saves nothing on Runway');
+    assert.equal(VIDEO_TIERS.draft.preferredModel, 'seedance_2_5', 'the draft tier no longer names its model');
+    assert.equal(VIDEO_TIERS.draft.resolution, '480p', 'the draft tier no longer asks for the cheap tier');
 });
 
 test('the draft resolution the adapter is told is one it documents', () => {

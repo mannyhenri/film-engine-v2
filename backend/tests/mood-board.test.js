@@ -114,7 +114,7 @@ const WARNING_TYPES = ['subject', 'length'];
 test('the warning registry matches what compose can actually raise', async () => {
     const projectId = makeProject();
     await call('POST', `/film/projects/${projectId}/mood-board`,
-        { kind: 'texture', note: 'anatomical beast, ' + 'wet stone and cold light, '.repeat(12) });
+        { kind: 'texture', note: 'anatomical beast, ' + 'wet stone and cold light, '.repeat(60) });
     const r = await call('POST', `/film/projects/${projectId}/mood-board/compose`);
     const raised = (r.body.warnings || []).map(w => w.type).sort();
     assert.deepStrictEqual(raised, WARNING_TYPES.slice().sort(),
@@ -127,10 +127,11 @@ test('composing says how much of the style will actually reach a prompt', async 
     // time. Ninety-two per cent was discarded silently, so the director was
     // generating against roughly the first sentence and a half of what they
     // wrote — and nothing anywhere said so.
-    const { STYLE_ALLOWANCE } = require('../lib/storyboard-prompt');
+    // The allowance this project gets: its image provider (Higgsfield, the house standard) has a 4000-character ceiling.
+    const STYLE_ALLOWANCE = require('../lib/storyboard-prompt').allowancesFor(require('../lib/providers').get('higgsfield-mcp').promptLimit).style;
     const projectId = makeProject();
     await call('POST', `/film/projects/${projectId}/mood-board`,
-        { kind: 'palette', note: 'teal and amber with sodium practicals, '.repeat(10) });
+        { kind: 'palette', note: 'teal and amber with sodium practicals, '.repeat(40) });
 
     const r = await call('POST', `/film/projects/${projectId}/mood-board/compose`);
     const lengthWarning = (r.body.warnings || []).find(w => w.type === 'length');

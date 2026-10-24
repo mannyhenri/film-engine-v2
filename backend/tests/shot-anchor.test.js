@@ -394,7 +394,7 @@ test('a subject standing in the anchor does not also get a plate', () => {
     // street. Sending her plate as well spends one of three slots telling the
     // model what she looks like in the abstract — a slot a subject who is NOT
     // in 1A could have used, and those are the ones that still need one.
-    const { shots, projectId } = makeScene(['1A', '1B'], ['1A'], { provider: 'runway' });
+    const { shots, projectId } = makeScene(['1A', '1B'], ['1A'], { provider: 'higgsfield-mcp' });
     anchorOn(projectId, shots['1A']);
 
     // MAYA is on 1A's card and has a plate. THE DRAGON is new in 1B.
@@ -415,7 +415,7 @@ test('a subject standing in the anchor does not also get a plate', () => {
     assert.ok(!covered.has('DRAGON'), 'a subject absent from the anchor was treated as covered');
 
     const { references } = shotReferencesFor(db, {
-        projectId, providerConfig: { image: 'runway' }, anchor,
+        projectId, providerConfig: { image: 'higgsfield-mcp' }, anchor,
         characters: [
             { id: maya, name: 'MAYA' },
             { id: dragon, name: 'DRAGON' },
@@ -444,7 +444,7 @@ test('a covered subject keeps its words even though its plate went', () => {
 test('the location plate stands down entirely for an anchor', () => {
     // The anchor IS the location, rendered. Its plate is the most redundant of
     // all when a frame of the place is already attached.
-    const { shots, projectId } = makeScene(['1A', '1B'], ['1A'], { provider: 'runway' });
+    const { shots, projectId } = makeScene(['1A', '1B'], ['1A'], { provider: 'higgsfield-mcp' });
     anchorOn(projectId, shots['1A']);
     const locId = generateId();
     db.prepare('INSERT INTO film_locations (id, project_id, name, description) VALUES (?, ?, ?, ?)')
@@ -455,13 +455,13 @@ test('the location plate stands down entirely for an anchor', () => {
 
     const anchor = activeAnchorFor(db, shots['1B']);
     const withAnchor = shotReferencesFor(db, {
-        projectId, providerConfig: { image: 'runway' }, anchor,
+        projectId, providerConfig: { image: 'higgsfield-mcp' }, anchor,
         location: { id: locId, name: 'STREET' },
     }).references.map(r => r.kind);
     assert.deepStrictEqual(withAnchor, ['anchor'], 'the location plate rode along beside the anchor');
 
     const withoutAnchor = shotReferencesFor(db, {
-        projectId, providerConfig: { image: 'runway' }, anchor: null,
+        projectId, providerConfig: { image: 'higgsfield-mcp' }, anchor: null,
         location: { id: locId, name: 'STREET' },
     }).references.map(r => r.kind);
     assert.deepStrictEqual(withoutAnchor, ['location'],
@@ -604,7 +604,7 @@ test('one call can skip the anchor without putting it down', async () => {
     // this way", and folding them together means clearing and re-setting the
     // anchor to try one shot.
     const { handleStoryboard } = require('../routes/storyboard');
-    const { projectId, shots } = makeScene(['1A', '1B'], ['1A'], { provider: 'runway' });
+    const { projectId, shots } = makeScene(['1A', '1B'], ['1A'], { provider: 'higgsfield-mcp' });
     anchorOn(projectId, shots['1A']);
     const r = await callRoute(handleStoryboard, 'GET', `/film/shots/${shots['1B']}/prompt`);
     assert.strictEqual(r.body.anchor.attached, true, 'the anchor did not reach the shot at all');
@@ -615,20 +615,21 @@ test('one call can skip the anchor without putting it down', async () => {
 
 test('the free preview reports the frame and the prompt names it', async () => {
     const { handleStoryboard } = require('../routes/storyboard');
-    const { projectId, shots } = makeScene(['1A', '1B'], ['1A'], { provider: 'runway' });
+    const { projectId, shots } = makeScene(['1A', '1B'], ['1A'], { provider: 'higgsfield-mcp' });
     anchorOn(projectId, shots['1A']);
     const r = await callRoute(handleStoryboard, 'GET', `/film/shots/${shots['1B']}/prompt`);
     assert.strictEqual(r.status, 200);
     assert.strictEqual(r.body.anchor.shot_code, '1A');
     assert.strictEqual(r.body.anchor.attached, true);
     assert.ok(r.body.anchor.adds.includes('light'));
-    assert.ok(r.body.prompt.includes('@1a'),
-        'the preview reports an anchor its own prompt does not name');
+    // Higgsfield takes pictures by position, not by tag, so the prompt must not carry a literal "@1a".
+    assert.ok(!r.body.prompt.includes('@1a'),
+        'the prompt names the anchor by a tag the provider would read as literal text');
 });
 
 test('the anchor itself previews with no anchor, and says why', async () => {
     const { handleStoryboard } = require('../routes/storyboard');
-    const { projectId, shots } = makeScene(['1A', '1B'], ['1A'], { provider: 'runway' });
+    const { projectId, shots } = makeScene(['1A', '1B'], ['1A'], { provider: 'higgsfield-mcp' });
     anchorOn(projectId, shots['1A']);
     const r = await callRoute(handleStoryboard, 'GET', `/film/shots/${shots['1A']}/prompt`);
     assert.strictEqual(r.body.anchor.attached, false);
@@ -651,8 +652,10 @@ test('an untaggable provider gets the picture but never the tag', () => {
     assert.strictEqual(untagged.anchorTag, null,
         'a tag was emitted to a provider that reads it as literal text');
 
-    const tagged = shotReferencesFor(db, { projectId, providerConfig: { image: 'runway' }, anchor });
-    assert.strictEqual(tagged.anchorTag, '1a', 'a tag-capable provider was not given the tag');
+    // No provider wired today addresses pictures by tag (Runway was the one, removed 2026-10-24).
+    const positional = shotReferencesFor(db, { projectId, providerConfig: { image: 'higgsfield-mcp' }, anchor });
+    assert.ok(positional.references.some(r => r.kind === 'anchor'), 'Higgsfield did not get the anchor picture');
+    assert.strictEqual(positional.anchorTag, null, 'a tag was emitted to Higgsfield, which reads it as literal text');
 });
 
 // ── The page ────────────────────────────────────────────────────────────

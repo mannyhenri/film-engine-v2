@@ -505,11 +505,12 @@ test('the account-default cache is cleared by its own key', () => {
 test('the image preference order and the standard tier both lead with the provider that has size tiers', () => {
     // Meshy caps nano-banana at ~1MP with no size control; MuAPI serves the
     // same model at 1k/2k/4k. A project that expresses no opinion must land on
-    // the one that can actually deliver the project's raster.
+    // the one that can actually deliver the project's raster. Higgsfield (signed in) leads now:
+    // its Nano Banana models take 1k/2k/4k too, and MuAPI is next.
     const idx = read('lib/providers/index.js');
     const tiers = read('lib/quality-tiers.js');
-    assert.match(idx, /image: \['muapi'/);
-    assert.match(tiers, /order: \['muapi', 'google', 'meshy'/);
+    assert.match(idx, /image: \['higgsfield-mcp'\]/);
+    assert.match(tiers, /order: \['higgsfield-mcp', 'gridlight'\]/);
 });
 
 
@@ -580,7 +581,7 @@ test('a strip survives the adapter contract and is destroyed by the fallback', (
 
 test('the sequence route prefers the adapter contract', () => {
     const src = read('routes/sequences.js');
-    assert.ok(/provider && provider\.referenceContract/.test(src),
+    assert.ok(/provider && \(typeof provider\.referenceContractFor === 'function' \? provider\.referenceContractFor\(|provider && provider\.referenceContract/.test(src),
         'the provider that will be billed is the one whose limits decide what travels');
 });
 

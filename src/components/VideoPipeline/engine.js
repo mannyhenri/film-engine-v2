@@ -106,12 +106,9 @@ const { state } = Object.fromEntries(['state'].map(n => [n, live(n)]));
                     <button class="btn btn-primary btn-sm" onclick="generateSequence('${q.id}', this)">Generate</button>
                     <button class="btn btn-secondary btn-sm" onclick="generateNextSequenceLeg('${q.id}', this)"
                             title="Buy only the next segment, review it, then continue">Generate next leg</button>
-                    ${(q.shots || []).length >= 3 && (q.shots || []).length <= 5
-                        ? `<button class="btn btn-secondary btn-sm" onclick="generateNativeMultiShot('${q.id}', this)"
-                            title="Runway composes 3–5 editorial cuts into one clip; less faithful to individual boards">Runway multi-shot cuts</button>` : ''}
                     ${mediaUploadControl('video', 'video', 'sequence', q.id,
                         { after: 'loadSequences', label: 'Upload a clip',
-                          title: 'Already made this in Runway or elsewhere? Put it here instead of generating' })}
+                          title: 'Already made this in Higgsfield or elsewhere? Put it here instead of generating' })}
                     <button class="btn btn-secondary btn-sm" onclick="stitchSequence('${q.id}', this)"
                             title="Join this sequence's clips into one file — free, nothing is generated">Join into one file</button>
                     <button class="btn btn-secondary btn-sm" onclick="deleteSequence('${q.id}')">Delete</button>
@@ -289,7 +286,7 @@ const { state } = Object.fromEntries(['state'].map(n => [n, live(n)]));
                 `${i + 1}. ${s.from} → ${s.to}  · ${s.duration_s}s · ${s.estimated_credits || '?'} credits · ${s.keyframes} frame${s.keyframes === 1 ? '' : 's'}\n   ${s.prompt}`);
             const total = (plan.segments || []).reduce((n, s) => n + (Number(s.estimated_credits) || 0), 0);
             const native = plan.native_multi_shot && plan.native_multi_shot.available
-                ? `\n\nRunway native multi-shot cuts: ${plan.native_multi_shot.duration_s}s · ${plan.native_multi_shot.estimated_credits} credits (~$${Number(plan.native_multi_shot.estimated_usd).toFixed(2)}). This invents cuts from the shot descriptions; it is not endpoint interpolation.` : '';
+                ? `\n\nNative multi-shot cuts: ${plan.native_multi_shot.duration_s}s · ${plan.native_multi_shot.estimated_credits} credits (~$${Number(plan.native_multi_shot.estimated_usd).toFixed(2)}). This invents cuts from the shot descriptions; it is not endpoint interpolation.` : '';
             alert(`${plan.generations} generation${plan.generations === 1 ? '' : 's'} — ${total || '?'} credits total.\n`
                 + (plan.degraded ? `\n${plan.degraded_reason}\n` : '')
                 + (plan.needs_stitching ? '\nThis produces separate clips; join them in the timeline or your NLE.\n' : '')
@@ -325,7 +322,7 @@ const { state } = Object.fromEntries(['state'].map(n => [n, live(n)]));
             title: 'Generate as one native multi-shot',
             capability: 'video',
             previewUrl: '/sequences/' + id + '/plan',
-            note: 'Runway\'s multi-shot recipe: real editorial cuts in one generation, and deliberately less deterministic than rendering each shot.',
+            note: 'The gateway\'s multi-shot recipe: real editorial cuts in one generation, and deliberately less deterministic than rendering each shot.',
             editable: false,
             notEditableWhy: 'Each segment is built from its own shots; edit those on the board.',
             send: async choices => {

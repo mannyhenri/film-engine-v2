@@ -36,7 +36,7 @@ const BUILD = {
     'image:muapi': p => require('../lib/providers/muapi-image').buildImageRequest(p).body,
     'image:google': p => require('../lib/providers/google-image').buildImageRequest(p),
     'image:meshy': p => require('../lib/providers/meshy').buildImageRequest(p),
-    'image:runway': p => require('../lib/providers/runway').buildImageRequest(p),
+    'image:higgsfield-mcp': p => require('../lib/providers/higgsfield-mcp').buildRequest('image', p).body,
     'image:openai': p => require('../lib/providers/openai-image').buildImageRequest(p),
     // The local gateway posts the payload as its body.
     'image:gridlight': p => p,
@@ -145,7 +145,7 @@ test('the dialog\'s choice travels: override, then the funnel, only on the provi
     assert.ok(Math.max(fallback.width, fallback.height) > 1920, 'but the chosen size holds on any provider');
 
     // Video is left to its routes (lib/model-options.js).
-    assert.equal(generationOverride('video', { provider: 'runway', options: { duration: 5 } }).video_options, undefined);
+    assert.equal(generationOverride('video', { provider: 'higgsfield-mcp', options: { duration: 5 } }).video_options, undefined);
 });
 
 test('resolve()\'s funnel applies the choice to the payload an adapter receives', async () => {

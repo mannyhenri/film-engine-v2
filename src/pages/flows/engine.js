@@ -362,7 +362,7 @@ const { FLOW, state } = Object.fromEntries(['FLOW', 'state'].map(n => [n, live(n
 
         const def = FLOW.types[n.type] || {};
         const ro = FLOW.flow.is_builtin ? 'disabled' : '';
-        const providers = ['', 'gridlight', 'runway', 'openai', 'elevenlabs', 'meshy'];
+        const providers = ['', 'gridlight', 'higgsfield-mcp', 'openai', 'elevenlabs', 'meshy'];
 
         el.innerHTML = `
             <h4 style="margin:0 0 8px;">${escapeHtml(def.label || n.type)}</h4>

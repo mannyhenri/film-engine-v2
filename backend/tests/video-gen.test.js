@@ -122,6 +122,8 @@ describe('Video Generation Integration (mock Gridlight)', () => {
         // Fixtures: project → script → scene → shot
         const proj = await request('/film/projects', { method: 'POST', body: { title: 'Video Test', logline: 'x' } });
         projectId = proj.data.id;
+        // This suite exercises the local gateway; Higgsfield is the default a new project is created with.
+        await request(`/film/projects/${projectId}/providers`, { method: 'PUT', body: { video: 'gridlight' } });
         await request(`/film/projects/${projectId}/script`, {
             method: 'POST',
             body: { content: 'Title: Video Test\n\nINT. OFFICE - DAY\n\nJohn types.\n', format: 'fountain' },

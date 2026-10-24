@@ -370,8 +370,10 @@ function availableExecutors() {
     try {
         const { resolveGenerator } = require('./providers');
         const adapter = resolveGenerator('post', {});
-        providerOk = !!adapter;
-        if (!providerOk) providerReason = 'no provider serves the post capability';
+        // A post provider that only upscales one clip (Higgsfield) cannot join a film, and says so.
+        providerOk = !!adapter && adapter.stitchesFilm !== false;
+        if (!adapter) providerReason = 'no provider serves the post capability';
+        else if (!providerOk) providerReason = `${adapter.id} upscales a clip and cannot join a film`;
     } catch (err) {
         providerReason = `provider lookup failed: ${err.message}`;
     }

@@ -97,7 +97,7 @@ test('with no stored keys, a project pinned to any manual capability resolves to
  try{
   const providers=require('../lib/providers'),{resolveFinalRequest}=require('../lib/final-provider-request');
   // Automatic choice is unchanged (kept providers, e.g. Gridlight, are not displaced); a pin needs no key.
-  const builds={openai:'image',google:'image',muapi:'image',seedance:'video',runway:'video',higgsfield:'video',meshy:'model3d',worldlabs:'world'};
+  const builds={openai:'image',google:'image',muapi:'image',seedance:'video','higgsfield-mcp':'video',higgsfield:'video',meshy:'model3d',worldlabs:'world'};
   for(const adapter of providers.list())for(const capability of adapter.capabilities||[]){
    if(!manual.isManual(adapter.id,capability))continue;
    assert.equal(providers.resolveIdWithReason(capability,{[capability]:adapter.id}).id,adapter.id,adapter.id+'/'+capability+' pinned without a key');
@@ -114,7 +114,7 @@ test('every priced estimate entry for a manual capability is labelled as the ven
  const {markManual}=require('../routes/budget');
  const entries=[];
  for(const adapter of require('../lib/providers').list())for(const capability of adapter.capabilities||[])entries.push({provider:adapter.id,capability,usd:1});
- markManual({alternatives:{image:[{provider:'runway',usd:1}],video:[{provider:'gridlight',usd:0}]},lines:entries});
+ markManual({alternatives:{image:[{provider:'higgsfield-mcp',usd:1}],video:[{provider:'gridlight',usd:0}]},lines:entries});
  for(const e of entries)assert.equal(!!e.manual,manual.isManual(e.provider,e.capability),e.provider+'/'+e.capability);
 });
 
@@ -130,7 +130,7 @@ test('a review stop removes only output-less job rows whose review is for a manu
   db.prepare("INSERT INTO film_demo_jobs VALUES (?,'generating',NULL,NULL)").run(id);
   db.prepare("UPDATE film_demo_jobs SET status='failed',error_message=? WHERE id=?").run('FINAL_REQUEST_REVIEW_REQUIRED:r-'+id,id);
  }
- review('r-made','runway','video');
+ review('r-made','higgsfield-mcp','video');
  db.prepare("INSERT INTO film_demo_jobs VALUES ('made','generating',NULL,'/out/a.mp4'),('real','generating',NULL,NULL),('unknown','generating',NULL,NULL)").run();
  db.prepare("UPDATE film_demo_jobs SET status='failed',error_message='FINAL_REQUEST_REVIEW_REQUIRED:r-made' WHERE id='made'").run();
  db.prepare("UPDATE film_demo_jobs SET status='failed',error_message='upstream 500' WHERE id='real'").run();
@@ -149,7 +149,7 @@ test('reference-sheet review cleanup preserves output_paths on insert, update, a
  db.prepare('INSERT INTO film_refsheet_jobs VALUES (?,?,?)').run('historical',outputs,'FINAL_REQUEST_REVIEW_REQUIRED:r-refsheet');
  manual.installReviewStopCleanup(db);
  db.prepare("INSERT INTO film_final_request_reviews (id,fingerprint,snapshot_json,editable_json,provenance_json) VALUES ('r-refsheet','fp',?,'{}','{}')")
-  .run(JSON.stringify({provider:'runway',capability:'image'}));
+  .run(JSON.stringify({provider:'higgsfield-mcp',capability:'image'}));
  const marker='FINAL_REQUEST_REVIEW_REQUIRED:r-refsheet';
  assert.equal(db.prepare('SELECT output_paths FROM film_refsheet_jobs WHERE id=?').get('historical').output_paths,outputs);
  for(const when of ['insert','update']){
@@ -174,7 +174,7 @@ test('every reference with a recorded original serves that exact file, and nothi
  const db=new Database(':memory:');db.exec(fs.readFileSync(path.join(__dirname,'../db/migrations/141_final_request_reviews.sql'),'utf8'));
  const refs=[{order:1,role:'image_reference',tag:'hero',mime:'image/png',data:'data:image/png;base64,c2VudA==',source_path:original,source_transform:'encoded_reference_bytes_differ'},
   {order:2,role:'image_reference',mime:'image/png',data:'data:image/png;base64,c2VudA=='}];
- db.prepare("INSERT INTO film_final_request_reviews (id,fingerprint,snapshot_json,editable_json,provenance_json) VALUES ('r1','fp',?, '{}','{}')").run(JSON.stringify({provider:'runway',capability:'image',references:refs}));
+ db.prepare("INSERT INTO film_final_request_reviews (id,fingerprint,snapshot_json,editable_json,provenance_json) VALUES ('r1','fp',?, '{}','{}')").run(JSON.stringify({provider:'higgsfield-mcp',capability:'image',references:refs}));
  const store={get:id=>{const r=db.prepare('SELECT * FROM film_final_request_reviews WHERE id=?').get(id);if(!r)throw Object.assign(new Error('Request review not found'),{status:404});return {id:r.id,snapshot:JSON.parse(r.snapshot_json)};}};
  for(const ref of refs){
   if(ref.source_path){const out=originalReference(store,'r1',ref.order,{roots:[dir]});assert.equal(fs.readFileSync(out.file,'utf8'),'ORIGINAL-FULL-RES');assert.equal(out.name,'01-hero.png');assert.equal(out.mime,'image/png');}
@@ -205,7 +205,7 @@ test('a local clip or model in a review keeps its path, hash and size, not inlin
  const dir=fs.mkdtempSync(path.join(os.tmpdir(),'manual-media-')),clip=path.join(dir,'clip.mp4');
  require('child_process').execFileSync(require('ffmpeg-static'),['-y','-f','lavfi','-i','color=c=gray:s=320x240:d=3','-pix_fmt','yuv420p',clip],{stdio:'ignore'});
  const bytes=fs.readFileSync(clip);
- const r=await resolveFinalRequest('runway','video',{prompt:'Replace the background',videoUri:clip,model:'aleph2'});
+ const r=await resolveFinalRequest('higgsfield-mcp','video',{prompt:'Replace the background',videoUri:clip,sourceSeconds:3});
  const ref=r.references.find(x=>x.mime==='video/mp4');
  assert.ok(ref,'the clip is listed as an asset');
  assert.equal(ref.data,undefined,'the clip is not inlined');

@@ -103,17 +103,17 @@ test('a pin reaches the request at the funnel, only where offered, and never ove
 
 test('for video, the pin outranks the tier and loses to a per-generation choice', () => {
     const { applyTier } = require('../routes/video-gen');
-    const tier = { id: 'draft', preferredModel: 'gen4_turbo' };
-    assert.equal(applyTier(tier, { body: {} }, null, 'gen4.5').model, 'gen4.5', 'the pin beats the tier');
-    assert.equal(applyTier(tier, { body: { model: 'veo3.1' } }, null, 'gen4.5').model, 'veo3.1', 'a choice for this clip beats the pin');
-    assert.equal(applyTier(tier, { body: {} }, null, null).model, 'gen4_turbo', 'no pin, the tier');
+    const tier = { id: 'draft', preferredModel: 'seedance_2_5' };
+    assert.equal(applyTier(tier, { body: {} }, null, 'kling3_0').model, 'kling3_0', 'the pin beats the tier');
+    assert.equal(applyTier(tier, { body: { model: 'veo3_1' } }, null, 'kling3_0').model, 'veo3_1', 'a choice for this clip beats the pin');
+    assert.equal(applyTier(tier, { body: {} }, null, null).model, 'seedance_2_5', 'no pin, the tier');
     const { videoPinFor } = require('../routes/video-gen');
     const pid = generateId(), sc = generateId(), sh = generateId();
-    db.prepare("INSERT INTO film_projects (id, title, provider_config) VALUES (?, 'V', ?)").run(pid, JSON.stringify({ video: 'runway', video_model: 'gen4.5' }));
+    db.prepare("INSERT INTO film_projects (id, title, provider_config) VALUES (?, 'V', ?)").run(pid, JSON.stringify({ video: 'higgsfield-mcp', video_model: 'kling3_0' }));
     db.prepare('INSERT INTO film_scenes (id, project_id, scene_number) VALUES (?, ?, 1)').run(sc, pid);
     db.prepare("INSERT INTO film_shots (id, scene_id, shot_code) VALUES (?, ?, '1A')").run(sh, sc);
-    assert.equal(videoPinFor(sh, null), 'gen4.5');
-    assert.equal(videoPinFor(sh, { video: 'seedance' }), null, 'a Runway model is not carried to Seedance');
+    assert.equal(videoPinFor(sh, null), 'kling3_0');
+    assert.equal(videoPinFor(sh, { video: 'seedance' }), null, 'a Higgsfield model is not carried to Seedance');
 });
 
 /* ── the page ──────────────────────────────────────────────────────────── */
@@ -128,22 +128,22 @@ function fn(name) {
 test('the model menu follows the provider picked beside it', () => {
     // A minimal DOM for two selects.
     const make = (id, value, data) => ({ id, value, dataset: { ...(data || {}) }, innerHTML: '', disabled: false, title: '' });
-    const prov = make('provcap-video', 'runway');
-    const model = make('provmodel-video', '', { pinned: 'gen4.5', effective: 'seedance' });
+    const prov = make('provcap-video', 'higgsfield-mcp');
+    const model = make('provmodel-video', '', { pinned: 'kling3_0', effective: 'seedance' });
     const doc = { getElementById: id => ({ 'provcap-video': prov, 'provmodel-video': model })[id] || null };
     const esc = x => String(x);
-    const menus = { video: { runway: { models: [{ id: 'gen4.5', label: 'Gen-4.5' }, { id: 'gen4_turbo', label: 'Gen-4 Turbo' }] },
+    const menus = { video: { 'higgsfield-mcp': { models: [{ id: 'kling3_0', label: 'Kling 3.0' }, { id: 'seedance_2_5', label: 'Seedance 2.5' }] },
         seedance: { models: [{ id: 'seedance-2.5-1080p', label: '1080p' }] } } };
     // eslint-disable-next-line no-new-func
     const refresh = new Function('document', 'esc', '_providerModelMenus', fn('refreshModelMenu') + '\nreturn refreshModelMenu;')(doc, esc, menus);
     refresh('video');
-    assert.match(model.innerHTML, /gen4\.5"\s*selected/, 'the saved pin is selected');
-    assert.match(model.innerHTML, /gen4_turbo/);
+    assert.match(model.innerHTML, /kling3_0"\s*selected/, 'the saved pin is selected');
+    assert.match(model.innerHTML, /seedance_2_5/);
     assert.doesNotMatch(model.innerHTML, /seedance-2\.5/, 'not the other provider\'s models');
-    prov.value = ''; model.value = 'gen4.5';
+    prov.value = ''; model.value = 'kling3_0';
     refresh('video');
     assert.match(model.innerHTML, /seedance-2\.5-1080p/, 'on Automatic, the models of the provider in use');
-    assert.doesNotMatch(model.innerHTML, /selected>gen4/, 'a model the new provider does not offer is not kept');
+    assert.doesNotMatch(model.innerHTML, /selected>kling3_0/, 'a model the new provider does not offer is not kept');
 });
 
 test('every capability row has a provider menu and a model menu, and saving sends the models', () => {

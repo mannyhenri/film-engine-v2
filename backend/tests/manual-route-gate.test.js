@@ -38,7 +38,7 @@ function promptOf(body={}){
 test('every real generation route reaches a manual review with its full prompt and assets; no vendor call, no row left behind',async()=>{
  const fixtures=require('./fixtures/manual-route-fixtures');
  const demo=await call('POST','/projects/demo',{});const project=JSON.parse(demo.text).project_id;assert.ok(project,'demo project');
- db.prepare('UPDATE film_projects SET provider_config=? WHERE id=?').run(JSON.stringify({image:'muapi',video:'runway',voice:'elevenlabs',sfx:'elevenlabs',ambient:'elevenlabs',model3d:'meshy',post:'magnific',world:'worldlabs'}),project);
+ db.prepare('UPDATE film_projects SET provider_config=? WHERE id=?').run(JSON.stringify({image:'muapi',video:'higgsfield-mcp',voice:'elevenlabs',sfx:'elevenlabs',ambient:'elevenlabs',model3d:'meshy',post:'magnific',world:'worldlabs'}),project);
  const first=sql=>{try{return db.prepare(sql).get(project)?.id;}catch(_){return null;}};
  const ids={projects:project,shots:first('SELECT s.id FROM film_shots s JOIN film_scenes sc ON s.scene_id=sc.id WHERE sc.project_id=? LIMIT 1'),scenes:first('SELECT id FROM film_scenes WHERE project_id=? LIMIT 1'),
   characters:first('SELECT id FROM film_characters WHERE project_id=? LIMIT 1'),locations:first('SELECT id FROM film_locations WHERE project_id=? LIMIT 1'),props:first('SELECT id FROM film_props WHERE project_id=? LIMIT 1')};
@@ -110,7 +110,7 @@ test('every planner-prepared generation path reaches a manual review with its fu
  const fixtures=require('./fixtures/manual-route-fixtures');
  assert.equal(typeof fixtures.plannerCases,'function','fixtures.plannerCases exists');
  const demo=await call('POST','/projects/demo',{});const project=JSON.parse(demo.text).project_id;
- db.prepare('UPDATE film_projects SET provider_config=? WHERE id=?').run(JSON.stringify({image:'muapi',video:'runway',voice:'elevenlabs',sfx:'elevenlabs',ambient:'elevenlabs',model3d:'meshy',post:'magnific',world:'worldlabs'}),project);
+ db.prepare('UPDATE film_projects SET provider_config=? WHERE id=?').run(JSON.stringify({image:'muapi',video:'higgsfield-mcp',voice:'elevenlabs',sfx:'elevenlabs',ambient:'elevenlabs',model3d:'meshy',post:'magnific',world:'worldlabs'}),project);
  const first=sql=>{try{return db.prepare(sql).get(project)?.id;}catch(_){return null;}};
  const ids={projects:project,shots:first('SELECT s.id FROM film_shots s JOIN film_scenes sc ON s.scene_id=sc.id WHERE sc.project_id=? LIMIT 1'),scenes:first('SELECT id FROM film_scenes WHERE project_id=? LIMIT 1'),
   characters:first('SELECT id FROM film_characters WHERE project_id=? LIMIT 1'),locations:first('SELECT id FROM film_locations WHERE project_id=? LIMIT 1'),props:first('SELECT id FROM film_props WHERE project_id=? LIMIT 1')};

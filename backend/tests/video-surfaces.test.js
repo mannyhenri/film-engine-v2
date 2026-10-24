@@ -43,28 +43,28 @@ function payloadFor(model) {
     return buildCapabilityPayload('video', ctx).payload;
 }
 
-test('a reference-taking model actually receives the package, and Gen-4.5 does not', () => {
+test('a reference-taking model actually receives the package, and a keyframe-only model does not', () => {
     // Behavioural, not a grep: the previous version matched on identifier names
     // that survive in comments, so deleting the wiring left it green.
-    const h3 = payloadFor('hailuo3');
+    const h3 = payloadFor('minimax_h3');
     assert.ok(Array.isArray(h3.video_references) && h3.video_references.length >= 3,
-        'H3 received no reference package — the whole point of adding it');
+        'MiniMax H3 received no reference package — the whole point of adding it');
     assert.ok(h3.video_references.some(r => r.role === 'character' && r.subject === 'MAYA'));
 
-    const g45 = payloadFor('gen4.5');
+    const g45 = payloadFor('veo3_1');
     assert.strictEqual(g45.video_references, undefined,
-        'Gen-4.5 gained references — the keyframe was already generated FROM them');
+        'Veo 3.1 gained references — the keyframe was already generated FROM them');
 });
 
-test('Gen-4.5 still sends exactly what it sent before', () => {
+test('a keyframe-only model still sends exactly what it sent before', () => {
     // The golden fixture guards the bytes; this guards the REASON, so nobody
-    // later "fixes" the contract by giving Gen-4.5 roles it must not have.
+    // later "fixes" the contract by giving a keyframe-only model (Veo 3.1 here) roles it must not have.
     const ref = require('../lib/video-reference');
     const out = ref.selectReferences([
         { assetId: 'k', role: 'keyframe', sourceType: 'image' },
         { assetId: 'c', role: 'character', subject: 'MAYA', sourceType: 'image' },
         { assetId: 'l', role: 'location', sourceType: 'image' },
-    ], ref.contractFor('gen4.5'));
+    ], ref.contractFor('veo3_1'));
     assert.strictEqual(out.selected.length, 1);
     assert.strictEqual(out.selected[0].role, 'keyframe');
     assert.strictEqual(out.dropped.length, 2, 'what was not sent must be reported');
@@ -79,7 +79,7 @@ test('a model that takes references actually receives them', () => {
         { assetId: 'p', role: 'prop', subject: 'SEDAN', sourceType: 'image' },
         ...[0, 1].map(i => ({ assetId: 'loc' + i, role: 'location', sourceType: 'image' })),
     ];
-    const out = ref.selectReferences(pack, ref.contractFor('hailuo3'));
+    const out = ref.selectReferences(pack, ref.contractFor('minimax_h3'));
     assert.strictEqual(out.selected.length, 9, 'the nine-picture package did not survive selection');
     assert.strictEqual(out.dropped.length, 0);
 });

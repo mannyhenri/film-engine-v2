@@ -1,6 +1,6 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { legacy } from '../../../lib/legacy.js';
-import { scenesOf, secondsOf, matchingSequence, collectReferences, briefOf, higgsfieldRecipe, runwayRecipe, runwayCredits } from './studio-model.js';
+import { scenesOf, secondsOf, matchingSequence, collectReferences, briefOf, higgsfieldRecipe } from './studio-model.js';
 import {
     EMOS, FAMS, INTS, MOVES, MV, MV_GROUPS, FRAMINGS, ANGLES, FACINGS, LENSES, TECHS, TRANS, TRANS_SHORT, SFX_QUICK, CAST_COLORS,
     nid, canonOf, lineLen, clamp, half, fmt, shortName, seedShot, applyEmotion, blankMove, beatStarts, compile, compileText, checks, ageConflicts,
@@ -37,9 +37,9 @@ const cut = (t, n) => (t.length > n ? t.slice(0, n) + '…' : t);
 const shotImg = (node, w) => { const f = node && (node.selected_frame || (node.frames || []).slice(-1)[0]); return f?.url ? `${legacy.API_BASE}${f.url}${f.url.includes('?') ? '&' : '?'}w=${w}` : ''; };
 
 const DEFAULT_STUDIO = { picked: [], grouped: false, order: [], mode: 'sep', model: '', bracket: true, amb: null, music: { on: false, text: '' },
-    ages: {}, settings: {}, hand: null, hands: {}, optimized: {}, aspect: '16:9', resolution: '', audio: true, provider: 'higgsfield', runwayModel: '' };
+    ages: {}, settings: {}, hand: null, hands: {}, optimized: {}, aspect: '16:9', resolution: '', audio: true, provider: 'higgsfield' };
 
-export default function DirectStudio({ pid, graph, catalog, runway = { connected: false, models: [], usd_per_credit: 0.01 }, reload }) {
+export default function DirectStudio({ pid, graph, catalog, reload }) {
     const scenes = useMemo(() => scenesOf(graph), [graph]);
     const board = useMemo(() => scenes.flatMap(s => s.shots), [scenes]);
     const byId = useMemo(() => new Map(board.map(s => [s.id, s])), [board]);
@@ -208,17 +208,8 @@ export default function DirectStudio({ pid, graph, catalog, runway = { connected
     const recipes = promptCodes.map(id => starters[id]).filter(Boolean);
     const { start, references } = useMemo(() => collectReferences(recipes), [starters, promptCodes.join(',')]); // eslint-disable-line react-hooks/exhaustive-deps
     const facts = catalog.models.find(m => m.id === studio.model) || null;
-    /*
-     * The provider only changes where the request goes and what it costs: the ranking is Higgsfield's, and on
-     * Runway the suggestions are the same ranked models Runway also hosts (Seedance 2.5 there IS Seedance 2.5),
-     * with Runway's own models (Gen-4.5, Aleph…) in the full list.
-     */
-    const isRw = studio.provider === 'runway';
-    const rwModels = runway.models || [];
-    const rankOf = (m) => { const i = (result?.cards || []).findIndex(c => m.same_as.includes(c.id)); return i < 0 ? 1e9 : i; };
-    const rwOrdered = [...rwModels].sort((a, b) => rankOf(a) - rankOf(b) || (a.own === b.own ? 0 : a.own ? 1 : -1) || a.label.localeCompare(b.label));
-    const rwModel = rwModels.find(m => m.id === studio.runwayModel) || rwModels.find(m => m.same_as.includes(studio.model)) || rwOrdered.find(m => rankOf(m) < 1e9) || rwModels.find(m => m.id === 'gen4.5') || rwModels[0] || null;
-    const maxRefs = isRw ? (rwModel && Number.isFinite(rwModel.max_images) ? rwModel.max_images : null) : facts && Number.isFinite(facts.max_images) ? facts.max_images : null;
+    // Higgsfield only (Runway was removed 2026-10-24): the ranking, the models and the price are Higgsfield's.
+    const maxRefs = facts && Number.isFinite(facts.max_images) ? facts.max_images : null;
     const refOf = (ch) => {
         const c = castList.find(x => castKey(x.name) === ch);
         const owner = (r) => info?.ref_owners?.[r.asset_id];
@@ -311,29 +302,26 @@ export default function DirectStudio({ pid, graph, catalog, runway = { connected
         finally { if (ai) setBusy(''); }
     }, [pid, unitShots.map(s => s.id).join(','), unitDur, finalText, references.length, !!start, studio.aspect, studio.resolution, studio.model, catalog.models]); // eslint-disable-line react-hooks/exhaustive-deps
     useEffect(() => { const h = setTimeout(() => recommend(false), 500); return () => clearTimeout(h); }, [promptCodes.join(','), unitDur, studio.aspect, studio.resolution, references.length, compiledText.length > 0]); // eslint-disable-line react-hooks/exhaustive-deps
-    const sendAudio = isRw ? !!rwModel?.native_audio : !!facts?.native_audio;
-    useEffect(() => { if (isRw ? rwModel : facts) setStudio(s => ({ ...s, audio: sendAudio })); }, [studio.model, studio.provider, rwModel?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+    const sendAudio = !!facts?.native_audio;
+    useEffect(() => { if (facts) setStudio(s => ({ ...s, audio: sendAudio })); }, [studio.model]); // eslint-disable-line react-hooks/exhaustive-deps
 
     const cards4 = result?.cards || [];
     const cardOf = cards4.find(c => c.id === studio.model) || null;
     const blockedWhy = (result?.blocked || []).find(b => b.id === studio.model)?.why || '';
     const factsOf = (id) => { const f = catalog.models.find(m => m.id === id); return f ? { label: f.label, min: f.duration?.min, max: f.duration?.max, refs: f.max_images } : null; };
-    const unitFacts = isRw ? (rwModel ? { label: `${rwModel.label} on Runway`, min: rwModel.duration.min, max: rwModel.duration.max, refs: rwModel.max_images } : null)
-        : studio.model ? factsOf(studio.model) : null;
-    const alternatives = isRw
-        ? rwOrdered.filter(m => m.id !== rwModel?.id).map(m => ({ id: m.id, label: m.label, max: m.duration.max, refs: m.max_images }))
-        : catalog.models.filter(m => m.id !== studio.model && !m.external && m.duration && Number.isFinite(m.duration.max))
+    const unitFacts = studio.model ? factsOf(studio.model) : null;
+    const alternatives = catalog.models.filter(m => m.id !== studio.model && !m.external && m.duration && Number.isFinite(m.duration.max))
             .map(m => ({ id: m.id, label: m.label, max: m.duration.max, refs: m.max_images, rank: cards4.findIndex(c => c.id === m.id) }))
             .filter(a => a.rank >= 0).sort((a, b) => a.rank - b.rank);
     const lengthBlocked = blockedWhy && /Up to \d+s/.test(blockedWhy);
     const ck = compiled ? checks({ units: one ? [{ ids: scope, dur: total, label: scope.map(label).join('+') }] : promptCodes.map(id => ({ ids: [id], dur: S[id].dur, label: label(id) })),
-        one, shots: S, facts: unitFacts, alternatives, refsNeeded: () => (start ? 1 : 0) + references.length, hand: hand !== null, blocked: isRw || lengthBlocked ? '' : blockedWhy,
+        one, shots: S, facts: unitFacts, alternatives, refsNeeded: () => (start ? 1 : 0) + references.length, hand: hand !== null, blocked: lengthBlocked ? '' : blockedWhy,
         conflicts: conflicts.filter(c => studio.ages?.[c.ch] === undefined).map(c => ({ text: `${nameOf(c.ch)}'s age disagrees: profile ${c.profile}, ${c.shot}'s note “${c.card}”. The prompt leaves the age out until you choose; canon is not changed.`,
             fixes: [{ lab: `Use ${c.profile} here`, act: { type: 'age', ch: c.ch, v: c.profile } }, { lab: `Use “${c.card}” here`, act: { type: 'age', ch: c.ch, v: c.card } }] })) }) : [];
     const hasErr = ck.some(x => x.k === 'err');
     const doFix = (a) => {
         if (a.type === 'mode') setSt({ mode: a.mode });
-        if (a.type === 'model') setSt(isRw ? { runwayModel: a.id } : { model: a.id });
+        if (a.type === 'model') setSt({ model: a.id });
         if (a.type === 'age') setSt({ ages: { ...studio.ages, [a.ch]: a.v } });
         if (a.type === 'trim') edit(a.id, s => { s.dur = a.to; s.lines.forEach(l => { l.t = Math.min(l.t, a.to - 0.8); }); s.moves.forEach(m => { m.end = Math.min(m.end, a.to); m.start = Math.min(m.start, a.to - 0.5); }); });
     };
@@ -437,18 +425,15 @@ export default function DirectStudio({ pid, graph, catalog, runway = { connected
     if (k === 'amb') { title = 'Ambience'; crumb = grouped ? crumbSeq : null; here = 'Ambience'; }
     if (k === 'music') { title = 'Music'; crumb = grouped ? crumbSeq : null; here = 'Music'; }
 
-    const modelChips = isRw ? rwOrdered.filter(m => rankOf(m) < 1e9).slice(0, 4).map(m => (
-        <button key={m.id} type="button" className={'ds-chip' + (rwModel?.id === m.id ? ' on' : '')} aria-pressed={rwModel?.id === m.id} onClick={() => setSt({ runwayModel: m.id })}>
-            {m.label}<small>max {m.duration.max}s · {m.credits_per_second} cr/s</small>
-        </button>)) : (cards4.length ? cards4.slice(0, 4) : []).map(c => (
+    const modelChips = (cards4.length ? cards4.slice(0, 4) : []).map(c => (
         <button key={c.id} type="button" className={'ds-chip' + (studio.model === c.id ? ' on' : '')} aria-pressed={studio.model === c.id} onClick={() => setSt({ model: c.id })}>
             {c.label}<small>{c.facts?.duration ? `max ${c.facts.duration.max}s` : ''}{c.share ?? c.fit ? ` · ${c.share ?? c.fit}%` : ''}</small>
         </button>));
-    const modelAudio = isRw ? (rwModel ? `${rwModel.label} on Runway ${rwModel.native_audio ? 'makes sound in the clip (switchable). Speech timing is requested, not guaranteed.' : 'makes no sound: lines are left for ElevenLabs and Cut.'}` : '') : facts ? (facts.native_audio ? `${facts.label} makes sound in the clip (switchable). Speech timing is requested, not guaranteed; no separate stems.` : `${facts.label} makes no sound: lines are left for ElevenLabs and Cut.`) : '';
+    const modelAudio = facts ? (facts.native_audio ? `${facts.label} makes sound in the clip (switchable). Speech timing is requested, not guaranteed; no separate stems.` : `${facts.label} makes no sound: lines are left for ElevenLabs and Cut.`) : '';
 
     const send = async () => {
-        if (!unitShots.length || hasErr || (isRw ? !rwModel : !studio.model)) return;
-        // No key gate: Higgsfield and Runway are manual hand-overs (backend/lib/manual-generation.js). The final review
+        if (!unitShots.length || hasErr || !studio.model) return;
+        // No key gate: Higgsfield is still a manual hand-over (backend/lib/manual-generation.js). The final review
         // gives the prompt and assets to generate in the vendor's own app; a key sends nothing, so none is needed.
         await flush();
         setBusy('send');
@@ -463,20 +448,17 @@ export default function DirectStudio({ pid, graph, catalog, runway = { connected
             }
             const node = `/projects/${pid}/production-graph/nodes/${encodeURIComponent(key)}/draft`;
             const current = await legacy.api(node);
-            const recipe = isRw
-                ? runwayRecipe({ model: rwModel.id, prompt: finalText, references, start, durationS: unitDur, aspect: studio.aspect,
-                    resolution: rwModel.resolutions && rwModel.resolutions[studio.resolution] ? studio.resolution : undefined, audio: studio.audio && rwModel.native_audio, maxImages: rwModel.max_images ?? undefined })
-                : higgsfieldRecipe({ model: studio.model, prompt: finalText, references, start, durationS: unitDur, aspect: studio.aspect, resolution: studio.resolution || undefined,
+            const recipe = higgsfieldRecipe({ model: studio.model, prompt: finalText, references, start, durationS: unitDur, aspect: studio.aspect, resolution: studio.resolution || undefined,
                     audio: studio.audio, maxImages: facts?.max_images, startFrame: facts ? facts.start_frame : true });
             const saved = await legacy.api(node, { method: 'PUT', body: JSON.stringify({ expected_revision: current?.draft?.revision || 0, payload: { ...(current?.draft?.payload || {}), video: recipe }, source_asset_id: null }) });
             const revision = (saved.draft || saved).revision;
             const out = await legacy.api(path, { method: 'POST', body: JSON.stringify({ production_draft: { node_key: key, revision } }) });
-            const sentTo = isRw ? `${rwModel.label} on Runway` : facts?.label || studio.model;
+            const sentTo = facts?.label || studio.model;
             legacy.setStatus(out?.job_id || out?.status === 'submitted' ? `Sent to ${sentTo}. The take lands in 04 Video/Clips and on the timeline when it is ready.` : `New take from ${sentTo} saved.`);
             await reload();
         } catch (err) {
             // Closing the final review is the end of a hand-over, not a failure: say where the take goes back in.
-            if (err.code === 'FINAL_REQUEST_CANCELLED') legacy.setStatus(`Generate it on ${isRw ? 'Runway' : 'Higgsfield'} with the prompt and assets from the review, then import the clip on Video Shots: it becomes this shot's take.`);
+            if (err.code === 'FINAL_REQUEST_CANCELLED') legacy.setStatus(`Generate it on Higgsfield with the prompt and assets from the review, then import the clip on Video Shots: it becomes this shot's take.`);
             else legacy.setStatus('Not sent: ' + err.message);
         }
         finally { setBusy(''); }
@@ -511,7 +493,7 @@ export default function DirectStudio({ pid, graph, catalog, runway = { connected
         try {
             const out = await legacy.api(`/projects/${pid}/production-studio/seedance-prompt`, { method: 'POST', refresh: false, body: JSON.stringify({
                 label: optCodes.map(label).join('+'), prompt: optText, duration_s: optDur, aspect: studio.aspect,
-                model_label: isRw ? rwModel?.label : facts?.label,
+                model_label: facts?.label,
                 shots: optCodes.map(id => ({ shot_id: id, code: label(id), offset_s: optCodes.length > 1 ? offsets[id] - offsets[optCodes[0]] : 0,
                     lines: S[id].lines.map((l, index) => ({ index, t: l.t, ch: l.ch, name: nameOf(l.ch), text: l.text })) })),
                 character_ids: optChars.map(castId).filter(Boolean),
@@ -531,8 +513,7 @@ export default function DirectStudio({ pid, graph, catalog, runway = { connected
 
     const credits = cardOf?.cost?.credits;
     const usdApi = cardOf?.cost?.usd ?? cardOf?.est_usd;
-    const rwCr = isRw ? runwayCredits(rwModel, unitDur, studio.resolution) : null;
-    const costText = isRw ? (Number.isFinite(rwCr) ? `${rwCr} Runway credits (≈$${(rwCr * (runway.usd_per_credit || 0.01)).toFixed(2)})` : 'quote on review') : Number.isFinite(credits) ? `${credits} credits` + (Number.isFinite(usdApi) ? ` (≈$${usdApi.toFixed(2)} API)` : '') : Number.isFinite(usdApi) ? `≈$${usdApi.toFixed(2)} API` : 'quote on review';
+    const costText = Number.isFinite(credits) ? `${credits} credits` + (Number.isFinite(usdApi) ? ` (≈$${usdApi.toFixed(2)} API)` : '') : Number.isFinite(usdApi) ? `≈$${usdApi.toFixed(2)} API` : 'quote on review';
 
     return (
         <div className="ds">
@@ -779,40 +760,26 @@ export default function DirectStudio({ pid, graph, catalog, runway = { connected
 
                 <div className="ds-gen">
                     {compiled && <>
-                        <div className="ds-row"><h3>Generate</h3><span className="ds-mono">{isRw ? (rwModel ? `${rwModel.label} · Runway` : 'Pick a model') : facts ? facts.label : 'Pick a model'}{studio.resolution ? ' · ' + studio.resolution : ''} · {studio.aspect}</span></div>
-                        <div className="ds-row">
-                            <span className="ds-lab" style={{ margin: 0 }}>Provider</span>
-                            <div className="ds-seg" role="group" aria-label="Provider" style={{ flex: 1 }}>
-                                {[['higgsfield', 'Higgsfield'], ['runway', 'Runway']].map(([id, lab]) => (
-                                    <button key={id} type="button" className={(isRw ? 'runway' : 'higgsfield') === id ? 'on' : ''} aria-pressed={(isRw ? 'runway' : 'higgsfield') === id} onClick={() => setSt({ provider: id })}>{lab}</button>))}
-                            </div>
-                        </div>
+                        <div className="ds-row"><h3>Generate</h3><span className="ds-mono">{facts ? facts.label : 'Pick a model'}{studio.resolution ? ' · ' + studio.resolution : ''} · {studio.aspect}</span></div>
                         {k !== 'seq' && cards4.length > 0 && <div className="ds-chips">{modelChips}</div>}
                         {ck.map((c, i) => (
                             <div key={i} className={'ds-check ' + c.k}><span className="ds-ck">{{ err: '✕', warn: '!', ok: '✓', info: 'i' }[c.k]}</span><span style={{ flex: 1 }}>{c.text}
                                 {c.fixes.length > 0 && <span className="ds-row" style={{ marginTop: 5 }}>{c.fixes.map((f, j) => <button key={j} type="button" className="ds-btn xs" onClick={() => doFix(f.act)}>{f.lab}</button>)}</span>}</span></div>
                         ))}
-                        {!isRw && facts?.external
+                        {facts?.external
                             ? <a className="ds-btn pri big" href={`${facts.url}&prompt=${encodeURIComponent(finalText)}&duration=${unitDur}&aspect_ratio=${encodeURIComponent(studio.aspect)}`} target="_blank" rel="noreferrer">Open {facts.label} on Higgsfield</a>
-                            : <button type="button" className={'ds-btn pri big' + (hasErr || (isRw ? !rwModel : !studio.model) ? ' off' : '')} disabled={hasErr || (isRw ? !rwModel : !studio.model) || busy === 'send'} onClick={send}>
+                            : <button type="button" className={'ds-btn pri big' + (hasErr || !studio.model ? ' off' : '')} disabled={hasErr || !studio.model || busy === 'send'} onClick={send}>
                                 {busy === 'send' ? 'Preparing…' : hasErr ? 'Fix the red item to generate' : `${one ? 'Generate the sequence' : 'Generate ' + label(promptCodes[0])} · ${costText}`}
                             </button>}
-                        <p className="ds-muted">{one ? 'One request.' : grouped ? `One of ${scope.length} separate requests.` : ''} {isRw ? 'Runway developer credits, $0.01 each, from its published rates; the ranking is the same, only where it is sent and the price change.' : 'Credits shown before anything is sent;'} Nothing is sent: the final review hands you the exact prompt and assets to generate in {isRw ? 'Runway' : 'Higgsfield'}'s own app.</p>
+                        <p className="ds-muted">{one ? 'One request.' : grouped ? `One of ${scope.length} separate requests.` : ''} Credits shown before anything is sent. Nothing is sent yet: the final review hands you the exact prompt and assets to generate in Higgsfield's own app.</p>
                         <details className="ds-more">
                             <summary>Shape, references and every model</summary>
                             <div className="ds-row">
                                 <label className="ps-inline">Shape <select value={studio.aspect} onChange={e => setSt({ aspect: e.target.value }, { quiet: true })}>{ASPECTS.map(a => <option key={a}>{a}</option>)}</select></label>
                                 <label className="ps-inline">Resolution <select value={studio.resolution} onChange={e => setSt({ resolution: e.target.value }, { quiet: true })}>{RESOLUTIONS.map(r => <option key={r} value={r}>{r || 'Any'}</option>)}</select></label>
-                                <label className="ps-inline"><input type="checkbox" checked={!!studio.audio} disabled={(isRw ? rwModel : facts) && !sendAudio} onChange={e => setSt({ audio: e.target.checked }, { quiet: true })} /> Generate sound</label>
+                                <label className="ps-inline"><input type="checkbox" checked={!!studio.audio} disabled={facts && !sendAudio} onChange={e => setSt({ audio: e.target.checked }, { quiet: true })} /> Generate sound</label>
                             </div>
-                            {isRw && <>
-                                <label className="ds-lab" htmlFor="psRwModel">Send to Runway model</label>
-                                <select id="psRwModel" className="ds-in" value={rwModel?.id || ''} onChange={e => setSt({ runwayModel: e.target.value })}>
-                                    {rwOrdered.map(m => { const r = rankOf(m); const c = r < 1e9 ? result.cards[r] : null;
-                                        return <option key={m.id} value={m.id}>{m.label}{c ? ` · ${c.share ?? c.fit}% share` : m.own ? " · Runway's own" : ''} · {m.credits_per_second} cr/s</option>; })}
-                                </select>
-                            </>}
-                            <label className="ds-lab" htmlFor="psModel">{isRw ? 'Ranking (Higgsfield models, the same families)' : 'Send to Higgsfield model'}</label>
+                            <label className="ds-lab" htmlFor="psModel">Send to Higgsfield model</label>
                             <select id="psModel" className="ds-in" value={studio.model} onChange={e => setSt({ model: e.target.value })}>
                                 {!studio.model && <option value="">Pick shots first</option>}
                                 {[...catalog.models].sort((a, b) => (cards4.findIndex(c => c.id === a.id) + 1 || 1e9) - (cards4.findIndex(c => c.id === b.id) + 1 || 1e9) || a.label.localeCompare(b.label)).map(m => {
@@ -821,7 +788,7 @@ export default function DirectStudio({ pid, graph, catalog, runway = { connected
                             </select>
                             {cards4.length > 0 && <button type="button" className="ds-btn sm" disabled={busy === 'judge'} onClick={() => recommend(true)}>{busy === 'judge' ? 'Asking…' : result?.judged ? 'Ask AI again' : 'Ask AI to judge'}</button>}
                             {cardOf && <p className="ds-muted">{cardOf.reasons.slice(0, 3).join(' · ')}</p>}
-                            <h4>References · {(start ? 1 : 0) + references.length}{maxRefs !== null ? ` · ${isRw ? rwModel.label : facts.label} takes ${maxRefs === 1 ? 'one' : `up to ${maxRefs}`}` : ''}</h4>
+                            <h4>References · {(start ? 1 : 0) + references.length}{maxRefs !== null ? ` · ${facts.label} takes ${maxRefs === 1 ? 'one' : `up to ${maxRefs}`}` : ''}</h4>
                             <div className="ds-refs">
                                 {start && <Ref r={start} role="Start frame" sent />}
                                 {references.map((r, i) => <Ref key={r.asset_id || r.sha256 || i} r={r} role={r.reference_role || r.role || 'reference'} sent={maxRefs === null || i + (start ? 1 : 0) < maxRefs} tag={`@image${i + 1}`} />)}

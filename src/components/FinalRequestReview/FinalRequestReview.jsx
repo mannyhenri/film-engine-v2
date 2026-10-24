@@ -21,7 +21,7 @@ function fullPromptOf(snapshot) {
  if (typeof body.world_prompt?.text_prompt==='string') return body.world_prompt.text_prompt;
  const textPart=Array.isArray(body.input)?body.input.find(part=>part.type==='text'):null;
  if(typeof textPart?.text==='string')return textPart.text;
- // Runway multi-shot: one prompt per shot, handed over in order with its length.
+ // A multi-shot body: one prompt per shot, handed over in order with its length.
  if(Array.isArray(body.shots)&&body.shots.some(shot=>typeof shot?.prompt==='string'))return body.shots.map((shot,i)=>`Shot ${i+1}${shot?.duration?` (${shot.duration}s)`:''}: ${shot?.prompt||''}`).join('\n');
  return undefined;
 }
@@ -60,7 +60,7 @@ async function downloadOriginal(reviewId, ref, i) {
  const a = document.createElement('a'); a.href = url; a.download = assetNameOf(ref, i, (assetPathOf(ref).split('.').pop() || '').toLowerCase() || undefined); a.click();
  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
-const vendorOf = provider => ({openai:'ChatGPT / OpenAI',google:'Google (Gemini / Flow)',muapi:'muapi',seedance:'Seedance',runway:'Runway',higgsfield:'Higgsfield','muapi-upscale':'Topaz (via muapi)',meshy:'Meshy',worldlabs:'World Labs',magnific:'Magnific',elevenlabs:'ElevenLabs',topaz:'Topaz'})[provider] || provider || 'the generator';
+const vendorOf = provider => ({openai:'ChatGPT / OpenAI',google:'Google (Gemini / Flow)',muapi:'muapi',seedance:'Seedance',higgsfield:'Higgsfield','higgsfield-mcp':'Higgsfield','muapi-upscale':'Topaz (via muapi)',meshy:'Meshy',worldlabs:'World Labs',magnific:'Magnific',elevenlabs:'ElevenLabs',topaz:'Topaz'})[provider] || provider || 'the generator';
 async function copyText(text) {
  if (navigator.clipboard?.writeText) { await navigator.clipboard.writeText(text); return; }
  const area=document.createElement('textarea');area.value=text;document.body.appendChild(area);area.select();document.execCommand('copy');area.remove();
@@ -165,7 +165,9 @@ export function FinalRequestReviewDialog({ initialReview, onSend, onCancel, onRe
   if(live())onCancel();
  }
  const snapshotRefs=snapshot.references || snapshot.media || [];
- const sends=isSent(snapshot), quote=snapshot.quote || review.quote || {};
+ // Test mode (Setup): the real approve-and-send path, ending in a saved request instead of a sent one.
+ const testRun=!!review.test_mode;
+ const sends=isSent(snapshot)||testRun, quote=snapshot.quote || review.quote || {};
  const [ack,setAck]=useState(false);
  const costText=quote.amount!=null?`about ${quote.currency==='USD'||!quote.currency?'$':''}${Number(quote.amount).toFixed(2)}${quote.currency&&quote.currency!=='USD'?' '+quote.currency:''}`
   :quote.credits!=null?`${quote.credits} credits`:quote.estimated_cost!=null?`about $${Number(quote.estimated_cost).toFixed(2)}`:'not quoted by the provider';
@@ -176,7 +178,9 @@ export function FinalRequestReviewDialog({ initialReview, onSend, onCancel, onRe
  return <div className="final-review-overlay"><section className="final-review-dialog" role="dialog" aria-modal="true" aria-label="Final provider request review" data-review={review.id}>
   <header><h2>Prompt and assets for {vendorOf(snapshot.provider)}{batch?.total>1?` (${batch.index+1} of ${batch.total})`:null}</h2><button aria-label="Close final review" disabled={busy} onClick={cancel}>×</button></header>
   <div className="final-review-body">
-   {sends
+   {testRun
+    ? <p className="final-review-manual final-review-test" role="note"><strong>Test mode.</strong> Approve saves this exact request and its files to a folder (the project's exports/Higgsfield test requests). Nothing is sent to {vendorOf(snapshot.provider)} and no credits are spent. If it were sent: {costText}.</p>
+    : sends
     ? <p className="final-review-manual">Film Engine sends this request to {vendorOf(snapshot.provider)} when you approve it, and brings the result back by itself. Cost: {costText}.</p>
     : <p className="final-review-manual">Film Engine does not send this request. Copy the prompt, download the assets in order, and generate in {vendorOf(snapshot.provider)}'s own app with the settings below.</p>}
    {batch?.total>1&&<p>Item {batch.index+1} of {batch.total}. Use Next and Previous to go through every item; Close ends the batch.</p>}
@@ -223,10 +227,10 @@ export function FinalRequestReviewDialog({ initialReview, onSend, onCancel, onRe
    {snapshotRefs.length>0&&<div>{snapshotRefs.map((ref,i)=><div className="final-review-reference" key={i}>{previewOf(ref)&&(ref.mime?.startsWith('video/')?<video src={previewOf(ref)} controls preload="metadata" aria-label={`Resolved video reference ${i+1}`}/>:ref.mime?.startsWith('audio/')?<audio src={previewOf(ref)} controls preload="none" aria-label={`Resolved audio reference ${i+1}`}/>:ref.mime?.startsWith('model/')||ref.mime==='application/octet-stream'?<a href={previewOf(ref)} download={`approved-reference-${i+1}`}>Download exact model reference bytes</a>:<img src={previewOf(ref)} alt={`Resolved reference ${i+1}`}/>)}<span>{ref.order ?? i+1}. {ref.role || 'reference'} · {ref.wire_role || 'wire role not recorded'} · {ref.byte_length ?? 'unknown'} bytes{ref.moodboard_entry_id ? ` · Moodboard ${(ref.influence_roles || []).join(', ')} · ${ref.influence_note || ''} · ${ref.byte_length} bytes` : ''} <code>{ref.sha256 || ref.content_hash || ref.hash}</code>{ref.annotated?' · annotations included':''}</span></div>)}</div>}
    <pre aria-label="Exact resolved provider request">{json(snapshot)}</pre>
    </details>
-   {sends&&<label className="final-review-consent"><input type="checkbox" checked={ack} disabled={busy||dirty} onChange={e=>setAck(e.target.checked)}/> I approve this exact request and its cost ({costText}).</label>}
+   {sends&&<label className="final-review-consent"><input type="checkbox" checked={ack} disabled={busy||dirty} onChange={e=>setAck(e.target.checked)}/> {testRun?`I approve saving this exact request as a test (it would cost ${costText}).`:`I approve this exact request and its cost (${costText}).`}</label>}
    {error&&<p role="alert">{error}</p>}
   </div>
-  <footer><button disabled={busy} onClick={cancel}>Close</button>{batch?.total>1&&<span className="final-review-nav">{batch.index>0&&<button disabled={busy} onClick={()=>onSend({__manual_nav:'previous'})}>Previous item</button>}{batch.index<batch.total-1&&<button disabled={busy} onClick={()=>onSend({__manual_nav:'next'})}>Next item</button>}</span>}{sends?<button className="final-review-send" disabled={busy||dirty||!ack||!review.fingerprint} onClick={approveAndSend}>{busy?'Sending…':'Approve & send'}</button>:destination==='copy'?<><button disabled={busy||dirty} onClick={()=>copy('brief')}>Copy prompt, settings &amp; asset list</button><button disabled={busy||dirty} onClick={()=>copy('prompt')}>Copy prompt</button></>:<button disabled={!canHandOff} onClick={handOff}>{busy?'Preparing…':'Copy prompt & open ChatGPT'}</button>}</footer>
+  <footer><button disabled={busy} onClick={cancel}>Close</button>{batch?.total>1&&<span className="final-review-nav">{batch.index>0&&<button disabled={busy} onClick={()=>onSend({__manual_nav:'previous'})}>Previous item</button>}{batch.index<batch.total-1&&<button disabled={busy} onClick={()=>onSend({__manual_nav:'next'})}>Next item</button>}</span>}{sends?<button className="final-review-send" disabled={busy||dirty||!ack||!review.fingerprint} onClick={approveAndSend}>{busy?(testRun?'Saving…':'Sending…'):(testRun?'Approve & save test request':'Approve & send')}</button>:destination==='copy'?<><button disabled={busy||dirty} onClick={()=>copy('brief')}>Copy prompt, settings &amp; asset list</button><button disabled={busy||dirty} onClick={()=>copy('prompt')}>Copy prompt</button></>:<button disabled={!canHandOff} onClick={handOff}>{busy?'Preparing…':'Copy prompt & open ChatGPT'}</button>}</footer>
  </section></div>;
 }
 

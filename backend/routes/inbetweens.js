@@ -318,10 +318,6 @@ function videoProvider(projectId, body) {
 
 function priceVideo(provider, payload) {
     try {
-        if (provider.id === 'runway') {
-            const est = require('../lib/video-cost').estimateVideoCost({ model: payload.model || process.env.RUNWAY_VIDEO_MODEL || 'gen4.5', durationSeconds: payload.duration_s });
-            return Number.isFinite(est.usd) ? est.usd : null;
-        }
         if (typeof provider.meter !== 'function') return null;
         const u = provider.meter('video', payload, null);
         const p = u && require('../lib/provider-pricing').priceUsage({ provider: provider.id, capability: 'video', ...u });
@@ -341,7 +337,7 @@ function videoPlan(l, body) {
     const missing = span.frames.filter(f => !f.asset_id);
     if (missing.length) blockers.push(`${missing.length} in-between(s) have no picture yet (${missing.map(f => secs(f.at_ms) + ' s').join(', ')}).`);
     if (l.approval.stale && !b.ignore_approval) blockers.push('The strip changed after it was approved. Approve it again, or send ignore_approval.');
-    const contract = provider && provider.referenceContract;
+    const contract = provider && (typeof provider.referenceContractFor === 'function' ? provider.referenceContractFor(b.model) : provider.referenceContract);
     const canOne = !!(contract && (contract.roles || []).includes('inbetween') && (contract.maxImages || 0) >= span.frames.length + 2);
     const maxKeys = provider ? Math.max(1, Number(provider.maxKeyframes) || 1) : 1;
     const shape = b.shape === 'legs' || b.shape === 'one' ? b.shape : (canOne ? 'one' : 'legs');

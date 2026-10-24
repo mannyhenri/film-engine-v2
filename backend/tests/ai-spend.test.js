@@ -199,9 +199,9 @@ test('a failed generation is not billed', () => {
     const projectId = generateId();
     db.prepare('INSERT INTO film_projects (id, title) VALUES (?, ?)').run(projectId, 'Refusal Test');
 
-    const failing = { id: 'runway', capabilities: ['video'], supports: () => true,
+    const failing = { id: 'higgsfield-mcp', capabilities: ['video'], supports: () => true,
         generate: async () => ({ ok: false, status: 400, error: 'moderation' }),
-        meter: providers.get('runway').meter };
+        meter: providers.get('higgsfield-mcp').meter };
     return meter.meterAdapter(failing, { projectId }).generate('video', samplePayload('video'), {})
         .then(() => {
             assert.strictEqual(countRows(db, projectId).usage, 0, 'a refused generation was billed');
@@ -461,8 +461,8 @@ test('spend rolls up per project and per minute of footage', () => {
         .run(shotId, sceneId, '1A', 30000);
 
     meter.recordUsage({
-        projectId, shotId, provider: 'runway', capability: 'video',
-        model: 'gen4.5', unit: 'second', quantity: 10,
+        projectId, shotId, provider: 'higgsfield-mcp', capability: 'video',
+        model: 'seedance_2_5', unit: 'second', quantity: 10, native_charged: 70,
     });
 
     const spend = meter.projectSpend(projectId);
@@ -518,14 +518,14 @@ function sampleResult(capability, provider) {
     const base = { ok: true, data: {}, provider_model: '' };
     if (provider === 'anthropic') return { ...base, provider_model: 'claude-opus-5', usage: { input_tokens: 1200, output_tokens: 800 } };
     if (provider === 'openai')    return { ...base, provider_model: capability === 'llm' ? 'gpt-4.1' : 'gpt-image-1', usage: { prompt_tokens: 1000, completion_tokens: 500 } };
-    if (provider === 'runway')    return { ...base, provider_model: capability === 'video' ? 'gen4.5' : 'gen4_image' };
+    if (provider === 'higgsfield-mcp') return { ...base, provider_model: capability === 'video' ? 'seedance_2_5' : capability === 'image' ? 'nano_banana_pro' : undefined };
     if (provider === 'meshy')     return { ...base, provider_model: capability === 'image' ? 'nano-banana-pro' : 'meshy-5' };
     if (provider === 'elevenlabs')return { ...base, provider_model: 'eleven_multilingual_v2' };
     return base;
 }
 
 function stubAdapter(capability) {
-    const preferred = { llm: 'anthropic', image: 'meshy', video: 'runway', voice: 'elevenlabs',
+    const preferred = { llm: 'anthropic', image: 'meshy', video: 'higgsfield-mcp', voice: 'elevenlabs',
         music: 'elevenlabs', sfx: 'elevenlabs', ambient: 'elevenlabs',
         model3d: 'meshy', lipsync: 'gridlight', post: 'gridlight' }[capability] || 'gridlight';
     const real = providers.get(preferred);

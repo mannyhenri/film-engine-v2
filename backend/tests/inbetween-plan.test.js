@@ -117,8 +117,8 @@ test('W1 · the bundle cap the ROUTE serves is the contract\'s, not a literal', 
      *
      * Differential, through the real route: the same strip planned against two
      * models whose contracts differ must serve two different caps. Env-swapped
-     * rather than mocked, because RUNWAY_VIDEO_MODEL is exactly how an install
-     * chooses one.
+     * rather than mocked, because the project's pinned video model is exactly how
+     * a project chooses one.
      */
     const { db, generateId } = require('../db/database');
     require('../db/schema').ensureSchema();
@@ -126,7 +126,7 @@ test('W1 · the bundle cap the ROUTE serves is the contract\'s, not a literal', 
 
     const projectId = generateId();
     db.prepare('INSERT INTO film_projects (id, title, provider_config) VALUES (?, ?, ?)')
-        .run(projectId, 'Cap', JSON.stringify({ video: 'runway' }));
+        .run(projectId, 'Cap', JSON.stringify({ video: 'higgsfield-mcp' }));
     const sceneId = generateId();
     db.prepare('INSERT INTO film_scenes (id, project_id, scene_number) VALUES (?, ?, 1)').run(sceneId, projectId);
     const shotId = generateId();
@@ -152,20 +152,14 @@ test('W1 · the bundle cap the ROUTE serves is the contract\'s, not a literal', 
             { expand: 'inbetweens', cadence_s: '1', shape: 'bundle' }));
     });
 
-    const before = process.env.RUNWAY_VIDEO_MODEL;
     const caps = {};
-    try {
-        for (const [model, contract] of Object.entries(CONTRACTS)) {
-            process.env.RUNWAY_VIDEO_MODEL = model;
-            const body = await planCap();
-            caps[model] = body && body.station_cap;
-            assert.equal(caps[model], contract.maxImages,
-                `${model}: the route served a cap of ${caps[model]} against a `
-                + `${contract.maxImages}-image contract`);
-        }
-    } finally {
-        if (before === undefined) delete process.env.RUNWAY_VIDEO_MODEL;
-        else process.env.RUNWAY_VIDEO_MODEL = before;
+    for (const [model, contract] of Object.entries(CONTRACTS)) {
+        db.prepare('UPDATE film_projects SET provider_config = ? WHERE id = ?').run(JSON.stringify({ video: 'higgsfield-mcp', video_model: model }), projectId);
+        const body = await planCap();
+        caps[model] = body && body.station_cap;
+        assert.equal(caps[model], contract.maxImages,
+            `${model}: the route served a cap of ${caps[model]} against a `
+            + `${contract.maxImages}-image contract`);
     }
     assert.ok(new Set(Object.values(caps)).size > 1,
         `every model served the same cap (${JSON.stringify(caps)}) — the route is not reading the contract`);

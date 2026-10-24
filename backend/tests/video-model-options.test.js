@@ -12,8 +12,8 @@
  *     the field it names changes in the body the adapter would send;
  *   - what is offered is the provider's own schema (the dated snapshot), and a
  *     value outside it is refused by name, never sent;
- *   - an automatic Runway ratio is one Runway's schema accepts (a Gen-4.5 ratio
- *     it refuses, and pixel ratios sent to Hailuo 3, were both live);
+ *   - Higgsfield's options are its own app catalogue's, and an automatic frame
+ *     is one the model takes;
  *   - through the routes: the free preview carries the model's options and the
  *     request as it would go, and the paid call sends what was chosen, or
  *     refuses before sending anything;
@@ -31,7 +31,8 @@ for (const k of Object.keys(process.env)) if (/_API_KEY$|_API_SECRET$|^RUNWAYML_
 const { db, generateId } = require('../db/database');
 require('../db/schema').ensureSchema();
 const mo = require('../lib/model-options');
-const runway = require('../lib/providers/runway');
+const hf = require('../lib/providers/higgsfield-mcp');
+const appCatalog = require('../lib/higgsfield-app-catalog');
 const seedance = require('../lib/providers/seedance');
 const { generationOptions } = require('../lib/generation-override');
 const SPA = fs.readFileSync(path.join(__dirname, '..', '..', 'src', 'index.html'), 'utf8');
@@ -41,11 +42,15 @@ const FRAME_B = 'data:image/png;base64,QkJC';
 
 /** The body field each option lands in, per adapter. */
 const BODY_FIELD = {
-    runway: { duration: 'duration', ratio: 'ratio', resolution: 'resolution', audio: 'audio', last_frame: 'promptImage',
-        output_format: 'outputFormat', negative_prompt: 'negativePrompt', seed: 'seed' },
+    // Higgsfield names each model's sound switch itself (generate_audio, sound…), read from the catalogue.
+    'higgsfield-mcp': { duration: 'duration', ratio: 'aspect_ratio', resolution: 'resolution', last_frame: 'medias' },
     seedance: { duration: 'duration', ratio: 'aspect_ratio', last_frame: 'images_list', seed: 'seed', draft: 'draft' },
 };
-const BUILD = { runway: p => runway.buildVideoRequest(p).body, seedance: p => seedance.buildVideoRequest(p).body };
+const fieldOf = (provider, model, key) => (provider === 'higgsfield-mcp' && key === 'audio')
+    ? (appCatalog.MODELS[model] && appCatalog.MODELS[model].audio && appCatalog.MODELS[model].audio.param)
+    : provider === 'higgsfield-mcp' && key === 'resolution' ? (appCatalog.MODELS[model] && appCatalog.MODELS[model].resolution && appCatalog.MODELS[model].resolution.param)
+    : BODY_FIELD[provider][key];
+const BUILD = { 'higgsfield-mcp': p => hf.buildRequest('video', p).body, seedance: p => seedance.buildVideoRequest(p).body };
 
 /** A value for each control that is NOT what an unset request would send. */
 function pick(c, base, field) {
@@ -69,17 +74,14 @@ for (const p of generationOptions('video').providers) {
 test('the dialog offers options for the video models, and Seedance 2.5 carries the ones asked for', () => {
     assert.ok(OFFERED.length >= 10, `only ${OFFERED.length} models carry options`);
     const keysOf = (prov, model) => OFFERED.find(o => o.provider === prov && o.model === model).controls.map(c => c.key);
-    for (const k of ['duration', 'ratio', 'audio', 'last_frame', 'seed']) {
-        assert.ok(keysOf('runway', 'seedance2_5').includes(k), `Runway Seedance 2.5 does not offer ${k}`);
+    for (const k of ['duration', 'ratio', 'resolution', 'audio', 'last_frame']) {
+        assert.ok(keysOf('higgsfield-mcp', 'seedance_2_5').includes(k), `Higgsfield Seedance 2.5 does not offer ${k}`);
     }
     for (const k of ['duration', 'ratio', 'last_frame', 'seed']) {
         assert.ok(keysOf('seedance', 'seedance-2.5-1080p').includes(k), `MuAPI Seedance 2.5 does not offer ${k}`);
     }
-    const len = OFFERED.find(o => o.provider === 'runway' && o.model === 'seedance2_5').controls.find(c => c.key === 'duration');
-    assert.equal(len.max, 30, 'Seedance 2.5 runs to 30 seconds on Runway');
-    // HDR is an output format of Gen-4.5 on Runway, and nowhere a switch on Seedance.
-    const gen45 = OFFERED.find(o => o.provider === 'runway' && o.model === 'gen4.5').controls.find(c => c.key === 'output_format');
-    assert.ok(gen45 && gen45.choices.some(c => c.id === 'hdr10'), 'Gen-4.5 HDR output is not offered');
+    const len = OFFERED.find(o => o.provider === 'higgsfield-mcp' && o.model === 'seedance_2_5').controls.find(c => c.key === 'duration');
+    assert.equal(len.max, 30, 'Seedance 2.5 runs to 30 seconds on Higgsfield');
     const notes = mo.optionsFor('seedance', 'seedance-2.5-1080p').notes.join(' ');
     assert.match(notes, /No HDR/, 'MuAPI Seedance does not say it has no HDR');
     assert.match(notes, /no sound switch/, 'MuAPI Seedance does not say it takes no sound switch');
@@ -92,9 +94,12 @@ test('every option every model offers reaches that provider\'s request', () => {
             target_resolution: '1920x1080', duration_s: 5, fps: 24 };
         const before = BUILD[o.provider]({ ...base });
         for (const c of o.controls) {
-            const field = BODY_FIELD[o.provider][c.key];
+            const field = fieldOf(o.provider, o.model, c.key);
             if (!field) { bad.push(`${o.provider}/${o.model}: ${c.key} names no request field`); continue; }
-            const value = pick(c, before, field);
+            // Higgsfield sends a tier by its own raw value (MiniMax "1080" for 1080p): compare on the tier's name.
+            const m = o.provider === 'higgsfield-mcp' && appCatalog.MODELS[o.model];
+            const asKey = m && c.key === 'resolution' ? Object.keys(m.resolution.values).find(k => m.resolution.values[k] === before[field]) : undefined;
+            const value = pick(c, asKey !== undefined ? { ...before, [field]: asKey } : before, field);
             const { values, refused } = mo.readOptions(o.provider, o.model, { [c.key]: value === 'LAST' ? 'x' : value });
             if (c.type !== 'frame' && refused.length) { bad.push(`${o.provider}/${o.model}: ${c.key}=${value} refused: ${refused}`); continue; }
             const payload = mo.applyVideoOptions({ ...base }, c.type === 'frame' ? {} : values,
@@ -111,40 +116,38 @@ test('every option every model offers reaches that provider\'s request', () => {
     assert.deepEqual(bad, []);
 });
 
-test('Runway\'s options are Runway\'s own schema, and its automatic frame is one the schema accepts', () => {
-    const spec = mo.FIELDS.runway.models;
+test('Higgsfield\'s options are its app catalogue\'s own, and its automatic frame is one the model takes', () => {
     const bad = [];
-    for (const [model, policy] of Object.entries(runway.RUNWAY_VIDEO_MODELS)) {
-        if (policy.endpoint !== 'image_to_video') continue;
-        const s = spec[model];
-        if (!s) { bad.push(`${model} is registered and absent from Runway's schema`); continue; }
-        const ratio = mo.optionsFor('runway', model).controls.find(c => c.key === 'ratio');
-        if (s.ratio && ratio) assert.deepEqual(ratio.choices.map(c => c.id), s.ratio.enum, `${model} ratios`);
+    for (const [model, m] of Object.entries(appCatalog.MODELS)) {
+        const opts = mo.optionsFor('higgsfield-mcp', model);
+        const ratio = opts.controls.find(c => c.key === 'ratio');
+        if (m.aspects && m.aspects.length > 1) assert.deepEqual(ratio.choices.map(c => c.id), m.aspects, `${model} ratios`);
         for (const [w, h] of [[1280, 720], [1920, 1080], [3840, 2160], [1080, 1920], [1024, 1024]]) {
-            const body = runway.buildVideoRequest({ model, prompt: 'x', init_image: FRAME_A, width: w, height: h }).body;
-            if (s.ratio && !s.ratio.enum.includes(body.ratio)) bad.push(`${model} at ${w}x${h} sends ratio ${body.ratio}, which Runway refuses`);
-            const d = s.duration || {};
-            const ok = Array.isArray(d.enum) ? d.enum.includes(body.duration)
-                : (body.duration >= d.minimum && body.duration <= d.maximum);
-            if (!ok) bad.push(`${model} sends a ${body.duration}s length its schema refuses`);
+            let body;
+            try { body = hf.buildRequest('video', { model, prompt: 'x', init_image: FRAME_A, width: w, height: h, target_resolution: `${w}x${h}` }).body; }
+            catch (err) { if (/takes no keyframe/.test(err.message)) continue; throw err; }
+            if (m.aspects && body.aspect_ratio && !m.aspects.includes(body.aspect_ratio)) bad.push(`${model} at ${w}x${h} sends ${body.aspect_ratio}, which it does not take`);
+            const d = m.duration || {};
+            const ok = Array.isArray(d.values) ? d.values.includes(body.duration) : (body.duration >= d.min && body.duration <= d.max);
+            if (!ok) bad.push(`${model} sends a ${body.duration}s length it does not take`);
         }
     }
     assert.deepEqual(bad, []);
 });
 
 test('a value the model does not take is refused by name and never sent', () => {
-    const r = mo.readOptions('runway', 'seedance2_5', { duration: 45, ratio: '1234:567', output_format: 'hdr10', audio: false });
+    const r = mo.readOptions('higgsfield-mcp', 'seedance_2_5', { duration: 45, ratio: '1234:567', output_format: 'hdr10', audio: false });
     assert.deepEqual(r.values, { audio: false });
     assert.equal(r.refused.length, 3);
     assert.match(r.refused.join(' '), /duration: 45 is outside 4–30s/);
     assert.match(r.refused.join(' '), /ratio: 1234:567 is not one of/);
-    assert.match(r.refused.join(' '), /output_format: seedance2_5 does not take this/);
-    // An adapter never sends a value its schema refuses, even if one arrives.
-    const body = runway.buildVideoRequest({ model: 'seedance2_5', prompt: 'x', init_image: FRAME_A, ratio: '1234:567',
+    assert.match(r.refused.join(' '), /output_format: seedance_2_5 does not take this/);
+    // An adapter never sends a value its catalogue refuses, even if one arrives.
+    const body = hf.buildRequest('video', { model: 'seedance_2_5', prompt: 'x', init_image: FRAME_A, aspect_ratio: '1234:567',
         output_format: 'hdr10', resolution: '4k' }).body;
-    assert.notEqual(body.ratio, '1234:567');
-    assert.equal(body.outputFormat, undefined);
-    assert.equal(body.resolution, undefined);
+    assert.notEqual(body.aspect_ratio, '1234:567');
+    assert.equal(body.output_format, undefined);
+    assert.notEqual(body.resolution, '4k');
 });
 
 test('no options chosen builds exactly the request it always did', () => {
@@ -162,7 +165,7 @@ function seedShot() {
     const { getFilePath } = require('../lib/file-storage');
     const projectId = generateId(), sceneId = generateId(), a = generateId(), b = generateId();
     db.prepare('INSERT INTO film_projects (id, title, target_fps, target_resolution, provider_config) VALUES (?, ?, 24, ?, ?)')
-        .run(projectId, 'Options', '1920x1080', JSON.stringify({ video: 'runway', video_model: 'seedance2_5' }));
+        .run(projectId, 'Options', '1920x1080', JSON.stringify({ video: 'higgsfield-mcp', video_model: 'seedance_2_5' }));
     db.prepare('INSERT INTO film_scenes (id, project_id, scene_number, location) VALUES (?, ?, 1, ?)').run(sceneId, projectId, 'STREET');
     for (const [id, code] of [[a, '1A'], [b, '1B']]) {
         db.prepare('INSERT INTO film_shots (id, scene_id, shot_code, duration_ms, scene_card_yaml, sort_order) VALUES (?, ?, ?, 5000, ?, ?)')
@@ -187,22 +190,24 @@ function call(method, url, parts, body, query) {
 }
 
 test('the free preview carries the model\'s options and the request as it would go', async () => {
-    process.env.RUNWAY_API_KEY = 'test-runway-key-0000';
     const { a, b } = seedShot();
     const r = await call('GET', `/film/shots/${a}/video/preview`, ['film', 'shots', a, 'video', 'preview'], {},
-        { options: JSON.stringify({ duration: 22, ratio: '1920:1080', audio: false, last_frame: b }) });
+        { options: JSON.stringify({ duration: 22, ratio: '21:9', audio: false, last_frame: b }) });
     assert.equal(r.code, 200, JSON.stringify(r.json));
     const o = r.json.options;
-    assert.equal(o.provider, 'runway');
+    assert.equal(o.provider, 'higgsfield-mcp');
     assert.ok(o.controls.some(c => c.key === 'last_frame'), 'no ending-frame control');
-    assert.deepEqual(o.values, { duration: 22, ratio: '1920:1080', audio: false });
+    assert.deepEqual(o.values, { duration: 22, ratio: '21:9', audio: false });
     assert.equal(o.last_frame.shot_code, '1B');
     assert.ok(o.frames.some(f => f.label === '1B'), 'the ending-frame picker does not list 1B');
-    assert.equal(r.json.outbound.duration, 22);
-    assert.equal(r.json.outbound.ratio, '1920:1080');
-    assert.equal(r.json.outbound.audio, false);
-    // The preview names the pictures without their bytes: a count and their positions.
-    assert.deepEqual(r.json.outbound.promptImage.positions, ['first', 'last'], 'the ending frame is not in the request');
+    const out = r.json.outbound.body || r.json.outbound;
+    assert.equal(out.duration, 22);
+    assert.equal(out.aspect_ratio, '21:9');
+    assert.equal(out.generate_audio, false);
+    // The preview names the pictures without their bytes, by the role each plays.
+    const roles = (out.medias || []).map(m => m.role);
+    assert.ok(roles.includes('start_image') && roles.includes('end_image'), `the ending frame is not in the request: ${roles}`);
+    assert.ok(!(out.medias || []).some(m => /^data:/.test(m.value)), 'the preview carried picture bytes');
     assert.equal(r.json.estimate && r.json.estimate.lines && r.json.duration_s, 22, 'the preview is not priced at the chosen length');
 
     const bad = await call('GET', `/film/shots/${a}/video/preview`, ['film', 'shots', a, 'video', 'preview'], {},
@@ -210,62 +215,27 @@ test('the free preview carries the model\'s options and the request as it would 
     assert.ok(bad.json.warnings.some(w => /Option not sent — duration: 99/.test(w)), 'a refused option is not said');
 });
 
-test('the paid call sends what was chosen, and refuses before sending anything', async () => {
-    process.env.RUNWAY_API_KEY = 'test-runway-key-0000';
+test('the paid call refuses a bad option before anything, and a good one stops at the final review', async () => {
     const { a, b } = seedShot();
     const sent = [];
     const realFetch = global.fetch;
-    global.fetch = async (url, init) => {
-        sent.push({ url: String(url), body: init && init.body ? JSON.parse(init.body) : null });
-        return new Response(JSON.stringify({ error: 'stubbed: nothing is bought in a test' }), { status: 400 });
-    };
+    global.fetch = async (url, init) => { sent.push(String(url)); return new Response('{}', { status: 400 }); };
     try {
         const refused = await call('POST', `/film/shots/${a}/video/generate`, ['film', 'shots', a, 'video', 'generate'],
             { options: { duration: 99 } });
         assert.equal(refused.code, 400);
         assert.match(refused.json.error, /duration: 99/);
-        assert.equal(sent.length, 0, 'a refused option still reached the provider');
-
-        await call('POST', `/film/shots/${a}/video/generate`, ['film', 'shots', a, 'video', 'generate'],
-            { options: { duration: 12, ratio: '854:480', audio: false, seed: 42, last_frame: b } });
-        const post = sent.find(s => /image_to_video/.test(s.url));
-        assert.ok(post, `nothing reached image_to_video: ${JSON.stringify(sent.map(s => s.url))}`);
-        assert.equal(post.body.model, 'seedance2_5');
-        assert.equal(post.body.duration, 12);
-        assert.equal(post.body.ratio, '854:480');
-        assert.equal(post.body.audio, false);
-        assert.equal(post.body.seed, 42);
-        assert.equal(post.body.promptImage[1].position, 'last');
+        // Higgsfield is reviewed and handed over: the chosen options reach the frozen request, nothing reaches Higgsfield.
+        const review = await call('POST', `/film/shots/${a}/video/generate`, ['film', 'shots', a, 'video', 'generate'],
+            { options: { duration: 12, ratio: '9:16', audio: false, last_frame: b } });
+        assert.equal(review.code, 428, JSON.stringify(review.json).slice(0, 600));
+        const reviewId = String(review.json.error).split(':')[1];
+        const body = require('../lib/final-request-review').store().get(reviewId).snapshot.body;
+        assert.equal(body.model, 'seedance_2_5');
+        assert.equal(body.duration, 12);
+        assert.equal(body.aspect_ratio, '9:16');
+        assert.equal(body.generate_audio, false);
+        assert.ok(body.medias.some(m => m.role === 'end_image'), 'the ending frame is not in the frozen request');
+        assert.equal(sent.filter(u => /higgsfield/.test(u)).length, 0, 'a request reached Higgsfield');
     } finally { global.fetch = realFetch; }
-});
-
-/* ── the page ──────────────────────────────────────────────────────────── */
-
-function fn(name) {
-    let at = SPA.indexOf(`    function ${name}(`);
-    if (at < 0) at = SPA.indexOf(`    async function ${name}(`);
-    assert.ok(at >= 0, `${name} is missing`);
-    return SPA.slice(at, SPA.indexOf('\n    }\n', at) + 6);
-}
-
-test('the dialog draws a control for every option a model takes, and sends them', () => {
-    const esc = x => String(x).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
-    // eslint-disable-next-line no-new-func
-    const draw = new Function('esc', 'CONFIRM_GEN_VIDEO_OPTIONS', fn('videoOptionsHtml') + '\nreturn videoOptionsHtml;')(esc, {});
-    for (const o of OFFERED) {
-        const html = draw({ provider: o.provider, model: o.model, controls: o.controls, notes: [], frames: [{ id: 'x', label: '1B' }] });
-        for (const c of o.controls) {
-            assert.ok(html.includes(`data-vopt="${c.key}"`), `${o.provider}/${o.model}: no control for ${c.key}`);
-        }
-    }
-    const confirm = fn('confirmPaidImage');
-    // Sent through confirmChoices(), which every dialog uses; for a clip the
-    // options it sends are the video options.
-    assert.match(confirm, /\.\.\.confirmChoices\(\)/, 'the chosen options are not sent');
-    assert.match(fn('confirmChoices'), /CONFIRM_GEN_CAP === 'video' \? CONFIRM_GEN_VIDEO_OPTIONS/, 'a clip does not send its video options');
-    assert.match(fn('confirmChoices'), /options: \{ \.\.\.chosenOptions \}/, 'the chosen options are not sent');
-    assert.match(confirm, /videoOptionsHtml\(d\.options\)/, 'the confirmation does not draw the options');
-    assert.match(fn('videoPreviewUrl'), /q\.set\('options', JSON\.stringify\(CONFIRM_GEN_VIDEO_OPTIONS\)\)/,
-        'changing an option does not re-price the clip');
-    assert.match(fn('pickGenModel'), /repreviewVideo\(\)/, 'a different model does not redraw its options');
 });

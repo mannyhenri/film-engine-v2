@@ -2,7 +2,7 @@
  * Recorded dialogue, sent to Seedance 2.5 as an audio reference.
  *
  * "Set up the path to upload audio, as I have audio files for a project (my
- * dialogue), with Seedance 2.5 on Runway or MuAPI."
+ * dialogue), with Seedance 2.5 on Runway or MuAPI." (Runway was removed on 2026-10-24; Higgsfield took its place.)
  *
  * The field names are held to tests/fixtures/seedance-audio-contract.json, the
  * free validation probes of 2026-09-29, rather than typed here a second time:
@@ -10,8 +10,8 @@
  *     model that takes no audio is refused by name, never ignored;
  *   - MuAPI: audio forces omni-reference, `audios_list` carries it, and each
  *     local file is uploaded BEFORE the request, which names the hosted URLs;
- *   - Runway seedance2_5: `referenceAudio` [{type:'audio', uri}], uploaded to
- *     MuAPI when a MuAPI key exists, else inlined as a data URI;
+ *   - Higgsfield seedance_2_5: each line travels as a `medias` entry with the
+ *     `audio_references` role, uploaded to Higgsfield when the request is sent;
  *   - the free preview says how many lines would go, and a person and an agent
  *     can both upload the dialogue and switch it on.
  */
@@ -30,7 +30,7 @@ const { db, generateId } = require('../db/database');
 require('../db/schema').ensureSchema();
 const CONTRACT = require('./fixtures/seedance-audio-contract.json');
 const seedance = require('../lib/providers/seedance');
-const runway = require('../lib/providers/runway');
+const hf = require('../lib/providers/higgsfield-mcp');
 const { buildCapabilityPayload } = require('../lib/capability-payloads');
 const { resolveFfmpeg } = require('../lib/ffmpeg');
 
@@ -57,13 +57,13 @@ function ctxFor(extra) {
 }
 
 test('the payload carries the shot\'s lines only when asked, and a model with no audio says so', () => {
-    const off = buildCapabilityPayload('video', ctxFor({ overrides: { model: 'seedance2_5' } })).payload;
+    const off = buildCapabilityPayload('video', ctxFor({ overrides: { model: 'seedance_2_5' } })).payload;
     assert.equal(off.audio_references, undefined, 'not asked: no field at all');
-    const on = buildCapabilityPayload('video', ctxFor({ useDialogueAudio: true, overrides: { model: 'seedance2_5' } })).payload;
+    const on = buildCapabilityPayload('video', ctxFor({ useDialogueAudio: true, overrides: { model: 'seedance_2_5' } })).payload;
     assert.deepEqual(on.audio_references.map(a => a.file_path), [L1, L2]);
-    const none = buildCapabilityPayload('video', ctxFor({ useDialogueAudio: true, dialogueAudio: [], overrides: { model: 'seedance2_5' } })).payload;
+    const none = buildCapabilityPayload('video', ctxFor({ useDialogueAudio: true, dialogueAudio: [], overrides: { model: 'seedance_2_5' } })).payload;
     assert.match(none.audio_refused, /no recorded dialogue/);
-    const gen45 = buildCapabilityPayload('video', ctxFor({ useDialogueAudio: true, overrides: { model: 'gen4.5' } })).payload;
+    const gen45 = buildCapabilityPayload('video', ctxFor({ useDialogueAudio: true, overrides: { model: 'veo3_1' } })).payload;
     assert.equal(gen45.audio_references, undefined);
     assert.match(gen45.audio_refused, /takes no audio reference/);
 });
@@ -102,34 +102,15 @@ test('MuAPI: each dialogue file is uploaded first, and the request names the hos
     } finally { global.fetch = real; delete process.env.SEEDANCE_API_KEY; }
 });
 
-test('Runway seedance2_5 carries referenceAudio in the probed shape; a model that cannot is named', async () => {
-    const r = runway.buildVideoRequest({ model: 'seedance2_5', prompt: 'x', init_image: 'data:image/png;base64,AAAA', audio_references: [{ file_path: L1 }] });
-    assert.deepEqual(r.body[CONTRACT.runway.audio_field], [{ type: 'audio', uri: L1 }]);
-    for (const k of CONTRACT.runway.not_references) assert.equal(r.body[k], undefined, `${k} is not a field Runway reads`);
-    const g = runway.buildVideoRequest({ model: 'gen4.5', prompt: 'x', init_image: 'data:image/png;base64,AAAA', audio_references: [{ file_path: L1 }] });
-    assert.equal(g.body.referenceAudio, undefined);
-    assert.match(g.audio_refused, /gen4\.5 takes no audio/);
-    assert.ok(runway.describeVideoRequest({ model: 'gen4.5', prompt: 'x', init_image: 'data:image/png;base64,AAAA', audio_references: [{ file_path: L1 }] })
-        .notes.some(n => /Dialogue audio will not be sent/.test(n)));
-
-    // Sending: inlined as a data URI with no MuAPI key, hosted on MuAPI with one.
-    process.env.RUNWAY_API_KEY = 'test-runway-key-000000';
-    const real = global.fetch;
-    const bodies = [];
-    global.fetch = async (url, init) => {
-        const u = String(url);
-        if (u.endsWith('/upload_file')) return { ok: true, status: 200, json: async () => ({ url: 'https://cdn.muapi.ai/up/line.mp3' }) };
-        if (/image_to_video/.test(u)) bodies.push(JSON.parse(init.body));
-        return { ok: false, status: 400, json: async () => ({ error: 'stop here' }), text: async () => 'stop here', headers: { get: () => null } };
-    };
-    try {
-        const ad = runway.adapter;
-        await ad.generate('video', { model: 'seedance2_5', prompt: 'x', init_image: 'data:image/png;base64,AAAA', audio_references: [{ file_path: L1 }] }, {});
-        assert.match(bodies[0].referenceAudio[0].uri, /^data:audio\/mpeg;base64,/, 'inlined with no MuAPI key');
-        process.env.MUAPI_API_KEY = 'test-muapi-key-000000';
-        await ad.generate('video', { model: 'seedance2_5', prompt: 'x', init_image: 'data:image/png;base64,AAAA', audio_references: [{ file_path: L1 }] }, {});
-        assert.equal(bodies[1].referenceAudio[0].uri, 'https://cdn.muapi.ai/up/line.mp3', 'hosted on MuAPI when a key exists');
-    } finally { global.fetch = real; delete process.env.RUNWAY_API_KEY; delete process.env.MUAPI_API_KEY; }
+test('Higgsfield seedance_2_5 carries each line as an audio reference; a model that cannot is named', () => {
+    const r = hf.buildRequest('video', { model: 'seedance_2_5', prompt: 'x', init_image: 'data:image/png;base64,AAAA', audio_references: [{ file_path: L1 }, { file_path: L2 }] });
+    assert.deepEqual(r.body.medias.filter(m => m.role === 'audio_references').map(m => m.value), [L1, L2], 'both lines, in order');
+    assert.equal(r.body.mode, 'omni_reference', 'audio is read only in omni-reference');
+    const { MODELS } = require('../lib/higgsfield-app-catalog');
+    const deaf = Object.keys(MODELS).find(id => !(MODELS[id].roles || []).includes('audio_references') && (MODELS[id].roles || []).includes('start_image'));
+    assert.ok(deaf, 'every Higgsfield model takes audio, so this cannot be checked');
+    assert.throws(() => hf.buildRequest('video', { model: deaf, prompt: 'x', init_image: 'data:image/png;base64,AAAA', audio_references: [{ file_path: L1 }] }),
+        /takes no audio references/);
 });
 
 test('the free preview says how many recorded lines would go, through the real route', async () => {
@@ -146,10 +127,10 @@ test('the free preview says how many recorded lines would go, through the real r
         const res = { writeHead(c) { this.c = c; }, setHeader() {}, end(b) { resolve({ code: this.c, json: JSON.parse(b) }); } };
         handleVideoGen({ method: 'GET', headers: {}, body: {} }, res, ['film', 'shots', sh, 'video', 'preview'], q);
     });
-    const off = await call({ video_model: 'seedance2_5' });
+    const off = await call({ video_model: 'seedance_2_5', video: 'higgsfield-mcp' });
     assert.equal(off.json.dialogue_audio.available, 2);
     assert.deepEqual(off.json.dialogue_audio.sending, [], 'not sent unless asked');
-    const on = await call({ video_model: 'seedance2_5', use_dialogue_audio: '1' });
+    const on = await call({ video_model: 'seedance_2_5', video: 'higgsfield-mcp', use_dialogue_audio: '1' });
     assert.equal(on.code, 200, JSON.stringify(on.json));
     assert.ok(on.json.dialogue_audio.asked);
     assert.deepEqual(on.json.dialogue_audio.sending, ['1A_RAY_1.mp3', '1A_JUNE_2.mp3'], 'both lines, in the order they are said');

@@ -29,7 +29,7 @@ const REQUEST_BUILDERS = {
     google: m => ({ image: m.buildImageRequest }),
     meshy: m => ({ image: m.buildImageRequest }),
     openai: m => ({ image: m.buildImageRequest, llm: m.buildLLMRequest }),
-    runway: m => ({ image: m.buildImageRequest, video: m.buildVideoRequest }),
+    'higgsfield-mcp': m => ({ image: p => m.buildRequest('image', p), video: p => m.buildRequest('video', p), voice: p => m.buildRequest('voice', p), post: p => m.buildRequest('post', p), model3d: p => m.buildRequest('model3d', p) }),
     // MuAPI was missing, so the dry run of the house image provider said "this
     // adapter exposes no request builder" while the builder sat exported.
     muapi: m => ({ image: m.buildImageRequest }),
@@ -44,7 +44,7 @@ const REQUEST_BUILDERS = {
 
 const MODULE_FOR = {
     google: 'google-image', openai: 'openai-image',
-    meshy: 'meshy', runway: 'runway', seedance: 'seedance', muapi: 'muapi-image',
+    meshy: 'meshy', 'higgsfield-mcp': 'higgsfield-mcp', seedance: 'seedance', muapi: 'muapi-image',
     elevenlabs: 'elevenlabs', anthropic: 'anthropic', gridlight: 'gridlight-adapter',
 };
 

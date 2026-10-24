@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { vi } from 'vitest';
 vi.mock('../../lib/legacy.js', () => ({ legacy: { api: vi.fn().mockResolvedValue({}), setStatus: vi.fn() } }));
 import { legacy } from '../../lib/legacy.js';
@@ -9,10 +9,13 @@ import { keyTiles, CapabilityMap, KeysCard, STUDIO_KEY_PROVIDERS } from './Provi
 // Registry-based: the manual set comes from the backend's own classification.
 const require = createRequire(import.meta.url);
 const { MANUAL_PROVIDERS, isManual } = require('../../../backend/lib/manual-generation.js');
-const CAPS = { muapi: ['image'], 'muapi-upscale': ['image-upscale'], seedance: ['video', 'post'], higgsfield: ['video', 'image'], runway: ['image', 'video'], meshy: ['model3d', 'image'],
+const CAPS = { muapi: ['image'], 'muapi-upscale': ['image-upscale'], seedance: ['video', 'post'], higgsfield: ['video', 'image'], 'higgsfield-mcp': ['image', 'video', 'voice', 'post', 'model3d'], meshy: ['model3d', 'image'],
     elevenlabs: ['voice', 'sfx', 'ambient', 'music'], worldlabs: ['world'], google: ['image'], openai: ['llm', 'image'], magnific: ['post'], topaz: ['post'] };
 const manualEntry = id => {
     const capabilities = CAPS[id] || ['image'], manual_capabilities = capabilities.filter(c => isManual(id, c));
+    // The signed-in Higgsfield has nothing to paste: it is an OAuth sign-in.
+    if (id === 'higgsfield-mcp') return { id, label: 'Higgsfield (signed in, plan credits)', account: 'Higgsfield account', requiresKey: false, enabled: false, capabilities, manual_capabilities,
+        manual: manual_capabilities.length === capabilities.length, connection: { instructions: 'Sign Film Engine in to your Higgsfield account.', oauth: { external: true, secureTokens: true } }, credentials: { set: false, connected: false } };
     return { id, label: id, requiresKey: true, enabled: false, capabilities, manual_capabilities, manual: manual_capabilities.length === capabilities.length, credentials: { set: false } };
 };
 const CATALOG = { capabilities: ['image', 'video', 'llm'], providers: [...[...MANUAL_PROVIDERS].map(manualEntry),
@@ -25,7 +28,7 @@ describe('manual vendors need no API key setup', () => {
         for (const id of MANUAL_PROVIDERS) {
             if (manualEntry(id).manual && !STUDIO_KEY_PROVIDERS.includes(id)) expect(ids, id).not.toContain(id);
         }
-        // Production › Generate reads Higgsfield and Runway (models, prices, checks): their keys keep a tile.
+        // Production › Generate reads Higgsfield (models, prices, checks), and the signed-in Higgsfield is a sign-in tile.
         for (const id of STUDIO_KEY_PROVIDERS) expect(ids, id).toContain(id);
         expect(ids).toContain('openai');
         expect(ids).toContain('anthropic');
@@ -51,17 +54,18 @@ describe('manual vendors need no API key setup', () => {
         fireEvent.click(list.querySelector(`[data-clear="${stored.find(id => manualEntry(id).manual)}"]`));
         await waitFor(() => expect(legacy.api).toHaveBeenCalledWith(`/providers/${stored.find(id => manualEntry(id).manual)}/credentials`, { method: 'DELETE' }));
     });
-    it('Higgsfield and Runway keys are set on their own tiles, with where to get them and what reads them', () => {
-        const catalog = { ...CATALOG, providers: CATALOG.providers.map(p => (STUDIO_KEY_PROVIDERS.includes(p.id) ? { ...p, credentials: { set: p.id === 'runway', last4: 'ce27' } } : p)) };
+    it('the Higgsfield key and the Higgsfield sign-in each have their own tile', () => {
+        const catalog = { ...CATALOG, providers: CATALOG.providers.map(p => (p.id === 'higgsfield' ? { ...p, credentials: { set: true, last4: 'ce27' } } : p)) };
         const { container } = render(<KeysCard catalog={catalog} onChanged={() => {}} />);
-        for (const id of STUDIO_KEY_PROVIDERS) {
-            const tile = container.querySelector(`[data-provider="${id}"]`);
-            expect(tile, id).toBeTruthy();
-            expect(tile.textContent).toMatch(/Production › Generate/);
-            expect(tile.querySelector('input[type="password"]')).toBeTruthy();
-        }
-        expect(container.querySelector('[data-provider="runway"]').textContent).toMatch(/set ••••ce27/);
-        expect(container.querySelector('[data-provider="runway"]').textContent).toMatch(/dev\.runwayml\.com/);
-        expect(screen.queryByRole('list', { name: 'Stored keys you no longer need' })?.querySelector('[data-clear="runway"]') || null).toBeNull();
+        const key = container.querySelector('[data-provider="higgsfield"]');
+        expect(key.textContent).toMatch(/Production › Generate/);
+        expect(key.querySelector('input[type="password"]')).toBeTruthy();
+        expect(key.textContent).toMatch(/set ••••ce27/);
+        const signIn = container.querySelector('[data-provider="higgsfield-mcp"]');
+        expect(signIn, 'the sign-in tile is missing').toBeTruthy();
+        expect(signIn.textContent).toMatch(/not connected/);
+        expect(signIn.querySelector('input[type="password"]'), 'a sign-in asks for no key').toBeNull();
+        expect(within(signIn).getByRole('button', { name: /^Connect/ })).toBeTruthy();
+        expect(container.querySelector('[data-provider="runway"]'), 'Runway was removed').toBeNull();
     });
 });

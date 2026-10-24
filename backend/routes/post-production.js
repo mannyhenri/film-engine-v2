@@ -271,12 +271,15 @@ function planUpscale(shot, scene, body) {
     // And a Magnific upscaler to Magnific's API.
     const MAGNIFIC = require('../lib/providers/magnific');
     const magnific = !!MAGNIFIC.MODELS[model];
+    // And Higgsfield's own upscalers (Topaz Video or ByteDance, on the signed-in plan).
+    const HF = require('../lib/providers/higgsfield-mcp');
+    const higgsfield = !!HF.POST_MODELS[model];
     const measured = require('../lib/ffmpeg').inspectMedia(source.file_path);
     let bytes = null;
     try { bytes = require('fs').statSync(source.file_path).size; } catch (_) { bytes = null; }
     const payload = {
         ...buildPostPayload('upscale', source, scene.project_id, b),
-        ...(muapi || topaz || magnific ? { model } : {}),
+        ...(muapi || topaz || magnific || higgsfield ? { model } : {}),
         source_video: source.file_path,
         target_resolution: b.target_resolution || project.target_resolution || '1920x1080',
         source_width: measured.ok ? measured.width : null,
@@ -288,7 +291,7 @@ function planUpscale(shot, scene, body) {
     // Astra 2 takes creative controls; only the fields Topaz documents travel.
     if (topaz) for (const k of ['sharpness', 'creativity', 'realism', 'sharp', 'prompt']) if (b[k] !== undefined && b[k] !== '') payload[k] = b[k];
     if (magnific) for (const k of ['creativity', 'sharpen', 'smart_grain', 'fps_boost', 'flavor', 'strength', 'enhancement_model', 'noise', 'target_fps']) if (b[k] !== undefined && b[k] !== '') payload[k] = b[k];
-    const pin = topaz ? { post: 'topaz' } : magnific ? { post: 'magnific' } : muapi ? { post: 'seedance' } : null;
+    const pin = higgsfield ? { post: 'higgsfield-mcp' } : topaz ? { post: 'topaz' } : magnific ? { post: 'magnific' } : muapi ? { post: 'seedance' } : null;
     const provider = resolveGenerator('post', spendContext({ id: scene.project_id }, shot, scene, pin));
     let request = null, why = null;
     if (provider && provider.id === 'seedance') {
@@ -297,6 +300,13 @@ function planUpscale(shot, scene, body) {
         try { request = TOPAZ.buildVideoRequest(payload); } catch (err) { why = err.message; }
     } else if (provider && provider.id === 'magnific') {
         try { request = MAGNIFIC.buildVideoRequest(payload); } catch (err) { why = err.message; }
+    } else if (provider && provider.id === 'higgsfield-mcp') {
+        try {
+            const built = HF.buildRequest('post', payload);
+            const rate = require('../lib/provider-pricing').rateFor('higgsfield-mcp', 'post');
+            request = { url: built.url, body: built.body, estimated_usd: rate ? Math.round(rate.usd_per_unit * 100) / 100 : null,
+                estimate_unknown_why: 'Higgsfield offers no upscale price before it runs; this is an estimate.' };
+        } catch (err) { why = err.message; }
     }
     const warnings = [];
     if (topaz && !require('../lib/providers').isProviderConfigured('topaz')) {
@@ -308,7 +318,7 @@ function planUpscale(shot, scene, body) {
     if (!measured.ok) warnings.push(`The clip could not be measured (${measured.reason || 'unreadable'}), so the factor and the price are guesses.`);
     if (request && request.note) warnings.push(request.note);
     if (why) warnings.push(why);
-    return { project, source, measured, payload, provider, request, warnings, model: (muapi || topaz || magnific) ? model : (payload.model || null) };
+    return { project, source, measured, payload, provider, request, warnings, model: (muapi || topaz || magnific || higgsfield) ? model : (payload.model || null) };
 }
 
 /**
@@ -349,7 +359,15 @@ function upscalerMenu(plan) {
             why_unavailable: magnificReady ? null : 'No Magnific API key on this machine yet (Setup, AI providers).',
         };
     });
-    return [...muapi, ...topaz, ...magnific];
+    const HF = require('../lib/providers/higgsfield-mcp');
+    const hfReady = require('../lib/providers').isProviderConfigured('higgsfield-mcp');
+    const hfRate = require('../lib/provider-pricing').rateFor('higgsfield-mcp', 'post');
+    const higgsfield = Object.entries(HF.POST_MODELS).map(([id, m]) => ({
+        id, label: `${m.label} (Higgsfield)`, provider: 'higgsfield-mcp', usd_per_second: null,
+        estimated_usd: hfRate ? Math.round(hfRate.usd_per_unit * 100) / 100 : null, inferred_price: true, configured: hfReady,
+        why_unavailable: hfReady ? null : 'Not signed in to Higgsfield yet (Setup, API keys, Connect Higgsfield).',
+    }));
+    return [...higgsfield, ...muapi, ...topaz, ...magnific];
 }
 
 function previewUpscale(res, shotId, query) {
@@ -370,7 +388,7 @@ function previewUpscale(res, shotId, query) {
             seconds: plan.payload.source_seconds },
         target: plan.payload.target_resolution,
         sends: r ? { url: r.url.replace(/^https?:\/\/[^/]+/, ''),
-            body: plan.provider && ['topaz', 'magnific'].includes(plan.provider.id) ? r.body : { ...r.body, video_url: '(the clip, uploaded to MuAPI first)' } } : null,
+            body: plan.provider && ['topaz', 'magnific', 'higgsfield-mcp'].includes(plan.provider.id) ? r.body : { ...r.body, video_url: '(the clip, uploaded to MuAPI first)' } } : null,
         reaches: r && r.reaches ? r.reaches : null,
         estimated_usd: r ? r.estimated_usd : null,
         estimate_unknown_why: r ? r.estimate_unknown_why : 'This provider does not quote its upscale here.',

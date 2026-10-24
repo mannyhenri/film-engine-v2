@@ -188,7 +188,7 @@ const { state } = Object.fromEntries(['state'].map(n => [n, live(n)]));
         return confirmPaidImage({
             capability: 'video',
             title: 'Replace the background',
-            note: 'The performance in this clip is kept and re-rendered somewhere else. Runway '
+            note: 'The performance in this clip is kept and re-rendered somewhere else. Higgsfield '
                 + 'bills this by the length of the clip handed IN, not the length asked for, so a '
                 + 'longer take costs more for the same edit. The result lands as a NEW version — '
                 + 'the take being edited survives.',

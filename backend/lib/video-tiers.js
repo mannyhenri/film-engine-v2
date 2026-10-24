@@ -16,12 +16,12 @@
 const VIDEO_TIERS = Object.freeze({
     draft: Object.freeze({
         label: 'Draft',
-        why: 'Is the blocking right? Not: is it beautiful. Gen-4 Turbo at 5 credits/second '
-            + 'makes a five-second answer cost 25 credits, so trying three angles is a '
-            + 'decision about taste rather than about budget.',
-        preferredModel: 'gen4_turbo',
+        why: 'Is the blocking right? Not: is it beautiful. Seedance 2.5 at 480p on Higgsfield is '
+            + '3 credits a second, so a five-second answer costs 15 credits and trying three angles '
+            + 'is a decision about taste rather than about budget.',
+        preferredModel: 'seedance_2_5',
         durationSeconds: 5,
-        resolution: '720p',
+        resolution: '480p',
         references: 'keyframe',
         qualityPriority: 'low',
         costPriority: 'high',
@@ -29,12 +29,12 @@ const VIDEO_TIERS = Object.freeze({
     }),
     production: Object.freeze({
         label: 'Production',
-        why: 'The shot as it will be cut. H3 768P takes a role-addressed reference package '
-            + 'at 2 credits an image, so the whole thing lands near a Gen-4.5 generation '
-            + 'that carries no references at all.',
-        preferredModel: 'hailuo3',
+        why: 'The shot as it will be cut. Seedance 2.5 on Higgsfield takes up to 30 reference '
+            + 'images at no extra charge, so the cast and the location travel with every clip; '
+            + '720p is 7 credits a second.',
+        preferredModel: 'seedance_2_5',
         durationSeconds: 10,
-        resolution: '768P',
+        resolution: '720p',
         references: 'role-based',
         qualityPriority: 'high',
         costPriority: 'normal',

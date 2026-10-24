@@ -150,21 +150,13 @@ function resolveDraftRequest(db, targetId, body, capability, targetType = 'shot'
     const metadata = new Set(['provider','settings','source_asset_id','reference_images','audio_references','prompt','prompt_format']);
     for (const [field, value] of Object.entries(recipe.settings || {})) payload[field] = value;
     for (const [field, value] of Object.entries(recipe)) if (!metadata.has(field)) payload[field] = value;
-    const promptFormat = recipe.prompt_format || (recipe.prompt === undefined && provider === 'runway' && base.runway_recipe === 'multi_shot_video' && Array.isArray(history?.snapshot.body.shots) ? 'native_shots_json' : undefined);
-    const prompt = recipe.prompt === undefined ? base.final_prompt || base.prompt || (promptFormat === 'native_shots_json' ? JSON.stringify(history.snapshot.body.shots) : undefined) : recipe.prompt;
+    // Native shots JSON was Runway's multi-shot recipe; Runway was removed (2026-10-24).
+    const promptFormat = recipe.prompt_format;
+    const prompt = recipe.prompt === undefined ? base.final_prompt || base.prompt : recipe.prompt;
     if (typeof prompt !== 'string' || !prompt.trim()) fail('The full draft prompt is required. Legacy history does not record it.', 400);
-    if (promptFormat !== undefined && promptFormat !== 'native_shots_json') fail('Unsupported draft prompt format', 400);
-    if (provider === 'runway' && payload.runway_recipe === 'multi_shot_video' && payload.mode !== 'auto' && promptFormat !== 'native_shots_json') fail('Custom native multi-shot recipes require prompt_format native_shots_json', 400);
-    if (promptFormat === 'native_shots_json') {
-        if (provider !== 'runway' || capability !== 'video' || payload.runway_recipe !== 'multi_shot_video') fail('Native shots JSON belongs to a Runway multi-shot video recipe', 400);
-        let shots; try { shots = JSON.parse(prompt); } catch (_) { fail('Native multi-shot prompt must be the JSON list of shot prompts and durations shown by the starter', 400); }
-        if (!Array.isArray(shots)) fail('Native multi-shot prompt must be an ordered list of shot prompts and durations', 400);
-        payload.shots = shots;
-        delete payload.prompt; delete payload.final_prompt;
-    } else {
-        payload.prompt = prompt;
-        payload.final_prompt = prompt; // Whole wire prompt, without hidden composer additions.
-    }
+    if (promptFormat !== undefined) fail('Unsupported draft prompt format', 400);
+    payload.prompt = prompt;
+    payload.final_prompt = prompt; // Whole wire prompt, without hidden composer additions.
     if (!payload.model) payload.model = recipe.model || base.model || adapter.defaultModel;
     for (const [field, kind] of [['reference_images','image'],['audio_references','audio']]) {
         const list = recipe[field] === undefined ? (base[field] || []) : recipe[field];
@@ -213,10 +205,7 @@ async function plannedDraft(db, targetId, body, capability, targetType) {
     const plan = resolveDraftRequest(db, targetId, body, capability, targetType);
     if (!plan) return null;
     // Validate raw fields before the shared funnel can normalize inherited defaults.
-    const raw = await require('./final-provider-request').resolveFinalRequest(plan.provider, capability, plan.payload);
-    if (plan.payload.runway_recipe === 'multi_shot_video' && plan.payload.mode !== 'auto' && canonical(raw.body.shots) !== canonical(plan.payload.shots)) {
-        fail('Native shot prompts and durations exceed the supported request. Shorten prompts and use exact whole-second durations before reviewing.',400);
-    }
+    await require('./final-provider-request').resolveFinalRequest(plan.provider, capability, plan.payload);
     const normalized = await plan.generator.generate(capability, plan.payload, { previewRequest: true });
     if (!normalized?.preview) fail(normalized?.error || 'The draft provider did not stop at free preview');
     await require('./final-provider-request').resolveFinalRequest(plan.provider, capability, normalized.payload);
@@ -248,9 +237,8 @@ async function starterDraft(db, projectId, nodeKey, kind = 'image', opts = {}) {
     const mediaFields = new Set(['reference_images','referenceImages','audio_references','reference_videos','init_image','image_url','image','end_image','last_frame','keyframes','promptImage','source_video','video_url','videoUri','video_uri']);
     const settings = {};
     for (const [key, value] of Object.entries(item.payload)) if (allowed.has(key) && !mediaFields.has(key) && !['prompt','promptText','motion_prompt','model','negative_prompt'].includes(key)) settings[key] = value;
-    const recipe = { provider: item.provider, model: item.payload.model || (item.payload.runway_recipe === 'multi_shot_video' ? require('./providers').get(item.provider).defaultModel : snapshot.model),
+    const recipe = { provider: item.provider, model: item.payload.model || snapshot.model,
         prompt: fullPrompt, ...(item.payload.negative_prompt ? { negative_prompt: item.payload.negative_prompt } : {}), settings, reference_images: [], audio_references: [] };
-    if (Array.isArray(snapshot.body.shots)) recipe.prompt_format = 'native_shots_json';
     const unresolved = [], used = new Set();
     let bySha = null;
     function projectPicturesBySha() {

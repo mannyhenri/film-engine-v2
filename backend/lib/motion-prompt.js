@@ -242,15 +242,12 @@ function cameraClause(ctx) {
 /**
  * One ordering per provider, with its reason.
  *
- * `runway` follows Runway's own documented structure — camera motion, then
- * subject action, then additional detail. `default` leads with the subject,
+ * `default` leads with the subject,
  * which is the conservative choice for a provider that documents no shape:
  * whatever leads is what the model weights most, and what the shot is ABOUT is
  * the safer thing to lead with when nobody has told us otherwise.
  */
 const SHAPES = Object.freeze({
-    runway:  { order: ['camera', 'subject', 'performance', 'staging', 'environment', 'beats', 'end'],
-               why: "Runway documents camera motion + subject action + additional motion details" },
     seedance:{ order: ['subject', 'performance', 'staging', 'environment', 'camera', 'beats', 'end'],
                why: '16,000 characters of room and no documented shape; subject leads' },
     default: { order: ['subject', 'performance', 'staging', 'environment', 'camera', 'beats', 'end'],

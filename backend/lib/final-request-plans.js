@@ -42,6 +42,8 @@ async function prepare({ path, body = {} }) {
     let match = clean.match(/^\/(?:film\/)?shots\/([^/]+)\/storyboard\/regenerate$/);
     if (match) return { supported: true, items: [await boardItem(match[1], body)] };
     match = clean.match(/^\/(?:film\/)?shots\/([^/]+)\/storyboard-upscale$/);
+    // On this Mac (the AI Image Upscale generator): free and local, so no provider request to review.
+    if (match && body.provider === 'local') throw Object.assign(new Error('A local upscale is not a provider request: it runs on this Mac and nothing is sent.'), { status: 409, code: 'FINAL_REQUEST_REVIEW_UNSUPPORTED' });
     if (match) {
         const plan = require('./storyboard-upscale').store().plan(match[1], body.resolution, body.provider || 'muapi');
         const asset = db.prepare('SELECT file_path FROM film_assets WHERE id=?').get(plan.source_asset_id);

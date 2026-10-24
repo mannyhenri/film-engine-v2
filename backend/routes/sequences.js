@@ -542,10 +542,13 @@ function updateSequence(req, res, id) {
  */
 function stationCeiling(projectId, req, shape) {
     const ceiling = keyframeCeiling(projectId, req);
+    // The model the clip will run on: the project's pinned video model, else the provider's default.
     let model = null;
-    if (ceiling.provider === 'runway') {
-        model = process.env.RUNWAY_VIDEO_MODEL || 'gen4.5';
-    }
+    try {
+        const cfg = seqConfig(projectId, req);
+        const adapter = ceiling.provider && require('../lib/providers').get(ceiling.provider);
+        model = cfg.video_model || (adapter && adapter.defaultModel) || null;
+    } catch (_) { model = null; }
     const contract = contractFor(model);
     const bundle = shape === 'bundle';
     return {
@@ -865,8 +868,6 @@ function planRoute(res, id, query) {
      */
     const wantsStrip = String(q.expand || '') === 'inbetweens';
     const shape = String(q.shape || 'legs') === 'bundle' ? 'bundle' : 'legs';
-    const runway = ceiling.provider === 'runway' ? require('../lib/providers/runway') : null;
-    const model = runway ? (process.env.RUNWAY_VIDEO_MODEL || 'gen4.5') : null;
     let strip = null;
     if (wantsStrip) {
         strip = stripFor(row, { cadenceSeconds: Number(q.cadence_s) || undefined, shape });
@@ -876,7 +877,6 @@ function planRoute(res, id, query) {
     const plan = planSequence(planInput, {
         maxKeyframes: ceiling.max, description: row.description,
         ...(input_ ? { joins: input_.joins } : {}),
-        modelPolicy: runway && runway.RUNWAY_VIDEO_MODELS[model],
     });
     /*
      * Priced through the adapter, with the frame the generate loop will use.
@@ -953,17 +953,8 @@ function planRoute(res, id, query) {
     })();
 
     const shotList = shotsOf(row);
-    let native = null;
-    if (!plan.refused && runway && shotList.length >= 3 && shotList.length <= 5) {
-        try {
-            const built = runway.buildMultiShotRequest({ mode: 'custom', ratio: '1280:720',
-                shots: shotList.map(s => ({ prompt: `${s.shot_code}: ${s.description || row.description || 'Continue the story.'}`,
-                    duration: Math.max(1, Math.round((s.duration_ms || 3000) / 1000)) })) });
-            native = { available: true, mode: 'custom-cuts', duration_s: built.body.duration,
-                estimated_credits: built.estimatedCredits, estimated_usd: built.estimatedCredits / 100,
-                outbound: built.body };
-        } catch (err) { native = { available: false, reason: err.message }; }
-    }
+    // Native multi-shot (one clip, 3–5 cuts) was a Runway recipe; Runway was removed on 2026-10-24.
+    const native = null;
     return json(res, plan.refused ? 409 : 200, {
         sequence_id: id, provider: ceiling.provider,
         ...(ceiling.unresolved ? { provider_unresolved: ceiling.unresolved } : {}),
@@ -1060,44 +1051,8 @@ async function generateNativeSequence(req, res, id, opts) {
     if (provider && provider.id === 'gridlight') { if(opts?.preview) throw Object.assign(new Error('Gridlight sequence review is unsupported'), {status:409}); return generateGridlightProduction(req, res, row, shots, provider); }
     if (shots.length < 3 || shots.length > 5) return json(res, 409, { error: 'Native multi-shot requires 3–5 shots' });
     if (shots.some(s => !s.keyframe)) return json(res, 409, { error: 'Every native multi-shot sequence needs an approved frame' });
-    if (!provider || provider.id !== 'runway') return json(res, 409, { error: 'Native multi-shot requires the Runway provider or the Gridlight gateway' });
-    const { toDataUri } = require('../lib/reference-images');
-    const payload = {
-        runway_recipe: 'multi_shot_video', mode: 'custom', ratio: (req.body && req.body.ratio) || '1280:720',
-        audio: false, generate_audio: false,
-        promptImage: toDataUri(shots[0].keyframe),
-        shots: shots.map(s => ({ prompt: `${s.shot_code}: ${s.description || row.description || 'Continue the story.'}`,
-            duration: Math.max(1, Math.round((s.duration_ms || 3000) / 1000)) })),
-    };
-    if(opts?.preview) {const normalized=await provider.generate('video',payload,{previewRequest:true});if(!normalized?.preview)throw new Error(normalized?.error||'Provider did not stop at preview');return {items:[{provider:provider.id,capability:'video',payload:normalized.payload,provenance:{project_id:row.project_id,sequence_id:id,source_shot_ids:parseIds(row),source_paths:shots.map(s=>s.keyframe).filter(Boolean)}}]};}
-    const drafts = require('../lib/production-draft-request');
-    const owner = require('../lib/production-recipes').nodeOwner(db,row.project_id,`seq:${id}`);
-    const delivery = { kind:'sequence_video',project_id:row.project_id,node_key:owner.node_key,sequence_id:id,
-        source_shot_ids:parseIds(row),baseline:drafts.selectionBaseline(db,owner),asset_kind:'native_multi_shot' };
-    const result = await provider.generate('video', payload, { timeout: 600000,
-        jobMeta:{ project_id:row.project_id,sequence_id:id,source_shot_ids:parseIds(row),source_paths:shots.map(s=>s.keyframe),production_delivery:delivery } });
-    if (!result.ok) return json(res, result.pending ? 202 : result.status || 502,
-        { error:result.error,job_id:result.job_id,pending:result.pending || false });
-    const fileName = sequenceFileName(id, shots[0].shot_code, 'multi-shot', result.job_id || require('../lib/production-draft-request').resultReviewId(result) || generateId());
-    const saved = await persistProviderMedia(row.project_id, 'video', fileName, result.data, { serveDir: 'videos', keepAudio: true });
-    const filed = drafts.fileProductionDraftSequence(db,{ delivery,result,filePath:typeof saved === 'string' ? saved : saved.path,
-        provider:result.provider,model:result.provider_model,jobId:result.job_id });
-    const assetId = filed.asset_id;
-
-    // The multi-shot recipe is a generation too, and is the LESS deterministic
-    // of the two paths — so it is the one whose outcomes are most worth having.
-    try {
-        let nativeCard = {};
-        try { nativeCard = JSON.parse(shots[0].scene_card_yaml || '{}'); } catch (_) { nativeCard = {}; }
-        require('../lib/video-attempt').recordVideoAttempt(db, {
-            shotId: shots[0].id, projectId: row.project_id,
-            provider: provider.id, model: result.provider_model || 'multi_shot_video',
-            tier: 'native_multi_shot', durationSeconds: payload && payload.duration_s,
-            referenceImages: shots.length,
-            sceneCard: nativeCard, assetId,
-        });
-    } catch (_) { /* never fail a clip that already cost money */ }
-    return json(res, 200, { ...filed,mode:'native_multi_shot' });
+    // The native multi-shot recipe belonged to Runway, which was removed (2026-10-24).
+    return json(res, 409, { error: 'Native multi-shot needs the Gridlight gateway. Generate the shots one by one on Higgsfield instead (Kling 3.0 also makes multi-shot clips from a single prompt).' });
 }
 
 /**
@@ -1218,8 +1173,6 @@ async function generateSequence(req, res, id, opts) {
     const sequenceBaseline = draftRequests.selectionBaseline(db,sequenceOwner);
     const originalShotIds = parseIds(row);
     const ceiling = keyframeCeiling(row.project_id, req);
-    const runway = ceiling.provider === 'runway' ? require('../lib/providers/runway') : null;
-    const model = runway ? (process.env.RUNWAY_VIDEO_MODEL || 'gen4.5') : null;
 
     const body_ = req.body || {};
     const wantsStrip_ = String(body_.expand || '') === 'inbetweens' || !!row.strip_fingerprint;
@@ -1262,8 +1215,7 @@ async function generateSequence(req, res, id, opts) {
     }
     const planInput_ = input_ ? input_.list : strip_.expanded.stations;
     const plan = planSequence(planInput_, { maxKeyframes: ceiling.max, description: row.description,
-        ...(input_ ? { joins: input_.joins } : {}),
-        modelPolicy: runway && runway.RUNWAY_VIDEO_MODELS[model] });
+        ...(input_ ? { joins: input_.joins } : {}) });
     if (plan.refused) return json(res, 409, { sequence_id: id, ...plan });
     if (!plan.segments.length) {
         return json(res, 200, { sequence_id: id, segments: [], cuts: plan.cuts || [],
@@ -1293,7 +1245,7 @@ async function generateSequence(req, res, id, opts) {
      * Two shapes to compare on the same strip is the point of W5 — but only
      * `legs` works everywhere. Which references a model will actually take is
      * the CONTRACT's answer, never ours, so the list goes through
-     * selectReferences: seedance2_5 declares the role and hailuo3 does not, and
+     * selectReferences: seedance_2_5 declares the role and minimax_h3 does not, and
      * over-sending is a provider rejection that costs a whole generation.
      *
      * What is dropped is REPORTED, never dropped in silence. A bundle quietly
@@ -1301,16 +1253,16 @@ async function generateSequence(req, res, id, opts) {
      * and the only way to find out would be to watch the clip.
      */
     /*
-     * The ADAPTER's own contract first, then Runway's catalogue.
+     * The ADAPTER's own contract first, then the model catalogue.
      *
-     * `contractFor` is keyed by Runway model names, so a project reaching
+     * `contractFor` is keyed by Higgsfield app model ids, so a project reaching
      * Seedance directly through MuAPI was handed a null model, fell to
      * keyframe-only, and had every inbetween reference dropped — silently
      * degrading a bundle into an ordinary leg on the one provider the strip
      * exists for.
      */
     const bundleContract = shape_ === 'bundle'
-        ? ((provider && provider.referenceContract) || contractFor(model))
+        ? ((provider && (typeof provider.referenceContractFor === 'function' ? provider.referenceContractFor(body_.model) : provider.referenceContract)) || contractFor(null))
         : null;
     const bundleDropped = [];
     const stationRefs = (segment) => {

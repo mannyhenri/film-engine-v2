@@ -26,7 +26,6 @@ const TABS = [['generate', 'Generate'], ['cut', 'Cut'], ['generators', 'Generato
 export default function ProductionStudio({ graph, reload, onTabChange }) {
     const [tab, setTab] = useState('generate');
     const [catalog, setCatalog] = useState({ models: [], connected: false });
-    const [runway, setRunway] = useState({ connected: false, models: [], usd_per_credit: 0.01 });
     // Read when the graph arrives, never during the first render: App mounts before the legacy core exists.
     const pid = graph ? (graph.project_id || legacy.state.currentProject?.id) : null;
 
@@ -34,9 +33,6 @@ export default function ProductionStudio({ graph, reload, onTabChange }) {
         try { const r = await legacy.api('/production-studio/higgsfield-models'); setCatalog({ connected: !!r?.connected, models: Array.isArray(r?.models) ? r.models : [],
             website_models:Array.isArray(r?.website_models)?r.website_models:[],api_modes:Array.isArray(r?.api_modes)?r.api_modes:[] }); }
         catch (err) { legacy.setStatus('Higgsfield models: ' + err.message); }
-        // Runway: a second place to send the same request, with its own credits (free list, nothing sent).
-        try { const r = await legacy.api('/production-studio/runway-models'); setRunway({ connected: !!r?.connected, models: Array.isArray(r?.models) ? r.models : [], usd_per_credit: Number(r?.usd_per_credit) || 0.01 }); }
-        catch (_) { setRunway({ connected: false, models: [], usd_per_credit: 0.01 }); }
     }, []);
 
     const ready = !!graph;
@@ -61,7 +57,7 @@ export default function ProductionStudio({ graph, reload, onTabChange }) {
                 {tab === 'generate' && <span className="ds-pill live">Prompt rebuilds as you direct</span>}
                 {/* API keys are Settings' alone (Settings › API keys): Production shows no key status. */}
             </div>
-            {tab === 'generate' && <DirectStudio pid={pid} graph={graph} catalog={catalog} runway={runway} reload={reload} />}
+            {tab === 'generate' && <DirectStudio pid={pid} graph={graph} catalog={catalog} reload={reload} />}
             {tab === 'cut' && <CutTab pid={pid} graph={graph} />}
             {tab === 'generators' && <GeneratorsTab />}
         </div>

@@ -18,8 +18,8 @@ test('no-music rule survives every provider prompt and sound remains on',()=>{
  assert.equal(p.audio,true); assert.equal(p.generate_audio,true);
  const seed=require('../lib/providers/seedance').buildVideoRequest(p).body;
  assert.equal(seed.generate_audio,true); assert.match(seed.prompt,/NO MUSIC/);
- const run=require('../lib/providers/runway').buildVideoRequest({...p,model:'veo3.1'}).body;
- assert.equal(run.audio,true); assert.match(run.promptText,/NO MUSIC/);
+ const hf=require('../lib/providers/higgsfield-mcp').buildRequest('video',{...p,model:'seedance_2_5'}).body;
+ assert.equal(hf.generate_audio,true); assert.match(hf.prompt,/NO MUSIC/);
  const silent=audio.applyVideoAudioPolicy(p,{provider_config:{video_audio_policy:'silent'}});
  assert.equal(silent.audio,false); assert.equal(silent.generate_audio,false);
  assert.match(audio.soundPrompt('x'.repeat(4000),1000),/^Audio:.*NO MUSIC/);
@@ -128,20 +128,20 @@ test('direct video route replaces the adapter-consumed motion prompt and preserv
  db.prepare("INSERT INTO film_shots (id,scene_id,shot_code,duration_ms,scene_card_yaml) VALUES (?,?, 'OVERRIDE',4000,?)").run(shot,sid,JSON.stringify({description:'Original composed scene',action:'Original motion'}));
  let consumed;
  providers.register({id:'route-prompt-fixture',capabilities:['video'],supports:c=>c==='video',isConfigured:()=>true,generate:async(cap,p)=>{
-  consumed={seedance:require('../lib/providers/seedance').buildVideoRequest(p).body,runway:require('../lib/providers/runway').buildVideoRequest({...p,model:'veo3.1'}).body};
+  consumed={seedance:require('../lib/providers/seedance').buildVideoRequest(p).body,higgsfield:require('../lib/providers/higgsfield-mcp').buildRequest('video',{...p,model:'seedance_2_5'}).body};
   return {ok:false,status:422,error:'Fixture stops before media generation'};
  }});
  let response;
  await require('../routes/video-gen').handleVideoGen({method:'POST',body:{prompt_override:'Replacement: a red kite rises over the sea.'}}, {writeHead:code=>{response={code};},end:text=>{response.body=JSON.parse(text);}},['film','shots',shot,'video','generate'],{});
  assert.equal(response.code,422);
  assert.ok(consumed,'registered adapter was reached by the direct route');
- for(const prompt of [consumed.seedance.prompt,consumed.runway.promptText]) {
+ for(const prompt of [consumed.seedance.prompt,consumed.higgsfield.prompt]) {
   assert.match(prompt,/Replacement: a red kite rises over the sea\./);
   assert.doesNotMatch(prompt,/Original composed scene|Original motion/);
   assert.match(prompt,/NO MUSIC/);
  }
  assert.equal(consumed.seedance.generate_audio,true);
- assert.equal(consumed.runway.audio,true);
+ assert.equal(consumed.higgsfield.generate_audio,true);
 });
 
 

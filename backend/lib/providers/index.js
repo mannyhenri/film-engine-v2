@@ -108,12 +108,18 @@ const PREFERRED_WHEN_CONFIGURED = {
      * cycle — so it is written out and pinned by assertion instead, the same
      * arrangement flow-seed has with PIPELINE_STEPS.
      */
-    image: ['muapi', 'google', 'meshy', 'openai'],
+    /*
+     * HIGGSFIELD ONLY, for everything it serves (the user's ruling, 2026-10-24): pictures, footage,
+     * upscales and meshes go to the person's own Higgsfield plan. Sound and dialogue stay on
+     * ElevenLabs, environments are built locally in Blender, and the other image and video vendors
+     * stay registered only for a project that pins one by name.
+     */
+    image: ['higgsfield-mcp'],
     // Seedance 2.5 for footage. Runway's gen4.5 takes TWO keyframes, first and
     // last, which has been the ceiling on "generate this sequence from these
     // pictures"; Seedance's omni-reference workflow takes thirty. Runway stays
     // registered and any project that pinned it is unaffected.
-    video: ['seedance', 'runway'],
+    video: ['higgsfield-mcp'],
     /*
      * The finishing pass. Footage is generated at Seedance's 480p tier to keep
      * exploring a shot affordable, and the pass that takes the finished cut
@@ -125,11 +131,11 @@ const PREFERRED_WHEN_CONFIGURED = {
      * /postprocess: the cheap half of the plan worked and the half that
      * produces the deliverable did not exist.
      */
-    post: 'seedance',
+    post: ['higgsfield-mcp'],
     voice: 'elevenlabs',
     sfx: 'elevenlabs',
     ambient: 'elevenlabs',
-    model3d: 'meshy',
+    model3d: ['higgsfield-mcp'],
     /*
      * Spatial worlds have exactly one adapter, and Gridlight — the default
      * everything else falls back to — does not serve `world` at all. Without an
@@ -262,7 +268,7 @@ function resolveIdWithReason(capability, projectConfig) {
      * the same `image` key — is what runs, whoever it names. Only a switched-off
      * local gateway is not reached by naming it: the switch exists to end
      * exactly that. With nothing named, Nano Banana Pro from the first vendor of
-     * it that holds a key (MuAPI, then Google, then Meshy); and only when none
+     * it that is available (Higgsfield, signed in or not); and only when none
      * of them can run does resolution fall through to the ordinary rules.
      */
     if (capability === 'image') {
@@ -271,7 +277,8 @@ function resolveIdWithReason(capability, projectConfig) {
             && (cfg.image !== DEFAULT_PROVIDER || localGatewayEnabled())) {
             return { id: cfg.image, source: 'project', explicit: true };
         }
-        for (const id of STANDARD_PROVIDERS) {
+        // A pin to a provider that does not exist is refused below, never quietly replaced by the standard.
+        for (const id of (cfg.image && !_registry.has(cfg.image) ? [] : STANDARD_PROVIDERS)) {
             if (_registry.has(id) && isProviderConfigured(id)) {
                 return { id, source: 'house_standard', explicit: true };
             }

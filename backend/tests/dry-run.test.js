@@ -86,24 +86,24 @@ test('the outbound body comes from the adapter, not from a second description', 
      * The point of the report. Built independently it would drift from what is
      * sent, and a preview that is confidently wrong is worse than none.
      */
-    const runway = require('../lib/providers/runway');
+    const hf = require('../lib/providers/higgsfield-mcp');
     const payload = {
         prompt: 'the shadow crosses the road',
         init_image: 'data:image/png;base64,AAAA',
         duration_s: 5,
         target_resolution: '1920x1080',
     };
-    const real = runway.buildVideoRequest(payload).body;
+    const real = hf.buildRequest('video', payload).body;
     const shown = sanitize(real);
 
     // Same fields, same values — only the picture is described.
     assert.deepStrictEqual(Object.keys(shown).sort(), Object.keys(real).sort(),
         'the report shows a different set of fields from the request');
     for (const k of Object.keys(real)) {
-        if (k === 'promptImage') continue;
+        if (k === 'medias') continue;
         assert.deepStrictEqual(shown[k], real[k], `${k} differs between the report and the request`);
     }
-    assert.match(String(shown.promptImage), /KB inline/, 'the picture was printed rather than described');
+    assert.match(String(shown.medias[0].value), /KB inline/, 'the picture was printed rather than described');
 });
 
 test('a capability with nothing to send says so instead of erroring', () => {

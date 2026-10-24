@@ -21,7 +21,7 @@ const file=path.join(dir,'reference.png');fs.writeFileSync(file,png);
 const video = Buffer.alloc(24);video.write('ftyp',4);video.write('mp42',8);const videoFile=path.join(dir,'video.mp4');fs.writeFileSync(videoFile,video);
 const cases=[
  ['seedance','video','seedance',{model:'seedance-2.5',prompt:'Distinct endpoint frames',keyframes:[uri,secondUri],seed:123456,duration_s:5}],
- ['runway','image','runway',{model:'gen4_image',prompt:'Distinct ordered references',reference_images:[{uri},{uri:secondUri}]}],
+ ['higgsfield-mcp','image','higgsfield-mcp',{model:'nano_banana_pro',prompt:'Distinct ordered references',reference_images:[{uri},{uri:secondUri}]}],
  ['magnific','post','magnific',{model:'magnific-video-upscaler-precision',source_video:videoFile,target_resolution:'3840x2160'}],
  ['elevenlabs','voice','elevenlabs',{model:'eleven_multilingual_v2',voice_id:'approved-voice',text:'Exact approved spoken words'}],
  ['elevenlabs','sfx','elevenlabs',{prompt:'Exact approved sound effect',duration_s:4}],
@@ -36,11 +36,10 @@ const cases=[
  ['openai','image','openai-image',{model:'gpt-image-1',prompt:'Visible exact prompt',negative_prompt:'visible negative',reference_images:[{file_path:file}]}],
  ['google','image','google-image',{model:'gemini-3.1-flash-image',prompt:'Visible exact prompt',negative_prompt:'visible negative',reference_images:[{uri}]}],
  ['muapi','image','muapi-image',{model:'nano-banana-2',prompt:'Visible exact prompt',reference_images:[{uri}]}],
- ['runway','image','runway',{model:'gen4_image',prompt:'Visible exact prompt',reference_images:[{uri}]}],
- ['runway','video','runway',{model:'gen4_turbo',prompt:'Visible exact prompt',init_image:uri,duration_s:5}],
+ ['higgsfield-mcp','image','higgsfield-mcp',{model:'nano_banana_pro',prompt:'Visible exact prompt',reference_images:[{uri}]}],
+ ['higgsfield-mcp','video','higgsfield-mcp',{model:'seedance_2_5',prompt:'Visible exact prompt',init_image:uri,duration_s:5}],
  ['seedance','video','seedance',{model:'seedance-2.5',prompt:'Visible exact prompt',init_image:uri,duration_s:5,audio:true}],
  ['higgsfield','video','higgsfield',{model:'seedance-2-5',prompt:'Visible exact prompt',init_image:uri,duration_s:5}],
- ['runway','video','runway',{model:'gen4_turbo',runway_recipe:'multi_shot_video',mode:'custom',shots:[{prompt:'one',duration:2},{prompt:'two',duration:2},{prompt:'three',duration:2}]}],
  ['seedance','post','seedance',{model:'topaz-video-upscale',type:'upscale',source_video:videoFile,source_width:1200,source_height:800}],
  ['higgsfield','image','higgsfield',{model:'soul-standard',prompt:'Visible exact prompt'}],
  ['muapi-upscale','image-upscale','muapi-topaz-upscale',{image:uri,resolution:'2K'}],
@@ -56,15 +55,16 @@ test('full final prompt edits never append negative or sound policy again',async
  }
 });
 test('unsupported edited wire fields and invalid option values fail before approval',async()=>{
- const p={model:'gen4_turbo',prompt:'x',init_image:uri,duration_s:5};const original=await boundary.resolveFinalRequest('runway','video',p);
- await assert.rejects(boundary.resolveFinalRequest('runway','video',{...p,final_request_body:{...original.body,unknown_option:1}}),/Unsupported provider field/);
- await assert.rejects(boundary.resolveFinalRequest('runway','video',{...p,final_request_body:{...original.body,duration:999}}),/supported range/);
+ const h={model:'seedance_2_5',prompt:'x',init_image:uri,duration_s:5};const hb=await boundary.resolveFinalRequest('higgsfield-mcp','video',h);
+ await assert.rejects(boundary.resolveFinalRequest('higgsfield-mcp','video',{...h,final_request_body:{...hb.body,unknown_option:1}}),/Unsupported provider field/);
+ const p={model:'seedance-2.5',prompt:'x',init_image:uri,duration_s:5};const original=await boundary.resolveFinalRequest('seedance','video',p);
+ await assert.rejects(boundary.resolveFinalRequest('seedance','video',{...p,final_request_body:{...original.body,duration:999}}),/supported range/);
 });
 test('closed native schemas reject malformed reference roles/counts/image parts and unknown resolutions without network',async()=>{
  const original=global.fetch;let calls=0;global.fetch=async()=>{calls++;throw Error('Validation cannot submit');};
  try{
-  const r={model:'gen4_image',prompt:'x',reference_images:[{uri}]};const rb=await boundary.resolveFinalRequest('runway','image',r);
-  await assert.rejects(boundary.resolveFinalRequest('runway','image',{...r,final_request_body:{...rb.body,referenceImages:[{...rb.body.referenceImages[0],role:'unrecognized'}]}}),/Unsupported provider field/);
+  const r={model:'nano_banana_pro',prompt:'x',reference_images:[{uri}]};const rb=await boundary.resolveFinalRequest('higgsfield-mcp','image',r);
+  await assert.rejects(boundary.resolveFinalRequest('higgsfield-mcp','image',{...r,final_request_body:{...rb.body,medias:[{...rb.body.medias[0],role:'unrecognized'}]}}),/Unsupported/);
   const lastBytes=Buffer.from(png);lastBytes[23]^=1;const lastUri=`data:image/png;base64,${lastBytes.toString('base64')}`;
   const s={model:'seedance-2.5',prompt:'x',keyframes:[uri,lastUri]};const sb=await boundary.resolveFinalRequest('seedance','video',s);
   assert.match(sb.endpoint,/first-last/);
@@ -148,18 +148,18 @@ test('final prompt and native body controls remain editable rather than readonly
 
 test('every selected plate records semantic identity with exact bytes and actual wire order',async()=>{
  const refs=[{uri,reference_role:'character',asset_id:'character-plate-v3',subject_kind:'character',subject_id:'character',version:3,name:'Maya'},{uri:secondUri,reference_role:'location',asset_id:'location-plate-v5',subject_kind:'location',subject_id:'location',version:5,name:'Kitchen'}];
- for(const provider of ['openai','google','muapi','runway']){
-  const model={openai:'gpt-image-1',google:'gemini-3.1-flash-image',muapi:'nano-banana-2',runway:'gen4_image'}[provider];const resolved=await boundary.resolveFinalRequest(provider,'image',{model,prompt:'Exact ordered plates',reference_images:refs});
+ for(const provider of ['openai','google','muapi','higgsfield-mcp']){
+  const model={openai:'gpt-image-1',google:'gemini-3.1-flash-image',muapi:'nano-banana-2','higgsfield-mcp':'nano_banana_pro'}[provider];const resolved=await boundary.resolveFinalRequest(provider,'image',{model,prompt:'Exact ordered plates',reference_images:refs});
   assert.equal(resolved.references.length,2);resolved.references.forEach((ref,index)=>{assert.equal(ref.role,refs[index].reference_role);assert.equal(ref.source_asset_id,refs[index].asset_id);assert.equal(ref.subject_id,refs[index].subject_id);assert.equal(ref.version,refs[index].version);assert.equal(ref.order,index+1);assert.equal(ref.byte_length,png.length);assert.notEqual(ref.wire_role,ref.role);assert.equal(ref.sha256,crypto.createHash('sha256').update(index?secondPng:png).digest('hex'));});
  }
 });
 test('audio conditioning records full source bytes and rejects unsupported models or timeline transforms',async()=>{
  const file=path.join(dir,'approved-audio.wav'),bytes=Buffer.from('RIFF0000WAVEimmutable audio full source');fs.writeFileSync(file,bytes);
  const audio={file_path:file,reference_role:'dialogue',asset_id:'sound-v2',version:2,name:'Dialogue'};
- for(const [provider,model]of [['seedance','seedance-2.5'],['runway','seedance2_5']]){
-  const resolved=await boundary.resolveFinalRequest(provider,'video',{model,prompt:'Exact sound source',init_image:uri,audio_references:[audio],duration_s:5});const ref=resolved.references.find(r=>r.mime.startsWith('audio/'));assert(ref);assert.equal(ref.role,'dialogue');assert.equal(ref.source_asset_id,'sound-v2');assert.equal(ref.version,2);assert.equal(ref.byte_length,bytes.length);assert.equal(ref.sha256,crypto.createHash('sha256').update(bytes).digest('hex'));assert.match(ref.wire_role,/audios_list|referenceAudio/);
+ for(const [provider,model]of [['seedance','seedance-2.5'],['higgsfield-mcp','seedance_2_5']]){
+  const resolved=await boundary.resolveFinalRequest(provider,'video',{model,prompt:'Exact sound source',init_image:uri,audio_references:[audio],duration_s:5});const ref=resolved.references.find(r=>r.mime.startsWith('audio/'));assert(ref);assert.equal(ref.role,'dialogue');assert.equal(ref.source_asset_id,'sound-v2');assert.equal(ref.version,2);assert.equal(ref.byte_length,bytes.length);assert.equal(ref.sha256,crypto.createHash('sha256').update(bytes).digest('hex'));assert.match(ref.wire_role,/audios_list|referenceAudio|medias\[\d+\]\.value/);
   await assert.rejects(()=>boundary.resolveFinalRequest(provider,'video',{model,prompt:'exact',init_image:uri,audio_references:[{...audio,gain_db:0}],duration_s:5}),/conditioning does not support/);
  }
- await assert.rejects(()=>boundary.resolveFinalRequest('runway','video',{model:'gen4_turbo',prompt:'Exact',init_image:uri,audio_references:[audio],duration_s:5}),/audio references/);
+ await assert.rejects(()=>boundary.resolveFinalRequest('higgsfield-mcp','video',{model:'veo3_1',prompt:'Exact',init_image:uri,audio_references:[audio],duration_s:5}),/audio references/);
  await assert.rejects(()=>boundary.resolveFinalRequest('seedance','video',{model:'seedance-2.5',workflow:'image-to-video',prompt:'Exact',init_image:uri,audio_references:[audio],duration_s:5}),/audio references/);
 });

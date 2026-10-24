@@ -99,7 +99,7 @@ test('a workflow the builder refuses says WHY, and points somewhere', () => {
         'no workflow is refused any more — if video-edit was deliberately re-opened, delete this '
         + 'test; if not, the refusal has been lost');
     for (const [workflow, why] of refused) {
-        assert.match(why, /aleph/i, `${workflow} is refused and points nowhere: ${why}`);
+        assert.match(why, /higgsfield|video_edit/i, `${workflow} is refused and points nowhere: ${why}`);
         assert.match(why, /RBF-001/, `${workflow} is refused without citing the evidence`);
     }
 });

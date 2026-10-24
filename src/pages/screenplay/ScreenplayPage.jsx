@@ -200,7 +200,7 @@ export default function ScreenplayPage() {
                         {' '}
                         <div className="toolbar-divider"></div>
                         {' '}
-                        <button className="toolbar-btn" id="aiChatToggle" onClick={(event) => window.__filmOpenAIWorkspace ? window.__filmOpenAIWorkspace(event) : E.toggleAIChat()} data-tooltip="Open AI writing assistant for brainstorming and rewriting (Ctrl+Shift+A)">
+                        <button className="toolbar-btn" id="aiChatToggle" onClick={(event) => window.__filmOpenAskAI ? window.__filmOpenAskAI(event) : E.toggleAIChat()} data-tooltip="Open AI writing assistant for brainstorming and rewriting (Ctrl+Shift+A)">
                             AI Chat
                         </button>
                         {' '}

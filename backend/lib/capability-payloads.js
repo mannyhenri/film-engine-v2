@@ -415,8 +415,8 @@ function videoDraftModel(project) {
 /**
  * The reference contract of the adapter that will actually run.
  *
- * `videoRef.contractFor()` is keyed by RUNWAY's model catalogue — `hailuo3`,
- * `seedance2_5` — and MuAPI names the same model `seedance-2.5-image-to-video-480p`,
+ * `videoRef.contractFor()` is keyed by Higgsfield's app model ids — `minimax_h3`,
+ * `seedance_2_5` — and MuAPI names the same model `seedance-2.5-image-to-video-480p`,
  * with the resolution in the id. The lookup is exact, so it missed, fell to
  * KEYFRAME_ONLY, and every character, location, prop and in-between reference
  * was dropped with "this model takes no X reference" — on the one provider that
@@ -628,21 +628,22 @@ const CAPABILITY_BUILDERS = {
          * existing shot builds byte-identically.
          */
         const videoRef = require('./video-reference');
-        // The ADAPTER's own contract first, then Runway's catalogue — the two
+        // The ADAPTER's own contract first, then the model catalogue — the two
         // name the same models differently and only the adapter knows which one
         // it is about to call.
         const adapter = videoAdapter(ctx.project);
         /*
          * ONLY WHEN THE MODEL IS THAT ADAPTER'S. A request that names a model
-         * from another provider's catalogue — gen4.5 is Runway's — must keep
+         * from another provider's catalogue must keep
          * that model's own contract; applying the resolved adapter's gave
          * Gen-4.5 a thirty-reference package it does not take, re-sending the
          * plates its keyframe was already generated from.
          */
         const ownModels = adapter ? (require('./providers').modelIdsFor(adapter, 'video') || []) : [];
         const adapterOwnsModel = !overrides.model || ownModels.includes(overrides.model);
-        const contract = (adapterOwnsModel && adapter && adapter.referenceContract)
-            || videoRef.contractFor(overrides.model);
+        const ownContract = adapterOwnsModel && adapter && (typeof adapter.referenceContractFor === 'function'
+            ? adapter.referenceContractFor(overrides.model) : adapter.referenceContract);
+        const contract = ownContract || videoRef.contractFor(overrides.model);
         const offered = referencesToRoles(ctx);
         const picked = videoRef.selectReferences(offered, contract);
 
@@ -738,7 +739,7 @@ const CAPABILITY_BUILDERS = {
          * THE SHOT'S OWN DIALOGUE, AS AN AUDIO REFERENCE — asked for per
          * generation (`use_dialogue_audio`), because it changes what the model
          * is conditioned on. Seedance 2.5 takes up to ten audio clips (MuAPI
-         * omni-reference `audios_list`, Runway seedance2_5 `referenceAudio`);
+         * omni-reference `audios_list`, Higgsfield seedance_2_5 `audio_references`);
          * a model that takes none is refused by name rather than ignored.
          * Local paths here: the adapter hosts them, since the builder stays pure.
          */
@@ -748,7 +749,7 @@ const CAPABILITY_BUILDERS = {
             if (!lines.length) {
                 built.audio_refused = 'This shot has no recorded dialogue yet. Upload it as the shot\'s voice (media_upload, or Upload on the shot) first.';
             } else if (!maxAudio) {
-                built.audio_refused = `${built.model || 'This model'} takes no audio reference. Seedance 2.5 does: on MuAPI, or seedance2_5 on Runway.`;
+                built.audio_refused = `${built.model || 'This model'} takes no audio reference. Seedance 2.5 does: on Higgsfield or on MuAPI.`;
             } else {
                 built.audio_references = lines.slice(0, maxAudio)
                     .map(a => ({ role: 'audio', asset_id: a.id, file_path: a.file_path, file_name: a.file_name, duration_ms: a.duration_ms || null }));

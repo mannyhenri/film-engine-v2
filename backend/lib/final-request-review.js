@@ -35,8 +35,6 @@ function quoteFor(snapshot,payload) {
  if(snapshot.provider==='seedance'&&snapshot.capability==='video')pricingModel='seedance-2.5'+(metadata.resolution==='720p'?'':'-'+metadata.resolution);
  if(snapshot.provider==='seedance'&&snapshot.capability==='post'&&metadata.workflow==='video-edit')pricingModel='seedance-2.5-video-edit'+(metadata.resolution==='720p'?'':'-'+metadata.resolution);
  if(snapshot.provider==='magnific')pricingModel+='@'+fields.resolution;
- if(snapshot.provider==='runway'&&snapshot.capability==='image'&&pricingModel==='gen4_image'&&/1080/.test(fields.ratio))pricingModel+='_1080p';
- if(snapshot.provider==='runway'&&metadata.mode==='multi_shot_video')pricingModel=fields.ratio==='1920:1080'?'multi_shot_video_1080p':'multi_shot_video_720p';
  try {rate=require('./provider-pricing').rateFor(snapshot.provider,snapshot.capability,pricingModel);}catch(_){}
  const count=Number(fields.n??fields.batch_size??fields.num_images??fields.num_outputs??1);
  let duration=Number(fields.duration_seconds??fields.duration??fields.duration_s??metadata.durationSeconds??metadata.duration_s);
@@ -48,20 +46,10 @@ function quoteFor(snapshot,payload) {
  const perUSD=rate?.usd_per_unit!==undefined?rate.usd_per_unit:rate?(rate.native_per_unit||1)*(rate.usd_per_native||0):null;
  const known=perUSD!==null&&Number.isFinite(perUSD)&&Number.isFinite(quantity)&&quantity>0;
  let nativeQuote=null;
- if(snapshot.provider==='runway'&&snapshot.capability==='video'){
-  const videoCost=require('./video-cost'),policy=require('./providers/runway').RUNWAY_VIDEO_MODELS[fields.model];
-  if(metadata.mode==='multi_shot_video')nativeQuote=Number.isFinite(duration)&&duration>0?{credits:duration*(fields.ratio==='1920:1080'?17:13),source:rate?.source}:{};
-  else if(policy){
-   const seconds=policy.duration?.ofSource?Number(metadata.source_seconds):duration;
-   const videos=fields.referenceVideos||[];
-   // Source-billed references must have an approved measured duration.
-   const videoSeconds=videos.reduce((n,v)=>n+Number(v.duration_seconds??v.duration_s),0);
-   if(Number.isFinite(seconds)&&seconds>0&&Number.isFinite(videoSeconds))nativeQuote=videoCost.estimateVideoCost({model:fields.model,durationSeconds:seconds,resolution:fields.resolution,frame:fields.ratio,imageReferences:(fields.referenceImages?.length||0)+(Array.isArray(fields.promptImage)?fields.promptImage.length:fields.promptImage?1:0),audioReferences:fields.referenceAudio?.length||0,videoReferenceSeconds:videoSeconds,firstFrame:!!fields.promptImage});
-   else nativeQuote={source:policy.source};
-  }else nativeQuote={};
- }
+ // Higgsfield (signed in) prices each request in its own credits, from Higgsfield's quotes.
+ if(snapshot.provider==='higgsfield-mcp'){const credits=require('./providers/higgsfield-mcp').creditsFor(snapshot.capability,snapshot.body||{},metadata);const usdPerCredit=require('./higgsfield-app-catalog').SNAPSHOT.credit_usd.usd_per_credit;nativeQuote=Number.isFinite(credits)?{credits,usd_per_credit:usdPerCredit,source:rate?.source}:{source:rate?.source};}
  const apiQuote=snapshot.provider==='higgsfield'?require('./higgsfield-pricing').quoteConfiguration(metadata.endpoint||String(snapshot.endpoint||'').replace(/^https:\/\/api.higgsfield.ai\//,''),{...fields,duration_seconds:duration}):null;
- const amount=apiQuote?(apiQuote.available&&Number.isFinite(quantity)&&quantity>0?Number((apiQuote.list_rate*quantity).toFixed(6)):null):nativeQuote?(Number.isFinite(nativeQuote.credits)?Number((nativeQuote.credits*.01).toFixed(6)):null):known?Number((perUSD*quantity).toFixed(6)):null;
+ const amount=apiQuote?(apiQuote.available&&Number.isFinite(quantity)&&quantity>0?Number((apiQuote.list_rate*quantity).toFixed(6)):null):nativeQuote?(Number.isFinite(nativeQuote.credits)?Number((nativeQuote.credits*(nativeQuote.usd_per_credit||.01)).toFixed(6)):null):known?Number((perUSD*quantity).toFixed(6)):null;
  const credits=nativeQuote?(Number.isFinite(nativeQuote.credits)?nativeQuote.credits:null):known&&rate?.native_unit==='credit'?quantity*(rate.native_per_unit||1):null;
  // Shared by initial metering and free recovery. A native credit estimate is
  // still an estimate; only an actual provider receipt may confirm its charge.
@@ -112,7 +100,8 @@ function createFinalRequestStore(db,deps={}) {
   return {spec, digest:hash(canonical(result))};
  }
  function row(id){const r=db.prepare('SELECT * FROM film_final_request_reviews WHERE id=?').get(id);if(!r)fail('Request review not found',404);return r;}
- function publicRow(r){return {id:r.id,fingerprint:r.fingerprint,state:r.state,snapshot:JSON.parse(r.snapshot_json),editable:JSON.parse(r.editable_json),request_id:r.request_id,result:r.result_json?JSON.parse(r.result_json):null,error:r.error};}
+ // `test_mode` is read live and is not part of the fingerprinted snapshot: it says what Send will do now.
+ function publicRow(r){const snapshot=JSON.parse(r.snapshot_json);return {id:r.id,fingerprint:r.fingerprint,state:r.state,snapshot,editable:JSON.parse(r.editable_json),request_id:r.request_id,result:r.result_json?JSON.parse(r.result_json):null,error:r.error,test_mode:require('./generation-test-mode').appliesTo(snapshot.provider)};}
  function valid(r){const s=JSON.parse(r.snapshot_json),p=JSON.parse(r.provenance_json);
   if(!deps.resolve && s.adapterVersion!==require('./final-provider-request').adapterVersion(s.provider))fail('Provider adapter changed. Review the request again');
   if(!['provider_quote','free_preflight'].includes(s.quote?.kind)){

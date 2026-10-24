@@ -1277,7 +1277,8 @@ function buildCharacterOrbitRequest(ch, body) {
         motion: built.motion,
         camera_control: built.camera_control,
         duration_s: seconds,
-        model: (body || {}).model || 'gen4_turbo',
+        // The video provider's own default (Seedance 2.5 on Higgsfield) unless one was named.
+        model: (body || {}).model || undefined,
         // The orbit supplies reference views; its default model has no sound
         // control. Declare the silent intent before the final request review.
         audio: false, generate_audio: false, video_audio_policy: 'silent',

@@ -35,7 +35,7 @@ const { db, generateId } = require('../db/database');
 require('../db/schema').ensureSchema();
 // A video provider that takes a first AND last keyframe, as a real install has.
 // With none, the planner degrades to one still per shot and joins cannot apply.
-db.prepare(`INSERT OR REPLACE INTO film_provider_credentials (provider, api_key, meta) VALUES ('runway', 'test-key-not-real', '{}')`).run();
+db.prepare(`INSERT OR REPLACE INTO film_provider_credentials (provider, api_key, meta) VALUES ('seedance', 'test-key-not-real', '{}')`).run();
 
 const PORT = 24200 + Math.floor(Math.random() * 400);
 const api = testApi(`http://localhost:${PORT}`);

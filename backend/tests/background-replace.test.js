@@ -2,7 +2,7 @@
  * KEEP THE ACTOR, CHANGE THE BACKGROUND.
  *
  * The whole reason ICP-012 registered a video-to-video model: every other
- * entry in the Runway registry is image_to_video or text_to_video, so "keep
+ * other model is image-to-video or text-to-video, so "keep
  * the performance and put it somewhere else" had no provider path at all — and
  * the operation a director actually asks for after shooting on an iPhone in a
  * kitchen is exactly that one.
@@ -103,8 +103,12 @@ test('EVERY stage names ITSELF when it is the one that fails', async () => {
         inspect: () => ({ ok: false, reason: 'there is no file there' }) }));
     // budget — priced, and the project cannot afford it
     seen.set('budget', await runBackgroundEdit({ ...base, remainingUsd: 0.01 }));
-    // host — no public address, so there is no URL to hand a provider
-    seen.set('host', await runBackgroundEdit({ ...base, publicBase: '' }));
+    // host — no public address, so there is no URL to hand a provider. Only a vendor that is SENT is
+    // hosted for (a hand-over reads the clip from disk), so Higgsfield is taken off the hand-over list here.
+    const manual = require('../lib/manual-generation');
+    manual.MANUAL_PROVIDERS.delete('higgsfield-mcp');
+    try { seen.set('host', await runBackgroundEdit({ ...base, publicBase: '' })); }
+    finally { manual.MANUAL_PROVIDERS.add('higgsfield-mcp'); }
     // generate — the provider refused
     // A real generator's reason, not a stub word: this stage passes the
     // provider's own sentence through, so a two-word fixture would be judging
@@ -127,20 +131,20 @@ test('EVERY stage names ITSELF when it is the one that fails', async () => {
 
 /* ── 2 · the plan: free, and it refuses rather than guessing ────────────── */
 
-test('a measured clip is priced from the SOURCE length, at the aleph rate', () => {
+test('a measured clip is priced from the SOURCE length, at the Seedance 2.5 edit rate', () => {
     const p = planBackgroundEdit({ sourcePath: tempClip(), instruction: 'a rainy street', inspect: measured(10) });
     assert.strictEqual(p.refused, undefined, p.reason);
     assert.strictEqual(p.source.durationSeconds, 10);
-    // 10s x 28 credits, and Runway bills credits at $0.01.
+    // 10s x 7 credits at 720p on Higgsfield, at the plan's price per credit.
     assert.strictEqual(p.quote.known, true, 'a measured clip must be priceable');
-    assert.strictEqual(p.quote.credits, 280);
-    assert.ok(Math.abs(p.quote.usd - 2.80) < 1e-9, `priced at $${p.quote.usd}, expected $2.80`);
+    assert.strictEqual(p.quote.credits, 70);
+    const usd = Math.round(70 * require('../lib/higgsfield-app-catalog').SNAPSHOT.credit_usd.usd_per_credit * 100) / 100;
+    assert.ok(Math.abs(p.quote.usd - usd) < 1e-9, `priced at $${p.quote.usd}, expected $${usd}`);
 });
 
-test('the minimum charge applies to a short clip', () => {
-    const p = planBackgroundEdit({ sourcePath: tempClip(), instruction: 'a rainy street', inspect: measured(2) });
-    // 2s x 28 = 56, which IS the minimum; a 2s clip must never price under it.
-    assert.strictEqual(p.quote.credits, 56);
+test('the shortest clip the model takes is priced at its own length', () => {
+    const p = planBackgroundEdit({ sourcePath: tempClip(), instruction: 'a rainy street', inspect: measured(4) });
+    assert.strictEqual(p.quote.credits, 28);
 });
 
 test('a clip nobody could measure is REFUSED, never priced at a default', () => {
@@ -168,9 +172,7 @@ test('a clip outside the model\'s own window is refused with the remedy named', 
 
     const brief = planBackgroundEdit({ sourcePath: tempClip(), instruction: 'a rainy street', inspect: measured(0.8) });
     assert.strictEqual(brief.refused, true);
-    // `\b2\b` cannot match "2s" — the digit is followed by a word character —
-    // and it also matches the "2" in "aleph2", so it was wrong twice.
-    assert.match(brief.reason, /least 2s|2 seconds/, `the floor is not named: ${brief.reason}`);
+    assert.match(brief.reason, /least 4s|4 seconds/, `the floor is not named: ${brief.reason}`);
 });
 
 test('an empty instruction is refused before anything is priced', () => {
@@ -223,8 +225,8 @@ test('the prompt stays inside the model\'s own ceiling', () => {
     assert.ok(prompt.length > 800,
         `only ${prompt.length} characters survived a 4000-character instruction — the trim is `
         + 'eating the request rather than fitting it');
-    assert.ok(prompt.length <= 1000,
-        `${prompt.length} characters against aleph2's 1000 — over-sending is a rejection that `
+    assert.ok(prompt.length <= 2000,
+        `${prompt.length} characters against the edit model's 2000 — over-sending is a rejection that `
         + 'costs a generation');
 });
 
@@ -292,7 +294,7 @@ test('the generator receives a FETCHABLE url, never a path on this machine', asy
     });
     assert.ok(saw, 'the generator was never reached');
     assert.match(String(saw.videoUri), /^https?:\/\//,
-        `the generator was handed "${saw.videoUri}" — Runway cannot read our disk, and the `
+        `the generator was handed "${saw.videoUri}" — a hosted provider cannot read our disk, and the `
         + 'refusal that produces reads like a credential problem');
     assert.ok(!String(saw.videoUri).includes(clip), 'the local path leaked into the request');
 });

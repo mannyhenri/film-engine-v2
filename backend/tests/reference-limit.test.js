@@ -61,7 +61,7 @@ const IMAGE_ADAPTERS = (() => {
 test('the adapter set is derived and covers the real providers', () => {
     const names = IMAGE_ADAPTERS.map(a => a.file).sort();
     assert.ok(names.length >= 3, `expected several image adapters, found: ${names.join(', ')}`);
-    for (const expected of ['meshy.js', 'runway.js', 'openai-image.js']) {
+    for (const expected of ['meshy.js', 'higgsfield-mcp.js', 'openai-image.js']) {
         assert.ok(names.includes(expected), `${expected} is not in the image adapter set`);
     }
 });

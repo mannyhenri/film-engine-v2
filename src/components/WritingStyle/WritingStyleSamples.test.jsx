@@ -28,7 +28,7 @@ beforeEach(()=>{
  vi.spyOn(window,'confirm').mockReturnValue(true);
 });
 afterAll(()=>db.close());
-const openWorkbench=async()=>{fireEvent.click(screen.getByText('My Voice'));await screen.findByText(/Coverage/);};
+const openWorkbench=async()=>{act(()=>{window.dispatchEvent(new Event('film:open-my-voice'));});await screen.findByText(/Coverage/);};
 
 it('Learn my style sits in the Screenplay toolbar and opens the workbench',async()=>{
  const bar=document.createElement('div');bar.innerHTML='<button id="aiChatToggle">AI Chat</button>';document.body.appendChild(bar);

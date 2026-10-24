@@ -47,7 +47,7 @@ const TEMPLATES = {
                 { id: 'prompt', type: 'in.prompt', label: 'Prompt', config: { text: '' }, x: 60, y: 120 },
                 { id: 'image', type: 'gen.image', label: 'Keyframe', config: {}, x: 60 + COL, y: 120 },
                 // The variant axis IS the provider — that is what "multi-model" means.
-                { id: 'fan', type: 'tf.fanout', label: 'Three models', config: { count: 3, providers: ['gridlight', 'runway', 'openai'] }, x: 60 + COL * 2, y: 120 },
+                { id: 'fan', type: 'tf.fanout', label: 'Three models', config: { count: 3, providers: ['gridlight', 'higgsfield-mcp', 'openai'] }, x: 60 + COL * 2, y: 120 },
                 { id: 'video', type: 'gen.video', label: 'Video', config: {}, x: 60 + COL * 3, y: 120 },
                 { id: 'pick', type: 'tf.select', label: 'Pick a take', config: {}, x: 60 + COL * 4, y: 120 },
                 { id: 'save', type: 'out.asset', label: 'Save', config: { asset_type: 'video_raw' }, x: 60 + COL * 5, y: 120 },

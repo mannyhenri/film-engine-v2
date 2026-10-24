@@ -113,7 +113,10 @@ describe('Provider Settings API', () => {
         const res = await request(`/film/projects/${projectId}/providers`);
         assert.equal(res.status, 200);
         assert.deepEqual(res.data.config, {});
-        assert.equal(res.data.effective.image, null);
+        // Higgsfield needs no key to be the provider (its hand-over and test mode need no sign-in);
+        // ElevenLabs does, so with none stored voice resolves to nothing.
+        assert.equal(res.data.effective.image, 'higgsfield-mcp');
+        assert.equal(res.data.effective.video, 'higgsfield-mcp');
         assert.equal(res.data.effective.voice, null);
     });
 
@@ -131,8 +134,8 @@ describe('Provider Settings API', () => {
          * switch on later must restore the choice rather than require it to be
          * made again.
          */
-        assert.equal(res.data.effective.video, null);
-        assert.equal(res.data.effective.image, null);
+        assert.equal(res.data.effective.video, 'higgsfield-mcp', 'an unknown pin was filtered, so the default runs');
+        assert.equal(res.data.effective.image, 'higgsfield-mcp', 'a switched-off gateway is not reached; the house standard runs');
     });
 
     it('404s provider config for an unknown project', async () => {
@@ -151,13 +154,16 @@ describe('Provider Settings API', () => {
         assert.deepEqual(missing, [], `providers requiring setup with no connection spec: ${missing.join(', ')}`);
     });
 
-    it('exposes the Runway connection spec', async () => {
+    it('exposes the Higgsfield sign-in spec', async () => {
         const res = await request('/film/providers');
-        const runway = (res.data.providers || []).find(p => p.id === 'runway');
-        assert.ok(runway, 'runway is in the catalog');
-        assert.equal(runway.requiresKey, true);
-        assert.ok(runway.connection && runway.connection.instructions, 'runway explains how to get a key');
-        assert.deepEqual([...runway.capabilities].sort(), ['image', 'video']);
+        const hf = (res.data.providers || []).find(p => p.id === 'higgsfield-mcp');
+        assert.ok(hf, 'higgsfield-mcp is in the catalog');
+        assert.equal(hf.requiresKey, false, 'a sign-in, not a key');
+        assert.ok(hf.connection && hf.connection.oauth && hf.connection.oauth.secureTokens, 'its tokens go to the secret store');
+        assert.ok(hf.connection.instructions, 'it explains what signing in does');
+        assert.deepEqual([...hf.capabilities].sort(), ['image', 'model3d', 'post', 'video', 'voice']);
+        assert.equal(hf.credentials.connected, false, 'nobody is signed in on a fresh install');
+        assert.ok(!(res.data.providers || []).some(p => p.id === 'runway'), 'Runway was removed and must not come back');
     });
 
     it('stores connection fields in meta without ever echoing raw values', async () => {
@@ -165,7 +171,7 @@ describe('Provider Settings API', () => {
         // declares, and nothing bundled declares any today — but the endpoint is
         // live, so the guarantee that matters (secrets never come back out) is
         // still asserted here.
-        const res = await request('/film/providers/runway/credentials', {
+        const res = await request('/film/providers/higgsfield/credentials', {
             method: 'PUT', body: { fields: { client_id: 'CID-123', client_secret: 'SECRET-xyz' } },
         });
         assert.equal(res.status, 200);

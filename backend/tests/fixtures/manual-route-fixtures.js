@@ -220,10 +220,8 @@ module.exports = {
          * 238), which the review refuses for MuAPI ("Unsupported MuAPI
          * aspect_ratio", lib/final-request-validation.js:109). Reported, not fixed here.
          *
-         * Video sound silent: every Runway clip is built with generate_audio true
-         * (lib/video-prompt.js:374), and gen4.5 takes no generated audio
-         * (lib/providers/runway.js:813); "silent" is the project's own choice that
-         * turns it off (lib/video-audio-policy.js:17).
+         * Video sound silent: "silent" is the project's own choice that turns a
+         * clip's generated sound off (lib/video-audio-policy.js:17).
          */
         ok(await call('PUT', `/projects/${project}`, { aspect_ratio: '16:9' }), 'project aspect');
         ok(await call('PUT', `/projects/${project}/video/audio-policy`, { video_audio_policy: 'silent' }), 'video audio policy');
@@ -262,7 +260,7 @@ module.exports = {
 
         // Footage. The single clip names its model: the default production tier
         // (hailuo3) is refused, see the report on lib/video-prompt.js:409.
-        add('/shots/ID/video/generate', `/shots/${shotA.id}/video/generate`, { model: 'gen4.5' });
+        add('/shots/ID/video/generate', `/shots/${shotA.id}/video/generate`, { model: 'seedance_2_5' });
         // The upscale dialog sends the chosen model (src/index.html:45688-45689).
         add('/shots/ID/post/upscale', `/shots/${shotA.id}/post/upscale`, { model: 'magnific-video-upscaler' });
         /*
@@ -280,11 +278,11 @@ module.exports = {
         add('/projects/ID/pipeline/run', `/projects/${project}/pipeline/run`, {});
 
         // Sequences. A first-and-last-frame move needs a model that takes a last
-        // frame (gen4.5 takes the first only: lib/providers/video-model-fields.json).
+        // frame (Seedance 2.5 on Higgsfield takes both).
         const seq = ok(await call('POST', `/projects/${project}/sequences`, { name: 'Opening', shot_ids: [shotA.id, shotB.id] }), 'sequence create').sequence;
-        add('/sequences/ID/generate', `/sequences/${seq.id}/generate`, { model: 'veo3.1' });
+        add('/sequences/ID/generate', `/sequences/${seq.id}/generate`, { model: 'seedance_2_5' });
         /*
-         * Native multi-shot takes 3–5 shots, 5–15 s in all (lib/providers/runway.js:1088-1093),
+         * Native multi-shot takes 3–5 shots, 5–15 s in all,
          * and no three demo shots are that short (the shortest are 5, 6 and 6 s).
          * Three 4 s shots are written into the last scene through POST /shots.
          */
@@ -297,7 +295,8 @@ module.exports = {
         for (const [i, s] of quick.entries())
             ok(await call('POST', `/shots/${s.id}/storyboard/import`, { name: `quick-${i}.png`, data: pngUri(320, 180, [150, 40 + i * 50, 70]) }), `storyboard import (native ${i})`);
         const multi = ok(await call('POST', `/projects/${project}/sequences`, { name: 'Run of three', shot_ids: quick.map(s => s.id) }), 'sequence create (native)').sequence;
-        add('/sequences/ID/generate-native', `/sequences/${multi.id}/generate-native`, {});
+        // Native multi-shot was Runway's recipe (removed 2026-10-24); off the gateway it refuses before any review.
+        void multi;
         /*
          * A strip has stations only where the camera moves, read from
          * card.camera.movement (lib/shot-motion.js:281); the demo writes
@@ -352,6 +351,7 @@ module.exports = {
 
     /* Planner-set paths that do not reach a manual vendor's review, each with why. */
     NOT_MANUAL_PLANNER: [
+        { path: '/sequences/ID/generate-native', reason: 'refused: native multi-shot was the Runway recipe (removed 2026-10-24); off the local gateway the route answers 409 before any review (routes/sequences.js generateNativeSequence)' },
         { path: '/projects/ID/models/batch/stream', reason: 'not a generation: the route answers 428 for every request (routes/threed.js:707-708, "3D batch requires per-subject approved native execution") and the planner refuses it the same way (lib/final-threed-request-plans.js:14); each subject is generated, and reviewed, through /characters|props|locations/:id/model/generate' },
     ],
 

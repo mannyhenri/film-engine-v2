@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { legacy } from '../../lib/legacy.js';
 
 /*
@@ -34,14 +34,26 @@ export const CAP_GROUPS = [
  * The video vendors Production › Generate reads (its model list, prices and checks): their keys are set here even
  * while generation for them is manual, so they keep a tile instead of being listed as keys no longer needed.
  */
-export const STUDIO_KEY_PROVIDERS = ['higgsfield', 'runway'];
+export const STUDIO_KEY_PROVIDERS = ['higgsfield', 'higgsfield-mcp'];
 const STUDIO_KEY_NOTES = {
     higgsfield: 'Paste the API key copied from open.higgsfield.ai, as-is. Used by Production › Generate.',
-    runway: 'Paste the API key from the Runway developer portal (dev.runwayml.com). Used by Production › Generate.',
 };
 
 const keyIsSet = (p) => (!!(p.credentials && (p.credentials.set || p.credentials.connected)) && !(p.credentials && p.credentials.suspect)) || !!p.enabled;
 const keyName = (p) => p.account || String(p.label || p.id).replace(/\s*\(.*\)\s*$/, '');
+
+/** A signed-in account's credits and plan, read free from the provider. */
+export function AccountLine({ id }) {
+    const [acct, setAcct] = useState(null);
+    useEffect(() => {
+        let live = true;
+        legacy.api('/providers/' + id + '/account').then(r => { if (live) setAcct(r); }).catch(err => { if (live) setAcct({ ok: false, error: err.message }); });
+        return () => { live = false; };
+    }, [id]);
+    if (!acct) return <p className="text-sm text-muted" data-account={id}>Reading the account…</p>;
+    if (!acct.ok) return <p className="text-sm" data-account={id} style={{ color: 'var(--gl-danger, #ef4444)' }}>{acct.error || 'Could not read the account'}</p>;
+    return <p className="text-sm" data-account={id}>{acct.credits} credits{acct.plan ? ' · ' + String(acct.plan).replace(/^\w/, ch => ch.toUpperCase()) + ' plan' : ''}</p>;
+}
 
 /** The tiles: one per account, riders folded in, set ones first. */
 export function keyTiles(catalog) {
@@ -98,6 +110,22 @@ export function KeysCard({ catalog, onChanged }) {
             legacy.setStatus('Connecting ' + p.id + '…');
             const res = await legacy.api('/providers/' + p.id + '/connect');
             if (!res.authorize_url) { legacy.setStatus('Connect failed: no authorize URL'); return; }
+            if (p.connection && p.connection.oauth && p.connection.oauth.external) {
+                // Signed in in the person's own browser (Google and Apple sign-in refuse embedded windows);
+                // the sign-in returns to this Mac's backend, so the card watches for it rather than a message.
+                window.open(res.authorize_url, '_blank', 'noopener');
+                legacy.setStatus('Finish signing in to ' + keyName(p) + ' in your browser…');
+                const started = Date.now();
+                const iv = setInterval(async () => {
+                    if (Date.now() - started > 5 * 60 * 1000) { clearInterval(iv); legacy.setStatus(keyName(p) + ': sign-in not finished — press Connect to try again'); return; }
+                    try {
+                        const cat = await legacy.api('/providers');
+                        const now = (cat.providers || []).find(x => x.id === p.id);
+                        if (now && now.credentials && now.credentials.connected) { clearInterval(iv); legacy.setStatus(keyName(p) + ' connected'); onChanged(); }
+                    } catch (_) { /* keep waiting */ }
+                }, 2000);
+                return;
+            }
             const popup = window.open(res.authorize_url, 'provider-oauth', 'width=520,height=680');
             const onMsg = (ev) => {
                 if (ev.data && ev.data.type === 'provider-oauth') {
@@ -148,6 +176,7 @@ export function KeysCard({ catalog, onChanged }) {
                     return (
                         <div key={p.id} className="set-key" data-provider={p.id}>
                             <label>{keyName(p)} <span className={'set-pill' + (c.connected ? ' ok' : '')}>{c.connected ? 'connected' : 'not connected'}</span></label>{servesLine}{instr}
+                            {c.connected && conn.oauth.secureTokens && <AccountLine id={p.id} />}
                             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                                 <button className="btn btn-primary btn-sm" onClick={() => connect(p)}>{c.connected ? 'Reconnect' : 'Connect ' + String(p.label || '').split(' ')[0]}</button>
                                 {c.connected && <button className="btn btn-danger btn-sm" onClick={() => run(() => legacy.api('/providers/' + p.id + '/disconnect', { method: 'POST', body: '{}' }), p.id + ' disconnected')}>Disconnect</button>}

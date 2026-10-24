@@ -15,6 +15,35 @@ const { db } = require('../db/database');
 const providers = require('../lib/providers');
 const { CAPABILITIES } = require('../lib/providers/base');
 const oauth = require('../lib/providers/oauth');
+const secrets = require('../lib/secret-store');
+
+/*
+ * A SIGNED-IN ACCOUNT KEEPS ITS TOKENS OUT OF THE DATABASE.
+ *
+ * film_provider_credentials is plain text on disk. A provider whose connection
+ * says `oauth.secureTokens` (the Higgsfield sign-in) has its access token,
+ * refresh token and client-management secrets written to the secret store (the
+ * macOS Keychain) instead; the row keeps only what is not secret.
+ */
+const SECRET_FIELDS = ['access_token', 'refresh_token', 'registration_access_token', 'client_secret'];
+function securesTokens(provider) {
+    const a = providers.get(provider);
+    return !!(a && a.connection && a.connection.oauth && a.connection.oauth.secureTokens);
+}
+/** Split secrets off a meta object for a secure provider; everything else is returned to be stored as before. */
+function stashSecrets(provider, metaObj) {
+    if (!securesTokens(provider)) return metaObj;
+    const keep = { ...metaObj }, secret = {};
+    for (const k of SECRET_FIELDS) if (k in keep) { if (keep[k]) secret[k] = keep[k]; delete keep[k]; }
+    if ('expires_at' in keep) { secret.expires_at = keep.expires_at; delete keep.expires_at; }
+    if (Object.keys(secret).length) secrets.merge(provider, secret);
+    return keep;
+}
+/** Meta with its secrets read back, for the flow's own use (never sent to the page). */
+function fullMeta(provider) {
+    const m = getMeta(provider);
+    return securesTokens(provider) ? { ...m, ...(secrets.get(provider) || {}) } : m;
+}
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -49,7 +78,7 @@ function credStatus(provider) {
     const fields = {};
     const declared = adapter && adapter.connection && adapter.connection.fields;
     if (Array.isArray(declared)) for (const f of declared) fields[f.key] = !!meta[f.key];
-    const connected = !!meta.access_token; // OAuth-connected
+    const connected = !!meta.access_token || (securesTokens(provider) && !!(secrets.get(provider) || {}).access_token); // OAuth-connected
     return {
         set: !!key || connected || Object.values(fields).some(Boolean),
         last4: key ? key.slice(-4) : null,
@@ -103,6 +132,14 @@ function handleProviders(req, res, urlParts, query) {
             if (sub === 'connect' && req.method === 'GET') return connectProvider(req, res, provider);
             if (sub === 'callback' && req.method === 'GET') return oauthCallback(req, res, provider, query);
             if (sub === 'disconnect' && req.method === 'POST') return disconnectProvider(res, provider);
+            // FREE: the signed-in account's credits and plan.
+            if (sub === 'account' && req.method === 'GET') {
+                const adapter = providers.get(provider);
+                if (typeof adapter.balance !== 'function') return json(res, 400, { error: `${provider} has no account to read`, provider });
+                return Promise.resolve(adapter.balance())
+                    .then(r => json(res, r.ok ? 200 : (r.status === 401 ? 401 : 502), { provider, ...r }))
+                    .catch(err => json(res, 502, { provider, ok: false, error: err.message }));
+            }
             if (sub === 'release-client' && req.method === 'POST') return releaseRegisteredClient(res, provider);
             if (sub === 'search' && req.method === 'GET') return sourceSearch(res, provider, query);
             if (sub === 'license' && req.method === 'POST') return sourceLicense(req, res, provider);
@@ -226,6 +263,7 @@ function setCredentials(req, res, provider) {
 
 function deleteCredentials(res, provider) {
     db.prepare('DELETE FROM film_provider_credentials WHERE provider = ?').run(provider);
+    if (securesTokens(provider)) { try { secrets.remove(provider); } catch (_) { /* nothing stored */ } }
     return json(res, 200, { provider, credentials: { set: false, last4: null } });
 }
 
@@ -442,7 +480,7 @@ async function connectProvider(req, res, provider) {
         const existing = getMeta(provider);
 
         let clientId = existing.client_id;
-        let clientSecret = existing.client_secret || '';
+        let clientSecret = fullMeta(provider).client_secret || '';
         if (!clientId) {
             if (!meta.registration_endpoint) {
                 return json(res, 400, { error: 'No dynamic registration endpoint. Paste an existing OAuth Client ID in Settings to connect.' });
@@ -456,13 +494,13 @@ async function connectProvider(req, res, provider) {
                 // 7592 management credentials, which are the only way to delete
                 // this client later and free the slot it occupies. Without them
                 // a capped account has no self-serve path back.
-                saveMeta(provider, {
+                saveMeta(provider, stashSecrets(provider, {
                     ...existing,
                     client_id: clientId,
                     client_secret: clientSecret,
                     registration_access_token: reg.registration_access_token || '',
                     registration_client_uri: reg.registration_client_uri || '',
-                });
+                }));
             } catch (regErr) {
                 if (/too_many_entities|reached the limit|\b403\b/.test(regErr.message)) {
                     return json(res, 409, {
@@ -481,8 +519,8 @@ async function connectProvider(req, res, provider) {
         const scope = Array.isArray(scopes) ? scopes.filter(s => s === 'openid' || s === 'offline_access').join(' ') : undefined;
         const authorizeUrl = oauth.buildAuthorizeUrl(meta, { clientId, redirectUri, challenge, state, scope, resource: meta.resource });
 
-        saveMeta(provider, {
-            ...existing,
+        saveMeta(provider, stashSecrets(provider, {
+            ...getMeta(provider),
             server_url: serverUrl,
             mcp_url: serverUrl,
             client_id: clientId,
@@ -495,7 +533,7 @@ async function connectProvider(req, res, provider) {
             _pkce_verifier: verifier,
             _oauth_state: state,
             _redirect_uri: redirectUri,
-        });
+        }));
 
         return json(res, 200, { authorize_url: authorizeUrl });
     } catch (err) {
@@ -507,7 +545,7 @@ async function oauthCallback(req, res, provider, query) {
     if (query.error) return html(res, 400, connectHtml(false, query.error_description || query.error));
     const code = query.code;
     const state = query.state;
-    const m = getMeta(provider);
+    const m = fullMeta(provider);
     if (!code) return html(res, 400, connectHtml(false, 'missing authorization code'));
     if (!m._oauth_state || state !== m._oauth_state) return html(res, 400, connectHtml(false, 'state mismatch — retry connect'));
 
@@ -525,14 +563,17 @@ async function oauthCallback(req, res, provider, query) {
         };
         delete clean._pkce_verifier;
         delete clean._oauth_state;
-        saveMeta(provider, clean);
+        try { saveMeta(provider, stashSecrets(provider, clean)); }
+        catch (err) { return html(res, 500, connectHtml(false, `signed in, but the sign-in could not be stored safely: ${err.message}`)); }
+        const adapterNow = providers.get(provider);
+        if (adapterNow && typeof adapterNow.reset === 'function') adapterNow.reset();
 
         // Best-effort: discover the provider's tool catalog so generation can map to it.
         const adapter = providers.get(provider);
         if (adapter && typeof adapter.listTools === 'function' && clean.access_token) {
             try {
                 const t = await adapter.listTools(clean.access_token);
-                if (t.ok) { clean.tools = (t.tools || []).map(x => ({ name: x.name })); saveMeta(provider, clean); }
+                if (t.ok) saveMeta(provider, { ...getMeta(provider), tools: (t.tools || []).map(x => ({ name: x.name })) });
             } catch (_) { /* non-fatal */ }
         }
 
@@ -544,6 +585,11 @@ async function oauthCallback(req, res, provider, query) {
 
 function disconnectProvider(res, provider) {
     db.prepare('DELETE FROM film_provider_credentials WHERE provider = ?').run(provider);
+    if (securesTokens(provider)) {
+        try { secrets.remove(provider); } catch (_) { /* nothing stored */ }
+        const a = providers.get(provider);
+        if (a && typeof a.reset === 'function') a.reset();
+    }
     return json(res, 200, { provider, credentials: credStatus(provider) });
 }
 
@@ -559,7 +605,7 @@ function disconnectProvider(res, provider) {
  * clients piling up.
  */
 async function releaseRegisteredClient(res, provider) {
-    const meta = getMeta(provider);
+    const meta = fullMeta(provider);
     if (!meta.client_id) {
         return json(res, 400, { error: 'No registered client is stored for this provider.' });
     }
@@ -579,8 +625,9 @@ async function releaseRegisteredClient(res, provider) {
 
     // Drop our copy only after the provider confirmed — otherwise a failed
     // delete would leave an orphaned client we can no longer address.
-    const { client_id, client_secret, registration_access_token, registration_client_uri, ...rest } = meta;
+    const { client_id, client_secret, registration_access_token, registration_client_uri, ...rest } = getMeta(provider);
     saveMeta(provider, rest);
+    if (securesTokens(provider)) { try { secrets.remove(provider); } catch (_) { /* nothing stored */ } }
 
     return json(res, 200, {
         provider,
