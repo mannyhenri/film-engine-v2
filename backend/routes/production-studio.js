@@ -10,6 +10,8 @@
  *   POST /film/projects/:id/production-studio/seedance-prompt   the final Seedance 2.5 prompt by ChatGPT, from the sheets,
  *        storyboard frames, dialogue (black-screen MP4) and the stored guide; writes the hand-off folder (lib/seedance-prompt.js).
  *        With { async: true }: 202 { job }, then GET …/seedance-prompt/jobs/:id → { job: { status, stage_label, elapsed_s, result } }
+ *   POST /film/projects/:id/production-studio/comfyui    make it on the ComfyUI PC: the same unit as seedance-prompt plus
+ *        { workflow, options, takes }; 202 { jobs }, each filed on the shot as a new video version when it is back (lib/comfyui-shot.js).
  *   POST /film/projects/:id/production-studio/send-to-resolve   write the Resolve package, open Resolve, import it
  *   GET|PUT|DELETE /film/projects/:id/production-studio/direction[/…]   the Direct studio's saved choices (free)
  *
@@ -228,6 +230,11 @@ async function handleProductionStudio(req, res, parts) {
         // { async: true } starts it as a job (202, then GET …/seedance-prompt/jobs/:id for the stage); else it answers when done.
         const sp = require('../lib/seedance-prompt');
         try { return body.async ? json(res, 202, { job: sp.startJob(projectId, body) }) : json(res, 200, await sp.writeSeedancePrompt(projectId, body)); }
+        catch (err) { return json(res, err.status || 500, { error: err.message }); }
+    }
+    if (sub === 'comfyui') {
+        // Make the unit on the ComfyUI PC: 202 { jobs, pictures, dialogue, note }; each job at GET /film/comfyui/jobs/:id.
+        try { return json(res, 202, await require('../lib/comfyui-shot').makeShot(projectId, body)); }
         catch (err) { return json(res, err.status || 500, { error: err.message }); }
     }
     if (sub === 'send-to-resolve') { const r = await sendToResolve(projectId); return json(res, r.status, r.body); }

@@ -189,7 +189,7 @@ const STAGES = { uploading: 'Sending the inputs', queued: 'Waiting on the PC', r
 const POLL_MS = () => Number(process.env.FILM_COMFYUI_POLL_MS) || 1500;
 
 function publicJob(j) {
-    const { values, done, cancelled, ...rest } = j;
+    const { values, done, cancelled, onDone, ...rest } = j;
     return { ...rest, stage_label: STAGES[j.status], elapsed_s: Math.round(((j.finished_at || Date.now()) - j.started_at) / 1000) };
 }
 
@@ -241,6 +241,11 @@ async function runJob(j) {
             fs.writeFileSync(dest, Buffer.from(await res.arrayBuffer()));
             j.outputs.push({ path: dest, name: path.basename(f.filename) });
         }
+        // What the caller does with the files (file them on a shot); its failure is the job's, said plainly.
+        if (j.onDone) {
+            try { j.filed = await j.onDone(j); }
+            catch (err) { throw httpError(500, `the video came back (${j.outputs.map(o => o.path).join(', ')}) but could not be added to the shot: ${err.message}`); }
+        }
         step('done');
     } catch (err) {
         j.status = 'failed';
@@ -250,9 +255,10 @@ async function runJob(j) {
     }
 }
 
-/** Queue one generation: { workflow, prompt?, seed?, options?, images?: [path|null], audio?: [path|null], shot_id? } */
-function startJob(body = {}) {
-    const j = { id: crypto.randomUUID(), workflow: String(body.workflow || ''), shot_id: body.shot_id || null, status: 'uploading',
+/** Queue one generation: { workflow, prompt?, seed?, options?, images?: [path|null], audio?: [path|null], shot_id? };
+ *  onDone(job) runs after the download, and what it answers is the job's `filed`. */
+function startJob(body = {}, { onDone = null, label = null } = {}) {
+    const j = { id: crypto.randomUUID(), workflow: String(body.workflow || ''), shot_id: body.shot_id || null, status: 'uploading', onDone, label, filed: null,
         values: { prompt: body.prompt, seed: Number.isInteger(body.seed) ? body.seed : undefined, options: body.options || {} },
         images: Array.isArray(body.images) ? body.images : [], audio: Array.isArray(body.audio) ? body.audio : [],
         outputs: [], error: null, prompt_id: null, position: null, started_at: Date.now(), finished_at: null };

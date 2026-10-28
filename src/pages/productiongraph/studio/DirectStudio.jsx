@@ -7,6 +7,7 @@ import {
     previsBehind, takePrevis, meetPrevis,
 } from './direct-model.js';
 import HiggsfieldCatalog from './HiggsfieldCatalog.jsx';
+import ComfyPanel from './ComfyPanel.jsx';
 import { mergePrompt } from './prompt-merge.js';
 
 /*
@@ -469,6 +470,7 @@ export default function DirectStudio({ pid, graph, catalog, reload }) {
      * MP4, with the working prompt as it stands and the stored Seedance guide. It lands on its own tab, so the working
      * prompt stays as it is, and in a hand-off folder named by the labels the prompt binds.
      */
+    const onPc = studio.genOn === 'pc';   // Generate on the ComfyUI PC (ComfyPanel) instead of the Higgsfield hand-over
     const optimized = (studio.optimized || {})[optKey] || null;
     // The dialogue recording for this clip, when the director has one (the scene's whole take, say): where this clip starts in it.
     const dialogueFile = (studio.dialogue || {})[optKey] || null;
@@ -483,25 +485,33 @@ export default function DirectStudio({ pid, graph, catalog, reload }) {
         : finalText;
     const optDur = optCodes.reduce((a, id) => a + S[id].dur, 0);
     const optRefs = optCodes.length === promptCodes.length ? references : collectReferences(optCodes.map(id => starters[id]).filter(Boolean)).references;
-    const optChars = [...new Set(optCodes.flatMap(id => [...S[id].lines.map(l => l.ch), ...Object.keys(S[id].perf || {})]))];
     let promptSha = 0; for (let i = 0; i < optText.length; i++) promptSha = (promptSha * 31 + optText.charCodeAt(i)) | 0;   // no hook: below the early returns
+    /*
+     * The unit a generation is made from, as the server gathers it (lib/seedance-prompt.js gather): the shots and
+     * their lines, the cast, locations and props, each shot's storyboard frame, the chosen dialogue recording.
+     * Optimize sends it to ChatGPT; "My PC" sends it to ComfyUI (lib/comfyui-shot.js).
+     */
+    const castId = ch => castList.find(x => castKey(x.name) === ch)?.id;
+    const frameOf = r => [r?.init_image, r?.image_url, Array.isArray(r?.keyframes) ? r.keyframes[0] : null].find(f => f && f.asset_id)?.asset_id;
+    const unitBody = (codes, text, refs, dur) => {
+        const chars = [...new Set(codes.flatMap(id => [...S[id].lines.map(l => l.ch), ...Object.keys(S[id].perf || {})]))];
+        return {
+            label: codes.map(label).join('+'), prompt: text, duration_s: dur, aspect: studio.aspect,
+            shots: codes.map(id => ({ shot_id: id, code: label(id), offset_s: codes.length > 1 ? offsets[id] - offsets[codes[0]] : 0,
+                lines: S[id].lines.map((l, index) => ({ index, t: l.t, ch: l.ch, name: nameOf(l.ch), text: l.text })) })),
+            character_ids: chars.map(castId).filter(Boolean),
+            location_ids: [...new Set(refs.map(r => r.location_id).filter(Boolean))],
+            prop_ids: [...new Set(refs.map(r => r.prop_id).filter(Boolean))],
+            storyboard_asset_ids: codes.map(id => frameOf(starters[id])).filter(Boolean),
+            ...(dialogueFile ? { dialogue_file: { path: dialogueFile.path, from_s: dialogueFile.from_s || 0 } } : {}),
+        };
+    };
     const optimize = async () => {
         if (!optText.trim() || optJobId) return;
         setBusy('optimize'); patchUi({ promptTab: 'optimized' });
-        const castId = ch => castList.find(x => castKey(x.name) === ch)?.id;
-        const frameOf = r => [r?.init_image, r?.image_url, Array.isArray(r?.keyframes) ? r.keyframes[0] : null].find(f => f && f.asset_id)?.asset_id;
         try {
             const out = await legacy.api(`/projects/${pid}/production-studio/seedance-prompt`, { method: 'POST', refresh: false, body: JSON.stringify({
-                label: optCodes.map(label).join('+'), prompt: optText, duration_s: optDur, aspect: studio.aspect,
-                model_label: facts?.label,
-                shots: optCodes.map(id => ({ shot_id: id, code: label(id), offset_s: optCodes.length > 1 ? offsets[id] - offsets[optCodes[0]] : 0,
-                    lines: S[id].lines.map((l, index) => ({ index, t: l.t, ch: l.ch, name: nameOf(l.ch), text: l.text })) })),
-                character_ids: optChars.map(castId).filter(Boolean),
-                location_ids: [...new Set(optRefs.map(r => r.location_id).filter(Boolean))],
-                prop_ids: [...new Set(optRefs.map(r => r.prop_id).filter(Boolean))],
-                storyboard_asset_ids: optCodes.map(id => frameOf(starters[id])).filter(Boolean),
-                ...(dialogueFile ? { dialogue_file: { path: dialogueFile.path, from_s: dialogueFile.from_s || 0 } } : {}),
-                async: true,
+                ...unitBody(optCodes, optText, optRefs, optDur), model_label: facts?.label, async: true,
             }) });
             setOptJob(out.job);
             setSt({ optimizing: { ...(studio.optimizing || {}), [optKey]: { id: out.job.id, from: promptSha } } }, { quiet: true });
@@ -759,7 +769,16 @@ export default function DirectStudio({ pid, graph, catalog, reload }) {
                 </div>}
 
                 <div className="ds-gen">
-                    {compiled && <>
+                    {compiled && <div className="ds-seg cf-where" role="group" aria-label="Where to make it">
+                        <button type="button" className={onPc ? '' : 'on'} aria-pressed={!onPc} onClick={() => setSt({ genOn: 'hf' }, { quiet: true })}>Higgsfield</button>
+                        <button type="button" className={onPc ? 'on' : ''} aria-pressed={onPc} onClick={() => setSt({ genOn: 'pc' }, { quiet: true })}>My PC</button>
+                    </div>}
+                    {compiled && onPc && <ComfyPanel pid={pid} codeLabel={promptCodes.map(label).join('+')} dur={unitDur}
+                        unit={() => unitBody(promptCodes, finalText, references, unitDur)}
+                        names={[...new Set([...promptCodes.flatMap(id => S[id].lines.map(l => nameOf(l.ch))), ...references.filter(r => r.location_id).map(r => r.name)].filter(Boolean))]}
+                        hasFrame={promptCodes.some(id => frameOf(starters[id]))} lineCount={promptCodes.reduce((a, id) => a + S[id].lines.length, 0)}
+                        dialogueName={dialogueFile ? dialogueFile.path.split('/').pop() : ''} onFiled={reload} onUseHiggsfield={() => setSt({ genOn: 'hf' }, { quiet: true })} />}
+                    {compiled && !onPc && <>
                         <div className="ds-row"><h3>Generate</h3><span className="ds-mono">{facts ? facts.label : 'Pick a model'}{studio.resolution ? ' · ' + studio.resolution : ''} · {studio.aspect}</span></div>
                         {k !== 'seq' && cards4.length > 0 && <div className="ds-chips">{modelChips}</div>}
                         {ck.map((c, i) => (
