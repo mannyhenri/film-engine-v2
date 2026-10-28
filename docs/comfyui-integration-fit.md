@@ -31,6 +31,16 @@ Verification of confer 609bedc0 (confer f53c0d64, 2026-10-28). Film Engine is `f
   - `ffmpeg-stdin` flagged 4 new calls without `-nostdin` (`lib/comfyui-shot.js` and its test). They are fixed, and that test now lists only older calls.
 - PC side, as reported: `validate_workflow.py` PASS (39 nodes), `test_apply_manifest.py` PASS, `test_fixtures.py` PASS 3/3.
 
+## Re-verified (confer dbfde0d2, 19:10)
+
+Run on Film Engine `ee5d00f` and the PC's `a0bc52f`:
+- **Contract files:** all 9 PC files at `a0bc52f` (the workflow, the manifest, `CONTRACT.md` and the 6 golden-case files) are byte-identical to `backend/tests/fixtures/comfyui/`, so the contract hasn't moved since `d6ca197`. The deployed `.fe.json` on the PC is byte-identical too.
+- **Live PC:** `listWorkflows()` shows `storyboard_shot_to_video` as ready with no problems; draft `{aspect 0, duration 0, quality 0, color 0}`.
+- **Film Engine's ComfyUI tests:** `node --test tests/comfyui-contract.test.js tests/comfyui.test.js tests/comfyui-shot.test.js`: 23 pass, 0 fail.
+- **Studio screen tests:** `npx vitest run src/pages/productiongraph/studio/`: 5 files, 71 tests pass.
+- **`ffmpeg-stdin`:** lists no ComfyUI calls.
+- **Row 9:** the real 1B take (`d1f33564`) was still generating at 19:10, so filing a real take is still not proven.
+
 ## Blocked and never resolved
 
 - **The PC agent's outbound messaging.** There is no `~/.neoncore/token` on the PC, so it answered through `STATUS.md` and its transcript the whole time. Its done signals used the LAN API without auth.
