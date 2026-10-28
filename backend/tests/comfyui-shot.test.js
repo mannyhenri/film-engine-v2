@@ -73,7 +73,7 @@ const MANIFEST = { name: 'Storyboard shot to video', kind: 'video', workflow: 's
     outputs: { node: '92' } };
 
 function fakeComfy() {
-    const state = { uploads: [], prompts: [] };
+    const state = { uploads: [], prompts: [], hold: false, release: [] };
     const history = {};
     const server = http.createServer((req, res) => {
         const u = new URL(req.url, 'http://x');
@@ -94,11 +94,12 @@ function fakeComfy() {
             if (u.pathname === '/prompt') {
                 const id = `p${state.prompts.length + 1}`;
                 state.prompts.push(JSON.parse(body.toString()).prompt);
-                setTimeout(() => { history[id] = { status: { status_str: 'success', completed: true }, outputs: { 92: { images: [{ filename: `shot_${id}.mp4`, subfolder: '', type: 'output' }] } } }; }, 30);
+                const finishIt = () => { history[id] = { status: { status_str: 'success', completed: true }, outputs: { 92: { images: [{ filename: `shot_${id}.mp4`, subfolder: '', type: 'output' }] } } }; };
+                if (state.hold) state.release.push(finishIt); else setTimeout(finishIt, 30);
                 return send(200, { prompt_id: id, node_errors: {} });
             }
             if (u.pathname.startsWith('/history/')) { const id = u.pathname.split('/')[2]; return send(200, history[id] ? { [id]: history[id] } : {}); }
-            if (u.pathname === '/queue') return send(200, { queue_running: [], queue_pending: [] });
+            if (u.pathname === '/queue') return send(200, { queue_running: state.prompts.map((_, i) => `p${i + 1}`).filter(id => !history[id] && !state.hold).map(id => [0, id]), queue_pending: state.hold ? state.prompts.map((_, i) => [i, `p${i + 1}`]) : [] });
             if (u.pathname === '/view') return send(200, Buffer.from('MP4 ' + u.searchParams.get('filename')), 'video/mp4');
             return send(404, {});
         });
@@ -129,6 +130,8 @@ test('two takes: frame in slot 1, dialogue as WAV, each filed on the shot as the
         assert.match(sent[301].inputs.image, /storyboard frame\.png$/);
         assert.match(sent[401].inputs.audio, /\.wav$/);
         assert.ok(state.uploads.some(u => u.name.endsWith('.wav') && u.wav), 'a real WAV was uploaded');
+        assert.strictEqual(state.uploads.length, 3, 'frame, sheet and WAV sent once for both takes');
+        assert.strictEqual(state.prompts[0][301].inputs.image, state.prompts[1][301].inputs.image, 'both takes read the same upload');
         assert.match(sent[138].inputs.value, /^June sets the cup down\.\n\n<Picture 1> is the storyboard frame of shot 1A/);
         assert.match(sent[138].inputs.value, /<Audio 1>/);
         assert.notStrictEqual(state.prompts[0][129].inputs.noise_seed, state.prompts[1][129].inputs.noise_seed, 'each take its own seed');
@@ -150,4 +153,62 @@ test('without dialogue no audio is sent; a missing workflow or a foreign shot is
         await assert.rejects(shotLib.makeShot(projectId, BODY({ shots: [{ shot_id: generateId(), code: 'X', lines: [] }] })), /not in this project/);
         await assert.rejects(shotLib.makeShot(projectId, BODY({ workflow: '' })), /pick a workflow/);
     } finally { server.close(); }
+});
+
+const probeSecs = f => Number(execFileSync('ffprobe', ['-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', f]).toString().trim());
+
+test('the dialogue is cut to the Duration chosen, not the shot, and lines past it are named', { skip: !haveFfmpeg && 'no ffmpeg' }, async () => {
+    const { server } = await fakeComfy();
+    try {
+        assert.strictEqual(shotLib.chosenSeconds(MANIFEST, { duration: '8 s' }), 8);
+        assert.strictEqual(shotLib.chosenSeconds(MANIFEST, {}), 5, 'the workflow default when nothing is picked');
+        const lines = [{ index: 0, t: 1, ch: 'JUNE', name: 'June', text: 'Late again.' }, { index: 1, t: 6.5, ch: 'JUNE', name: 'June', text: 'Again.' }];
+        const out = await shotLib.makeShot(projectId, BODY({ duration_s: 18, options: { duration: '5 s' }, shots: [{ shot_id: shotId, code: '1A', offset_s: 0, lines }] }));
+        assert.strictEqual(out.length_s, 5);
+        assert.match(out.note, /1 line starts after 5 s, past the Duration chosen/);
+        const dir = path.join(process.env.FILM_DATA_DIR, 'comfyui', 'inputs');
+        const newest = fs.readdirSync(dir).sort().pop();
+        const wav = fs.readdirSync(path.join(dir, newest)).find(f => f.endsWith('.wav'));
+        assert.ok(Math.abs(probeSecs(path.join(dir, newest, wav)) - 5) < 0.1, 'the WAV is 5 s');
+        await comfy._jobs.get(out.jobs[0].id).done;
+    } finally { server.close(); }
+});
+
+test('Film Engine restarting mid-render: the take is followed again and filed when it lands', { skip: !haveFfmpeg && 'no ffmpeg' }, async () => {
+    const { server, state } = await fakeComfy();
+    state.hold = true;
+    try {
+        const before = versions().length;
+        const out = await shotLib.makeShot(projectId, BODY({ takes: 1 }));
+        const id = out.jobs[0].id;
+        while (!comfy._jobs.get(id).prompt_id) await new Promise(r => setTimeout(r, 10));
+        await new Promise(r => setTimeout(r, 60));
+        // "Restart": this process forgets the job; only what was written down survives.
+        comfy._jobs.get(id).detached = true;
+        comfy._jobs.delete(id);
+        state.hold = false;
+        state.release.splice(0).forEach(f => f());
+        assert.strictEqual(comfy.resumeJobs(), 1);
+        const j = await comfy._jobs.get(id).done.then(() => comfy.getJob(id));
+        assert.strictEqual(j.status, 'done', j.error);
+        assert.strictEqual(versions().length, before + 1, 'filed on the shot after the restart');
+        assert.strictEqual(comfy.resumeJobs(), 0, 'a finished take is not resumed again');
+    } finally { server.close(); }
+});
+
+test('the storyboard frame always makes it in, however many sheets there are', { skip: !haveFfmpeg && 'no ffmpeg' }, async () => {
+    const { gather } = require('../lib/seedance-prompt');
+    const props = [];
+    for (let i = 0; i < 14; i++) {
+        const id = generateId();
+        db.prepare('INSERT INTO film_props (id, project_id, name) VALUES (?, ?, ?)').run(id, projectId, `PROP ${i}`);
+        asset({ prop_id: id }, 'reference_image', pic(`prop${i}.png`, 32, 32, 'white'), { view: 'front' });
+        props.push(id);
+    }
+    const folder = path.join(process.env.FILM_DATA_DIR, 'gather-cap'); fs.mkdirSync(folder, { recursive: true });
+    const mats = await gather(projectId, { ...BODY(), prop_ids: props, shots: [] }, folder);
+    const imgs = mats.filter(m => m.kind === 'image');
+    assert.strictEqual(imgs.length, 12, 'still capped');
+    assert.ok(imgs.some(m => m.role === 'storyboard frame'), 'the frame kept its place');
+    assert.strictEqual(shotLib.slotOrder(mats)[0].role, 'storyboard frame');
 });

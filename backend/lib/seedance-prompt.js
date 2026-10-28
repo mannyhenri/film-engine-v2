@@ -105,8 +105,11 @@ async function gather(projectId, body, folder) {
     if (!ff || !ff.available) throw httpError(500, 'ffmpeg is needed to make the reference sheets');
     const materials = [];
     let n = 0;
+    // The storyboard frames are gathered last but always fit: the sheets stop short of the cap by as many frames.
+    const frames = new Set((body.storyboard_asset_ids || []).filter(Boolean).map(String)).size;
     const add = async (role, name, files, about) => {
-        if (!files.length || materials.filter(m => m.kind === 'image').length >= MAX_IMAGES) return;
+        const cap = role === 'storyboard frame' ? MAX_IMAGES : MAX_IMAGES - frames;
+        if (!files.length || materials.filter(m => m.kind === 'image').length >= cap) return;
         n++;
         const label = `@Image ${materials.filter(m => m.kind === 'image').length + 1}`;
         const file = path.join(folder, `${String(n).padStart(2, '0')} ${label} - ${safe(name)} ${role}.png`);

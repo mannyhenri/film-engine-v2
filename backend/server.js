@@ -1555,6 +1555,9 @@ function start() {
         console.log('          /film/*/lipsync, /film/*/music, /film/*/sfx, /film/*/post,');
         console.log('          /film/*/pipeline, /film/*/qa, /film/*/audio/mix, /film/*/schedule,');
         console.log('          /film/audio/*, /film/video/*, /film/music/*, /film/*/refsheet');
+        // Takes still rendering on the ComfyUI PC when Film Engine last closed: followed again and filed when they land.
+        try { const n = require('./lib/comfyui').resumeJobs(); if (n) console.log(`  ComfyUI: following ${n} take${n === 1 ? '' : 's'} still on the PC`); }
+        catch (err) { console.error('ComfyUI takes could not be resumed:', err.message); }
     });
 }
 

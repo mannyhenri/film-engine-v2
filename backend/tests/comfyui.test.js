@@ -117,7 +117,7 @@ function fakeComfy({ fail = false } = {}) {
         req.on('end', () => {
             body = Buffer.concat(body);
             if (u.pathname === '/system_stats') return send(200, { system: { comfyui_version: '0.43.1' }, devices: [{ name: 'cuda:0 NVIDIA', vram_total: 24e9, vram_free: 20e9 }] });
-            if (u.pathname === '/queue' && req.method === 'GET') return send(200, { queue_running: [], queue_pending: [] });
+            if (u.pathname === '/queue' && req.method === 'GET') return send(200, { queue_running: state.prompts.map((_, i) => `p${i + 1}`).filter(id => !state.history[id]).map(id => [0, id]), queue_pending: [] });
             if (u.pathname === '/userdata') return u.searchParams.get('dir') === 'workflows/film-engine' ? send(200, Object.keys(files)) : send(404, {});
             if (u.pathname.startsWith('/userdata/')) {
                 const f = decodeURIComponent(u.pathname.slice('/userdata/'.length)).replace('workflows/film-engine/', '');
@@ -169,17 +169,18 @@ test('status, workflow list, and a full job: upload, queue, wait, download', asy
         assert.strictEqual(broken.ready, false);
         assert.match(broken.problems.join(), /node 777/);
 
-        const frame = path.join(TMP, '4C.png'); fs.writeFileSync(frame, 'png');
-        const wav = path.join(TMP, '4C dialogue.wav'); fs.writeFileSync(wav, 'wav');
+        const own = path.join(process.env.FILM_DATA_DIR, 'comfyui-test'); fs.mkdirSync(own, { recursive: true });
+        const frame = path.join(own, '4C.png'); fs.writeFileSync(frame, 'png');
+        const wav = path.join(own, '4C dialogue.wav'); fs.writeFileSync(wav, 'wav');
         const start = await route('POST', '/film/comfyui/jobs', { workflow: 'storyboard_shot_to_video', prompt: 'Mara slaps Dev', seed: 7,
             options: { aspect: '2.39:1 (1152x480)', duration: '8 s' }, images: [frame], audio: [wav] });
         assert.strictEqual(start.code, 202);
         const job = await finish(start.body.job.id);
         assert.strictEqual(job.status, 'done', job.error);
-        assert.deepStrictEqual(state.uploads, ['4C.png', '4C dialogue.wav']);
+        assert.deepStrictEqual(state.uploads.map(n => n.replace(/^[0-9a-f]{12}-/, '')), ['4C.png', '4C dialogue.wav'], 'named by a hash of the bytes, then the file name');
         const sent = state.prompts[0];
-        assert.strictEqual(sent[301].inputs.image, 'film-engine/4C.png');
-        assert.strictEqual(sent[401].inputs.audio, 'film-engine/4C dialogue.wav');
+        assert.strictEqual(sent[301].inputs.image, `film-engine/${state.uploads[0]}`);
+        assert.strictEqual(sent[401].inputs.audio, `film-engine/${state.uploads[1]}`);
         assert.ok(!sent[302] && !sent[402], 'unfilled slots removed');
         assert.deepStrictEqual([sent[200].inputs.choice, sent[200].inputs.index, sent[210].inputs.index], ['2.39:1 (1152x480)', 3, 1]);
         assert.strictEqual(job.outputs.length, 1);
@@ -248,4 +249,152 @@ test('step progress comes over the WebSocket: step N of M and the time left, onl
         await comfy._jobs.get(job.id).done;
         assert.strictEqual(comfy.getJob(job.id).status, 'done');
     } finally { wss.close(); server.close(); }
+});
+
+/* ---------- the review's fixes (confer critique) ---------- */
+
+/*
+ * A scriptable PC: `history(id, n)` answers the nth /history poll (null = not done, 'down' = unreachable),
+ * `queue(id, n)` the nth /queue ('running' | 'pending' | 'gone'). Records uploads and interrupts.
+ */
+function scriptedPC({ history, queue = () => 'running', ws = null } = {}) {
+    const st = { uploads: [], interrupts: 0, polls: 0, qpolls: 0, deleted: [] };
+    const server = http.createServer((req, res) => {
+        const u = new URL(req.url, 'http://x');
+        const send = (code, data, type = 'application/json') => { res.writeHead(code, { 'Content-Type': type }); res.end(type === 'application/json' ? JSON.stringify(data) : data); };
+        const chunks = []; req.on('data', c => chunks.push(c));
+        req.on('end', () => {
+            const body = Buffer.concat(chunks);
+            if (u.pathname.startsWith('/userdata/')) return send(200, decodeURIComponent(u.pathname).endsWith('.fe.json') ? MANIFEST : graph());
+            if (u.pathname === '/upload/image') { const name = /filename="([^"]+)"/.exec(body.toString('latin1'))[1]; st.uploads.push(name); return send(200, { name, subfolder: 'film-engine' }); }
+            if (u.pathname === '/prompt') { if (ws) ws.onPrompt(JSON.parse(body.toString()).client_id); return send(200, { prompt_id: 'q1', node_errors: {} }); }
+            if (u.pathname === '/history/q1') {
+                const r = history(st.polls++);
+                if (r === 'down') { res.destroy(); return; }
+                return send(200, r === 'done' ? { q1: { status: { completed: true }, outputs: { 92: { images: [{ filename: 'out.mp4', type: 'output' }] } } } } : {});
+            }
+            if (u.pathname === '/queue' && req.method === 'GET') {
+                const q = queue(st.qpolls++);
+                return send(200, { queue_running: q === 'running' ? [[0, 'q1']] : q === 'other' ? [[0, 'someone-else']] : [], queue_pending: q === 'pending' ? [[1, 'q1']] : [] });
+            }
+            if (u.pathname === '/queue' && req.method === 'POST') { st.deleted.push(...(JSON.parse(body.toString()).delete || [])); return send(200, {}); }
+            if (u.pathname === '/interrupt') { st.interrupts++; return send(200, {}); }
+            if (u.pathname === '/view') return send(200, Buffer.from('MP4'), 'video/mp4');
+            return send(404, {});
+        });
+    });
+    return new Promise(r => server.listen(0, '127.0.0.1', () => { process.env.FILM_COMFYUI_URL = `http://127.0.0.1:${server.address().port}`; r({ server, st }); }));
+}
+const ownFile = (name, bytes) => { const d = path.join(process.env.FILM_DATA_DIR, 'comfyui-test'); fs.mkdirSync(d, { recursive: true }); const f = path.join(d, name); fs.writeFileSync(f, bytes); return f; };
+const settle = async id => { await comfy._jobs.get(id).done; return comfy.getJob(id); };
+
+test('a file outside the projects and the data folder is never sent to the PC', async () => {
+    const { server, st } = await scriptedPC({ history: () => 'done' });
+    try {
+        const outside = path.join(TMP, 'not-a-project-file.png'); fs.writeFileSync(outside, 'secret');
+        const j = await settle(comfy.startJob({ workflow: 'storyboard_shot_to_video', images: [outside], audio: [] }).id);
+        assert.strictEqual(j.status, 'failed');
+        assert.match(j.error, /only project files go to the PC/);
+        assert.deepStrictEqual(st.uploads, []);
+    } finally { server.close(); }
+});
+
+test('upload names come from the bytes: two different files never share a name, the same bytes upload once', async () => {
+    const { server, st } = await scriptedPC({ history: () => 'done' });
+    try {
+        comfy._sent.clear();
+        const a = ownFile('sheet.png', 'AAAA'), b = path.join(path.dirname(a), 'sub'); fs.mkdirSync(b, { recursive: true });
+        const b2 = path.join(b, 'sheet.png'); fs.writeFileSync(b2, 'BBBB');   // same file name, other bytes: another shot's sheet
+        const a2 = ownFile('copy-of-sheet.png', 'AAAA');                    // same bytes, other name
+        const names = [await comfy.upload(a), await comfy.upload(b2), await comfy.upload(a2)];
+        assert.notStrictEqual(names[0], names[1], 'same name, different bytes: different names on the PC');
+        assert.strictEqual(names[0], names[2], 'same bytes: the name already on the PC');
+        assert.strictEqual(st.uploads.length, 2, 'the same bytes are sent once');
+    } finally { server.close(); }
+});
+
+test('the PC out of reach for a moment does not fail a take; out of reach past the grace period does', async () => {
+    let r = await scriptedPC({ history: n => (n < 4 ? 'down' : n < 6 ? null : 'done') });
+    try {
+        const j = await settle(comfy.startJob({ workflow: 'storyboard_shot_to_video', images: [], audio: [] }).id);
+        assert.strictEqual(j.status, 'done', j.error);
+    } finally { r.server.close(); }
+    process.env.FILM_COMFYUI_GRACE_MS = '150';
+    r = await scriptedPC({ history: () => 'down' });
+    try {
+        const j = await settle(comfy.startJob({ workflow: 'storyboard_shot_to_video', images: [], audio: [] }).id);
+        assert.strictEqual(j.status, 'failed');
+        assert.match(j.error, /lost contact with the PC/);
+    } finally { r.server.close(); delete process.env.FILM_COMFYUI_GRACE_MS; }
+});
+
+test('a take the PC forgot (in neither history nor queue) fails instead of waiting forever', async () => {
+    const { server } = await scriptedPC({ history: () => null, queue: n => (n < 2 ? 'pending' : 'gone') });
+    try {
+        const j = await settle(comfy.startJob({ workflow: 'storyboard_shot_to_video', images: [], audio: [] }).id);
+        assert.strictEqual(j.status, 'failed');
+        assert.match(j.error, /no longer has this take/);
+    } finally { server.close(); }
+});
+
+test('Stop interrupts the PC only when it is running THIS take', async () => {
+    for (const [who, interrupts] of [['other', 0], ['running', 1]]) {
+        let done = false;
+        const { server, st } = await scriptedPC({ history: () => (done ? 'done' : null), queue: () => who });
+        try {
+            const id = comfy.startJob({ workflow: 'storyboard_shot_to_video', images: [], audio: [] }).id;
+            while (!comfy._jobs.get(id).prompt_id) await new Promise(r => setTimeout(r, 10));
+            await comfy.cancelJob(id);
+            done = true;
+            await comfy._jobs.get(id).done;
+            assert.strictEqual(st.interrupts, interrupts, `PC running ${who}`);
+            assert.deepStrictEqual(st.deleted, ['q1']);
+        } finally { server.close(); }
+    }
+});
+
+test('a dropped progress socket is opened again while the take runs', async () => {
+    const { WebSocketServer } = require('ws');
+    let conns = 0, done = false;
+    const socks = new Map();
+    const wsHooks = { onPrompt: id => setTimeout(() => {
+        const s = socks.get(id);
+        s.send(JSON.stringify({ type: 'progress', data: { prompt_id: 'q1', value: 1, max: 4, node: '13' } }));
+        s.close();   // the drop
+    }, 10) };
+    const { server } = await scriptedPC({ history: () => (done ? 'done' : null), ws: wsHooks });
+    const wss = new WebSocketServer({ server, path: '/ws' });
+    wss.on('connection', (s, req) => {
+        conns++;
+        const id = new URL(req.url, 'http://x').searchParams.get('clientId');
+        socks.set(id, s);
+        if (conns === 2) setTimeout(() => s.send(JSON.stringify({ type: 'progress', data: { prompt_id: 'q1', value: 3, max: 4, node: '13' } })), 10);
+    });
+    try {
+        const id = comfy.startJob({ workflow: 'storyboard_shot_to_video', images: [], audio: [] }).id;
+        for (let i = 0; i < 300 && comfy.getJob(id).progress?.value !== 3; i++) await new Promise(r => setTimeout(r, 20));
+        assert.strictEqual(conns, 2, 'connected again after the drop');
+        assert.strictEqual(comfy.getJob(id).progress.value, 3);
+        done = true;
+        assert.strictEqual((await settle(id)).status, 'done');
+    } finally { wss.close(); server.close(); }
+});
+
+test('with ref_wiring, references follow the manifest slot order for every subset, whatever the graph numbering', () => {
+    // The storyboard loader wired LAST in the graph but first in the manifest: the manifest wins.
+    const g0 = graph();
+    const order = ['306', '301', '302', '303', '304', '305'];
+    for (const k of Object.keys(g0[136].inputs)) if (k.startsWith('ref_images.')) delete g0[136].inputs[k];
+    g0[306] = { class_type: 'LoadImage', inputs: { image: 'sb.png' } };
+    ['301', '302', '303', '304', '305', '306'].forEach((id, i) => { g0[136].inputs[`ref_images.ref_image_${i}`] = [id, 0]; });
+    const m = { ...MANIFEST, core_node: '136', ref_wiring: { images: { core_input_prefix: 'ref_images.ref_image_' }, audio: { core_input_prefix: 'ref_audios.ref_audio_' } },
+        images: order.map(node => ({ node, input: 'image' })) };
+    for (let mask = 1; mask < 64; mask++) {
+        const given = order.map((_, i) => (mask & (1 << i) ? `x${i}` : null));
+        const g = comfy.buildPrompt(m, g0, { images: given, audio: [] });
+        const refs = Object.keys(g[136].inputs).filter(k => k.startsWith('ref_images.')).sort((a, b) => Number(a.split('_').pop()) - Number(b.split('_').pop()));
+        assert.deepStrictEqual(refs.map(k => g[136].inputs[k][0]), order.filter((_, i) => given[i]), `mask ${mask}`);
+        assert.deepStrictEqual(refs.map(k => Number(k.split('_').pop())), refs.map((_, i) => i));
+        assert.strictEqual(g[136].inputs.ref_image_size === undefined || typeof g[136].inputs.ref_image_size === 'string', true);
+    }
 });

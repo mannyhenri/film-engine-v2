@@ -30,6 +30,16 @@ function run(bin, args) {
     });
 }
 
+/** The Duration option's seconds ("8 s" -> 8), when the workflow has one. */
+function chosenSeconds(manifest, options) {
+    const o = (manifest.options || []).find(x => x.type === 'enum' && /duration|length/i.test(`${x.id} ${x.label || ''}`));
+    if (!o) return null;
+    const v = options[o.id] === undefined ? o.default : options[o.id];
+    const c = (o.choices || []).find(x => (typeof x === 'object' ? x.label === v || x.index === v : x === v));
+    const m = /^(\d+(?:\.\d+)?)\s*s$/.exec(String(typeof c === 'object' ? c?.label : c || '').trim());
+    return m ? Number(m[1]) : null;
+}
+
 /** The pictures in slot order: storyboard frames first, then the sheets as gathered. */
 function slotOrder(materials) {
     const imgs = materials.filter(m => m.kind === 'image');
@@ -78,7 +88,12 @@ async function makeShot(projectId, body = {}) {
 
     const folder = path.join(DATA_DIR, 'comfyui', 'inputs', `${Date.now()}-${crypto.randomBytes(3).toString('hex')}`);
     fs.mkdirSync(folder, { recursive: true });
-    const materials = await gather(projectId, body.no_dialogue ? { ...body, shots: (body.shots || []).map(s => ({ ...s, lines: [] })), dialogue_file: null } : body, folder);
+    // The video is as long as the Duration chosen, not the shot: the dialogue is cut to the same length.
+    const chosen = chosenSeconds(manifest, body.options || {});
+    const length = chosen || Number(body.duration_s) || 5;
+    const late = (body.no_dialogue ? [] : body.shots || []).flatMap(s => (s.lines || []).filter(l => Number(s.offset_s || 0) + Number(l.t || 0) >= length));
+    const unit = { ...body, duration_s: length };
+    const materials = await gather(projectId, body.no_dialogue ? { ...unit, shots: (body.shots || []).map(s => ({ ...s, lines: [] })), dialogue_file: null } : unit, folder);
     const pictures = slotOrder(materials).slice(0, (manifest.images || []).length);
     const video = materials.find(m => m.kind === 'video');
     let dialogue = null;
@@ -88,20 +103,26 @@ async function makeShot(projectId, body = {}) {
         dialogue = { file: wav, cues: video.cues || [], source: video.source };
     }
     const prompt = [String(body.prompt || '').trim(), promptKey(pictures, dialogue)].filter(Boolean).join('\n\n');
+    // Sent once for every take (the names start with a hash of the bytes, so a sheet already on the PC is not sent again).
+    const images = [];
+    for (const m of pictures) images.push(await comfy.upload(m.file));
+    const audio = dialogue ? [await comfy.upload(dialogue.file)] : [];
     const jobs = [];
     for (let t = 0; t < takes; t++) {
         const seed = crypto.randomInt(0, 2 ** 47);
         const meta = { label: body.label, workflow: body.workflow, seed, options: body.options || {} };
-        jobs.push(comfy.startJob({ workflow: body.workflow, prompt, seed, options: body.options || {}, shot_id: shotId,
-            images: pictures.map(m => m.file), audio: dialogue ? [dialogue.file] : [] },
-            { label: `Take ${t + 1}`, onDone: j => fileTake(projectId, shotId, j.outputs[0].path, { ...meta, prompt_id: j.prompt_id }) }));
+        jobs.push(comfy.startJob({ workflow: body.workflow, prompt, seed, options: body.options || {}, shot_id: shotId, images, audio },
+            { label: `Take ${t + 1}`, uploaded: true, fileOn: { project_id: projectId, shot_id: shotId, meta } }));
     }
+    const notes = [];
+    if (!dialogue && (manifest.audio || []).length && !body.no_dialogue) notes.push('No recorded dialogue was found for this shot, so the video is made without it.');
+    if (late.length) notes.push(`${late.length} line${late.length === 1 ? ' starts' : 's start'} after ${length} s, past the Duration chosen, so ${late.length === 1 ? 'it is' : 'they are'} left out.`);
     return {
-        jobs,
+        jobs, length_s: length,
         pictures: pictures.map((m, i) => ({ slot: i + 1, role: m.role, name: m.name })),
-        dialogue: dialogue ? { source: dialogue.source, lines: dialogue.cues.length } : null,
-        note: !dialogue && (manifest.audio || []).length && !body.no_dialogue ? 'No recorded dialogue was found for this shot, so the video is made without it.' : null,
+        dialogue: dialogue ? { source: dialogue.source, lines: dialogue.cues.length - late.length } : null,
+        note: notes.join(' ') || null,
     };
 }
 
-module.exports = { makeShot, slotOrder, promptKey, fileTake };
+module.exports = { makeShot, slotOrder, promptKey, fileTake, chosenSeconds };
