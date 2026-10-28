@@ -1,0 +1,23 @@
+{
+ "prompt": "all six refs + three dialogue tracks.",
+ "seed": 42,
+ "images": [
+  "sb.png",
+  "c1.png",
+  "c2.png",
+  "loc.png",
+  "p1.png",
+  "p2.png"
+ ],
+ "audio": [
+  "d1.wav",
+  "d2.wav",
+  "d3.wav"
+ ],
+ "options": {
+  "aspect": 2,
+  "duration": 2,
+  "quality": 1,
+  "color": 1
+ }
+}

@@ -1,0 +1,64 @@
+{
+  "name": "Storyboard shot to video (draft 480p)",
+  "kind": "video",
+  "engine": "comfyui",
+  "workflow": "storyboard_shot_to_video.api.json",
+  "core_node": "136",
+  "ref_wiring": {
+    "images": { "core_input_prefix": "ref_images.ref_image_" },
+    "audio":  { "core_input_prefix": "ref_audios.ref_audio_" }
+  },
+  "prompt": { "node": "138", "input": "value" },
+  "seed": { "node": "129", "input": "noise_seed" },
+  "images": [
+    { "slot": 0, "node": "306", "input": "image", "role": "storyboard", "label": "Storyboard shot", "tag": "<Picture 1>" },
+    { "slot": 1, "node": "301", "input": "image", "role": "reference", "label": "Character 1", "tag": "<Picture 2>" },
+    { "slot": 2, "node": "302", "input": "image", "role": "reference", "label": "Character 2", "tag": "<Picture 3>" },
+    { "slot": 3, "node": "303", "input": "image", "role": "reference", "label": "Location", "tag": "<Picture 4>" },
+    { "slot": 4, "node": "304", "input": "image", "role": "reference", "label": "Prop", "tag": "<Picture 5>" },
+    { "slot": 5, "node": "305", "input": "image", "role": "reference", "label": "Prop 2", "tag": "<Picture 6>" }
+  ],
+  "audio": [
+    { "slot": 0, "node": "311", "input": "audio", "role": "dialogue", "label": "Dialogue / voice 1", "tag": "<Audio 1>" },
+    { "slot": 1, "node": "312", "input": "audio", "role": "dialogue", "label": "Dialogue / voice 2", "tag": "<Audio 2>" },
+    { "slot": 2, "node": "313", "input": "audio", "role": "dialogue", "label": "Dialogue / voice 3", "tag": "<Audio 3>" }
+  ],
+  "slot_rule": "Provide files in PACKED order (storyboard first, no gaps). Map the k provided files onto the first k slot loaders in order, remove unused loaders, and wire ref_images.ref_image_0..k-1 / ref_audios.ref_audio_0..k-1 contiguously. Tags are POSITIONAL: <Picture N> == ref_image_(N-1) and <Audio N> == ref_audio_(N-1), numbered by provided order. The per-slot 'tag'/'role'/'label' fields below are the defaults WHEN slots are filled in order and drive the UI; the client MUST number the prompt tags by final provided order (see scripts/apply_manifest.py).",
+  "options": [
+    { "id": "aspect", "label": "Aspect ratio", "node": "200", "input": "choice", "type": "enum", "index": true,
+      "choices": [
+        { "label": "16:9 (864x480)", "index": 0 },
+        { "label": "9:16 (480x864)", "index": 1 },
+        { "label": "1:1 (480x480)", "index": 2 },
+        { "label": "2.39:1 (1152x480)", "index": 3 }
+      ], "default": 0 },
+    { "id": "duration", "label": "Duration", "node": "210", "input": "choice", "type": "enum", "index": true,
+      "choices": [
+        { "label": "5 s", "index": 0 },
+        { "label": "8 s", "index": 1 },
+        { "label": "10 s", "index": 2 },
+        { "label": "15 s", "index": 3 }
+      ], "default": 0 },
+    { "id": "quality", "label": "Quality", "node": "220", "input": "choice", "type": "enum", "index": true,
+      "choices": [
+        { "label": "Turbo 4-step (draft)", "index": 0 },
+        { "label": "Full 20-step (final)", "index": 1 }
+      ], "default": 0 },
+    { "id": "color", "label": "Color", "node": "230", "input": "choice", "type": "enum", "index": true,
+      "choices": [
+        { "label": "SDR (standard)", "index": 0 },
+        { "label": "HDR (HLG, 10-bit)", "index": 1 }
+      ], "default": 0 }
+  ],
+  "combo_write_rule": "A CustomCombo must have BOTH its 'choice' (label string) and 'index' (int) inputs set; downstream ComfyMathExpression nodes read the combo's index (output slot 1). Setting only the string leaves the index stale.",
+  "draft": { "aspect": 0, "duration": 0, "quality": 0, "color": 0 },
+  "derived": {
+    "note": "width/height/frames/steps/turbo/hdr/fps are NOT settable; derived from the dropdowns (fps hard-coded 24).",
+    "width_height_from": "aspect",
+    "frames_from": "duration",
+    "steps_and_turbo_from": "quality",
+    "hdr_from": "color",
+    "fps": 24
+  },
+  "outputs": { "node": "92", "class_type": "SaveVideo", "filename_prefix": "ComfyUI Videos/shot" }
+}

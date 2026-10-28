@@ -22,7 +22,7 @@ function httpError(status, message) { return Object.assign(new Error(message), {
 
 function run(bin, args) {
     return new Promise((resolve, reject) => {
-        const p = spawn(bin, args, { stdio: ['ignore', 'ignore', 'pipe'] });
+        const p = spawn(bin, ['-nostdin', ...args], { stdio: ['ignore', 'ignore', 'pipe'] });
         let err = '';
         p.stderr.on('data', d => { err += d; });
         p.on('error', reject);

@@ -1,0 +1,18 @@
+{
+ "prompt": "<Picture 1> storyboard; <Picture 2> is JUNE; <Picture 3> is the diner. <Audio 1> dialogue.",
+ "seed": 777,
+ "images": [
+  "sb.png",
+  "june.png",
+  "diner.png"
+ ],
+ "audio": [
+  "june_line.wav"
+ ],
+ "options": {
+  "aspect": 0,
+  "duration": 1,
+  "quality": 0,
+  "color": 0
+ }
+}

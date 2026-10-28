@@ -101,7 +101,8 @@ async function listWorkflows() {
                 prompt: !!manifest.prompt, seed: !!manifest.seed,
                 images: (manifest.images || []).map(r => ({ role: r.role || 'reference' })),
                 audio: (manifest.audio || []).map(r => ({ role: r.role || 'audio' })),
-                options: (manifest.options || []).map(({ node, input, index, ...o }) => o) });
+                options: (manifest.options || []).map(({ node, input, index, ...o }) => o),
+                draft: manifest.draft || null });
         } catch (err) {
             out.push({ slug, name: slug, ready: false, problems: [err.message], images: [], audio: [], options: [] });
         }

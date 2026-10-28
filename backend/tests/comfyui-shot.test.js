@@ -34,8 +34,8 @@ db.prepare('INSERT INTO film_locations (id, project_id, name) VALUES (?, ?, ?)')
 db.prepare('INSERT INTO film_scenes (id, project_id, scene_number) VALUES (?, ?, 1)').run(sceneId, projectId);
 db.prepare('INSERT INTO film_shots (id, scene_id, shot_code) VALUES (?, ?, ?)').run(shotId, sceneId, '1A');
 
-const pic = (name, w, h, color) => { const f = path.join(TMP, name); if (haveFfmpeg) execFileSync(ff.bin, ['-v', 'error', '-y', '-f', 'lavfi', '-i', `color=c=${color}:s=${w}x${h}`, '-frames:v', '1', f]); return f; };
-const tone = (name, secs) => { const f = path.join(TMP, name); if (haveFfmpeg) execFileSync(ff.bin, ['-v', 'error', '-y', '-f', 'lavfi', '-i', `sine=f=440:d=${secs}`, f]); return f; };
+const pic = (name, w, h, color) => { const f = path.join(TMP, name); if (haveFfmpeg) execFileSync(ff.bin, ['-nostdin', '-v', 'error', '-y', '-f', 'lavfi', '-i', `color=c=${color}:s=${w}x${h}`, '-frames:v', '1', f], { stdio: ['ignore', 'pipe', 'pipe'] }); return f; };
+const tone = (name, secs) => { const f = path.join(TMP, name); if (haveFfmpeg) execFileSync(ff.bin, ['-nostdin', '-v', 'error', '-y', '-f', 'lavfi', '-i', `sine=f=440:d=${secs}`, f], { stdio: ['ignore', 'pipe', 'pipe'] }); return f; };
 const asset = (cols, type, file, meta = {}) => {
     const id = generateId();
     const names = Object.keys(cols);
@@ -155,7 +155,13 @@ test('without dialogue no audio is sent; a missing workflow or a foreign shot is
     } finally { server.close(); }
 });
 
-const probeSecs = f => Number(execFileSync('ffprobe', ['-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', f]).toString().trim());
+// A WAV's length from its own header (byte rate, then the data chunk), so no extra process is spawned.
+const probeSecs = f => {
+    const b = fs.readFileSync(f);
+    const byteRate = b.readUInt32LE(28);
+    for (let i = 12; i < b.length - 8;) { const id = b.toString('ascii', i, i + 4), size = b.readUInt32LE(i + 4); if (id === 'data') return size / byteRate; i += 8 + size; }
+    return NaN;
+};
 
 test('the dialogue is cut to the Duration chosen, not the shot, and lines past it are named', { skip: !haveFfmpeg && 'no ffmpeg' }, async () => {
     const { server } = await fakeComfy();

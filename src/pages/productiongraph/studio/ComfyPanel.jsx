@@ -21,15 +21,18 @@ export function stageText(j) {
 }
 const secondsIn = s => { const m = /^(\d+(?:\.\d+)?)\s*s$/.exec(String(s).trim()); return m ? Number(m[1]) : null; };
 
-/** The starting choice for each option: the length that covers the shot, else the workflow's own default. */
-export function defaultChoices(options, dur) {
+/**
+ * The starting choice for each option: the workflow's own draft preset (its manifest's "draft"), else the option's
+ * default. A draft is short on purpose (the PC's 5 s turbo draft already takes about half an hour); when that is
+ * shorter than the shot, the Length hint says so, and a longer length is one click away.
+ */
+export function defaultChoices(options, draft) {
     const out = {};
     for (const o of options || []) {
         if (o.type !== 'enum') continue;
         const labels = (o.choices || []).map(labelOf);
-        const lens = labels.map(secondsIn);
-        if (lens.every(n => n !== null) && dur) out[o.id] = labels[lens.findIndex(n => n >= dur)] ?? labels[labels.length - 1];
-        else out[o.id] = labels[typeof o.default === 'number' ? o.default : Math.max(0, labels.indexOf(o.default))] ?? labels[0];
+        const want = draft && draft[o.id] !== undefined ? draft[o.id] : o.default;
+        out[o.id] = labels[typeof want === 'number' ? want : Math.max(0, labels.indexOf(want))] ?? labels[0];
     }
     return out;
 }
@@ -66,7 +69,7 @@ export default function ComfyPanel({ pid, unit, codeLabel, dur, names, hasFrame,
     useEffect(() => { check(); }, [check]);
 
     const wf = (workflows || []).find(w => w.slug === slug) || null;
-    useEffect(() => { if (wf) setChoices(defaultChoices(wf.options, dur)); }, [slug, workflows, dur]); // eslint-disable-line react-hooks/exhaustive-deps
+    useEffect(() => { if (wf) setChoices(defaultChoices(wf.options, wf.draft)); }, [slug, workflows]); // eslint-disable-line react-hooks/exhaustive-deps
 
     // Follow the takes until each is back (or failed); a filed take reloads Direct so it plays in the preview.
     const live = run && (run.jobs || []).some(j => !['done', 'failed'].includes(j.status));

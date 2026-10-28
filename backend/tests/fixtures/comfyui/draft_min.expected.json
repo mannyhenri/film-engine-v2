@@ -1,0 +1,453 @@
+{
+ "127": {
+  "class_type": "UNETLoader",
+  "inputs": {
+   "unet_name": "minimax_h3_ref2va_pruned_int8_convrot.safetensors",
+   "weight_dtype": "default"
+  },
+  "_meta": {
+   "title": "UNETLoader"
+  }
+ },
+ "145": {
+  "class_type": "LoraLoaderModelOnly",
+  "inputs": {
+   "lora_name": "minimax_h3_ref2v_turbo_4step_v0.1_comfyui_bf16.safetensors",
+   "strength_model": 1,
+   "model": [
+    "127",
+    0
+   ]
+  },
+  "_meta": {
+   "title": "LoraLoaderModelOnly"
+  }
+ },
+ "128": {
+  "class_type": "CLIPLoader",
+  "inputs": {
+   "clip_name": "qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors",
+   "type": "minimax",
+   "device": "default"
+  },
+  "_meta": {
+   "title": "CLIPLoader"
+  }
+ },
+ "119": {
+  "class_type": "VAELoader",
+  "inputs": {
+   "vae_name": "minimax_h3_video_vae_int8_convrot.safetensors"
+  },
+  "_meta": {
+   "title": "VAELoader"
+  }
+ },
+ "120": {
+  "class_type": "VAELoader",
+  "inputs": {
+   "vae_name": "minimax_h3_audio_vae_fp32.safetensors"
+  },
+  "_meta": {
+   "title": "VAELoader"
+  }
+ },
+ "200": {
+  "class_type": "CustomCombo",
+  "inputs": {
+   "choice": "16:9 (864x480)",
+   "index": 0
+  },
+  "_meta": {
+   "title": "Aspect ratio (480p)"
+  }
+ },
+ "210": {
+  "class_type": "CustomCombo",
+  "inputs": {
+   "choice": "5 s",
+   "index": 0
+  },
+  "_meta": {
+   "title": "Duration"
+  }
+ },
+ "220": {
+  "class_type": "CustomCombo",
+  "inputs": {
+   "choice": "Turbo 4-step (draft)",
+   "index": 0
+  },
+  "_meta": {
+   "title": "Quality"
+  }
+ },
+ "230": {
+  "class_type": "CustomCombo",
+  "inputs": {
+   "choice": "SDR (standard)",
+   "index": 0
+  },
+  "_meta": {
+   "title": "Color"
+  }
+ },
+ "131": {
+  "class_type": "ComfyMathExpression",
+  "inputs": {
+   "expression": "124 if a == 0 else (192 if a == 1 else (243 if a == 2 else 362))",
+   "values.a": [
+    "210",
+    1
+   ]
+  },
+  "_meta": {
+   "title": "Frames"
+  }
+ },
+ "201": {
+  "class_type": "ComfyMathExpression",
+  "inputs": {
+   "expression": "864 if a == 0 else (480 if a == 1 else (480 if a == 2 else 1152))",
+   "values.a": [
+    "200",
+    1
+   ]
+  },
+  "_meta": {
+   "title": "Width"
+  }
+ },
+ "202": {
+  "class_type": "ComfyMathExpression",
+  "inputs": {
+   "expression": "480 if a == 0 else (864 if a == 1 else 480)",
+   "values.a": [
+    "200",
+    1
+   ]
+  },
+  "_meta": {
+   "title": "Height"
+  }
+ },
+ "221": {
+  "class_type": "ComfyMathExpression",
+  "inputs": {
+   "expression": "4 if a == 0 else 20",
+   "values.a": [
+    "220",
+    1
+   ]
+  },
+  "_meta": {
+   "title": "Steps"
+  }
+ },
+ "222": {
+  "class_type": "ComfyMathExpression",
+  "inputs": {
+   "expression": "a == 0",
+   "values.a": [
+    "220",
+    1
+   ]
+  },
+  "_meta": {
+   "title": "Turbo flag"
+  }
+ },
+ "231": {
+  "class_type": "ComfyMathExpression",
+  "inputs": {
+   "expression": "a == 1",
+   "values.a": [
+    "230",
+    1
+   ]
+  },
+  "_meta": {
+   "title": "HDR flag"
+  }
+ },
+ "141": {
+  "class_type": "ComfySwitchNode",
+  "inputs": {
+   "on_false": [
+    "127",
+    0
+   ],
+   "on_true": [
+    "145",
+    0
+   ],
+   "switch": [
+    "222",
+    2
+   ]
+  },
+  "_meta": {
+   "title": "Switch: turbo LoRA"
+  }
+ },
+ "136": {
+  "class_type": "MiniMaxH3ReferenceToVideo",
+  "inputs": {
+   "ref_image_size": "match",
+   "clip": [
+    "128",
+    0
+   ],
+   "vae": [
+    "119",
+    0
+   ],
+   "audio_vae": [
+    "120",
+    0
+   ],
+   "prompt": [
+    "138",
+    0
+   ],
+   "width": [
+    "201",
+    1
+   ],
+   "height": [
+    "202",
+    1
+   ],
+   "length": [
+    "131",
+    1
+   ],
+   "ref_images.ref_image_0": [
+    "306",
+    0
+   ]
+  },
+  "_meta": {
+   "title": "MiniMaxH3ReferenceToVideo"
+  }
+ },
+ "129": {
+  "class_type": "RandomNoise",
+  "inputs": {
+   "noise_seed": 1
+  },
+  "_meta": {
+   "title": "RandomNoise"
+  }
+ },
+ "123": {
+  "class_type": "KSamplerSelect",
+  "inputs": {
+   "sampler_name": "res_multistep"
+  },
+  "_meta": {
+   "title": "KSamplerSelect"
+  }
+ },
+ "124": {
+  "class_type": "BasicScheduler",
+  "inputs": {
+   "scheduler": "beta",
+   "denoise": 1,
+   "model": [
+    "141",
+    0
+   ],
+   "steps": [
+    "221",
+    1
+   ]
+  },
+  "_meta": {
+   "title": "BasicScheduler"
+  }
+ },
+ "126": {
+  "class_type": "BasicGuider",
+  "inputs": {
+   "model": [
+    "141",
+    0
+   ],
+   "conditioning": [
+    "136",
+    0
+   ]
+  },
+  "_meta": {
+   "title": "BasicGuider"
+  }
+ },
+ "125": {
+  "class_type": "SamplerCustomAdvanced",
+  "inputs": {
+   "noise": [
+    "129",
+    0
+   ],
+   "guider": [
+    "126",
+    0
+   ],
+   "sampler": [
+    "123",
+    0
+   ],
+   "sigmas": [
+    "124",
+    0
+   ],
+   "latent_image": [
+    "136",
+    1
+   ]
+  },
+  "_meta": {
+   "title": "SamplerCustomAdvanced"
+  }
+ },
+ "122": {
+  "class_type": "VAEDecode",
+  "inputs": {
+   "samples": [
+    "125",
+    0
+   ],
+   "vae": [
+    "119",
+    0
+   ]
+  },
+  "_meta": {
+   "title": "VAEDecode"
+  }
+ },
+ "121": {
+  "class_type": "VAEDecodeAudio",
+  "inputs": {
+   "samples": [
+    "125",
+    0
+   ],
+   "vae": [
+    "120",
+    0
+   ]
+  },
+  "_meta": {
+   "title": "VAEDecodeAudio"
+  }
+ },
+ "130": {
+  "class_type": "CreateVideo",
+  "inputs": {
+   "fps": 24,
+   "bit_depth": 8,
+   "color_space": "sRGB",
+   "codec": "none",
+   "images": [
+    "122",
+    0
+   ],
+   "audio": [
+    "121",
+    0
+   ]
+  },
+  "_meta": {
+   "title": "Create Video (SDR)"
+  }
+ },
+ "232": {
+  "class_type": "ImageSDRToHDR",
+  "inputs": {
+   "algorithm": "lottes",
+   "algorithm.target_luminance": 650,
+   "image": [
+    "122",
+    0
+   ]
+  },
+  "_meta": {
+   "title": "ImageSDRToHDR"
+  }
+ },
+ "233": {
+  "class_type": "CreateVideo",
+  "inputs": {
+   "fps": 24,
+   "bit_depth": 10,
+   "color_space": "HDR",
+   "codec": "auto",
+   "images": [
+    "232",
+    0
+   ],
+   "audio": [
+    "121",
+    0
+   ]
+  },
+  "_meta": {
+   "title": "Create Video (HDR)"
+  }
+ },
+ "234": {
+  "class_type": "ComfySwitchNode",
+  "inputs": {
+   "on_false": [
+    "130",
+    0
+   ],
+   "on_true": [
+    "233",
+    0
+   ],
+   "switch": [
+    "231",
+    2
+   ]
+  },
+  "_meta": {
+   "title": "Switch: SDR / HDR"
+  }
+ },
+ "92": {
+  "class_type": "SaveVideo",
+  "inputs": {
+   "filename_prefix": "ComfyUI Videos/shot",
+   "format": "auto",
+   "video": [
+    "234",
+    0
+   ],
+   "format.codec": "auto"
+  },
+  "_meta": {
+   "title": "SaveVideo"
+  }
+ },
+ "138": {
+  "class_type": "PrimitiveStringMultiline",
+  "inputs": {
+   "value": "<Picture 1> is the storyboard frame: hold the composition; slow push-in."
+  },
+  "_meta": {
+   "title": "PROMPT (tag refs as <Picture N> / <Audio N>)"
+  }
+ },
+ "306": {
+  "class_type": "LoadImage",
+  "inputs": {
+   "image": "sb.png"
+  },
+  "_meta": {
+   "title": "Picture: Storyboard shot"
+  }
+ }
+}

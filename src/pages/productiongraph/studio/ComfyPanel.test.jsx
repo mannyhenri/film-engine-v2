@@ -15,7 +15,7 @@ const OPTIONS = [
     enumOpt('quality', 'Quality', ['Turbo 4-step (draft)', 'Full 20-step (final)']),
     enumOpt('color', 'Color', ['SDR (standard)', 'HDR (HLG, 10-bit)']),
 ];
-const WF = { slug: 'storyboard_shot_to_video', name: 'Storyboard shot to video (draft 480p)', kind: 'video', ready: true, problems: [], options: OPTIONS };
+const WF = { slug: 'storyboard_shot_to_video', name: 'Storyboard shot to video (draft 480p)', kind: 'video', ready: true, problems: [], options: OPTIONS, draft: { aspect: 0, duration: 0, quality: 0, color: 0 } };
 const flush = () => act(async () => { for (let i = 0; i < 10; i++) await Promise.resolve(); });
 
 let posted, onFiled;
@@ -55,9 +55,10 @@ describe('ComfyPanel', () => {
         expect(timeLeft(7200)).toBe('about 2.0 h left');
     });
 
-    it('starts on the length that covers the shot, and the workflow default for the rest', () => {
-        expect(defaultChoices(OPTIONS, 6)).toEqual({ aspect: '16:9 (864x480)', duration: '8 s', quality: 'Turbo 4-step (draft)', color: 'SDR (standard)' });
-        expect(defaultChoices(OPTIONS, 20).duration).toBe('15 s');
+    it('starts on the workflow\'s draft preset (the PC\'s 5 s turbo draft), else each option\'s default', () => {
+        expect(defaultChoices(OPTIONS, { aspect: 0, duration: 0, quality: 0, color: 0 })).toEqual({ aspect: '16:9 (864x480)', duration: '5 s', quality: 'Turbo 4-step (draft)', color: 'SDR (standard)' });
+        expect(defaultChoices(OPTIONS, { duration: 2 }).duration).toBe('10 s');
+        expect(defaultChoices(OPTIONS, null).duration).toBe('5 s');
     });
 
     it('every choice of every option is a button, and each one picked reaches the request', async () => {
@@ -82,9 +83,9 @@ describe('ComfyPanel', () => {
         await flush();
         expect(screen.getByText('Starts from the storyboard frame of 1A')).toBeTruthy();
         expect(screen.getByText(/Dialogue: 1 line, spoken and lip-synced/)).toBeTruthy();
-        expect(screen.getByText('The shot is 6 s. Trim the extra in Cut.')).toBeTruthy();
-        fireEvent.click(within(screen.getByRole('group', { name: 'Duration' })).getByRole('button', { name: /^5 s/ }));
         expect(screen.getByText('The shot is 6 s, so the last 1 s will be missing.')).toBeTruthy();
+        fireEvent.click(within(screen.getByRole('group', { name: 'Duration' })).getByRole('button', { name: /^8 s/ }));
+        expect(screen.getByText('The shot is 6 s. Trim the extra in Cut.')).toBeTruthy();
     });
 
     it('the PC not answering is said plainly, with a way out', async () => {

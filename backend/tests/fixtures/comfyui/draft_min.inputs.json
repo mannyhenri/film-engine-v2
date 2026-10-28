@@ -1,0 +1,14 @@
+{
+ "prompt": "<Picture 1> is the storyboard frame: hold the composition; slow push-in.",
+ "seed": 1,
+ "images": [
+  "sb.png"
+ ],
+ "audio": [],
+ "options": {
+  "aspect": 0,
+  "duration": 0,
+  "quality": 0,
+  "color": 0
+ }
+}
