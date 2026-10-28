@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, fireEvent, act, screen, cleanup, within } from '@testing-library/react';
 import { installLegacy } from '../../../test/setup.js';
-import ComfyPanel, { splitLabel, defaultChoices } from './ComfyPanel.jsx';
+import ComfyPanel, { splitLabel, defaultChoices, stageText, timeLeft } from './ComfyPanel.jsx';
 
 /*
  * Direct › Generate › My PC against the options the PC's workflow really lists (storyboard_shot_to_video.fe.json,
@@ -37,6 +37,22 @@ describe('ComfyPanel', () => {
     it('splits a choice into what you pick by and the detail under it', () => {
         expect(splitLabel('16:9 (864x480)')).toEqual(['16:9', '864x480']);
         expect(splitLabel('5 s')).toEqual(['5 s', '']);
+    });
+
+    it('says where every take is, in plain words, for every state the server reports', () => {
+        const cases = [
+            [{ status: 'uploading', stage_label: 'Sending the inputs' }, 'Sending the inputs'],
+            [{ status: 'queued', stage_label: 'Waiting on the PC', position: 1 }, 'Waiting on the PC'],
+            [{ status: 'queued', stage_label: 'Waiting on the PC', position: 3 }, 'Waiting on the PC · 2 ahead'],
+            [{ status: 'running', stage_label: 'Generating' }, 'Generating'],
+            [{ status: 'running', stage_label: 'Generating', progress: { value: 1, max: 4, eta_s: 3284 } }, 'Step 1 of 4 · about 55 min left'],
+            [{ status: 'running', stage_label: 'Generating', progress: { value: 3, max: 4, eta_s: 40 } }, 'Step 3 of 4 · under 2 min left'],
+            [{ status: 'running', stage_label: 'Generating', progress: { value: 0, max: 4, eta_s: null } }, 'Step 0 of 4'],
+            [{ status: 'downloading', stage_label: 'Bringing it back' }, 'Bringing it back'],
+            [{ status: 'failed', stage_label: 'Failed' }, 'Failed'],
+        ];
+        for (const [job, text] of cases) expect(stageText(job)).toBe(text);
+        expect(timeLeft(7200)).toBe('about 2.0 h left');
     });
 
     it('starts on the length that covers the shot, and the workflow default for the rest', () => {

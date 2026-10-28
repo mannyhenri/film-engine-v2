@@ -203,3 +203,49 @@ test('a ComfyUI execution error and an unreachable PC fail with the reason', asy
     const bad = await route('POST', '/film/comfyui/jobs', {});
     assert.strictEqual(bad.code, 400);
 });
+
+test('step progress comes over the WebSocket: step N of M and the time left, only for this job', async () => {
+    const { WebSocketServer } = require('ws');
+    const sockets = new Map();
+    const server = http.createServer((req, res) => {
+        const u = new URL(req.url, 'http://x');
+        const send = (code, data, type = 'application/json') => { res.writeHead(code, { 'Content-Type': type }); res.end(type === 'application/json' ? JSON.stringify(data) : data); };
+        const chunks = []; req.on('data', c => chunks.push(c));
+        req.on('end', () => {
+            if (u.pathname.startsWith('/userdata/')) return send(200, decodeURIComponent(u.pathname).endsWith('.fe.json') ? MANIFEST : graph());
+            if (u.pathname === '/prompt') {
+                const body = JSON.parse(Buffer.concat(chunks).toString());
+                const ws = sockets.get(body.client_id);
+                const say = (type, data) => ws && ws.send(JSON.stringify({ type, data: { prompt_id: 'pp', ...data } }));
+                setTimeout(() => {
+                    say('execution_start', {});
+                    ws.send(JSON.stringify({ type: 'progress', data: { prompt_id: 'someone-else', value: 9, max: 9, node: '1' } }));
+                    say('progress', { value: 1, max: 4, node: '13' });
+                    setTimeout(() => say('progress', { value: 2, max: 4, node: '13' }), 60);
+                }, 10);
+                return send(200, { prompt_id: 'pp', node_errors: {} });
+            }
+            if (u.pathname === '/history/pp') return send(200, state.finished ? { pp: { status: { completed: true }, outputs: { 92: { images: [{ filename: 'a.mp4', type: 'output' }] } } } } : {});
+            if (u.pathname === '/queue') return send(200, { queue_running: [[0, 'pp']], queue_pending: [] });
+            if (u.pathname === '/view') return send(200, Buffer.from('MP4'), 'video/mp4');
+            return send(404, {});
+        });
+    });
+    const state = { finished: false };
+    const wss = new WebSocketServer({ server, path: '/ws' });
+    wss.on('connection', (ws, req) => sockets.set(new URL(req.url, 'http://x').searchParams.get('clientId'), ws));
+    await new Promise(r => server.listen(0, '127.0.0.1', r));
+    process.env.FILM_COMFYUI_URL = `http://127.0.0.1:${server.address().port}`;
+    try {
+        const job = comfy.startJob({ workflow: 'storyboard_shot_to_video', images: [], audio: [] });
+        let seen = null;
+        for (let i = 0; i < 100 && !(seen && seen.progress && seen.progress.value === 2); i++) { await new Promise(r => setTimeout(r, 20)); seen = comfy.getJob(job.id); }
+        assert.strictEqual(seen.status, 'running');
+        assert.deepStrictEqual([seen.progress.value, seen.progress.max, seen.progress.node], [2, 4, '13'], 'another prompt\'s progress is ignored');
+        assert.ok(Number.isInteger(seen.progress.eta_s) && seen.progress.eta_s >= 0, 'time left from the step timing');
+        assert.ok(!('socket' in seen), 'the socket stays on the server');
+        state.finished = true;
+        await comfy._jobs.get(job.id).done;
+        assert.strictEqual(comfy.getJob(job.id).status, 'done');
+    } finally { wss.close(); server.close(); }
+});

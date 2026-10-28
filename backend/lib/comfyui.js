@@ -189,7 +189,7 @@ const STAGES = { uploading: 'Sending the inputs', queued: 'Waiting on the PC', r
 const POLL_MS = () => Number(process.env.FILM_COMFYUI_POLL_MS) || 1500;
 
 function publicJob(j) {
-    const { values, done, cancelled, onDone, ...rest } = j;
+    const { values, done, cancelled, onDone, socket, sampler_started, ...rest } = j;
     return { ...rest, stage_label: STAGES[j.status], elapsed_s: Math.round(((j.finished_at || Date.now()) - j.started_at) / 1000) };
 }
 
@@ -208,6 +208,7 @@ async function runJob(j) {
         for (const f of j.images) images.push(f ? await upload(f) : null);
         for (const f of j.audio) audio.push(f ? await upload(f) : null);
         const prompt = buildPrompt(manifest, graph, { ...j.values, images, audio });
+        j.socket = listen(j);
         const q = await call('/prompt', { method: 'POST', body: JSON.stringify({ prompt, client_id: j.id }), timeout: 30000 });
         if (q.node_errors && Object.keys(q.node_errors).length) throw httpError(422, `ComfyUI refused the workflow: ${JSON.stringify(q.node_errors).slice(0, 400)}`);
         j.prompt_id = q.prompt_id;
@@ -222,7 +223,7 @@ async function runJob(j) {
                 const queue = await call('/queue').catch(() => null);
                 const running = (queue?.queue_running || []).some(x => x[1] === j.prompt_id);
                 j.position = running ? 0 : (queue?.queue_pending || []).findIndex(x => x[1] === j.prompt_id) + 1 || null;
-                if (running) step('running');
+                if (running && j.status === 'queued') step('running');
             }
         }
         if (entry.status?.status_str === 'error') {
@@ -252,7 +253,36 @@ async function runJob(j) {
         j.error = err.message;
     } finally {
         j.finished_at = Date.now();
+        try { j.socket && j.socket.close(); } catch (_) { /* already closed */ }
     }
+}
+
+/*
+ * Progress, from ComfyUI's WebSocket (the HTTP API has none): which node runs, and the sampler's step N of M.
+ * A draft on a slow card takes over an hour, so the page shows the step and the time left, not just "Generating".
+ * The time left is the average step so far times the steps to go, for the sampler that is running now.
+ */
+function listen(j) {
+    if (typeof WebSocket !== 'function') return null;   // older Node: the job still runs, without step progress
+    let ws;
+    try { ws = new WebSocket(`${baseUrl().replace(/^http/, 'ws')}/ws?clientId=${encodeURIComponent(j.id)}`); }
+    catch (_) { return null; }
+    ws.onmessage = ev => {
+        let m; try { m = JSON.parse(typeof ev.data === 'string' ? ev.data : ''); } catch (_) { return; }
+        const d = m && m.data;
+        if (!d || (j.prompt_id && d.prompt_id && d.prompt_id !== j.prompt_id)) return;
+        if (m.type === 'executing' && d.node) j.node = String(d.node);
+        if (m.type === 'execution_start') { j.status = 'running'; j.position = 0; }
+        if (m.type === 'progress' && Number.isFinite(d.value) && Number.isFinite(d.max)) {
+            const now = Date.now();
+            if (!j.progress || j.progress.max !== d.max || d.value < j.progress.value || String(d.node) !== j.progress.node) j.sampler_started = now;
+            const done = d.value, per = done > 0 ? (now - j.sampler_started) / done : null;
+            j.progress = { value: done, max: d.max, node: String(d.node), eta_s: per ? Math.round(per * (d.max - done) / 1000) : null };
+            j.status = 'running';
+        }
+    };
+    ws.onerror = () => {};
+    return ws;
 }
 
 /** Queue one generation: { workflow, prompt?, seed?, options?, images?: [path|null], audio?: [path|null], shot_id? };
@@ -261,7 +291,7 @@ function startJob(body = {}, { onDone = null, label = null } = {}) {
     const j = { id: crypto.randomUUID(), workflow: String(body.workflow || ''), shot_id: body.shot_id || null, status: 'uploading', onDone, label, filed: null,
         values: { prompt: body.prompt, seed: Number.isInteger(body.seed) ? body.seed : undefined, options: body.options || {} },
         images: Array.isArray(body.images) ? body.images : [], audio: Array.isArray(body.audio) ? body.audio : [],
-        outputs: [], error: null, prompt_id: null, position: null, started_at: Date.now(), finished_at: null };
+        outputs: [], error: null, prompt_id: null, position: null, progress: null, node: null, started_at: Date.now(), finished_at: null };
     if (!j.workflow) throw httpError(400, 'pick a workflow');
     jobs.set(j.id, j);
     j.done = runJob(j);

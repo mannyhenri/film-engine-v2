@@ -10,6 +10,15 @@ import { legacy } from '../../../lib/legacy.js';
 // "16:9 (864x480)" -> ["16:9", "864x480"]: the part people pick by, and the detail under it.
 export const splitLabel = s => { const m = /^(.*?)\s*\((.+)\)\s*$/.exec(String(s)); return m ? [m[1], m[2]] : [String(s), '']; };
 const labelOf = c => (typeof c === 'object' ? c.label : c);
+// "about 55 min left": the time a take still needs, from the PC's own step timing.
+export const timeLeft = s => (!Number.isFinite(s) ? '' : s < 90 ? 'under 2 min left' : s < 5400 ? `about ${Math.round(s / 60)} min left` : `about ${(s / 3600).toFixed(1)} h left`);
+/** What a running take says under its picture. */
+export function stageText(j) {
+    if (j.status === 'failed') return 'Failed';
+    if (j.status === 'running' && j.progress) return `Step ${j.progress.value} of ${j.progress.max}${j.progress.eta_s != null ? ' · ' + timeLeft(j.progress.eta_s) : ''}`;
+    if (j.status === 'queued' && j.position > 1) return `${j.stage_label} · ${j.position - 1} ahead`;
+    return j.stage_label;
+}
 const secondsIn = s => { const m = /^(\d+(?:\.\d+)?)\s*s$/.exec(String(s).trim()); return m ? Number(m[1]) : null; };
 
 /** The starting choice for each option: the length that covers the shot, else the workflow's own default. */
@@ -122,10 +131,10 @@ export default function ComfyPanel({ pid, unit, codeLabel, dur, names, hasFrame,
                     <div key={j.id} className="cf-take">
                         {j.status === 'done' && j.filed?.url
                             ? <video className="cf-video" src={j.filed.url} controls preload="metadata" />
-                            : <div className="cf-video ph"><span>{j.status === 'failed' ? 'Failed' : j.stage_label}{j.status === 'queued' && j.position > 1 ? ` · ${j.position - 1} ahead` : ''}</span></div>}
+                            : <div className="cf-video ph"><span>{stageText(j)}</span></div>}
                         <div className="cf-row between">
                             <b>{j.label || `Take ${i + 1}`}</b>
-                            <span className={'cf-state ' + j.status}>{j.status === 'done' ? `Added to ${codeLabel} as version ${j.filed?.version ?? ''}` : j.status === 'failed' ? 'Failed' : `${j.elapsed_s || 0} s`}</span>
+                            <span className={'cf-state ' + j.status}>{j.status === 'done' ? `Added to ${codeLabel} as version ${j.filed?.version ?? ''}` : j.status === 'failed' ? 'Failed' : `${Math.floor((j.elapsed_s || 0) / 60)}:${String((j.elapsed_s || 0) % 60).padStart(2, '0')} so far`}</span>
                         </div>
                         {j.status === 'failed' && <p className="cf-err">{j.error}</p>}
                     </div>
