@@ -438,3 +438,34 @@ test('a file the PC lost since it was sent (input folder cleaned) is sent again 
         assert.ok(!('sources' in second), 'local paths stay on the server');
     } finally { server.close(); }
 });
+
+test('every job field the My PC panel reads is one the server sends (derived from ComfyPanel.jsx)', async () => {
+    // The panel and its tests mock jobs by hand; this pins the seam between them and publicJob().
+    const src = fs.readFileSync(path.join(__dirname, '..', '..', 'src', 'pages', 'productiongraph', 'studio', 'ComfyPanel.jsx'), 'utf8');
+    const used = new Map();
+    for (const m of src.matchAll(/\bj\.([a-z_]+)(?:\??\.([a-z_]+))?/g)) { if (!used.has(m[1])) used.set(m[1], new Set()); if (m[2]) used.get(m[1]).add(m[2]); }
+    assert.ok(used.size >= 8, `fields found: ${[...used.keys()]}`);
+    // A take caught while running with progress, and one done and filed: between them every field has a value.
+    const { WebSocketServer } = require('ws');
+    let finished = false;
+    const socks = new Map();
+    const { server } = await scriptedPC({ history: () => (finished ? 'done' : null), ws: { onPrompt: id => setTimeout(() => socks.get(id)?.send(JSON.stringify({ type: 'progress', data: { prompt_id: 'q1', value: 1, max: 4, node: '13' } })), 10) } });
+    const wss = new WebSocketServer({ server, path: '/ws' });
+    wss.on('connection', (s, req) => socks.set(new URL(req.url, 'http://x').searchParams.get('clientId'), s));
+    try {
+        const id = comfy.startJob({ workflow: 'storyboard_shot_to_video', images: [], audio: [] }, { label: 'Take 1' }).id;
+        for (let i = 0; i < 200 && !comfy.getJob(id).progress; i++) await new Promise(r => setTimeout(r, 10));
+        const running = comfy.getJob(id);
+        comfy._jobs.get(id).file_on = null;
+        finished = true;
+        await comfy._jobs.get(id).done;
+        const done = { ...comfy.getJob(id), filed: { url: '/film/video/p/x.mp4', version: 1 } };   // filing itself is covered in comfyui-shot.test.js
+        for (const [field, subs] of used) {
+            assert.ok(field in running && field in done, `the panel reads job.${field}; the server does not send it`);
+            for (const sub of subs) {
+                const holder = field === 'progress' ? running.progress : field === 'filed' ? done.filed : null;
+                if (holder) assert.ok(sub in holder, `the panel reads job.${field}.${sub}; the server does not send it`);
+            }
+        }
+    } finally { wss.close(); server.close(); }
+});
