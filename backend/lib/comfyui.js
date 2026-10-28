@@ -45,8 +45,11 @@ async function call(p, { method = 'GET', body, timeout = 10000, raw = false } = 
     }
     if (!res.ok) {
         let detail = '';
-        try { const j = await res.json(); detail = j.error?.message || j.error || JSON.stringify(j.node_errors || j).slice(0, 400); } catch (_) { /* not json */ }
-        throw httpError(res.status === 404 ? 404 : 502, `ComfyUI ${method} ${p.split('?')[0]} answered ${res.status}${detail ? ': ' + detail : ''}`);
+        let parsed = null;
+        try { parsed = await res.json(); detail = parsed.error?.message || parsed.error || JSON.stringify(parsed.node_errors || parsed).slice(0, 400); } catch (_) { /* not json */ }
+        const err = httpError(res.status === 404 ? 404 : 502, `ComfyUI ${method} ${p.split('?')[0]} answered ${res.status}${detail ? ': ' + detail : ''}`);
+        err.body = parsed;   // the caller may need ComfyUI's node_errors
+        throw err;
     }
     return raw ? res : res.json();
 }
@@ -222,7 +225,7 @@ const JOB_DIR = () => path.join(require('./file-storage').DATA_DIR, 'comfyui', '
 const LIVE = new Set(['uploading', 'queued', 'running', 'downloading']);
 
 function publicJob(j) {
-    const { values, done, cancelled, socket, sampler_started, detached, images, audio, ...rest } = j;
+    const { values, done, cancelled, socket, sampler_started, detached, images, audio, sources, ...rest } = j;
     return { ...rest, stage_label: STAGES[j.status], elapsed_s: Math.round(((j.finished_at || Date.now()) - j.started_at) / 1000) };
 }
 
@@ -245,16 +248,23 @@ async function runJob(j) {
     try {
         j.status = 'uploading'; save(j);
         const { manifest, graph } = await loadWorkflow(j.workflow);
+        const sendAll = async () => [await Promise.all((j.sources.images || []).map(f => (f ? upload(f) : null))), await Promise.all((j.sources.audio || []).map(f => (f ? upload(f) : null)))];
         // Names already on the PC (a run's takes share one upload) go as they are.
-        const images = j.uploaded ? j.images : [];
-        const audio = j.uploaded ? j.audio : [];
-        if (!j.uploaded) {
-            for (const f of j.images) images.push(f ? await upload(f) : null);
-            for (const f of j.audio) audio.push(f ? await upload(f) : null);
-        }
-        const prompt = buildPrompt(manifest, graph, { ...j.values, images, audio });
+        let [images, audio] = j.uploaded ? [j.images, j.audio] : await sendAll();
+        const queue = () => call('/prompt', { method: 'POST', body: JSON.stringify({ prompt: buildPrompt(manifest, graph, { ...j.values, images, audio }), client_id: j.id }), timeout: 30000 });
         j.socket = listen(j);
-        const q = await call('/prompt', { method: 'POST', body: JSON.stringify({ prompt, client_id: j.id }), timeout: 30000 });
+        let q;
+        try { q = await queue(); }
+        catch (err) {
+            // A file sent earlier this session is gone from the PC (its input folder was cleaned): forget those names,
+            // send the files again and queue once more. Anything else is the job's error.
+            const loaders = Object.values(err.body?.node_errors || {}).some(e => /^Load(Image|Audio)/.test(e?.class_type || ''));
+            if (!loaders || !(j.sources.images || []).concat(j.sources.audio || []).some(Boolean)) throw err;
+            const gone = new Set([...images, ...audio].filter(Boolean));
+            for (const [h, n] of sent) if (gone.has(n)) sent.delete(h);
+            [images, audio] = await sendAll();
+            q = await queue();
+        }
         if (q.node_errors && Object.keys(q.node_errors).length) throw httpError(422, `ComfyUI refused the workflow: ${JSON.stringify(q.node_errors).slice(0, 400)}`);
         j.prompt_id = q.prompt_id;
         j.output_node = String(manifest.outputs.node);
@@ -366,12 +376,14 @@ function listen(j) {
 
 /**
  * Queue one generation: { workflow, prompt?, seed?, options?, images?: [path|null], audio?: [path|null], shot_id? }.
- * opts.uploaded: images/audio are names already on the PC. opts.fileOn { project_id, shot_id, meta }: add the result
+ * opts.uploaded: images/audio are names already on the PC (opts.sources: their local files). opts.fileOn { project_id, shot_id, meta }: add the result
  * to that shot as its next video version.
  */
-function startJob(body = {}, { label = null, uploaded = false, fileOn = null } = {}) {
+function startJob(body = {}, { label = null, uploaded = false, fileOn = null, sources = null } = {}) {
     const j = { id: crypto.randomUUID(), workflow: String(body.workflow || ''), shot_id: body.shot_id || null, status: 'uploading', label, filed: null,
         file_on: fileOn, uploaded,
+        // The local files behind the inputs, to send again if the PC lost them (uploaded jobs pass them in).
+        sources: sources || (uploaded ? { images: [], audio: [] } : { images: Array.isArray(body.images) ? body.images : [], audio: Array.isArray(body.audio) ? body.audio : [] }),
         values: { prompt: body.prompt, seed: Number.isInteger(body.seed) ? body.seed : undefined, options: body.options || {} },
         images: Array.isArray(body.images) ? body.images : [], audio: Array.isArray(body.audio) ? body.audio : [],
         outputs: [], error: null, prompt_id: null, output_node: null, position: null, progress: null, node: null, started_at: Date.now(), finished_at: null };

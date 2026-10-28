@@ -5,6 +5,8 @@ Verification of confer 609bedc0 (confer f53c0d64, 2026-10-28). Film Engine is `f
 (`confer/comfyui-storyboard-integration`). The PC's contract files are copied, unchanged, into
 `backend/tests/fixtures/comfyui/` and checked by `backend/tests/comfyui-contract.test.js`.
 
+**When the contract changes, copy the PC's files in again.** That is the workflow, the manifest and the golden cases. The copy is frozen: a changed workflow deployed to the PC would pass this test and still break the app. The app does guard against it: `listWorkflows()` runs `validate()` against the live files, and any mismatch shows the workflow as not ready, with the reason.
+
 ## Contracts, side by side
 
 | # | Contract | PC side | Film Engine side | Fit |
@@ -12,18 +14,18 @@ Verification of confer 609bedc0 (confer f53c0d64, 2026-10-28). Film Engine is `f
 | 1 | Manifest shape | `comfy-workflows/storyboard_shot_to_video.fe.json` | `backend/lib/comfyui.js` `validate()`, `listWorkflows()`, `buildPrompt()` | **Fits.** Every key Film Engine reads (`prompt`, `seed`, `images[]`, `audio[]`, `options[]` enum with `index`, `outputs.node`, `core_node`, `ref_wiring.*.core_input_prefix`, `draft`) is present and well formed (contract test). Film Engine ignores the documentation keys (`slot`, `label`, `tag`, `slot_rule`, `combo_write_rule`, `derived`, `engine`). |
 | 2 | Patched `/prompt` graph | `scripts/apply_manifest.py`, `comfy-workflows/fixtures/*.expected.json` | `buildPrompt()` | **Fits.** All 3 golden cases (`draft_min`, `partial`, `full`) are identical after key sorting. |
 | 3 | Where workflows live | deployed to `user/default/workflows/film-engine/` | `DIR = 'workflows/film-engine'`, `GET /userdata?dir=…`, `GET /userdata/<encoded path>` | **Fits.** The live PC lists both files, the deployed `.fe.json` is byte-identical to the repo copy, and the deployed graph is the same JSON. |
-| 4 | Input files | `LoadImage` / `LoadAudio` read names from `input/` | `upload()`: `POST /upload/image`, subfolder `film-engine`, name `<sha1-12>-<file name>` | **Fits.** Nothing on the PC keys on file names (confirmed by the PC agent). |
-| 5 | Output | `SaveVideo` node 92, prefix `ComfyUI Videos/shot` | `filesOf()` takes any `{filename, subfolder, type}` under `outputs["92"]`, fetched through `/view` | **Fits on paper.** Not yet proven on the real PC: see row 9. |
-| 6 | Network | portproxy `0.0.0.0:8188 → 127.0.0.1:8188`, firewall allowing 192.168.4.40, Private profile | `DEFAULT_URL http://192.168.4.60:8188`, Settings `comfyui_url`, `FILM_COMFYUI_URL` | **Fits today. Fragile:** both addresses come from DHCP. If the Mac's address changes, the firewall drops it; if the PC's changes, Film Engine's default is wrong. Fix: reserve both addresses on the router. |
+| 4 | Input files | `LoadImage` / `LoadAudio` read names from `input/` | `upload()`: `POST /upload/image`, subfolder `film-engine`, name `<sha1-12>-<file name>` | **Fits.** Nothing on the PC keys on file names (confirmed by the PC agent), and the 1B run's files are in `input/film-engine/`, where ComfyUI renders from them. If the PC loses a file sent earlier in the session (its input folder cleaned), Film Engine sends it again and queues once more (tested). Uploads are never cleaned on the PC; pruning old files there is safe because every name is content-addressed. |
+| 5 | Output | `SaveVideo` node 92, prefix `ComfyUI Videos/shot` | `filesOf()` takes any `{filename, subfolder, type}` under `outputs["92"]`, fetched through `/view` | **Fits.** The PC agent checked ComfyUI 0.43.1's source: `SaveVideo` reports `{images: [{filename, subfolder, type}], animated: [true]}` (`comfy_api/latest/_ui.py`, `PreviewVideo.as_dict`). `filesOf()` reads that `images` array and skips `animated`. The real file hasn't been fetched yet (row 9). |
+| 6 | Network | portproxy `0.0.0.0:8188 → 127.0.0.1:8188`, firewall allowing 192.168.4.40, Private profile | `DEFAULT_URL http://192.168.4.60:8188`, Settings `comfyui_url`, `FILM_COMFYUI_URL` | **Fits today. Fragile:** both addresses come from DHCP. If the Mac's address changes, the firewall drops it; if the PC's changes, Film Engine's default is wrong. Fix: reserve both addresses on the router, and set the PC's address in Settings › `comfyui_url` instead of relying on the default written in the code. |
 | 7 | Progress | ComfyUI's own `/ws?clientId=` | `listen()` (client id = the Film Engine job id) | **Fits.** It is ComfyUI's stock protocol. Tested against a fake; the real run's socket connected. |
 | 8 | Draft defaults | manifest `draft`: aspect 0, duration 0 (5 s), quality 0 (turbo), colour 0 | `ComfyPanel.jsx` `defaultChoices()` | **Was a misfit, now fixed.** Film Engine picked the shortest length covering the shot (1B: 15 s, about 90 min on the Arc) and ignored `draft`. It now starts on the manifest's draft preset (5 s) and the Length hint says when that is shorter than the shot. |
 | 9 | Real end to end | the Arc renders it | job → download → filed as the shot's next `video_raw` version | **Partly proven.** Shot 1B (4 pictures, a 15 s WAV) was uploaded, accepted, its models loaded and sampling ran (PC log: `1/4 [18:14<54:44]`). When this was written, the render, download and filing were still to finish. |
 
 ## Tests run
 
-- `node --test tests/comfyui-contract.test.js tests/comfyui.test.js tests/comfyui-shot.test.js` (Node 23): 22 pass, 0 fail.
+- `node --test tests/comfyui-contract.test.js tests/comfyui.test.js tests/comfyui-shot.test.js` (Node 23): 23 pass, 0 fail.
 - `npx vitest run src/pages/productiongraph/studio/ComfyPanel.test.jsx`: 7 pass.
-- Full backend suite, `node --test --test-concurrency=4 tests/*.test.js` (Node 23): 5,228 tests, 4,946 pass, 277 fail, 5 skipped. The failures are in 118 files.
+- Full backend suite, `node --test --test-concurrency=4 tests/*.test.js` (Node 23), measured before the `-nostdin` fix: 5,228 tests, 4,946 pass, 277 fail, 5 skipped. The failures are in 118 files.
   - None of the failures are in the ComfyUI files.
   - Three of the failing files sit near this work: `direct-shot-ui`, `director-controls` and `seedance-post`. Each fails on files this work never changed (`src/index.html`, `routes/voice.js`, `lib/providers/seedance.js`), so they were already failing.
   - `ffmpeg-stdin` flagged 4 new calls without `-nostdin` (`lib/comfyui-shot.js` and its test). They are fixed, and that test now lists only older calls.

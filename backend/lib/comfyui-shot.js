@@ -112,7 +112,8 @@ async function makeShot(projectId, body = {}) {
         const seed = crypto.randomInt(0, 2 ** 47);
         const meta = { label: body.label, workflow: body.workflow, seed, options: body.options || {} };
         jobs.push(comfy.startJob({ workflow: body.workflow, prompt, seed, options: body.options || {}, shot_id: shotId, images, audio },
-            { label: `Take ${t + 1}`, uploaded: true, fileOn: { project_id: projectId, shot_id: shotId, meta } }));
+            { label: `Take ${t + 1}`, uploaded: true, fileOn: { project_id: projectId, shot_id: shotId, meta },
+                sources: { images: pictures.map(m => m.file), audio: dialogue ? [dialogue.file] : [] } }));
     }
     const notes = [];
     if (!dialogue && (manifest.audio || []).length && !body.no_dialogue) notes.push('No recorded dialogue was found for this shot, so the video is made without it.');

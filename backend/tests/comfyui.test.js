@@ -398,3 +398,43 @@ test('with ref_wiring, references follow the manifest slot order for every subse
         assert.strictEqual(g[136].inputs.ref_image_size === undefined || typeof g[136].inputs.ref_image_size === 'string', true);
     }
 });
+
+test('a file the PC lost since it was sent (input folder cleaned) is sent again and the take queued once more', async () => {
+    const onPC = new Set();
+    const st = { uploads: 0, prompts: 0, refused: 0 };
+    const server = http.createServer((req, res) => {
+        const u = new URL(req.url, 'http://x');
+        const send = (code, data, type = 'application/json') => { res.writeHead(code, { 'Content-Type': type }); res.end(type === 'application/json' ? JSON.stringify(data) : data); };
+        const chunks = []; req.on('data', c => chunks.push(c));
+        req.on('end', () => {
+            const body = Buffer.concat(chunks);
+            if (u.pathname.startsWith('/userdata/')) return send(200, decodeURIComponent(u.pathname).endsWith('.fe.json') ? MANIFEST : graph());
+            if (u.pathname === '/upload/image') { const name = /filename="([^"]+)"/.exec(body.toString('latin1'))[1]; onPC.add(`film-engine/${name}`); st.uploads++; return send(200, { name, subfolder: 'film-engine' }); }
+            if (u.pathname === '/prompt') {
+                const g = JSON.parse(body.toString()).prompt;
+                const missing = Object.entries(g).filter(([, n]) => n.class_type === 'LoadImage' && !onPC.has(n.inputs.image));
+                if (missing.length) { st.refused++; return send(400, { error: { type: 'prompt_outputs_failed_validation', message: 'Prompt outputs failed validation' }, node_errors: Object.fromEntries(missing.map(([id, n]) => [id, { class_type: n.class_type, errors: [{ type: 'custom_validation_failed', message: `Invalid image file: ${n.inputs.image}` }] }])) }); }
+                st.prompts++;
+                return send(200, { prompt_id: `r${st.prompts}`, node_errors: {} });
+            }
+            if (u.pathname.startsWith('/history/')) { const id = u.pathname.split('/')[2]; return send(200, { [id]: { status: { completed: true }, outputs: { 92: { images: [{ filename: 'o.mp4', type: 'output' }] } } } }); }
+            if (u.pathname === '/view') return send(200, Buffer.from('MP4'), 'video/mp4');
+            if (u.pathname === '/queue') return send(200, { queue_running: [], queue_pending: [] });
+            return send(404, {});
+        });
+    });
+    await new Promise(r => server.listen(0, '127.0.0.1', r));
+    process.env.FILM_COMFYUI_URL = `http://127.0.0.1:${server.address().port}`;
+    try {
+        comfy._sent.clear();
+        const frame = ownFile('lost-frame.png', 'FRAMEBYTES');
+        const first = await settle(comfy.startJob({ workflow: 'storyboard_shot_to_video', images: [frame], audio: [] }).id);
+        assert.strictEqual(first.status, 'done', first.error);
+        assert.strictEqual(st.uploads, 1);
+        onPC.clear();   // someone cleans the PC's input folder
+        const second = await settle(comfy.startJob({ workflow: 'storyboard_shot_to_video', images: [frame], audio: [] }).id);
+        assert.strictEqual(second.status, 'done', second.error);
+        assert.deepStrictEqual([st.refused, st.uploads, st.prompts], [1, 2, 2], 'refused once, sent again, queued');
+        assert.ok(!('sources' in second), 'local paths stay on the server');
+    } finally { server.close(); }
+});
