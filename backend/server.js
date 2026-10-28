@@ -50,6 +50,7 @@
  *   GET    /film/projects/:id/production-graph              — The production graph (layout, tidy, version pointers)
  *   GET/POST /film/projects/:id/cuts, /film/cuts/:id[/sounds|/versions|/send-to-resolve], /film/cut-sounds/:id — Cuts
  *   GET/POST /film/generators/tools|inputs[/import|/:id]|jobs[/:id[/cancel|/output/:n]] — Generators (local AI tools, free)
+ *   GET/POST /film/comfyui/status|workflows|jobs[/:id[/cancel]] — ComfyUI on the PC (workflows run over the network)
  *   POST   /film/projects/:id/video/batch[/stream]          — Batch video generation
  *   GET    /film/video/:projectId/:filename                 — Serve video files
  *   POST   /film/shots/:id/lipsync/generate[/stream]        — Lip-sync generation
@@ -501,6 +502,10 @@ const server = http.createServer(async (req, res) => {
         // Route: /film/generators/* — Production's Generators tab: local AI tools (slow-mo, upscale, depth, rotoscope, stems, subtitles)
         if (parts[1] === 'generators') {
             return await require('./routes/generators').handleGenerators(req, res, parts);
+        }
+        // Route: /film/comfyui/* — ComfyUI on the Windows PC: list its film-engine workflows, run one, collect the files
+        if (parts[1] === 'comfyui') {
+            return await require('./routes/comfyui').handleComfyUI(req, res, parts);
         }
         if (parts[1] === 'production-studio' || (parts[1] === 'projects' && parts[2] && parts[3] === 'production-studio')) {
             return await handleProductionStudio(req, res, parts);

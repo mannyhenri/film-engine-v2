@@ -90,6 +90,17 @@ const SETTINGS = {
         description: 'Also write each project\u2019s rows as JSON beside the snapshot, so one film can be restored alone. Media is not copied: it lives in each project\u2019s own folder.',
         default: false,
     },
+    /*
+     * THE COMFYUI PC (lib/comfyui.js). ComfyUI runs the open models on another machine on this
+     * network; Film Engine sends it jobs and brings the files back. Blank uses the PC found when
+     * this was set up (FILM_COMFYUI_URL, else http://192.168.4.60:8188).
+     */
+    comfyui_url: {
+        description: 'Where ComfyUI answers on your network, e.g. "http://192.168.4.60:8188". It must be started listening on 0.0.0.0. Blank uses FILM_COMFYUI_URL, else http://192.168.4.60:8188.',
+        default: '',
+        validate: v => (v === '' || v == null || /^https?:\/\/[^\s/]+(:\d+)?\/?$/.test(String(v))) ? [] : ['comfyui_url must look like http://192.168.4.60:8188'],
+        example: 'http://192.168.4.60:8188',
+    },
     gridlight_enabled: {
         description: 'Turn on the local Gridlight endpoints. Off by default: until it is enabled, '
             + 'nothing resolves to it, and a capability it is the only provider for reports that '
