@@ -99,6 +99,13 @@ function fakeComfy() {
                 if (f.startsWith('take_upscale')) return send(200, f.endsWith('.fe.json') ? TAKE_MANIFEST : TAKE_GRAPH);
                 return send(200, f.endsWith('.fe.json') ? MANIFEST : GRAPH);
             }
+            // Like the PC, it describes each node class: every input its graphs use, with no choice list.
+            if (u.pathname.startsWith('/object_info/')) {
+                const cls = decodeURIComponent(u.pathname.slice('/object_info/'.length));
+                const nodes = [GRAPH, TAKE_GRAPH].flatMap(g => Object.values(g)).filter(n => n.class_type === cls);
+                if (!nodes.length) return send(404, {});
+                return send(200, { [cls]: { input: { required: Object.fromEntries(nodes.flatMap(n => Object.keys(n.inputs || {})).map(k => [k, ['COMBO', { options: [] }]])) } } });
+            }
             if (u.pathname === '/upload/image') {
                 const name = /filename="([^"]+)"/.exec(body.toString('latin1'))[1];
                 state.uploads.push({ name, wav: body.includes(Buffer.from('WAVE')) });

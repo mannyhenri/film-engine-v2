@@ -129,3 +129,24 @@ test('the PC is asked about each node class by its URL-encoded name (a class may
     assert.strictEqual(comfy.objectInfoPath('Video Slice'), '/object_info/Video%20Slice');
     assert.strictEqual(comfy.objectInfoPath('UNETLoader'), '/object_info/UNETLoader');
 });
+
+/*
+ * The choices each take-tool option is meant to offer, pinned: a re-pin of a manifest that lost one (the 3B model,
+ * say) fails here, not only on the PC. Adding a choice means adding it here too, on purpose.
+ */
+test('the take tool offers exactly its pinned choices, option by option', () => {
+    const EXPECTED = {
+        model: ['seedvr2_7b_int8_convrot.safetensors', 'seedvr2_3b_int8_convrot.safetensors'],
+        resolution: ['1080p (1920x1080)', '4K (3840x2160)'],
+        // Every method the node knows, read from the PC's own description of it.
+        color_correction: comfy.choicesOf(comfy.inputSpec(INFO, 'SeedVR2PostProcessing', 'color_correction_method')),
+    };
+    assert.deepStrictEqual(TAKE.options.map(o => o.id).sort(), Object.keys(EXPECTED).sort(), 'the options themselves');
+    for (const o of TAKE.options) {
+        const got = o.choices.map(c => ('value' in c ? c.value : c.label));
+        assert.deepStrictEqual([...got].sort(), [...EXPECTED[o.id]].sort(), `${o.id}: every pinned choice, no more, no less`);
+    }
+    // The gate's corruption: the 3B model dropped.
+    const dropped = JSON.parse(JSON.stringify(TAKE)); dropped.options.find(o => o.id === 'model').choices.splice(1, 1);
+    assert.notDeepStrictEqual(dropped.options.find(o => o.id === 'model').choices.map(c => c.value).sort(), [...EXPECTED.model].sort());
+});

@@ -105,6 +105,13 @@ test('validate catches every reference that points at a missing node or input', 
 });
 
 /* ---------- a fake ComfyUI ---------- */
+// Like the PC, a fake describes each node class (/object_info): every input its graph uses, with no choice list.
+function describeNode(u, send) {
+    const cls = decodeURIComponent(u.pathname.slice('/object_info/'.length));
+    const nodes = Object.values(graph()).filter(n => n.class_type === cls);
+    if (!nodes.length) return send(404, {});
+    return send(200, { [cls]: { input: { required: Object.fromEntries(nodes.flatMap(n => Object.keys(n.inputs || {})).map(k => [k, ['COMBO', { options: [] }]])) } } });
+}
 function fakeComfy({ fail = false } = {}) {
     const state = { uploads: [], prompts: [], history: {} };
     const files = { 'storyboard_shot_to_video.fe.json': MANIFEST, 'storyboard_shot_to_video.api.json': graph(),
@@ -123,14 +130,7 @@ function fakeComfy({ fail = false } = {}) {
                 const f = decodeURIComponent(u.pathname.slice('/userdata/'.length)).replace('workflows/film-engine/', '');
                 return files[f] ? send(200, files[f]) : send(404, {});
             }
-            // Like the PC, it describes each node class: here every input its graph uses, with no choice list.
-            if (u.pathname.startsWith('/object_info/')) {
-                const cls = decodeURIComponent(u.pathname.slice('/object_info/'.length));
-                const nodes = Object.values(graph()).filter(n => n.class_type === cls);
-                if (!nodes.length) return send(404, {});
-                const required = Object.fromEntries(nodes.flatMap(n => Object.keys(n.inputs || {})).map(k => [k, ['COMBO', { options: [] }]]));
-                return send(200, { [cls]: { input: { required } } });
-            }
+            if (u.pathname.startsWith('/object_info/')) return describeNode(u, send);
             if (u.pathname === '/upload/image') {
                 const name = /filename="([^"]+)"/.exec(body.toString('latin1'))[1];
                 state.uploads.push(name);
@@ -222,6 +222,7 @@ test('step progress comes over the WebSocket: step N of M and the time left, onl
         const chunks = []; req.on('data', c => chunks.push(c));
         req.on('end', () => {
             if (u.pathname.startsWith('/userdata/')) return send(200, decodeURIComponent(u.pathname).endsWith('.fe.json') ? MANIFEST : graph());
+            if (u.pathname.startsWith('/object_info/')) return describeNode(u, send);
             if (u.pathname === '/prompt') {
                 const body = JSON.parse(Buffer.concat(chunks).toString());
                 const ws = sockets.get(body.client_id);
@@ -274,6 +275,7 @@ function scriptedPC({ history, queue = () => 'running', ws = null } = {}) {
         req.on('end', () => {
             const body = Buffer.concat(chunks);
             if (u.pathname.startsWith('/userdata/')) return send(200, decodeURIComponent(u.pathname).endsWith('.fe.json') ? MANIFEST : graph());
+            if (u.pathname.startsWith('/object_info/')) return describeNode(u, send);
             if (u.pathname === '/upload/image') { const name = /filename="([^"]+)"/.exec(body.toString('latin1'))[1]; st.uploads.push(name); return send(200, { name, subfolder: 'film-engine' }); }
             if (u.pathname === '/prompt') { if (ws) ws.onPrompt(JSON.parse(body.toString()).client_id); return send(200, { prompt_id: 'q1', node_errors: {} }); }
             if (u.pathname === '/history/q1') {
@@ -417,6 +419,7 @@ test('a file the PC lost since it was sent (input folder cleaned) is sent again 
         req.on('end', () => {
             const body = Buffer.concat(chunks);
             if (u.pathname.startsWith('/userdata/')) return send(200, decodeURIComponent(u.pathname).endsWith('.fe.json') ? MANIFEST : graph());
+            if (u.pathname.startsWith('/object_info/')) return describeNode(u, send);
             if (u.pathname === '/upload/image') { const name = /filename="([^"]+)"/.exec(body.toString('latin1'))[1]; onPC.add(`film-engine/${name}`); st.uploads++; return send(200, { name, subfolder: 'film-engine' }); }
             if (u.pathname === '/prompt') {
                 const g = JSON.parse(body.toString()).prompt;

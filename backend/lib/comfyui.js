@@ -177,11 +177,16 @@ async function listWorkflows() {
     return out;
 }
 
+/** A workflow graph deployed on the PC, by its file name in the film-engine folder. */
+const loadGraph = file => call(userdata(file));
+
 async function loadWorkflow(slug) {
     if (!/^[\w .()-]+$/.test(String(slug || ''))) throw httpError(400, 'pick a workflow');
     const manifest = await call(userdata(`${slug}.fe.json`));
-    const graph = await call(userdata(manifest.workflow || `${slug}.api.json`));
+    const graph = await loadGraph(manifest.workflow || `${slug}.api.json`);
+    // The same bar as the list: the graph matches the manifest, and every choice is one the PC accepts.
     const problems = validate(manifest, graph);
+    if (!problems.length) problems.push(...liveProblems(manifest, graph, await liveInfo(manifest, graph)));
     if (problems.length) throw httpError(422, `the ${slug} workflow doesn't match its manifest: ${problems.join('; ')}`);
     return { manifest, graph };
 }
@@ -520,5 +525,5 @@ async function cancelJob(id) {
     return publicJob(j);
 }
 
-module.exports = { baseUrl, status, listWorkflows, loadWorkflow, validate, liveProblems, inputSpec, choicesOf, objectInfoPath, buildPrompt, upload, startJob, getJob, cancelJob, resumeJobs, trackExternal,
+module.exports = { baseUrl, status, listWorkflows, loadWorkflow, loadGraph, liveInfo, validate, liveProblems, inputSpec, choicesOf, objectInfoPath, buildPrompt, upload, startJob, getJob, cancelJob, resumeJobs, trackExternal,
     OUT_ROOT, DEFAULT_URL, _jobs: jobs, _sent: sent };
