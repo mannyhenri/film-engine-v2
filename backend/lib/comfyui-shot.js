@@ -16,7 +16,7 @@ const { db } = require('../db/database');
 const comfy = require('./comfyui');
 const { gather } = require('./seedance-prompt');
 const { resolveFfmpeg } = require('./ffmpeg');
-const { DATA_DIR, saveFile, urlForPath } = require('./file-storage');
+const { DATA_DIR, copyFile, urlForPath } = require('./file-storage');
 
 function httpError(status, message) { return Object.assign(new Error(message), { status }); }
 
@@ -76,7 +76,7 @@ function fileTake(projectId, shotId, file, meta) {
     const version = Number(row?.v || 0) + 1;
     const code = String(meta.label || 'shot').replace(/[^\w+-]+/g, '_');
     const name = `${code}_${source.tag}_v${version}_${Date.now()}${ext}`;
-    const stored = saveFile(projectId, 'video', name, fs.readFileSync(file));
+    const stored = copyFile(projectId, 'video', name, file);
     const id = crypto.randomUUID();
     db.prepare(`INSERT INTO film_assets (id, project_id, shot_id, asset_type, file_path, file_name, format, mime_type, version,
         provider, provider_model, provider_job_id, license_source, license_status, input_refs)

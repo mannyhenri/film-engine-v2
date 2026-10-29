@@ -89,6 +89,15 @@ function saveFile(projectId, subdir, filename, buffer) {
     return filePath;
 }
 
+/** Like saveFile, from a file on disk: copied, never read into memory (a take can be gigabytes). */
+function copyFile(projectId, subdir, filename, src) {
+    ensureDir(projectId, subdir);
+    const filePath = getFilePath(projectId, subdir, filename);
+    fs.mkdirSync(path.dirname(filePath), { recursive: true });
+    fs.copyFileSync(src, filePath);
+    return filePath;
+}
+
 /**
  * Get the full disk path for a stored file.
  * @param {string} projectId
@@ -470,6 +479,7 @@ function urlForPath(filePath, version) {
 }
 
 module.exports = {
+    copyFile,
     // Where everything this engine stores lives. Exported so a store that is
     // NOT project-scoped roots itself the same way rather than recomputing the
     // rule and drifting from it.

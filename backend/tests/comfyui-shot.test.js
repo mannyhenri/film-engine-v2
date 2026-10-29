@@ -301,8 +301,15 @@ test('a take from every source is filed as the next version under its own provid
     execFileSync(ff.bin, ['-nostdin', '-v', 'error', '-y', '-f', 'lavfi', '-i', 'color=c=red:s=320x180:r=24:d=1', '-f', 'lavfi', '-i', 'sine=d=1', '-shortest', clip], { stdio: ['ignore', 'pipe', 'pipe'] });
     const sources = Object.keys(shotLib.TAKE_SOURCES);
     assert.deepStrictEqual(sources.sort(), ['file', 'mac', 'pc']);
+    // A take can be gigabytes (a 4K ProRes): filing copies it on disk and never reads the whole clip into memory.
+    const read = fs.readFileSync;
+    fs.readFileSync = (f, ...rest) => { if (String(f) === clip) throw new Error('read the whole clip into memory'); return read(f, ...rest); };
+    const filedBy = {};
+    try { for (const where of sources) filedBy[where] = shotLib.fileTake(projectId, shot, clip, { label: '1Z', where, workflow: `w-${where}`, provider: where === 'file' ? 'elsewhere' : undefined }); }
+    finally { fs.readFileSync = read; }
     for (const [i, where] of sources.entries()) {
-        const filed = shotLib.fileTake(projectId, shot, clip, { label: '1Z', where, workflow: `w-${where}`, provider: where === 'file' ? 'elsewhere' : undefined });
+        const filed = filedBy[where];
+        assert.strictEqual(fs.statSync(filed.path).size, fs.statSync(clip).size, `${where}: the copy is whole`);
         assert.strictEqual(filed.version, i + 1, `${where}: the next version`);
         const row = db.prepare('SELECT provider, asset_type FROM film_assets WHERE id = ?').get(filed.asset_id);
         assert.deepStrictEqual(row, { provider: where === 'file' ? 'elsewhere' : shotLib.TAKE_SOURCES[where].provider, asset_type: 'video_raw' }, where);
