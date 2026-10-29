@@ -82,13 +82,23 @@ function lineAudio(shotId, code, index) {
 }
 
 /** Every recorded line at its time, on a black screen: Seedance takes the voices and timing from it, not its picture. */
-async function dialogueVideo(ff, cues, durationS, out) {
+/*
+ * The forms the dialogue is handed over in: on a black-screen MP4 (the director's hand-over to Seedance on Higgsfield,
+ * which takes it as a video reference), or the sound alone as a WAV (Seedance 2.5's audio reference). One mix either way.
+ */
+const DIALOGUE_FORMS = Object.freeze({
+    video: Object.freeze({ label: '@Video 1', kind: 'video', ext: '.mp4', streams: 'audio,video' }),
+    audio: Object.freeze({ label: '@Audio 1', kind: 'audio', ext: '.wav', streams: 'audio' }),
+});
+async function dialogueTrack(ff, cues, durationS, out, as = 'video') {
     const ins = cues.flatMap(c => [...(c.from ? ['-ss', String(c.from)] : []), '-i', c.file]);
     const n = cues.length;
     const delays = cues.map((c, i) => `[${i}:a]aresample=48000,adelay=${Math.round(c.at * 1000)}:all=1[a${i}]`).join(';');
     const mix = n > 1 ? `${delays};${cues.map((_, i) => `[a${i}]`).join('')}amix=inputs=${n}:normalize=0[mix]` : `${delays};[a0]anull[mix]`;
+    const filter = ['-filter_complex', `${mix};[mix]apad,atrim=0:${durationS}[a]`];
+    if (as === 'audio') return run(ff, ['-v', 'error', '-y', ...ins, ...filter, '-map', '[a]', '-c:a', 'pcm_s16le', '-t', String(durationS), out]);
     await run(ff, ['-v', 'error', '-y', ...ins, '-f', 'lavfi', '-i', `color=c=black:s=1280x720:r=24:d=${durationS}`,
-        '-filter_complex', `${mix};[mix]apad,atrim=0:${durationS}[a]`, '-map', `${n}:v`, '-map', '[a]',
+        ...filter, '-map', `${n}:v`, '-map', '[a]',
         '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-b:a', '192k', '-t', String(durationS), '-movflags', '+faststart', out]);
 }
 
@@ -98,9 +108,12 @@ const tc = s => `${Math.floor(s / 60)}:${(s % 60).toFixed(1).padStart(4, '0')}`;
 /**
  * Gather the materials for one unit (a shot, or a sequence generated as one clip).
  * body: { label, prompt, duration_s, aspect, model_label?, shots: [{ shot_id, code, offset_s, lines: [{ index, t, ch, name, text }] }],
- *         character_ids, location_ids, prop_ids, storyboard_asset_ids }
+ *         character_ids, location_ids, prop_ids, storyboard_asset_ids, dialogue_file?, dialogue_as? ('video' | 'audio', DIALOGUE_FORMS) }
  */
 async function gather(projectId, body, folder) {
+    const as = body.dialogue_as || 'video';
+    const form = DIALOGUE_FORMS[as];
+    if (!form) throw httpError(400, `dialogue_as must be one of ${Object.keys(DIALOGUE_FORMS).join(', ')}`);
     const ff = resolveFfmpeg();
     if (!ff || !ff.available) throw httpError(500, 'ffmpeg is needed to make the reference sheets');
     const materials = [];
@@ -155,21 +168,21 @@ async function gather(projectId, body, folder) {
     const cues = chosen ? [] : lines.map(x => ({ file: lineAudio(x.s.shot_id, x.s.code, x.l.index), at: x.at })).filter(c => c.file);
     if (chosen || cues.length) {
         n++;
-        const file = path.join(folder, `${String(n).padStart(2, '0')} @Video 1 - dialogue (black screen).mp4`);
+        const file = path.join(folder, `${String(n).padStart(2, '0')} ${form.label} - dialogue${as === 'video' ? ' (black screen)' : ''}${form.ext}`);
         if (chosen) {
             const src = String(body.dialogue_file.path);
             if (!path.isAbsolute(src) || !exists(src)) throw httpError(404, `the dialogue recording is not at ${src}`);
-            await dialogueVideo(ff.bin, [{ file: src, at: 0, from: Math.max(0, Number(body.dialogue_file.from_s) || 0) }], duration, file);
-        } else await dialogueVideo(ff.bin, cues, duration, file);
-        materials.push({ kind: 'video', label: '@Video 1', role: 'dialogue audio', name: 'dialogue', file,
-            about: 'the recorded dialogue on a black screen: voices and timing only, never its picture', cues: said,
+            await dialogueTrack(ff.bin, [{ file: src, at: 0, from: Math.max(0, Number(body.dialogue_file.from_s) || 0) }], duration, file, as);
+        } else await dialogueTrack(ff.bin, cues, duration, file, as);
+        materials.push({ kind: form.kind, label: form.label, role: 'dialogue audio', name: 'dialogue', file,
+            about: as === 'video' ? 'the recorded dialogue on a black screen: voices and timing only, never its picture' : 'the recorded dialogue: the voices and their timing', cues: said,
             source: chosen ? `${path.basename(String(body.dialogue_file.path))} from ${Number(body.dialogue_file.from_s) || 0} s` : `${cues.length} recorded line${cues.length === 1 ? '' : 's'}` });
     }
     return materials;
 }
 
 function question(body, materials) {
-    const lines = materials.map(m => m.kind === 'video'
+    const lines = materials.map(m => m.kind !== 'image'
         ? `${m.label} = ${m.about}.${m.cues.length ? ` Its lines, as directed: ${m.cues.map(c => `${tc(c.at)} ${c.name}: "${c.text}"`).join('; ')}.` : ''}`
         : `${m.label} = ${m.role} of ${m.name}: ${m.about}.`);
     return [
@@ -210,7 +223,7 @@ async function writeSeedancePrompt(projectId, body, { ask = require('./codex-ast
     onStage('sheets', 'Making the character and location sheets and the dialogue track');
     const materials = await gather(projectId, body, folder);
     const images = materials.filter(m => m.kind === 'image').map(m => m.file);
-    onStage('writing', `ChatGPT is writing the prompt from ${images.length} picture${images.length === 1 ? '' : 's'}${materials.some(m => m.kind === 'video') ? ' and the dialogue' : ''}`);
+    onStage('writing', `ChatGPT is writing the prompt from ${images.length} picture${images.length === 1 ? '' : 's'}${materials.some(m => m.kind !== 'image') ? ' and the dialogue' : ''}`);
     const answer = await ask({ prompt: question(body, materials), images });
     onStage('saving', 'Saving the prompt and the hand-off folder');
     const parsed = jsonIn(answer.text);
@@ -249,4 +262,4 @@ function publicJob(j) {
 }
 function getJob(id) { const j = jobs.get(String(id)); if (!j) throw httpError(404, 'that optimize job is gone (Film Engine restarted?); run it again'); return publicJob(j); }
 
-module.exports = { startJob, getJob, writeSeedancePrompt, gather, question, guide, lineAudio, GUIDE_PATH };
+module.exports = { startJob, getJob, writeSeedancePrompt, gather, question, guide, lineAudio, GUIDE_PATH, DIALOGUE_FORMS };

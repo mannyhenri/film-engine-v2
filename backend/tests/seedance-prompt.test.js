@@ -115,6 +115,33 @@ test('a recording the director chose wins: the part from where this clip starts,
     await assert.rejects(SP.writeSeedancePrompt(projectId, { ...BODY(), dialogue_file: { path: '/nope.wav' } }, { ask: async () => ({ text: '{}' }) }), /not at \/nope.wav/);
 });
 
+/*
+ * Every form the dialogue can take, from every source: the black-screen MP4 for the hand-over by hand, or the sound
+ * alone for Seedance 2.5's audio reference. Each is as long as the clip, carries the sound, is named by its own label,
+ * and that label is the one ChatGPT is told to bind.
+ */
+const DIALOGUE_FORMS = { video: { label: '@Video 1', kind: 'video', ext: '.mp4', streams: 'audio,video' }, audio: { label: '@Audio 1', kind: 'audio', ext: '.wav', streams: 'audio' } };
+test('the dialogue comes in every form from every source: the right label, file, length and sound', { skip: !haveFfmpeg && 'no ffmpeg' }, async () => {
+    const take = tone('whole take.wav', 20);
+    const sources = { lines: {}, recording: { dialogue_file: { path: take, from_s: 2 } } };
+    for (const [as, want] of Object.entries(SP.DIALOGUE_FORMS)) {
+        assert.deepStrictEqual(want, DIALOGUE_FORMS[as], `the ${as} form is the one this test knows`);
+        for (const [from, extra] of Object.entries(sources)) {
+            let asked;
+            const out = await SP.writeSeedancePrompt(projectId, { ...BODY(), ...extra, dialogue_as: as }, { ask: async q => { asked = q; return { text: `{"prompt": "x ${want.label}"}` }; } });
+            const d = out.refs.filter(r => r.role === 'dialogue audio');
+            assert.strictEqual(d.length, 1, `${as} from ${from}: one dialogue reference`);
+            assert.deepStrictEqual([d[0].label, d[0].kind, path.extname(d[0].file)], [want.label, want.kind, want.ext], `${as} from ${from}`);
+            assert.ok(d[0].file_name.includes(want.label), `${as} from ${from}: the file is named by its label`);
+            assert.strictEqual(probe(d[0].file, 'stream=codec_type').split('\n').sort().join(','), want.streams, `${as} from ${from}: its streams`);
+            assert.ok(Math.abs(Number(probe(d[0].file, 'format=duration')) - 6) < 0.2, `${as} from ${from}: as long as the clip`);
+            assert.ok(asked.prompt.includes(`${want.label} = `), `${as} from ${from}: ChatGPT is told what ${want.label} is`);
+            assert.ok(d[0].in_prompt, `${as} from ${from}: the prompt binds it`);
+        }
+    }
+    await assert.rejects(SP.writeSeedancePrompt(projectId, { ...BODY(), dialogue_as: 'smell' }, { ask: async () => assert.fail('asked') }), /dialogue_as/);
+});
+
 test('as a job it reports each stage while ChatGPT writes, then holds the result to be read', { skip: !haveFfmpeg && 'no ffmpeg' }, async () => {
     let release; const gate = new Promise(r => { release = r; });
     const seen = [];

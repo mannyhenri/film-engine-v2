@@ -93,7 +93,7 @@ async function makeShot(projectId, body = {}) {
     const chosen = chosenSeconds(manifest, body.options || {});
     const length = chosen || Number(body.duration_s) || 5;
     const late = (body.no_dialogue ? [] : body.shots || []).flatMap(s => (s.lines || []).filter(l => Number(s.offset_s || 0) + Number(l.t || 0) >= length));
-    const unit = { ...body, duration_s: length };
+    const unit = { ...body, duration_s: length, dialogue_as: 'video' };   // the WAV below is taken from the MP4
     const materials = await gather(projectId, body.no_dialogue ? { ...unit, shots: (body.shots || []).map(s => ({ ...s, lines: [] })), dialogue_file: null } : unit, folder);
     const pictures = slotOrder(materials).slice(0, (manifest.images || []).length);
     const video = materials.find(m => m.kind === 'video');
