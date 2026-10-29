@@ -8,6 +8,7 @@
  *   POST /film/comfyui/jobs/:id/cancel   take it off the PC's queue (or interrupt it)
  *   GET  /film/comfyui/mac-tools         take tools that run on this Mac (Generators' AI Upscale), shaped like workflows
  *   GET  /film/comfyui/shots/:id/takes   the shot's video takes, newest first, with what made each and the take it came from
+ *   POST /film/comfyui/shots/:id/takes   add a finished clip from a file as the shot's next take: { path, provider? } → 201 { take }
  *   POST /film/comfyui/takes/:assetId    run a take tool (a PC workflow with a video slot, or "mac:<tool>") on that take: { workflow, options? };
  *                                        the result is filed on the same shot as its next version
  *
@@ -35,6 +36,7 @@ async function handleComfyUI(req, res, parts) {
         if (a === 'jobs' && b && c === 'cancel' && req.method === 'POST') return json(res, 200, { job: await comfy.cancelJob(b) });
         // A shot's takes, and a take tool run on one of them (lib/comfyui-shot.js).
         if (a === 'shots' && b && c === 'takes' && req.method === 'GET') return json(res, 200, { takes: require('../lib/comfyui-shot').listTakes(b) });
+        if (a === 'shots' && b && c === 'takes' && req.method === 'POST') return json(res, 201, { take: require('../lib/comfyui-shot').importTake(b, body) });
         if (a === 'takes' && b && !c && req.method === 'POST') return json(res, 202, await require('../lib/comfyui-shot').makeFromTake(b, body));
         return json(res, 404, { error: 'Not found' });
     } catch (err) {

@@ -158,4 +158,27 @@ describe('TakeTools', () => {
         expect(screen.getByText(/take_upscale · 1080p · from v1/)).toBeTruthy();
         expect(onFiled).toHaveBeenCalledTimes(1);
     });
+
+    it('a finished clip from a file is added as the shot\'s next take, and the take tools then work on it', async () => {
+        openTools();
+        let added;
+        installLegacy({ routes: {
+            'GET /comfyui/shots/s1/takes': () => ({ takes }),
+            'POST /comfyui/shots/s1/takes': (b) => { added = b; takes = [{ asset_id: 'a2', version: 2, workflow: null, options: null, from: null, url: '/film/video/p/1B_file_v2.mp4', exists: true }, ...takes]; return { take: { asset_id: 'a2', version: 2 } }; },
+        } });
+        window.__feFiles = { pathFor: () => '/films/Demo/04 Video/Clips/made elsewhere.mp4' };
+        try {
+            const onFiled = vi.fn();
+            const { TakeTools } = await import('./ComfyPanel.jsx');
+            render(<TakeTools shotId="s1" codeLabel="1B" tools={[TOOL]} onFiled={onFiled} />);
+            await flush();
+            expect(screen.getByRole('button', { name: 'Add a take from a file…' })).toBeTruthy();
+            await act(async () => { fireEvent.change(screen.getByLabelText('A video to add as a take'), { target: { files: [new File(['x'], 'made elsewhere.mp4', { type: 'video/mp4' })] } }); });
+            await flush();
+            expect(added).toEqual({ path: '/films/Demo/04 Video/Clips/made elsewhere.mp4' });
+            expect(screen.getByText('v2')).toBeTruthy();
+            expect(screen.getAllByRole('button', { name: 'Upscale (SeedVR2)' })).toHaveLength(2);   // the tools work on the new take too
+            expect(onFiled).toHaveBeenCalledTimes(1);
+        } finally { delete window.__feFiles; }
+    });
 });

@@ -56,22 +56,36 @@ function promptKey(pictures, dialogue) {
     return lines.join('\n');
 }
 
-/** Add a finished take to its shot as the newest video version; answers what the page shows. */
+/*
+ * Where a take comes from: made on the ComfyUI PC, made on this Mac (Generators), or a finished clip the director
+ * adds from a file (made anywhere else; its provider is what they say, else "imported").
+ */
+const TAKE_SOURCES = Object.freeze({
+    pc: Object.freeze({ provider: 'comfyui', tag: 'comfyui' }),
+    mac: Object.freeze({ provider: 'generators', tag: 'mac' }),
+    file: Object.freeze({ provider: 'imported', tag: 'file' }),
+});
+
+/** Add a finished take to its shot as the newest video version; answers what the page shows. meta.where: TAKE_SOURCES (pc by default). */
 function fileTake(projectId, shotId, file, meta) {
+    const where = TAKE_SOURCES[meta.where] ? meta.where : 'pc';
+    const source = TAKE_SOURCES[where];
     const ext = path.extname(file).toLowerCase() || '.mp4';
     const row = db.prepare(`SELECT COALESCE(MAX(version), 0) AS v FROM film_assets
         WHERE shot_id = ? AND asset_type IN ('video_final','video_synced','video_raw')`).get(shotId);
     const version = Number(row?.v || 0) + 1;
     const code = String(meta.label || 'shot').replace(/[^\w+-]+/g, '_');
-    const name = `${code}_${meta.where === 'mac' ? 'mac' : 'comfyui'}_v${version}_${Date.now()}${ext}`;
+    const name = `${code}_${source.tag}_v${version}_${Date.now()}${ext}`;
     const stored = saveFile(projectId, 'video', name, fs.readFileSync(file));
     const id = crypto.randomUUID();
     db.prepare(`INSERT INTO film_assets (id, project_id, shot_id, asset_type, file_path, file_name, format, mime_type, version,
         provider, provider_model, provider_job_id, license_source, license_status, input_refs)
         VALUES (?, ?, ?, 'video_raw', ?, ?, ?, ?, ?, ?, ?, ?, 'generated', 'generated', ?)`)
         .run(id, projectId, shotId, stored, name, ext.slice(1), { '.webm': 'video/webm', '.mov': 'video/quicktime' }[ext] || 'video/mp4', version,
-            meta.where === 'mac' ? 'generators' : 'comfyui', meta.workflow, meta.prompt_id || null, JSON.stringify({ comfyui: { url: meta.where === 'mac' ? 'this Mac' : comfy.baseUrl(), workflow: meta.workflow, seed: meta.seed, options: meta.options,
-                ...(meta.from ? { from: meta.from } : {}) } }));
+            (where === 'file' && meta.provider) || source.provider, meta.workflow || null, meta.prompt_id || null,
+            JSON.stringify(where === 'file' ? { file: { source: meta.source || path.basename(file) } }
+                : { comfyui: { url: where === 'mac' ? 'this Mac' : comfy.baseUrl(), workflow: meta.workflow, seed: meta.seed, options: meta.options,
+                    ...(meta.from ? { from: meta.from } : {}) } }));
     return { asset_id: id, version, url: urlForPath(stored), path: stored };
 }
 
@@ -128,6 +142,19 @@ async function makeShot(projectId, body = {}) {
 }
 
 const VIDEO_TYPES = ['video_final', 'video_synced', 'video_raw'];
+
+/** A finished clip from a file, added to the shot as its next take (so take tools can work on it). body: { path, provider? } */
+function importTake(shotId, body = {}) {
+    const shot = db.prepare('SELECT sh.id, sh.shot_code, sc.project_id FROM film_shots sh JOIN film_scenes sc ON sc.id = sh.scene_id WHERE sh.id = ?').get(String(shotId));
+    if (!shot) throw httpError(404, 'no such shot');
+    const file = String(body.path || '');
+    if (!path.isAbsolute(file) || !fs.existsSync(file)) throw httpError(404, `no file at ${file || '(no path)'}`);
+    const ff = resolveFfmpeg();
+    // ffmpeg names each stream it finds ("Stream #0:0: Video: …"); a cover picture in a sound file is not a video.
+    const info = require('child_process').spawnSync(ff.bin, ['-hide_banner', '-i', file], { encoding: 'utf8' }).stderr || '';
+    if (!/Stream #\S+.*: Video: (?!.*attached pic)/.test(info)) throw httpError(400, `${path.basename(file)} is not a video`);
+    return fileTake(shot.project_id, shot.id, file, { label: shot.shot_code, where: 'file', provider: body.provider ? String(body.provider) : null, source: path.basename(file) });
+}
 
 /** A shot's video takes, newest first, each with what made it and the take it was made from. */
 function listTakes(shotId) {
@@ -211,4 +238,4 @@ function makeOnMac(a, slug, options) {
     return { job: j };
 }
 
-module.exports = { makeShot, listTakes, makeFromTake, macTools, slotOrder, promptKey, fileTake, chosenSeconds };
+module.exports = { makeShot, listTakes, makeFromTake, macTools, slotOrder, promptKey, fileTake, importTake, chosenSeconds, TAKE_SOURCES };

@@ -289,3 +289,38 @@ test('a Mac take tool (Generators AI Upscale) runs on a take and files the resul
         await assert.rejects(comfy.cancelJob(job.id), /stop it in Production › Generators/);
     } finally { Object.assign(gen, keep); }
 });
+
+/*
+ * Every place a take can come from (TAKE_SOURCES): made on the PC, made on this Mac, or a finished clip the director
+ * adds from a file. Each is filed as the shot's next version, under its own provider, and listed with the takes.
+ */
+test('a take from every source is filed as the next version under its own provider, and listed', { skip: !haveFfmpeg && 'no ffmpeg' }, () => {
+    const shot = generateId();
+    db.prepare('INSERT INTO film_shots (id, scene_id, shot_code) VALUES (?, ?, ?)').run(shot, sceneId, '1Z');
+    const clip = path.join(TMP, 'clip.mp4');
+    execFileSync(ff.bin, ['-nostdin', '-v', 'error', '-y', '-f', 'lavfi', '-i', 'color=c=red:s=320x180:r=24:d=1', '-f', 'lavfi', '-i', 'sine=d=1', '-shortest', clip], { stdio: ['ignore', 'pipe', 'pipe'] });
+    const sources = Object.keys(shotLib.TAKE_SOURCES);
+    assert.deepStrictEqual(sources.sort(), ['file', 'mac', 'pc']);
+    for (const [i, where] of sources.entries()) {
+        const filed = shotLib.fileTake(projectId, shot, clip, { label: '1Z', where, workflow: `w-${where}`, provider: where === 'file' ? 'elsewhere' : undefined });
+        assert.strictEqual(filed.version, i + 1, `${where}: the next version`);
+        const row = db.prepare('SELECT provider, asset_type FROM film_assets WHERE id = ?').get(filed.asset_id);
+        assert.deepStrictEqual(row, { provider: where === 'file' ? 'elsewhere' : shotLib.TAKE_SOURCES[where].provider, asset_type: 'video_raw' }, where);
+        assert.ok(path.basename(filed.path).startsWith(`1Z_${shotLib.TAKE_SOURCES[where].tag}_v${i + 1}_`), `${where}: named by its source`);
+    }
+    assert.deepStrictEqual(shotLib.listTakes(shot).map(t => [t.version, t.exists]), [[3, true], [2, true], [1, true]]);
+});
+
+test('adding a take from a file: it lands on the shot; a missing file, a non-video or an unknown shot is refused', { skip: !haveFfmpeg && 'no ffmpeg' }, () => {
+    const shot = generateId();
+    db.prepare('INSERT INTO film_shots (id, scene_id, shot_code) VALUES (?, ?, ?)').run(shot, sceneId, '1Y');
+    const clip = path.join(TMP, 'made elsewhere.mp4');
+    execFileSync(ff.bin, ['-nostdin', '-v', 'error', '-y', '-f', 'lavfi', '-i', 'color=c=blue:s=320x180:r=24:d=1', clip], { stdio: ['ignore', 'pipe', 'pipe'] });
+    const out = shotLib.importTake(shot, { path: clip });
+    assert.strictEqual(out.version, 1);
+    assert.strictEqual(shotLib.listTakes(shot)[0].provider, 'imported');
+    assert.ok(fs.existsSync(out.path) && out.path !== clip, 'a copy is kept with the project');
+    assert.throws(() => shotLib.importTake(shot, { path: path.join(TMP, 'nope.mp4') }), /no file at/);
+    assert.throws(() => shotLib.importTake(shot, { path: tone('just sound.mp3', 1) }), /not a video/);
+    assert.throws(() => shotLib.importTake('no-such-shot', { path: clip }), /no such shot/);
+});

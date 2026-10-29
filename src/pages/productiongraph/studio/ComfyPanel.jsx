@@ -91,6 +91,7 @@ export function TakeTools({ shotId, codeLabel, tools, onFiled, refreshKey }) {
     const [choices, setChoices] = useState({});
     const [jobs, setJobs] = useState([]);
     const [err, setErr] = useState('');
+    const fileInput = useRef(null);
     const load = useCallback(() => legacy.api(`/comfyui/shots/${shotId}/takes`, { refresh: false }).then(r => setTakes(r.takes || [])).catch(e => setErr(e.message)), [shotId]);
     useEffect(() => { if (shotId) load(); }, [load, refreshKey, shotId]);
     const live = useFollow(jobs, setJobs, () => { load(); onFiled && onFiled(); });
@@ -104,10 +105,21 @@ export function TakeTools({ shotId, codeLabel, tools, onFiled, refreshKey }) {
             setJobs(js => [out.job, ...js]); setOpen(null);
         } catch (e) { setErr(e.message); }
     };
+    // A finished clip made anywhere else, added as this shot's next take so the take tools can work on it.
+    const addFile = async e => {
+        const f = e.target.files?.[0]; e.target.value = '';
+        const p = f && window.__feFiles?.pathFor?.(f);
+        if (!p) return;
+        setErr('');
+        try { await legacy.api(`/comfyui/shots/${shotId}/takes`, { method: 'POST', refresh: false, body: JSON.stringify({ path: p }) }); load(); onFiled && onFiled(); }
+        catch (x) { setErr(x.message); }
+    };
     return (
         <section className="cf-sec cf-takes" aria-label={`Takes of ${codeLabel}`}>
-            <h4>Takes of {codeLabel}</h4>
-            {!takes.length && <p className="ds-muted">No takes yet. Make a draft above; it lands here.</p>}
+            <div className="cf-row between"><h4>Takes of {codeLabel}</h4>
+                {window.__feFiles?.pathFor && <button type="button" className="ds-btn xs" onClick={() => fileInput.current?.click()}>Add a take from a file…</button>}
+                <input ref={fileInput} type="file" accept="video/*" hidden aria-label="A video to add as a take" onChange={addFile} /></div>
+            {!takes.length && <p className="ds-muted">No takes yet. Make a draft above, or add a finished clip from a file; it lands here.</p>}
             {jobs.map(j => (
                 <div key={j.id} className="cf-row between cf-joblive"><span>{j.label}</span><span className={'cf-state ' + j.status}>{j.status === 'done' ? 'Back' : stageText(j)}</span></div>
             ))}
