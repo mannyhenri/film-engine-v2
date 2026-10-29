@@ -81,6 +81,7 @@ function validate(manifest, graph) {
     if (manifest.seed) has(manifest.seed, 'seed');
     (manifest.images || []).forEach((r, i) => has(r, `image ${i + 1}${r.role ? ' (' + r.role + ')' : ''}`));
     (manifest.audio || []).forEach((r, i) => has(r, `audio ${i + 1}${r.role ? ' (' + r.role + ')' : ''}`));
+    (manifest.video || []).forEach((r, i) => has(r, `video ${i + 1}${r.role ? ' (' + r.role + ')' : ''}`));
     for (const o of manifest.options || []) {
         has(o, `option ${o.id}`);
         if (o.type === 'enum' && !(o.choices || []).length) problems.push(`option ${o.id}: an enum needs choices`);
@@ -104,10 +105,12 @@ async function listWorkflows() {
                 prompt: !!manifest.prompt, seed: !!manifest.seed,
                 images: (manifest.images || []).map(r => ({ role: r.role || 'reference' })),
                 audio: (manifest.audio || []).map(r => ({ role: r.role || 'audio' })),
+                // A workflow with a video slot works on a finished take (upscale, retake…), not on a storyboard shot.
+                video: (manifest.video || []).map(r => ({ role: r.role || 'take' })),
                 options: (manifest.options || []).map(({ node, input, index, ...o }) => o),
                 draft: manifest.draft || null });
         } catch (err) {
-            out.push({ slug, name: slug, ready: false, problems: [err.message], images: [], audio: [], options: [] });
+            out.push({ slug, name: slug, ready: false, problems: [err.message], images: [], audio: [], video: [], options: [] });
         }
     }
     return out;
@@ -160,6 +163,7 @@ function buildPrompt(manifest, graph, values = {}) {
     });
     fill(manifest.images || [], values.images || []);
     fill(manifest.audio || [], values.audio || []);
+    fill(manifest.video || [], values.video || []);
     // Drop inputs that pointed at a removed loader: a node left reading nothing is refused by ComfyUI.
     for (const node of Object.values(g)) for (const [k, v] of Object.entries(node.inputs || {})) if (isLink(v) && removed.has(v[0])) delete node.inputs[k];
     // The reference inputs on the core node, in the MANIFEST's slot order (its ref_wiring names the node and the
@@ -225,7 +229,7 @@ const JOB_DIR = () => path.join(require('./file-storage').DATA_DIR, 'comfyui', '
 const LIVE = new Set(['uploading', 'queued', 'running', 'downloading']);
 
 function publicJob(j) {
-    const { values, done, cancelled, socket, sampler_started, detached, images, audio, sources, ...rest } = j;
+    const { values, done, cancelled, socket, sampler_started, detached, images, audio, video, sources, ...rest } = j;
     return { ...rest, stage_label: STAGES[j.status], elapsed_s: Math.round(((j.finished_at || Date.now()) - j.started_at) / 1000) };
 }
 
@@ -248,21 +252,22 @@ async function runJob(j) {
     try {
         j.status = 'uploading'; save(j);
         const { manifest, graph } = await loadWorkflow(j.workflow);
-        const sendAll = async () => [await Promise.all((j.sources.images || []).map(f => (f ? upload(f) : null))), await Promise.all((j.sources.audio || []).map(f => (f ? upload(f) : null)))];
+        const sendList = list => Promise.all((list || []).map(f => (f ? upload(f) : null)));
+        const sendAll = async () => [await sendList(j.sources.images), await sendList(j.sources.audio), await sendList(j.sources.video)];
         // Names already on the PC (a run's takes share one upload) go as they are.
-        let [images, audio] = j.uploaded ? [j.images, j.audio] : await sendAll();
-        const queue = () => call('/prompt', { method: 'POST', body: JSON.stringify({ prompt: buildPrompt(manifest, graph, { ...j.values, images, audio }), client_id: j.id }), timeout: 30000 });
+        let [images, audio, video] = j.uploaded ? [j.images, j.audio, j.video || []] : await sendAll();
+        const queue = () => call('/prompt', { method: 'POST', body: JSON.stringify({ prompt: buildPrompt(manifest, graph, { ...j.values, images, audio, video }), client_id: j.id }), timeout: 30000 });
         j.socket = listen(j);
         let q;
         try { q = await queue(); }
         catch (err) {
             // A file sent earlier this session is gone from the PC (its input folder was cleaned): forget those names,
             // send the files again and queue once more. Anything else is the job's error.
-            const loaders = Object.values(err.body?.node_errors || {}).some(e => /^Load(Image|Audio)/.test(e?.class_type || ''));
-            if (!loaders || !(j.sources.images || []).concat(j.sources.audio || []).some(Boolean)) throw err;
-            const gone = new Set([...images, ...audio].filter(Boolean));
+            const loaders = Object.values(err.body?.node_errors || {}).some(e => /^Load(Image|Audio|Video)/.test(e?.class_type || ''));
+            if (!loaders || ![...(j.sources.images || []), ...(j.sources.audio || []), ...(j.sources.video || [])].some(Boolean)) throw err;
+            const gone = new Set([...images, ...audio, ...video].filter(Boolean));
             for (const [h, n] of sent) if (gone.has(n)) sent.delete(h);
-            [images, audio] = await sendAll();
+            [images, audio, video] = await sendAll();
             q = await queue();
         }
         if (q.node_errors && Object.keys(q.node_errors).length) throw httpError(422, `ComfyUI refused the workflow: ${JSON.stringify(q.node_errors).slice(0, 400)}`);
@@ -375,7 +380,7 @@ function listen(j) {
 }
 
 /**
- * Queue one generation: { workflow, prompt?, seed?, options?, images?: [path|null], audio?: [path|null], shot_id? }.
+ * Queue one generation: { workflow, prompt?, seed?, options?, images?: [path|null], audio?: [path|null], video?: [path|null], shot_id? }.
  * opts.uploaded: images/audio are names already on the PC (opts.sources: their local files). opts.fileOn { project_id, shot_id, meta }: add the result
  * to that shot as its next video version.
  */
@@ -383,9 +388,11 @@ function startJob(body = {}, { label = null, uploaded = false, fileOn = null, so
     const j = { id: crypto.randomUUID(), workflow: String(body.workflow || ''), shot_id: body.shot_id || null, status: 'uploading', label, filed: null,
         file_on: fileOn, uploaded,
         // The local files behind the inputs, to send again if the PC lost them (uploaded jobs pass them in).
-        sources: sources || (uploaded ? { images: [], audio: [] } : { images: Array.isArray(body.images) ? body.images : [], audio: Array.isArray(body.audio) ? body.audio : [] }),
+        sources: sources || (uploaded ? { images: [], audio: [], video: [] }
+            : { images: Array.isArray(body.images) ? body.images : [], audio: Array.isArray(body.audio) ? body.audio : [], video: Array.isArray(body.video) ? body.video : [] }),
         values: { prompt: body.prompt, seed: Number.isInteger(body.seed) ? body.seed : undefined, options: body.options || {} },
         images: Array.isArray(body.images) ? body.images : [], audio: Array.isArray(body.audio) ? body.audio : [],
+        video: Array.isArray(body.video) ? body.video : [],
         outputs: [], error: null, prompt_id: null, output_node: null, position: null, progress: null, node: null, started_at: Date.now(), finished_at: null };
     if (!j.workflow) throw httpError(400, 'pick a workflow');
     jobs.set(j.id, j);

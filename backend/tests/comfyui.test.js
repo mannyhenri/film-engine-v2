@@ -469,3 +469,14 @@ test('every job field the My PC panel reads is one the server sends (derived fro
         }
     } finally { wss.close(); server.close(); }
 });
+
+test('video slots: filled with the uploaded take, removed when empty, and checked by validate', () => {
+    const g0 = { 10: { class_type: 'LoadVideo', inputs: { file: 'old.mp4' } }, 30: { class_type: 'X', inputs: { video: ['10', 0] } }, 92: { class_type: 'SaveVideo', inputs: { video: ['30', 0] } } };
+    const m = { video: [{ node: '10', input: 'file', role: 'take' }], outputs: { node: '92' } };
+    assert.deepStrictEqual(comfy.validate(m, g0), []);
+    assert.ok(comfy.validate({ ...m, video: [{ node: '11', input: 'file' }] }, g0).length, 'a missing video node is caught');
+    assert.ok(comfy.validate({ ...m, video: [{ node: '10', input: 'video' }] }, g0).length, 'a missing video input is caught');
+    assert.strictEqual(comfy.buildPrompt(m, g0, { video: ['film-engine/abc-take.mp4'] })[10].inputs.file, 'film-engine/abc-take.mp4');
+    const empty = comfy.buildPrompt(m, g0, { video: [] });
+    assert.ok(!empty[10] && !('video' in empty[30].inputs), 'no take: the loader and its link go');
+});

@@ -72,6 +72,18 @@ const MANIFEST = { name: 'Storyboard shot to video', kind: 'video', workflow: 's
     options: [{ id: 'duration', label: 'Duration', node: '210', input: 'choice', type: 'enum', index: true, choices: [{ label: '5 s', index: 0 }, { label: '8 s', index: 1 }], default: 0 }],
     outputs: { node: '92' } };
 
+/* A take tool: LoadVideo -> (upscale) -> SaveVideo, with a Resolution dropdown. */
+const TAKE_GRAPH = {
+    10: { class_type: 'LoadVideo', inputs: { file: 'x.mp4' } },
+    20: { class_type: 'CustomCombo', inputs: { choice: '1080p (1920x1080)', index: 0 } },
+    30: { class_type: 'SeedVR2PostProcessing', inputs: { video: ['10', 0], size: ['20', 1] } },
+    92: { class_type: 'SaveVideo', inputs: { video: ['30', 0] } },
+};
+const TAKE_MANIFEST = { name: 'Upscale (SeedVR2)', kind: 'fx', workflow: 'take_upscale.api.json',
+    video: [{ node: '10', input: 'file', role: 'take' }],
+    options: [{ id: 'resolution', label: 'Resolution', node: '20', input: 'choice', type: 'enum', index: true, choices: [{ label: '1080p (1920x1080)', index: 0 }, { label: '4K (3840x2160)', index: 1 }], default: 0 }],
+    outputs: { node: '92' } };
+
 function fakeComfy() {
     const state = { uploads: [], prompts: [], hold: false, release: [] };
     const history = {};
@@ -84,6 +96,7 @@ function fakeComfy() {
             const body = Buffer.concat(chunks);
             if (u.pathname.startsWith('/userdata/')) {
                 const f = decodeURIComponent(u.pathname.slice(10)).replace('workflows/film-engine/', '');
+                if (f.startsWith('take_upscale')) return send(200, f.endsWith('.fe.json') ? TAKE_MANIFEST : TAKE_GRAPH);
                 return send(200, f.endsWith('.fe.json') ? MANIFEST : GRAPH);
             }
             if (u.pathname === '/upload/image') {
@@ -217,4 +230,29 @@ test('the storyboard frame always makes it in, however many sheets there are', {
     assert.strictEqual(imgs.length, 12, 'still capped');
     assert.ok(imgs.some(m => m.role === 'storyboard frame'), 'the frame kept its place');
     assert.strictEqual(shotLib.slotOrder(mats)[0].role, 'storyboard frame');
+});
+
+test('a take tool works on a finished take: the take goes up as the video, the result is the next version, from that take', { skip: !haveFfmpeg && 'no ffmpeg' }, async () => {
+    const { server, state } = await fakeComfy();
+    try {
+        const own = path.join(process.env.FILM_DATA_DIR, 'takes'); fs.mkdirSync(own, { recursive: true });
+        const src = path.join(own, 'draft.mp4'); fs.writeFileSync(src, 'DRAFT-MP4-BYTES');
+        const draft = shotLib.fileTake(projectId, shotId, src, { label: '1A', workflow: 'storyboard_shot_to_video', options: { duration: '5 s' } });
+        const before = versions().length;
+        const { job } = await shotLib.makeFromTake(draft.asset_id, { workflow: 'take_upscale', options: { resolution: '4K (3840x2160)' } });
+        const j = await comfy._jobs.get(job.id).done.then(() => comfy.getJob(job.id));
+        assert.strictEqual(j.status, 'done', j.error);
+        const sent = state.prompts.at(-1);
+        assert.match(sent[10].inputs.file, /^film-engine\/[0-9a-f]{12}-1A_comfyui_v\d+_\d+\.mp4$/, 'the take is the LoadVideo file');
+        assert.deepStrictEqual([sent[20].inputs.choice, sent[20].inputs.index], ['4K (3840x2160)', 1]);
+        assert.strictEqual(versions().length, before + 1);
+        const takes = shotLib.listTakes(shotId);
+        assert.strictEqual(takes[0].version, j.filed.version, 'newest first');
+        assert.deepStrictEqual(takes[0].from, { asset_id: draft.asset_id, version: draft.version }, 'remembers the take it came from');
+        assert.strictEqual(takes[0].workflow, 'take_upscale');
+        assert.ok(takes.every(t => 'url' in t && 'exists' in t));
+        // Refused: a workflow without a video input, and something that is not a video take.
+        await assert.rejects(shotLib.makeFromTake(draft.asset_id, { workflow: 'storyboard_shot_to_video' }), /does not take a video/);
+        await assert.rejects(shotLib.makeFromTake(frameId, { workflow: 'take_upscale' }), /not a video version of a shot/);
+    } finally { server.close(); }
 });

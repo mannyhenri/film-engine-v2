@@ -397,3 +397,6 @@ textarea.ds-in { resize: vertical; }
 .cf-state.done { color: #4fd39c; }
 .cf-state.failed { color: #e5484d; }
 .cf-err { margin: 0; color: #f0a0a2; font-size: 12px; }
+.cf-takes { border-top: 1px solid rgba(255,255,255,.08); padding-top: 14px; }
+.cf-takes .ds-btn.on { border-color: #6f8fff; background: rgba(53,89,204,.3); }
+.cf-joblive { font-size: 12px; padding: 6px 8px; border: 1px solid rgba(255,255,255,.08); border-radius: 8px; }

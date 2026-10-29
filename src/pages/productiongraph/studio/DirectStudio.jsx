@@ -777,7 +777,8 @@ export default function DirectStudio({ pid, graph, catalog, reload }) {
                         unit={() => unitBody(promptCodes, finalText, references, unitDur)}
                         names={[...new Set([...promptCodes.flatMap(id => S[id].lines.map(l => nameOf(l.ch))), ...references.filter(r => r.location_id).map(r => r.name)].filter(Boolean))]}
                         hasFrame={promptCodes.some(id => frameOf(starters[id]))} lineCount={promptCodes.reduce((a, id) => a + S[id].lines.length, 0)}
-                        dialogueName={dialogueFile ? dialogueFile.path.split('/').pop() : ''} onFiled={reload} onUseHiggsfield={() => setSt({ genOn: 'hf' }, { quiet: true })} />}
+                        dialogueName={dialogueFile ? dialogueFile.path.split('/').pop() : ''} onFiled={reload} onUseHiggsfield={() => setSt({ genOn: 'hf' }, { quiet: true })}
+                        shotId={promptCodes.length === 1 ? promptCodes[0] : null} />}
                     {compiled && !onPc && <>
                         <div className="ds-row"><h3>Generate</h3><span className="ds-mono">{facts ? facts.label : 'Pick a model'}{studio.resolution ? ' · ' + studio.resolution : ''} · {studio.aspect}</span></div>
                         {k !== 'seq' && cards4.length > 0 && <div className="ds-chips">{modelChips}</div>}

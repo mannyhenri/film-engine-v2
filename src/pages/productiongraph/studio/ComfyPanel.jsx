@@ -43,9 +43,102 @@ function lengthHint(choice, dur) {
     return n < dur ? `The shot is ${dur} s, so the last ${+(dur - n).toFixed(1)} s will be missing.` : `The shot is ${dur} s. Trim the extra in Cut.`;
 }
 
-export default function ComfyPanel({ pid, unit, codeLabel, dur, names, hasFrame, lineCount, dialogueName, onFiled, onUseHiggsfield }) {
+/** A workflow's own options as big buttons ("16:9" over "864x480"), with the length hint where one applies. */
+export function OptionPills({ options, choices, setChoices, dur }) {
+    return (options || []).filter(o => o.type === 'enum').map(o => {
+        const labels = (o.choices || []).map(labelOf);
+        const hint = dur && /duration|length/i.test(o.id + o.label) ? lengthHint(choices[o.id], dur) : '';
+        return (
+            <section key={o.id} className="cf-sec">
+                <h4>{o.label}</h4>
+                <div className="cf-pills" role="group" aria-label={o.label} style={{ gridTemplateColumns: `repeat(${Math.min(labels.length, 4)}, minmax(0, 1fr))` }}>
+                    {labels.map(l => { const [main, sub] = splitLabel(l); const on = choices[o.id] === l;
+                        return <button key={l} type="button" className={'cf-pill' + (on ? ' on' : '')} aria-pressed={on} onClick={() => setChoices(c => ({ ...c, [o.id]: l }))}>{main}{sub && <small>{sub}</small>}</button>; })}
+                </div>
+                {hint && <p className="ds-muted">{hint}</p>}
+            </section>
+        );
+    });
+}
+
+const LIVE = j => !['done', 'failed'].includes(j.status);
+
+/** Follow jobs until each is back or failed; onDone runs once per job that comes back. */
+function useFollow(jobs, setJobs, onDone) {
+    const seen = useRef(new Set());
+    const live = (jobs || []).some(LIVE);
+    useEffect(() => {
+        if (!live) return undefined;
+        const t = setInterval(async () => {
+            const next = await Promise.all(jobs.map(j => (LIVE(j) ? legacy.api(`/comfyui/jobs/${j.id}`, { refresh: false }).then(r => r.job).catch(() => j) : j)));
+            setJobs(next);
+            const fresh = next.filter(j => j.status === 'done' && !seen.current.has(j.id));
+            fresh.forEach(j => seen.current.add(j.id));
+            if (fresh.length && onDone) onDone();
+        }, 2000);
+        return () => clearInterval(t);
+    }, [live, jobs]); // eslint-disable-line react-hooks/exhaustive-deps
+    return live;
+}
+
+/*
+ * Takes of the shot, and what can be done to each on the PC: every workflow with a video slot is a take tool
+ * (an upscale to 1080p or 4K, say). Its result comes back as the shot's next version, marked with the take it came from.
+ */
+export function TakeTools({ shotId, codeLabel, tools, onFiled, refreshKey }) {
+    const [takes, setTakes] = useState(null);
+    const [open, setOpen] = useState(null);          // { asset_id, slug }
+    const [choices, setChoices] = useState({});
+    const [jobs, setJobs] = useState([]);
+    const [err, setErr] = useState('');
+    const load = useCallback(() => legacy.api(`/comfyui/shots/${shotId}/takes`, { refresh: false }).then(r => setTakes(r.takes || [])).catch(e => setErr(e.message)), [shotId]);
+    useEffect(() => { if (shotId) load(); }, [load, refreshKey, shotId]);
+    const live = useFollow(jobs, setJobs, () => { load(); onFiled && onFiled(); });
+    if (!shotId || !takes) return null;
+    const ready = (tools || []).filter(t => t.ready);
+    const tool = ready.find(t => t.slug === open?.slug);
+    const run = async () => {
+        setErr('');
+        try {
+            const out = await legacy.api(`/comfyui/takes/${open.asset_id}`, { method: 'POST', refresh: false, body: JSON.stringify({ workflow: open.slug, options: choices }) });
+            setJobs(js => [out.job, ...js]); setOpen(null);
+        } catch (e) { setErr(e.message); }
+    };
+    return (
+        <section className="cf-sec cf-takes" aria-label={`Takes of ${codeLabel}`}>
+            <h4>Takes of {codeLabel}</h4>
+            {!takes.length && <p className="ds-muted">No takes yet. Make a draft above; it lands here.</p>}
+            {jobs.map(j => (
+                <div key={j.id} className="cf-row between cf-joblive"><span>{j.label}</span><span className={'cf-state ' + j.status}>{j.status === 'done' ? 'Back' : stageText(j)}</span></div>
+            ))}
+            {err && <p className="cf-err">{err}</p>}
+            {takes.map(t => (
+                <div key={t.asset_id} className="cf-take">
+                    {t.exists ? <video className="cf-video" src={t.url} controls preload="metadata" /> : <div className="cf-video ph"><span>File missing</span></div>}
+                    <div className="cf-row between">
+                        <b>v{t.version}</b>
+                        <span className="ds-muted">{[t.workflow, t.options && Object.values(t.options).map(v => splitLabel(v)[0]).join(' · '), t.from && `from v${t.from.version}`].filter(Boolean).join(' · ')}</span>
+                    </div>
+                    {ready.length > 0 && <div className="cf-row">{ready.map(w => (
+                        <button key={w.slug} type="button" className={'ds-btn sm' + (open?.asset_id === t.asset_id && open.slug === w.slug ? ' on' : '')}
+                            onClick={() => { setOpen({ asset_id: t.asset_id, slug: w.slug }); setChoices(defaultChoices(w.options, w.draft)); }}>{w.name}</button>))}</div>}
+                    {open?.asset_id === t.asset_id && tool && <>
+                        <OptionPills options={tool.options} choices={choices} setChoices={setChoices} />
+                        <div className="cf-row"><button type="button" className="ds-btn pri" onClick={run}>Run on my PC</button><button type="button" className="ds-btn ghost" onClick={() => setOpen(null)}>Cancel</button></div>
+                    </>}
+                </div>
+            ))}
+            {!ready.length && takes.length > 0 && <p className="ds-muted">No take tools on your PC yet (a workflow with a video input, e.g. a SeedVR2 upscale).</p>}
+            {live && <p className="ds-muted">Take tools run on your PC; results come back here as new versions.</p>}
+        </section>
+    );
+}
+
+export default function ComfyPanel({ pid, unit, codeLabel, dur, names, hasFrame, lineCount, dialogueName, onFiled, onUseHiggsfield, shotId = null }) {
     const [status, setStatus] = useState(null);
     const [workflows, setWorkflows] = useState(null);
+    const [tools, setTools] = useState([]);
+    const [filedAt, setFiledAt] = useState(0);
     const [slug, setSlug] = useState('');
     const [choices, setChoices] = useState({});
     const [takes, setTakes] = useState(2);
@@ -61,7 +154,10 @@ export default function ComfyPanel({ pid, unit, codeLabel, dur, names, hasFrame,
             setStatus(st);
             if (!st.ok) return;
             const wf = await legacy.api('/comfyui/workflows', { refresh: false });
-            const list = (wf.workflows || []).filter(w => w.kind === 'video');
+            // New shots come from workflows without a video input; workflows with one are take tools (TakeTools).
+            const all = wf.workflows || [];
+            const list = all.filter(w => w.kind === 'video' && !(w.video || []).length);
+            setTools(all.filter(w => (w.video || []).length));
             setWorkflows(list);
             setSlug(s => (list.some(w => w.slug === s) ? s : (list.find(w => w.ready) || list[0])?.slug || ''));
         } catch (err) { setStatus({ ok: false, error: err.message }); }
@@ -72,20 +168,8 @@ export default function ComfyPanel({ pid, unit, codeLabel, dur, names, hasFrame,
     useEffect(() => { if (wf) setChoices(defaultChoices(wf.options, wf.draft)); }, [slug, workflows]); // eslint-disable-line react-hooks/exhaustive-deps
 
     // Follow the takes until each is back (or failed); a filed take reloads Direct so it plays in the preview.
-    const live = run && (run.jobs || []).some(j => !['done', 'failed'].includes(j.status));
-    useEffect(() => {
-        if (!live) return undefined;
-        const t = setInterval(async () => {
-            const jobs = await Promise.all(run.jobs.map(j => (['done', 'failed'].includes(j.status) ? j
-                : legacy.api(`/comfyui/jobs/${j.id}`, { refresh: false }).then(r => r.job).catch(() => j))));
-            setRun(r => ({ ...r, jobs }));
-            if (jobs.some(j => j.status === 'done' && !filedOnce.current.has(j.id))) {
-                jobs.forEach(j => j.status === 'done' && filedOnce.current.add(j.id));
-                onFiled && onFiled();
-            }
-        }, 2000);
-        return () => clearInterval(t);
-    }, [live, run]); // eslint-disable-line react-hooks/exhaustive-deps
+    const setRunJobs = jobs => setRun(r => ({ ...r, jobs }));
+    const live = useFollow(run?.jobs || [], setRunJobs, () => { setFiledAt(Date.now()); onFiled && onFiled(); });
 
     const make = async () => {
         setBusy(true);
@@ -146,6 +230,7 @@ export default function ComfyPanel({ pid, unit, codeLabel, dur, names, hasFrame,
                     ? <><p className="ds-muted">You can keep directing. Takes land on {codeLabel} and show up in Cut.</p>
                         <button type="button" className="ds-btn" onClick={stop}>Stop</button></>
                     : <button type="button" className="ds-btn pri big" onClick={() => setRun(null)}>Make more</button>}
+                <TakeTools shotId={shotId} codeLabel={codeLabel} tools={tools} onFiled={onFiled} refreshKey={filedAt} />
             </div>
         );
     }
@@ -169,20 +254,7 @@ export default function ComfyPanel({ pid, unit, codeLabel, dur, names, hasFrame,
                 <select className="ds-in" value={slug} onChange={e => setSlug(e.target.value)}>{workflows.map(w => <option key={w.slug} value={w.slug} disabled={!w.ready}>{w.name}{w.ready ? '' : ' (not ready)'}</option>)}</select></label>}
             {wf && !wf.ready && <div className="cf-card warn"><b>This workflow doesn't match its settings file</b><p>{wf.problems.join('; ')}</p></div>}
 
-            {(wf?.options || []).filter(o => o.type === 'enum').map(o => {
-                const labels = (o.choices || []).map(labelOf);
-                const hint = /duration|length/i.test(o.id + o.label) ? lengthHint(choices[o.id], dur) : '';
-                return (
-                    <section key={o.id} className="cf-sec">
-                        <h4>{o.label}</h4>
-                        <div className="cf-pills" role="group" aria-label={o.label} style={{ gridTemplateColumns: `repeat(${Math.min(labels.length, 4)}, minmax(0, 1fr))` }}>
-                            {labels.map(l => { const [main, sub] = splitLabel(l); const on = choices[o.id] === l;
-                                return <button key={l} type="button" className={'cf-pill' + (on ? ' on' : '')} aria-pressed={on} onClick={() => setChoices(c => ({ ...c, [o.id]: l }))}>{main}{sub && <small>{sub}</small>}</button>; })}
-                        </div>
-                        {hint && <p className="ds-muted">{hint}</p>}
-                    </section>
-                );
-            })}
+            <OptionPills options={wf?.options} choices={choices} setChoices={setChoices} dur={dur} />
 
             {run?.error && <div className="cf-card warn"><b>Not sent</b><p>{run.error}</p></div>}
             <div className="cf-go">
@@ -194,6 +266,7 @@ export default function ComfyPanel({ pid, unit, codeLabel, dur, names, hasFrame,
                 <button type="button" className="ds-btn pri big" disabled={busy || !wf?.ready} onClick={make}>{busy ? 'Sending…' : cta}</button>
             </div>
             <p className="ds-muted cf-center">Free · made on your PC · comes back to {codeLabel}</p>
+            <TakeTools shotId={shotId} codeLabel={codeLabel} tools={tools} onFiled={onFiled} refreshKey={filedAt} />
         </div>
     );
 }

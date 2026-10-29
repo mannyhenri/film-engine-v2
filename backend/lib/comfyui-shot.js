@@ -70,7 +70,8 @@ function fileTake(projectId, shotId, file, meta) {
         provider, provider_model, provider_job_id, license_source, license_status, input_refs)
         VALUES (?, ?, ?, 'video_raw', ?, ?, ?, ?, ?, 'comfyui', ?, ?, 'generated', 'generated', ?)`)
         .run(id, projectId, shotId, stored, name, ext.slice(1), ext === '.webm' ? 'video/webm' : 'video/mp4', version,
-            meta.workflow, meta.prompt_id || null, JSON.stringify({ comfyui: { url: comfy.baseUrl(), workflow: meta.workflow, seed: meta.seed, options: meta.options } }));
+            meta.workflow, meta.prompt_id || null, JSON.stringify({ comfyui: { url: comfy.baseUrl(), workflow: meta.workflow, seed: meta.seed, options: meta.options,
+                ...(meta.from ? { from: meta.from } : {}) } }));
     return { asset_id: id, version, url: urlForPath(stored), path: stored };
 }
 
@@ -126,4 +127,37 @@ async function makeShot(projectId, body = {}) {
     };
 }
 
-module.exports = { makeShot, slotOrder, promptKey, fileTake, chosenSeconds };
+const VIDEO_TYPES = ['video_final', 'video_synced', 'video_raw'];
+
+/** A shot's video takes, newest first, each with what made it and the take it was made from. */
+function listTakes(shotId) {
+    return db.prepare(`SELECT id, version, asset_type, provider, provider_model, file_path, input_refs, created_at FROM film_assets
+        WHERE shot_id = ? AND asset_type IN (${VIDEO_TYPES.map(() => '?').join(',')}) ORDER BY version DESC, created_at DESC`).all(shotId, ...VIDEO_TYPES)
+        .map(r => {
+            let refs = {}; try { refs = JSON.parse(r.input_refs || '{}') || {}; } catch (_) { /* old rows */ }
+            const c = refs.comfyui || null;
+            return { asset_id: r.id, version: r.version, provider: r.provider, workflow: c?.workflow || r.provider_model || null,
+                options: c?.options || null, from: c?.from || null, url: urlForPath(r.file_path), exists: fs.existsSync(r.file_path), created_at: r.created_at };
+        });
+}
+
+/**
+ * Work on a finished take with a workflow that takes a video (upscale to 1080p or 4K, and so on): the take goes
+ * up as the workflow's video input, and the result is filed on the same shot as its next version, remembering
+ * which take it came from. body: { workflow, options? }
+ */
+async function makeFromTake(assetId, body = {}) {
+    const a = db.prepare(`SELECT a.id, a.project_id, a.shot_id, a.version, a.file_path, s.shot_code FROM film_assets a
+        JOIN film_shots s ON s.id = a.shot_id JOIN film_scenes sc ON sc.id = s.scene_id
+        WHERE a.id = ? AND sc.project_id = a.project_id AND a.asset_type IN (${VIDEO_TYPES.map(() => '?').join(',')})`).get(String(assetId || ''), ...VIDEO_TYPES);
+    if (!a) throw httpError(404, 'that take is not a video version of a shot');
+    if (!fs.existsSync(a.file_path)) throw httpError(404, `the take's file is missing: ${a.file_path}`);
+    const { manifest } = await comfy.loadWorkflow(body.workflow);
+    if (!(manifest.video || []).length) throw httpError(400, `${manifest.name || body.workflow} does not take a video; pick a take tool`);
+    const meta = { label: a.shot_code, workflow: body.workflow, options: body.options || {}, from: { asset_id: a.id, version: a.version } };
+    const job = comfy.startJob({ workflow: body.workflow, options: body.options || {}, shot_id: a.shot_id, video: [a.file_path] },
+        { label: `${manifest.name || body.workflow} of v${a.version}`, fileOn: { project_id: a.project_id, shot_id: a.shot_id, meta } });
+    return { job };
+}
+
+module.exports = { makeShot, listTakes, makeFromTake, slotOrder, promptKey, fileTake, chosenSeconds };

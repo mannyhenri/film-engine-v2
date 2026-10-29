@@ -109,3 +109,53 @@ describe('ComfyPanel', () => {
         expect(onFiled).toHaveBeenCalledTimes(1);
     });
 });
+
+describe('TakeTools', () => {
+    const TOOL = { slug: 'take_upscale', name: 'Upscale (SeedVR2)', kind: 'fx', ready: true, problems: [], video: [{ role: 'take' }],
+        options: [enumOpt('resolution', 'Resolution', ['1080p (1920x1080)', '4K (3840x2160)'])], draft: { resolution: 0 } };
+    let posted, takes;
+    const openTools = (job = { id: 'k1', label: 'Upscale (SeedVR2) of v1', status: 'running', stage_label: 'Generating' }) => {
+        posted = [];
+        takes = [{ asset_id: 'a1', version: 1, workflow: 'storyboard_shot_to_video', options: { duration: '5 s' }, from: null, url: '/film/video/p/1B_v1.mp4', exists: true }];
+        installLegacy({ routes: {
+            'GET /comfyui/shots/s1/takes': () => ({ takes }),
+            'POST /comfyui/takes/a1': (b) => { posted.push(b); return { job: { id: 'k1', label: 'Upscale (SeedVR2) of v1', status: 'uploading', stage_label: 'Sending the inputs' } }; },
+            'GET /comfyui/jobs/k1': () => ({ job }),
+        } });
+    };
+
+    it('lists the shot\'s takes and, for each, every take tool; a tool opens its own options and runs on that take', async () => {
+        openTools();
+        const { TakeTools } = await import('./ComfyPanel.jsx');
+        render(<TakeTools shotId="s1" codeLabel="1B" tools={[TOOL, { ...TOOL, slug: 'broken', name: 'Broken', ready: false }]} />);
+        await flush();
+        expect(screen.getByText('v1')).toBeTruthy();
+        expect(screen.queryByRole('button', { name: 'Broken' })).toBeNull();
+        fireEvent.click(screen.getByRole('button', { name: 'Upscale (SeedVR2)' }));
+        const group = screen.getByRole('group', { name: 'Resolution' });
+        expect(within(group).getByRole('button', { name: /^1080p/ }).getAttribute('aria-pressed')).toBe('true');
+        fireEvent.click(within(group).getByRole('button', { name: /^4K/ }));
+        fireEvent.click(screen.getByRole('button', { name: 'Run on my PC' }));
+        await flush();
+        expect(posted).toEqual([{ workflow: 'take_upscale', options: { resolution: '4K (3840x2160)' } }]);
+        expect(screen.getByText('Upscale (SeedVR2) of v1')).toBeTruthy();
+    });
+
+    it('a finished tool run reloads the takes, and the new version says where it came from', async () => {
+        vi.useFakeTimers({ shouldAdvanceTime: true });
+        openTools({ id: 'k1', label: 'Upscale (SeedVR2) of v1', status: 'done', stage_label: 'Done', filed: { version: 2, url: '/film/video/p/1B_v2.mp4' } });
+        const onFiled = vi.fn();
+        const { TakeTools } = await import('./ComfyPanel.jsx');
+        render(<TakeTools shotId="s1" codeLabel="1B" tools={[TOOL]} onFiled={onFiled} />);
+        await flush();
+        fireEvent.click(screen.getByRole('button', { name: 'Upscale (SeedVR2)' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Run on my PC' }));
+        await flush();
+        takes = [{ asset_id: 'a2', version: 2, workflow: 'take_upscale', options: { resolution: '1080p (1920x1080)' }, from: { asset_id: 'a1', version: 1 }, url: '/film/video/p/1B_v2.mp4', exists: true }, ...takes];
+        await act(async () => { await vi.advanceTimersByTimeAsync(2100); });
+        await flush();
+        expect(screen.getByText('v2')).toBeTruthy();
+        expect(screen.getByText(/take_upscale · 1080p · from v1/)).toBeTruthy();
+        expect(onFiled).toHaveBeenCalledTimes(1);
+    });
+});
