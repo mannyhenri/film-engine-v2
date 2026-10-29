@@ -79,11 +79,15 @@ function validate(manifest, graph) {
     };
     if (manifest.prompt) has(manifest.prompt, 'prompt');
     if (manifest.seed) has(manifest.seed, 'seed');
-    (manifest.images || []).forEach((r, i) => has(r, `image ${i + 1}${r.role ? ' (' + r.role + ')' : ''}`));
-    (manifest.audio || []).forEach((r, i) => has(r, `audio ${i + 1}${r.role ? ' (' + r.role + ')' : ''}`));
-    (manifest.video || []).forEach((r, i) => has(r, `video ${i + 1}${r.role ? ' (' + r.role + ')' : ''}`));
+    for (const [kind, what] of [['images', 'image'], ['audio', 'audio'], ['video', 'video']]) {
+        const slots = manifest[kind];
+        if (slots != null && !Array.isArray(slots)) { problems.push(`${kind}: a list of slots is expected (use [] for none)`); continue; }
+        (slots || []).forEach((r, i) => has(r, `${what} ${i + 1}${r.role ? ' (' + r.role + ')' : ''}`));
+    }
     for (const o of manifest.options || []) {
-        has(o, `option ${o.id}`);
+        // An option with "sets" writes several inputs of its node (each one checked); else its one input.
+        if (o.sets) { has({ node: o.node }, `option ${o.id}`); for (const k of Object.keys(o.sets)) has({ node: o.node, input: k }, `option ${o.id}`); }
+        else has(o, `option ${o.id}`);
         if (o.type === 'enum' && !(o.choices || []).length) problems.push(`option ${o.id}: an enum needs choices`);
         if (o.index && !('index' in (graph[String(o.node)]?.inputs || {}))) problems.push(`option ${o.id}: node ${o.node} has no "index" input to set`);
     }
@@ -143,10 +147,18 @@ function buildPrompt(manifest, graph, values = {}) {
         const v = given === undefined ? o.default : given;
         if (v === undefined) continue;
         if (o.type === 'enum') {
-            const c = (o.choices || []).find(x => (typeof x === 'object' ? x.label === v || x.index === v : x === v));
+            // Picked by label, by the choice's own index, or (a default or draft given as a number) by its position.
+            const c = (o.choices || []).find(x => (typeof x === 'object' ? x.label === v || x.index === v : x === v))
+                ?? (Number.isInteger(v) ? (o.choices || [])[v] : undefined);
             if (!c) throw httpError(400, `${o.label || o.id}: "${v}" is not one of its choices`);
             const label = typeof c === 'object' ? c.label : c;
-            set(o, label);
+            // A choice's "value" is what the graph gets (a model file, say); its label is only what the page shows.
+            // "sets": each input it names gets a literal, or "<choice.X>" read from the choice picked.
+            if (o.sets) for (const [k, tpl] of Object.entries(o.sets)) {
+                const m = /^<choice\.(\w+)>$/.exec(String(tpl));
+                g[String(o.node)].inputs[k] = m ? c[m[1]] : tpl;
+            }
+            else set(o, typeof c === 'object' && 'value' in c ? c.value : label);
             if (o.index) g[String(o.node)].inputs.index = typeof c === 'object' ? c.index : o.choices.indexOf(c);
         } else if (o.type === 'int' || o.type === 'float') {
             const n = Number(v);

@@ -183,9 +183,29 @@ async function makeFromTake(assetId, body = {}) {
     const { manifest } = await comfy.loadWorkflow(body.workflow);
     if (!(manifest.video || []).length) throw httpError(400, `${manifest.name || body.workflow} does not take a video; pick a take tool`);
     const meta = { label: a.shot_code, workflow: body.workflow, options: body.options || {}, from: { asset_id: a.id, version: a.version } };
-    const job = comfy.startJob({ workflow: body.workflow, options: body.options || {}, shot_id: a.shot_id, video: [a.file_path] },
+    const video = await forThePc(a.file_path);
+    const job = comfy.startJob({ workflow: body.workflow, options: body.options || {}, shot_id: a.shot_id, video: [video] },
         { label: `${manifest.name || body.workflow} of v${a.version}`, fileOn: { project_id: a.project_id, shot_id: a.shot_id, meta } });
     return { job };
+}
+
+/*
+ * What the PC reads as it is: H.264 (its smoke decoded it). A take in any other codec (the HEVC of a Seedance draft,
+ * the ProRes of a Mac upscale, VP9) goes as an H.264 MP4 made for it: near-lossless (CRF 10), the same frames and
+ * length, the sound as AAC. The take itself is left as it is.
+ */
+const PC_READS = ['h264'];
+async function forThePc(file) {
+    const ff = resolveFfmpeg().bin;
+    const info = require('child_process').spawnSync(ff, ['-hide_banner', '-i', file], { encoding: 'utf8' }).stderr || '';
+    const codec = (/Stream #\S+.*: Video: (\w+)/.exec(info) || [])[1];
+    if (!codec || PC_READS.includes(codec)) return file;   // H.264 already, or nothing ffmpeg can name (sent as it is)
+    const dir = path.join(DATA_DIR, 'comfyui', 'inputs', `${Date.now()}-${crypto.randomBytes(3).toString('hex')}`);
+    fs.mkdirSync(dir, { recursive: true });
+    const out = path.join(dir, `${path.basename(file, path.extname(file))}.mp4`);
+    await run(ff, ['-v', 'error', '-y', '-i', file, '-map', '0:v:0', '-map', '0:a?', '-c:v', 'libx264', '-preset', 'slow', '-crf', '10',
+        '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-b:a', '320k', '-movflags', '+faststart', out]);
+    return out;
 }
 
 /*
@@ -238,4 +258,4 @@ function makeOnMac(a, slug, options) {
     return { job: j };
 }
 
-module.exports = { makeShot, listTakes, makeFromTake, macTools, slotOrder, promptKey, fileTake, importTake, chosenSeconds, TAKE_SOURCES };
+module.exports = { makeShot, listTakes, makeFromTake, macTools, slotOrder, promptKey, fileTake, importTake, chosenSeconds, TAKE_SOURCES, PC_READS };

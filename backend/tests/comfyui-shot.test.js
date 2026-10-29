@@ -102,6 +102,10 @@ function fakeComfy() {
             if (u.pathname === '/upload/image') {
                 const name = /filename="([^"]+)"/.exec(body.toString('latin1'))[1];
                 state.uploads.push({ name, wav: body.includes(Buffer.from('WAVE')) });
+                // Keep the bytes, so a test can look at what the PC really got.
+                const start = body.indexOf('\r\n\r\n', body.indexOf('filename=')) + 4, end = body.lastIndexOf('\r\n--');
+                fs.mkdirSync(path.join(TMP, 'pc-inputs'), { recursive: true });
+                fs.writeFileSync(path.join(TMP, 'pc-inputs', name), body.subarray(start, end));
                 return send(200, { name, subfolder: 'film-engine', type: 'input' });
             }
             if (u.pathname === '/prompt') {
@@ -330,4 +334,32 @@ test('adding a take from a file: it lands on the shot; a missing file, a non-vid
     assert.throws(() => shotLib.importTake(shot, { path: path.join(TMP, 'nope.mp4') }), /no file at/);
     assert.throws(() => shotLib.importTake(shot, { path: tone('just sound.mp3', 1) }), /not a video/);
     assert.throws(() => shotLib.importTake('no-such-shot', { path: clip }), /no such shot/);
+});
+
+/*
+ * The PC decodes H.264 (proven by its smoke); a take in any other codec (the Seedance draft is HEVC; a Mac upscale is
+ * ProRes) is converted to H.264 before it goes up, at a quality that does not soften it, sound kept, same length.
+ */
+test('a take in any codec reaches the PC as H.264, the same length, with its sound', { skip: !haveFfmpeg && 'no ffmpeg' }, async () => {
+    const { server, state } = await fakeComfy();
+    const codecOf = f => /Video: (\w+)/.exec(require('child_process').spawnSync(ff.bin, ['-hide_banner', '-i', f], { encoding: 'utf8' }).stderr)?.[1];
+    const lengthOf = f => Number(/Duration: (\d+):(\d+):([\d.]+)/.exec(require('child_process').spawnSync(ff.bin, ['-hide_banner', '-i', f], { encoding: 'utf8' }).stderr).slice(1).reduce((a, x) => a * 60 + Number(x), 0));
+    const hasSound = f => / Audio: /.test(require('child_process').spawnSync(ff.bin, ['-hide_banner', '-i', f], { encoding: 'utf8' }).stderr);
+    const KINDS = [['libx264', '.mp4', 'aac'], ['libx265', '.mp4', 'aac'], ['prores_ks', '.mov', 'pcm_s16le'], ['libvpx-vp9', '.webm', 'libopus']];
+    try {
+        for (const [enc, ext, aenc] of KINDS) {
+            const src = path.join(TMP, `take-${enc}${ext}`);
+            execFileSync(ff.bin, ['-nostdin', '-v', 'error', '-y', '-f', 'lavfi', '-i', 'testsrc=s=320x180:r=24:d=2', '-f', 'lavfi', '-i', 'sine=d=2',
+                '-c:v', enc, ...(enc === 'libx265' ? ['-tag:v', 'hvc1'] : []), '-pix_fmt', enc === 'prores_ks' ? 'yuv422p10le' : 'yuv420p', '-c:a', aenc, '-shortest', src], { stdio: ['ignore', 'pipe', 'pipe'] });
+            const take = shotLib.fileTake(projectId, shotId, src, { label: '1A', where: 'file' });
+            const { job } = await shotLib.makeFromTake(take.asset_id, { workflow: 'take_upscale', options: {} });
+            const j = await comfy._jobs.get(job.id).done.then(() => comfy.getJob(job.id));
+            assert.strictEqual(j.status, 'done', `${enc}: ${j.error}`);
+            const sent = path.join(TMP, 'pc-inputs', state.uploads.at(-1).name);
+            assert.match(sent, /\.mp4$/, `${enc}: sent as an MP4`);
+            assert.strictEqual(codecOf(sent), 'h264', `${enc}: the PC gets H.264`);
+            assert.ok(Math.abs(lengthOf(sent) - lengthOf(src)) < 0.1, `${enc}: the same length`);
+            assert.ok(hasSound(sent), `${enc}: its sound kept`);
+        }
+    } finally { server.close(); }
 });
