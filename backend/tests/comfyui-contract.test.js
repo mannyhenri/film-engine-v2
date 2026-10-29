@@ -89,7 +89,11 @@ test('every choice of every take-tool option reaches the graph as its value, or 
  * (a CustomCombo's options live in the workflow itself; the PC's registry test covers those), which is counted.
  */
 const INFO = read('object_info.json');
-const MANIFESTS = { storyboard_shot_to_video: [MANIFEST, GRAPH], take_upscale_seedvr2: [TAKE, TAKE_GRAPH] };
+// Every manifest pinned in the folder, not a hand-kept list: a workflow pinned later is checked too.
+const MANIFESTS = Object.fromEntries(fs.readdirSync(DIR).filter(f => f.endsWith('.fe.json')).map(f => {
+    const m = read(f);
+    return [f.replace('.fe.json', ''), [m, read(m.workflow || f.replace('.fe.json', '.api.json'))]];
+}));
 const corrupt = (m, oi, ci, field) => {
     const copy = JSON.parse(JSON.stringify(m));
     const o = copy.options[oi], c = o.choices[ci];
@@ -101,6 +105,7 @@ const corrupt = (m, oi, ci, field) => {
 };
 
 test('every choice of every option is one the live PC accepts, and any one corrupted choice is caught', () => {
+    assert.deepStrictEqual(Object.keys(MANIFESTS).sort(), ['storyboard_shot_to_video', 'take_upscale_seedvr2'], 'every pinned manifest is in the set');
     let caught = 0, unguarded = 0;
     for (const [slug, [m, g]] of Object.entries(MANIFESTS)) {
         assert.deepStrictEqual(comfy.liveProblems(m, g, INFO), [], `${slug} as deployed`);
