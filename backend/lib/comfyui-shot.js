@@ -212,16 +212,32 @@ async function forThePc(file) {
  * Take tools on THIS Mac: the Generators tools that take a whole video and give back a video (AI Upscale, which runs
  * Real-ESRGAN on the Mac's own GPUs). Listed beside the PC's take tools; the result is filed the same way.
  */
-const MAC_TOOLS = ['upscale'];
+/*
+ * The Mac take tools, as presets of Generators tools: one tool can be two take tools (RIFE: smoother motion at the
+ * same length, which is its high-frame-rate file, or slow motion). fixed: settings the preset always sends;
+ * labels: a pick's choices worded for this preset.
+ */
+const MAC_TOOLS = Object.freeze([
+    { slug: 'mac:upscale', tool: 'upscale' },
+    { slug: 'mac:smooth', tool: 'slowmo', name: 'Smoother motion (RIFE)', fixed: { hfr: true },
+        labels: { factor: { 2: '2× the frame rate (24 → 48 fps)', 4: '4× the frame rate (24 → 96 fps)', 8: '8× the frame rate (24 → 192 fps)' } } },
+    { slug: 'mac:slowmo', tool: 'slowmo', name: 'Slow motion (RIFE)', fixed: { hfr: false } },
+]);
 function macTools() {
     const gen = require('./generators');
-    return gen.listTools().filter(t => MAC_TOOLS.includes(t.id)).map(t => ({
-        slug: `mac:${t.id}`, name: `${t.name} (this Mac)`, where: 'mac', kind: 'fx', ready: !t.unavailable, problems: t.unavailable ? [t.unavailable] : [],
-        video: [{ role: 'take' }], draft: null,
-        // Only the picks; sliders and checkboxes keep the tool's defaults.
-        options: (t.options || []).filter(o => o.type === 'select').map(o => ({ id: o.name, label: o.label, type: 'enum',
-            choices: o.choices.map((c, i) => ({ label: c.label, index: i, value: c.value })), default: Math.max(0, o.choices.findIndex(c => c.value === o.default)) })),
-    }));
+    const tools = gen.listTools();
+    return MAC_TOOLS.flatMap(p => {
+        const t = tools.find(x => x.id === p.tool);
+        if (!t) return [];
+        return [{
+            slug: p.slug, name: `${p.name || t.name} (this Mac)`, where: 'mac', kind: 'fx', ready: !t.unavailable, problems: t.unavailable ? [t.unavailable] : [],
+            video: [{ role: 'take' }], draft: null,
+            // Only the picks a preset doesn't fix; sliders and checkboxes keep the tool's defaults.
+            options: (t.options || []).filter(o => o.type === 'select' && !(p.fixed && o.name in p.fixed)).map(o => ({ id: o.name, label: o.label, type: 'enum',
+                choices: o.choices.map((c, i) => ({ label: (p.labels && p.labels[o.name] && p.labels[o.name][c.value]) || c.label, index: i, value: c.value })),
+                default: Math.max(0, o.choices.findIndex(c => c.value === o.default)) })),
+        }];
+    });
 }
 
 /** Run a Mac take tool on a take; its job is followed like a PC job (GET /film/comfyui/jobs/:id). */
@@ -234,7 +250,8 @@ function makeOnMac(a, slug, options) {
     const values = {};
     for (const o of tool.options) { const c = o.choices.find(x => x.label === options[o.id] || x.index === options[o.id]); if (c) values[o.id] = c.value; }
     const input = gen.probeInput(a.file_path);
-    const gj = gen.createJob({ tool: slug.slice(4), input_id: input.id, options: values });
+    const preset = MAC_TOOLS.find(p => p.slug === slug);
+    const gj = gen.createJob({ tool: preset.tool, input_id: input.id, options: { ...values, ...(preset.fixed || {}) } });
     const j = comfy.trackExternal({ workflow: slug, label: `${tool.name.replace(' (this Mac)', '')} of v${a.version} on this Mac`, shot_id: a.shot_id }, async j => {
         for (;;) {
             await new Promise(r => setTimeout(r, Number(process.env.FILM_COMFYUI_POLL_MS) || 1500));
@@ -258,4 +275,4 @@ function makeOnMac(a, slug, options) {
     return { job: j };
 }
 
-module.exports = { makeShot, listTakes, makeFromTake, macTools, slotOrder, promptKey, fileTake, importTake, chosenSeconds, TAKE_SOURCES, PC_READS };
+module.exports = { makeShot, listTakes, makeFromTake, macTools, MAC_TOOLS, slotOrder, promptKey, fileTake, importTake, chosenSeconds, TAKE_SOURCES, PC_READS };

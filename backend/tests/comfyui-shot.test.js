@@ -370,3 +370,43 @@ test('a take in any codec reaches the PC as H.264, the same length, with its sou
         }
     } finally { server.close(); }
 });
+
+/*
+ * Every Mac take tool preset (MAC_TOOLS): it shows when its Generators tool is there, and running it sends that
+ * tool, the picks as the engine's values, and the preset's fixed settings (RIFE "smoother motion" = the
+ * high-frame-rate file at the same length; "slow motion" = the slowed clip). Set-based over the registry.
+ */
+test('every Mac take tool preset shows when its tool is there and runs that tool with its fixed settings', { skip: !haveFfmpeg && 'no ffmpeg' }, async () => {
+    const gen = require('../lib/generators');
+    const keep = { listTools: gen.listTools, probeInput: gen.probeInput, createJob: gen.createJob, getJob: gen.getJob };
+    const out = path.join(process.env.FILM_DATA_DIR, 'mac-preset-out.mov'); fs.writeFileSync(out, 'MOV');
+    const sel = (name, choices, dflt) => ({ name, type: 'select', label: name, default: dflt, choices: choices.map(v => ({ value: v, label: `${v}` })) });
+    gen.listTools = () => [
+        { id: 'upscale', name: 'AI Upscale', accepts: 'video', range: 'whole', options: [sel('scale', [2, 4], 2)] },
+        { id: 'slowmo', name: 'AI Slow-Mo', accepts: 'video', range: 'section', options: [sel('factor', [2, 4, 8], 4), sel('model', ['rife-v4.6', 'rife-v4'], 'rife-v4.6'),
+            { name: 'hfr', type: 'checkbox', default: false }, { name: 'scene', type: 'slider', default: 0.3 }] },
+    ];
+    gen.probeInput = p => ({ id: 'in1', path: p, kind: 'video' });
+    let created; gen.createJob = b => { created = b; return { id: 'g1' }; };
+    gen.getJob = () => ({ status: 'done', outputs: [out] });
+    try {
+        const tools = shotLib.macTools();
+        assert.deepStrictEqual(tools.map(t => t.slug).sort(), shotLib.MAC_TOOLS.map(p => p.slug).sort(), 'every preset shows');
+        const own = path.join(process.env.FILM_DATA_DIR, 'takes'); fs.mkdirSync(own, { recursive: true });
+        const src = path.join(own, 'for-presets.mp4'); fs.writeFileSync(src, 'TAKE');
+        const take = shotLib.fileTake(projectId, shotId, src, { label: '1A', workflow: 'storyboard_shot_to_video', options: {} });
+        for (const p of shotLib.MAC_TOOLS) {
+            const t = tools.find(x => x.slug === p.slug);
+            assert.ok(t.options.every(o => !Object.keys(p.fixed || {}).includes(o.id)), `${p.slug}: a fixed setting is not offered as a pick`);
+            const picks = Object.fromEntries(t.options.map(o => [o.id, o.choices.at(-1).label]));
+            const { job } = await shotLib.makeFromTake(take.asset_id, { workflow: p.slug, options: picks });
+            await comfy._jobs.get(job.id).done;
+            assert.strictEqual(comfy.getJob(job.id).status, 'done', p.slug);
+            assert.strictEqual(created.tool, p.tool, `${p.slug}: runs ${p.tool}`);
+            for (const o of t.options) assert.strictEqual(created.options[o.id], o.choices.at(-1).value, `${p.slug}: ${o.id} as the engine's value`);
+            for (const [k, v] of Object.entries(p.fixed || {})) assert.strictEqual(created.options[k], v, `${p.slug}: fixed ${k}`);
+        }
+        assert.strictEqual(shotLib.MAC_TOOLS.find(p => p.slug === 'mac:smooth').fixed.hfr, true, 'smoother motion keeps the length');
+        assert.strictEqual(shotLib.MAC_TOOLS.find(p => p.slug === 'mac:slowmo').fixed.hfr, false, 'slow motion slows the clip');
+    } finally { Object.assign(gen, keep); }
+});
