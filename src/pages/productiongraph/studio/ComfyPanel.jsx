@@ -124,12 +124,12 @@ export function TakeTools({ shotId, codeLabel, tools, onFiled, refreshKey }) {
                             onClick={() => { setOpen({ asset_id: t.asset_id, slug: w.slug }); setChoices(defaultChoices(w.options, w.draft)); }}>{w.name}</button>))}</div>}
                     {open?.asset_id === t.asset_id && tool && <>
                         <OptionPills options={tool.options} choices={choices} setChoices={setChoices} />
-                        <div className="cf-row"><button type="button" className="ds-btn pri" onClick={run}>Run on my PC</button><button type="button" className="ds-btn ghost" onClick={() => setOpen(null)}>Cancel</button></div>
+                        <div className="cf-row"><button type="button" className="ds-btn pri" onClick={run}>{tool.where === 'mac' ? 'Run on this Mac' : 'Run on my PC'}</button><button type="button" className="ds-btn ghost" onClick={() => setOpen(null)}>Cancel</button></div>
                     </>}
                 </div>
             ))}
             {!ready.length && takes.length > 0 && <p className="ds-muted">No take tools on your PC yet (a workflow with a video input, e.g. a SeedVR2 upscale).</p>}
-            {live && <p className="ds-muted">Take tools run on your PC; results come back here as new versions.</p>}
+            {live && <p className="ds-muted">Results come back here as new versions of {codeLabel}.</p>}
         </section>
     );
 }
@@ -157,7 +157,9 @@ export default function ComfyPanel({ pid, unit, codeLabel, dur, names, hasFrame,
             // New shots come from workflows without a video input; workflows with one are take tools (TakeTools).
             const all = wf.workflows || [];
             const list = all.filter(w => w.kind === 'video' && !(w.video || []).length);
-            setTools(all.filter(w => (w.video || []).length));
+            // Take tools on this Mac too (Generators' AI Upscale on its own GPUs), beside the PC's.
+            const mac = await legacy.api('/comfyui/mac-tools', { refresh: false }).catch(() => ({ tools: [] }));
+            setTools([...all.filter(w => (w.video || []).length), ...(mac.tools || [])]);
             setWorkflows(list);
             setSlug(s => (list.some(w => w.slug === s) ? s : (list.find(w => w.ready) || list[0])?.slug || ''));
         } catch (err) { setStatus({ ok: false, error: err.message }); }

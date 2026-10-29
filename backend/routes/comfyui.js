@@ -6,8 +6,9 @@
  *   POST /film/comfyui/jobs              run one: { workflow, prompt?, seed?, options?, images?: [path|null], audio?: [path|null], shot_id? }
  *   GET  /film/comfyui/jobs/:id          its stage, queue position and, when done, the downloaded files
  *   POST /film/comfyui/jobs/:id/cancel   take it off the PC's queue (or interrupt it)
+ *   GET  /film/comfyui/mac-tools         take tools that run on this Mac (Generators' AI Upscale), shaped like workflows
  *   GET  /film/comfyui/shots/:id/takes   the shot's video takes, newest first, with what made each and the take it came from
- *   POST /film/comfyui/takes/:assetId    run a take tool (a workflow with a video slot) on that take: { workflow, options? };
+ *   POST /film/comfyui/takes/:assetId    run a take tool (a PC workflow with a video slot, or "mac:<tool>") on that take: { workflow, options? };
  *                                        the result is filed on the same shot as its next version
  *
  * Free: it runs on your own PC.
@@ -28,6 +29,7 @@ async function handleComfyUI(req, res, parts) {
             catch (err) { return json(res, 200, { ok: false, url: comfy.baseUrl(), error: err.message }); }
         }
         if (a === 'workflows' && !b && req.method === 'GET') return json(res, 200, { workflows: await comfy.listWorkflows(), url: comfy.baseUrl() });
+        if (a === 'mac-tools' && !b && req.method === 'GET') return json(res, 200, { tools: require('../lib/comfyui-shot').macTools() });
         if (a === 'jobs' && !b && req.method === 'POST') return json(res, 202, { job: comfy.startJob(body) });
         if (a === 'jobs' && b && !c && req.method === 'GET') return json(res, 200, { job: comfy.getJob(b) });
         if (a === 'jobs' && b && c === 'cancel' && req.method === 'POST') return json(res, 200, { job: await comfy.cancelJob(b) });

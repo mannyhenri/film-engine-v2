@@ -256,3 +256,36 @@ test('a take tool works on a finished take: the take goes up as the video, the r
         await assert.rejects(shotLib.makeFromTake(frameId, { workflow: 'take_upscale' }), /not a video version of a shot/);
     } finally { server.close(); }
 });
+
+test('a Mac take tool (Generators AI Upscale) runs on a take and files the result the same way, from that take', { skip: !haveFfmpeg && 'no ffmpeg' }, async () => {
+    // A fake Generators engine standing in for Real-ESRGAN: the real module, with createJob/getJob swapped for the test.
+    const gen = require('../lib/generators');
+    const keep = { listTools: gen.listTools, probeInput: gen.probeInput, createJob: gen.createJob, getJob: gen.getJob };
+    const out = path.join(process.env.FILM_DATA_DIR, 'mac-out.mov'); fs.writeFileSync(out, 'MOV-4K');
+    let created = null, polls = 0;
+    gen.listTools = () => [{ id: 'upscale', name: 'AI Upscale', accepts: 'video', range: 'whole', out: { kind: 'file', ext: '.mov' },
+        options: [{ name: 'scale', type: 'select', label: 'Size', default: 2, choices: [{ value: 2, label: '2× (1080p → 4K)' }, { value: 4, label: '4× (1080p → 8K)' }] },
+            { name: 'strength', type: 'slider', label: 'AI strength', default: 0.85 }] }, { id: 'stems', name: 'AI Stems', accepts: 'audio' }];
+    gen.probeInput = p => ({ id: 'in1', path: p, kind: 'video' });
+    gen.createJob = b => { created = b; return { id: 'g1' }; };
+    gen.getJob = () => (++polls < 3 ? { status: 'running', done: polls, total: 4, started_at: new Date(Date.now() - 2000).toISOString() } : { status: 'done', outputs: [out] });
+    try {
+        const tools = shotLib.macTools();
+        assert.deepStrictEqual(tools.map(t => t.slug), ['mac:upscale'], 'only video-in, video-out tools');
+        assert.deepStrictEqual(tools[0].options.map(o => o.id), ['scale'], 'picks only; sliders keep their defaults');
+        const own = path.join(process.env.FILM_DATA_DIR, 'takes'); fs.mkdirSync(own, { recursive: true });
+        const src = path.join(own, 'for-mac.mp4'); fs.writeFileSync(src, 'TAKE');
+        const take = shotLib.fileTake(projectId, shotId, src, { label: '1A', workflow: 'storyboard_shot_to_video', options: {} });
+        const { job } = await shotLib.makeFromTake(take.asset_id, { workflow: 'mac:upscale', options: { scale: '4× (1080p → 8K)' } });
+        await comfy._jobs.get(job.id).done;
+        const j = comfy.getJob(job.id);
+        assert.strictEqual(j.status, 'done', j.error);
+        assert.deepStrictEqual(created, { tool: 'upscale', input_id: 'in1', options: { scale: 4 } }, 'labels become the engine\'s values');
+        const t = shotLib.listTakes(shotId)[0];
+        assert.strictEqual(t.version, j.filed.version);
+        assert.deepStrictEqual([t.workflow, t.provider, t.from.asset_id], ['mac:upscale', 'generators', take.asset_id]);
+        assert.match(fs.readFileSync(j.filed.path, 'utf8'), /^MOV-4K$/);
+        assert.match(j.filed.path, /\.mov$/);
+        await assert.rejects(comfy.cancelJob(job.id), /stop it in Production › Generators/);
+    } finally { Object.assign(gen, keep); }
+});

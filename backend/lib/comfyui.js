@@ -400,6 +400,19 @@ function startJob(body = {}, { label = null, uploaded = false, fileOn = null, so
     return publicJob(j);
 }
 
+/**
+ * A job that runs somewhere else (a Generators tool on this Mac) but is followed like a PC job, so the page has
+ * one way to watch every take. run(j) does the work and fills j.outputs / j.filed; a throw is the job's error.
+ */
+function trackExternal({ workflow, label, shot_id }, run) {
+    const j = { id: crypto.randomUUID(), workflow, label, shot_id, status: 'queued', filed: null, outputs: [], error: null, prompt_id: null,
+        position: null, progress: null, node: null, started_at: Date.now(), finished_at: null, external: true };
+    jobs.set(j.id, j);
+    j.done = Promise.resolve().then(() => run(j)).then(() => { j.status = 'done'; }, err => { j.status = 'failed'; j.error = err.message; })
+        .finally(() => { j.finished_at = Date.now(); });
+    return publicJob(j);
+}
+
 /** After a restart: every take that was waiting on the PC is followed again, and filed when it lands. */
 function resumeJobs() {
     let n = 0;
@@ -427,6 +440,7 @@ function getJob(id) {
 async function cancelJob(id) {
     const j = jobs.get(String(id));
     if (!j) throw httpError(404, 'that ComfyUI job is gone');
+    if (j.external) throw httpError(400, 'this one runs on this Mac: stop it in Production › Generators');
     j.cancelled = true;
     if (j.prompt_id) {
         await call('/queue', { method: 'POST', body: JSON.stringify({ delete: [j.prompt_id] }) }).catch(() => {});
@@ -437,5 +451,5 @@ async function cancelJob(id) {
     return publicJob(j);
 }
 
-module.exports = { baseUrl, status, listWorkflows, loadWorkflow, validate, buildPrompt, upload, startJob, getJob, cancelJob, resumeJobs,
+module.exports = { baseUrl, status, listWorkflows, loadWorkflow, validate, buildPrompt, upload, startJob, getJob, cancelJob, resumeJobs, trackExternal,
     OUT_ROOT, DEFAULT_URL, _jobs: jobs, _sent: sent };

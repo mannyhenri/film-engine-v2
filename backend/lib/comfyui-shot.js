@@ -63,14 +63,14 @@ function fileTake(projectId, shotId, file, meta) {
         WHERE shot_id = ? AND asset_type IN ('video_final','video_synced','video_raw')`).get(shotId);
     const version = Number(row?.v || 0) + 1;
     const code = String(meta.label || 'shot').replace(/[^\w+-]+/g, '_');
-    const name = `${code}_comfyui_v${version}_${Date.now()}${ext}`;
+    const name = `${code}_${meta.where === 'mac' ? 'mac' : 'comfyui'}_v${version}_${Date.now()}${ext}`;
     const stored = saveFile(projectId, 'video', name, fs.readFileSync(file));
     const id = crypto.randomUUID();
     db.prepare(`INSERT INTO film_assets (id, project_id, shot_id, asset_type, file_path, file_name, format, mime_type, version,
         provider, provider_model, provider_job_id, license_source, license_status, input_refs)
-        VALUES (?, ?, ?, 'video_raw', ?, ?, ?, ?, ?, 'comfyui', ?, ?, 'generated', 'generated', ?)`)
-        .run(id, projectId, shotId, stored, name, ext.slice(1), ext === '.webm' ? 'video/webm' : 'video/mp4', version,
-            meta.workflow, meta.prompt_id || null, JSON.stringify({ comfyui: { url: comfy.baseUrl(), workflow: meta.workflow, seed: meta.seed, options: meta.options,
+        VALUES (?, ?, ?, 'video_raw', ?, ?, ?, ?, ?, ?, ?, ?, 'generated', 'generated', ?)`)
+        .run(id, projectId, shotId, stored, name, ext.slice(1), { '.webm': 'video/webm', '.mov': 'video/quicktime' }[ext] || 'video/mp4', version,
+            meta.where === 'mac' ? 'generators' : 'comfyui', meta.workflow, meta.prompt_id || null, JSON.stringify({ comfyui: { url: meta.where === 'mac' ? 'this Mac' : comfy.baseUrl(), workflow: meta.workflow, seed: meta.seed, options: meta.options,
                 ...(meta.from ? { from: meta.from } : {}) } }));
     return { asset_id: id, version, url: urlForPath(stored), path: stored };
 }
@@ -152,6 +152,7 @@ async function makeFromTake(assetId, body = {}) {
         WHERE a.id = ? AND sc.project_id = a.project_id AND a.asset_type IN (${VIDEO_TYPES.map(() => '?').join(',')})`).get(String(assetId || ''), ...VIDEO_TYPES);
     if (!a) throw httpError(404, 'that take is not a video version of a shot');
     if (!fs.existsSync(a.file_path)) throw httpError(404, `the take's file is missing: ${a.file_path}`);
+    if (String(body.workflow || '').startsWith('mac:')) return makeOnMac(a, body.workflow, body.options || {});
     const { manifest } = await comfy.loadWorkflow(body.workflow);
     if (!(manifest.video || []).length) throw httpError(400, `${manifest.name || body.workflow} does not take a video; pick a take tool`);
     const meta = { label: a.shot_code, workflow: body.workflow, options: body.options || {}, from: { asset_id: a.id, version: a.version } };
@@ -160,4 +161,54 @@ async function makeFromTake(assetId, body = {}) {
     return { job };
 }
 
-module.exports = { makeShot, listTakes, makeFromTake, slotOrder, promptKey, fileTake, chosenSeconds };
+/*
+ * Take tools on THIS Mac: the Generators tools that take a whole video and give back a video (AI Upscale, which runs
+ * Real-ESRGAN on the Mac's own GPUs). Listed beside the PC's take tools; the result is filed the same way.
+ */
+const MAC_TOOLS = ['upscale'];
+function macTools() {
+    const gen = require('./generators');
+    return gen.listTools().filter(t => MAC_TOOLS.includes(t.id)).map(t => ({
+        slug: `mac:${t.id}`, name: `${t.name} (this Mac)`, where: 'mac', kind: 'fx', ready: !t.unavailable, problems: t.unavailable ? [t.unavailable] : [],
+        video: [{ role: 'take' }], draft: null,
+        // Only the picks; sliders and checkboxes keep the tool's defaults.
+        options: (t.options || []).filter(o => o.type === 'select').map(o => ({ id: o.name, label: o.label, type: 'enum',
+            choices: o.choices.map((c, i) => ({ label: c.label, index: i, value: c.value })), default: Math.max(0, o.choices.findIndex(c => c.value === o.default)) })),
+    }));
+}
+
+/** Run a Mac take tool on a take; its job is followed like a PC job (GET /film/comfyui/jobs/:id). */
+function makeOnMac(a, slug, options) {
+    const gen = require('./generators');
+    const tool = macTools().find(t => t.slug === slug);
+    if (!tool) throw httpError(400, `${slug} is not a take tool on this Mac`);
+    if (!tool.ready) throw httpError(409, `${tool.name} is not ready: ${tool.problems.join('; ')}`);
+    // The pills send labels; the engine takes the values.
+    const values = {};
+    for (const o of tool.options) { const c = o.choices.find(x => x.label === options[o.id] || x.index === options[o.id]); if (c) values[o.id] = c.value; }
+    const input = gen.probeInput(a.file_path);
+    const gj = gen.createJob({ tool: slug.slice(4), input_id: input.id, options: values });
+    const j = comfy.trackExternal({ workflow: slug, label: `${tool.name.replace(' (this Mac)', '')} of v${a.version} on this Mac`, shot_id: a.shot_id }, async j => {
+        for (;;) {
+            await new Promise(r => setTimeout(r, Number(process.env.FILM_COMFYUI_POLL_MS) || 1500));
+            const g = gen.getJob(gj.id);
+            if (g.status === 'running') {
+                j.status = 'running';
+                if (g.total) {
+                    const per = g.done > 0 ? (Date.now() - Date.parse(g.started_at)) / g.done : null;
+                    j.progress = { value: g.done, max: g.total, node: 'mac', eta_s: per ? Math.round(per * (g.total - g.done) / 1000) : null };
+                }
+            }
+            if (g.status === 'done') {
+                if (!g.outputs.length) throw httpError(502, `${tool.name} finished without a file`);
+                j.outputs = g.outputs.map(p => ({ path: p, name: path.basename(p) }));
+                j.filed = fileTake(a.project_id, a.shot_id, g.outputs[0], { label: a.shot_code, workflow: slug, where: 'mac', options, from: { asset_id: a.id, version: a.version } });
+                return;
+            }
+            if (g.status === 'failed' || g.status === 'cancelled') throw httpError(502, g.error || `${tool.name} ${g.status}`);
+        }
+    });
+    return { job: j };
+}
+
+module.exports = { makeShot, listTakes, makeFromTake, macTools, slotOrder, promptKey, fileTake, chosenSeconds };
