@@ -90,6 +90,13 @@ function validate(manifest, graph) {
         else has(o, `option ${o.id}`);
         if (o.type === 'enum' && !(o.choices || []).length) problems.push(`option ${o.id}: an enum needs choices`);
         if (o.index && !('index' in (graph[String(o.node)]?.inputs || {}))) problems.push(`option ${o.id}: node ${o.node} has no "index" input to set`);
+        // The default, and the draft the page starts on, must name a real choice (by position or by label).
+        if (o.type === 'enum') {
+            const real = v => v === undefined || (Number.isInteger(v) ? v >= 0 && v < (o.choices || []).length
+                : (o.choices || []).some(c => (typeof c === 'object' ? c.label === v || c.index === v : c === v)));
+            if (!real(o.default)) problems.push(`option ${o.id}: default ${JSON.stringify(o.default)} is not one of its ${(o.choices || []).length} choices`);
+            if (manifest.draft && !real(manifest.draft[o.id])) problems.push(`draft ${o.id}: ${JSON.stringify(manifest.draft[o.id])} is not one of its ${(o.choices || []).length} choices`);
+        }
     }
     if (!manifest.outputs || !graph[String(manifest.outputs.node)]) problems.push('outputs: the save node is not in the workflow');
     return problems;
@@ -158,9 +165,35 @@ function liveProblems(manifest, graph, info) {
     }
     return problems;
 }
-async function liveInfo(manifest, graph) {
+/* The inputs Film Engine writes at run time ("node.input"): options, the inputs their sets name, slots, prompt, seed. */
+function overwritten(manifest) {
+    const out = new Set();
+    const add = r => { if (r && r.node != null && r.input) out.add(`${r.node}.${r.input}`); };
+    for (const o of manifest.options || []) { add(o); for (const k of Object.keys(o.sets || {})) out.add(`${o.node}.${k}`); if (o.index) out.add(`${o.node}.index`); }
+    for (const kind of ['images', 'audio', 'video']) (Array.isArray(manifest[kind]) ? manifest[kind] : []).forEach(add);
+    add(manifest.prompt); add(manifest.seed);
+    return out;
+}
+/*
+ * The graph's own fixed values run whenever Film Engine does not set that input (the loaders' files, the sampler,
+ * the scheduler…): each literal on an input the PC lists choices for must be one of them.
+ */
+function graphProblems(manifest, graph, info) {
+    const problems = [], set = overwritten(manifest);
+    for (const [id, n] of Object.entries(graph)) {
+        if (!info[n.class_type]) { problems.push(`node ${id}: the PC has no node ${n.class_type}`); continue; }
+        for (const [k, v] of Object.entries(n.inputs || {})) {
+            if (isLink(v) || set.has(`${id}.${k}`) || set.has(`${id}.${k.split('.')[0]}`)) continue;
+            const list = choicesOf(inputSpec(info, n.class_type, k) || []);
+            if (list && list.length && !list.includes(v)) problems.push(`node ${id} (${n.class_type}): ${JSON.stringify(v)} is not one the PC accepts for "${k}"`);
+        }
+    }
+    return problems;
+}
+async function liveInfo(manifest, graph, { all = false } = {}) {
     const info = {};
-    for (const cls of new Set((manifest.options || []).map(o => graph[String(o.node)]?.class_type).filter(Boolean))) {
+    const classes = all ? Object.values(graph).map(n => n.class_type) : (manifest.options || []).map(o => graph[String(o.node)]?.class_type);
+    for (const cls of new Set(classes.filter(Boolean))) {
         Object.assign(info, await call(objectInfoPath(cls)).catch(err => { if (err.status === 404) return {}; throw err; }));
     }
     return info;
@@ -176,7 +209,7 @@ async function listWorkflows() {
             const manifest = await call(userdata(f));
             const graph = await call(userdata(manifest.workflow || `${slug}.api.json`));
             const problems = validate(manifest, graph);
-            if (!problems.length) problems.push(...liveProblems(manifest, graph, await liveInfo(manifest, graph)));
+            if (!problems.length) { const info = await liveInfo(manifest, graph, { all: true }); problems.push(...liveProblems(manifest, graph, info), ...graphProblems(manifest, graph, info)); }
             out.push({ slug, name: manifest.name || slug, kind: manifest.kind || 'video', ready: !problems.length, problems,
                 prompt: !!manifest.prompt, seed: !!manifest.seed,
                 images: (manifest.images || []).map(r => ({ role: r.role || 'reference' })),
@@ -201,7 +234,7 @@ async function loadWorkflow(slug) {
     const graph = await loadGraph(manifest.workflow || `${slug}.api.json`);
     // The same bar as the list: the graph matches the manifest, and every choice is one the PC accepts.
     const problems = validate(manifest, graph);
-    if (!problems.length) problems.push(...liveProblems(manifest, graph, await liveInfo(manifest, graph)));
+    if (!problems.length) { const info = await liveInfo(manifest, graph, { all: true }); problems.push(...liveProblems(manifest, graph, info), ...graphProblems(manifest, graph, info)); }
     if (problems.length) throw httpError(422, `the ${slug} workflow doesn't match its manifest: ${problems.join('; ')}`);
     return { manifest, graph };
 }
@@ -540,5 +573,5 @@ async function cancelJob(id) {
     return publicJob(j);
 }
 
-module.exports = { baseUrl, status, listWorkflows, loadWorkflow, loadGraph, liveInfo, validate, liveProblems, inputSpec, choicesOf, objectInfoPath, buildPrompt, upload, startJob, getJob, cancelJob, resumeJobs, trackExternal,
+module.exports = { baseUrl, status, listWorkflows, loadWorkflow, loadGraph, liveInfo, validate, liveProblems, graphProblems, overwritten, inputSpec, choicesOf, objectInfoPath, buildPrompt, upload, startJob, getJob, cancelJob, resumeJobs, trackExternal,
     OUT_ROOT, DEFAULT_URL, _jobs: jobs, _sent: sent };

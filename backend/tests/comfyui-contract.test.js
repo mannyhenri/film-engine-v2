@@ -201,3 +201,42 @@ test('every fixed value an option sets is one the PC accepts, and any one corrup
     });
     assert.strictEqual(caught, 2, 'resize_type and resize_type.crop');
 });
+
+/*
+ * The graph's own fixed values (the loaders' model and VAE files, the sampler, the scheduler, the save format…) run
+ * whenever Film Engine does not set that input, so they too must be values the PC accepts. Every literal enum input
+ * of every node of every pinned graph, except those Film Engine overwrites (options, sets, slots, prompt, seed),
+ * whose placeholders never run. Corrupting any one of them is caught, by node and input.
+ */
+test('every fixed enum value in every pinned graph is one the PC accepts, and any one corrupted is caught', () => {
+    let caught = 0;
+    for (const [slug, [m, g]] of Object.entries(MANIFESTS)) {
+        assert.deepStrictEqual(comfy.graphProblems(m, g, INFO), [], `${slug} as deployed`);
+        const set = comfy.overwritten(m);
+        for (const [id, n] of Object.entries(g)) for (const [k, v] of Object.entries(n.inputs || {})) {
+            const list = comfy.choicesOf(comfy.inputSpec(INFO, n.class_type, k) || []);
+            if (Array.isArray(v) || !list?.length || set.has(`${id}.${k}`) || set.has(`${id}.${k.split('.')[0]}`)) continue;
+            const bad = JSON.parse(JSON.stringify(g)); bad[id].inputs[k] = 'X_INVALID';
+            assert.ok(comfy.graphProblems(m, bad, INFO).some(p => p.includes(`node ${id}`) && p.includes(`"${k}"`)), `${slug} node ${id} ${n.class_type}.${k} corrupted: caught`);
+            caught++;
+        }
+    }
+    assert.ok(caught >= 15, `fixed enum values checked: ${caught}`);
+});
+
+/* Every option's default, and the manifest's draft, must name a real choice: out of range is a problem, per option. */
+test('every option default and every draft must name a real choice, and any one out of range is caught', () => {
+    let caught = 0;
+    for (const [slug, [m, g]] of Object.entries(MANIFESTS)) {
+        assert.deepStrictEqual(comfy.validate(m, g), [], `${slug} as deployed`);
+        m.options.forEach((o, oi) => {
+            if (o.type !== 'enum') return;
+            const d = JSON.parse(JSON.stringify(m)); d.options[oi].default = o.choices.length;
+            assert.ok(comfy.validate(d, g).some(p => p.startsWith(`option ${o.id}: default`)), `${slug} ${o.id} default out of range`);
+            const r = JSON.parse(JSON.stringify(m)); r.draft = { ...(r.draft || {}), [o.id]: o.choices.length };
+            assert.ok(comfy.validate(r, g).some(p => p.startsWith(`draft ${o.id}`)), `${slug} draft ${o.id} out of range`);
+            caught += 2;
+        });
+    }
+    assert.strictEqual(caught, 2 * Object.values(MANIFESTS).reduce((n, [m]) => n + m.options.filter(o => o.type === 'enum').length, 0));
+});

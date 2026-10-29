@@ -29,7 +29,7 @@ const local = args.find((a, i) => !a.startsWith('--') && !(i > 0 && args[i - 1] 
         const slug = path.basename(local).replace(/\.fe\.json$/i, '');
         const graph = flag('graph') ? JSON.parse(fs.readFileSync(flag('graph'), 'utf8')) : (await comfy.loadGraph(manifest.workflow || `${slug}.api.json`));
         const problems = comfy.validate(manifest, graph);
-        if (!problems.length) problems.push(...comfy.liveProblems(manifest, graph, await comfy.liveInfo(manifest, graph)));
+        if (!problems.length) { const info = await comfy.liveInfo(manifest, graph, { all: true }); problems.push(...comfy.liveProblems(manifest, graph, info), ...comfy.graphProblems(manifest, graph, info)); }
         results = [{ name: `${local} (local)`, problems }];
     }
     console.log(`PC ${comfy.baseUrl()}`);
