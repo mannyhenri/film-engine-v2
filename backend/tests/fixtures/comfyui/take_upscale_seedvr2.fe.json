@@ -1,107 +1,107 @@
 {
-  "name": "Take upscale (SeedVR2 -> 1080p)",
-  "kind": "fx",
-  "engine": "comfyui",
-  "workflow": "take_upscale_seedvr2.api.json",
-  "core_node": "54",
-  "video": [
-    {
-      "slot": 0,
-      "node": "73",
-      "input": "file",
-      "role": "take"
-    }
-  ],
-  "audio": [],
-  "seed": {
-    "node": "54",
-    "input": "seed"
-  },
-  "options": [
-    {
-      "id": "model",
-      "label": "Model",
-      "node": "52",
-      "input": "unet_name",
-      "type": "enum",
-      "choices": [
+    "name": "Take upscale (SeedVR2 -> 1080p)",
+    "kind": "fx",
+    "engine": "comfyui",
+    "workflow": "take_upscale_seedvr2.api.json",
+    "core_node": "54",
+    "video": [
         {
-          "label": "Best (SeedVR2 7B)",
-          "value": "seedvr2_7b_int8_convrot.safetensors"
-        },
-        {
-          "label": "Faster (SeedVR2 3B)",
-          "value": "seedvr2_3b_int8_convrot.safetensors"
+            "slot": 0,
+            "node": "73",
+            "input": "file",
+            "role": "take"
         }
-      ],
-      "default": 0
+    ],
+    "audio": [],
+    "seed": {
+        "node": "54",
+        "input": "seed"
     },
-    {
-      "id": "resolution",
-      "label": "Resolution",
-      "node": "57",
-      "type": "enum",
-      "note": "Sets ResizeImageMaskNode 'scale dimensions' to an EXACT target; assumes a 16:9 take (the 854x480 draft is 16:9). A 2.39:1 take would be stretched -- add per-aspect choices or a pad/crop step later.",
-      "choices": [
+    "options": [
         {
-          "label": "1080p (1920x1080)",
-          "width": 1920,
-          "height": 1080
+            "id": "model",
+            "label": "Model",
+            "node": "52",
+            "input": "unet_name",
+            "type": "enum",
+            "choices": [
+                {
+                    "label": "Best (SeedVR2 7B)",
+                    "value": "seedvr2_7b_int8_convrot.safetensors"
+                },
+                {
+                    "label": "Faster (SeedVR2 3B)",
+                    "value": "seedvr2_3b_int8_convrot.safetensors"
+                }
+            ],
+            "default": 0
         },
         {
-          "label": "4K (3840x2160)",
-          "width": 3840,
-          "height": 2160,
-          "warning": "int8 emulated on the Arc -- hours per 30s; 1080p is the practical PC target."
+            "id": "resolution",
+            "label": "Resolution",
+            "node": "57",
+            "type": "enum",
+            "note": "Sets ResizeImageMaskNode 'scale dimensions' to an EXACT target; assumes a 16:9 take (the 854x480 draft is 16:9). A 2.39:1 take would be stretched -- add per-aspect choices or a pad/crop step later.",
+            "choices": [
+                {
+                    "label": "1080p (1920x1080)",
+                    "width": 1920,
+                    "height": 1080
+                },
+                {
+                    "label": "4K (3840x2160)",
+                    "width": 3840,
+                    "height": 2160,
+                    "warning": "int8 emulated on the Arc -- hours per 30s; 1080p is the practical PC target."
+                }
+            ],
+            "sets": {
+                "resize_type": "scale dimensions",
+                "resize_type.width": "<choice.width>",
+                "resize_type.height": "<choice.height>",
+                "resize_type.crop": "center"
+            },
+            "default": 0
+        },
+        {
+            "id": "color_correction",
+            "label": "Color correction",
+            "node": "59",
+            "input": "color_correction_method",
+            "type": "enum",
+            "choices": [
+                {
+                    "label": "LAB (most faithful)",
+                    "value": "lab"
+                },
+                {
+                    "label": "Wavelet",
+                    "value": "wavelet"
+                },
+                {
+                    "label": "AdaIN",
+                    "value": "adain"
+                },
+                {
+                    "label": "None",
+                    "value": "none"
+                }
+            ],
+            "default": 0
         }
-      ],
-      "sets": {
-        "resize_type": "scale dimensions",
-        "resize_type.width": "<choice.width>",
-        "resize_type.height": "<choice.height>",
-        "resize_type.crop": "center"
-      },
-      "default": 0
+    ],
+    "draft": {
+        "model": 0,
+        "resolution": 0,
+        "color_correction": 0
     },
-    {
-      "id": "color_correction",
-      "label": "Color correction",
-      "node": "59",
-      "input": "color_correction_method",
-      "type": "enum",
-      "choices": [
-        {
-          "label": "LAB (most faithful)",
-          "value": "lab"
-        },
-        {
-          "label": "Wavelet",
-          "value": "wavelet"
-        },
-        {
-          "label": "AdaIN",
-          "value": "adain"
-        },
-        {
-          "label": "None",
-          "value": "none"
-        }
-      ],
-      "default": 0
+    "derived": {
+        "fps": "wired from GetVideoComponents (matches the source; NOT hardcoded 30)",
+        "audio": "source audio passthrough (GetVideoComponents -> CreateVideo); no audio slot"
+    },
+    "outputs": {
+        "node": "76",
+        "class_type": "SaveVideo",
+        "filename_prefix": "video/Upscaled_seedVR2"
     }
-  ],
-  "draft": {
-    "model": 0,
-    "resolution": 0,
-    "color_correction": 0
-  },
-  "derived": {
-    "fps": "wired from GetVideoComponents (matches the source; NOT hardcoded 30)",
-    "audio": "source audio passthrough"
-  },
-  "outputs": {
-    "node": "76",
-    "class_type": "SaveVideo",
-    "filename_prefix": "video/Upscaled_seedVR2"
-  }
 }
