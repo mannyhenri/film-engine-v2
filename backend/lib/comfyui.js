@@ -118,13 +118,28 @@ function fits(spec, v) {
     if (t === 'INT' || t === 'FLOAT') return Number.isFinite(v) && (t !== 'INT' || Number.isInteger(v)) && !(lim.min != null && v < lim.min) && !(lim.max != null && v > lim.max);
     return true;
 }
+const an = w => (/^[aeiou]/i.test(String(w)) ? 'an' : 'a');
 function liveProblems(manifest, graph, info) {
     const problems = [];
     for (const o of manifest.options || []) {
-        if (o.type !== 'enum') continue;
         const cls = graph[String(o.node)]?.class_type;
         if (!cls) continue;   // validate() reports a missing node
         if (!info[cls]) { problems.push(`option ${o.id}: the PC has no node ${cls}`); continue; }
+        if (o.type !== 'enum') {
+            // A number or on/off option: the same kind as the node's input, and nothing it offers outside the node's limits.
+            const spec = inputSpec(info, cls, o.input);
+            if (!spec) { problems.push(`option ${o.id}: ${cls} has no input "${o.input}"`); continue; }
+            const kind = { int: 'INT', float: 'FLOAT', bool: 'BOOLEAN' }[o.type];
+            if (kind && spec[0] !== kind) { problems.push(`option ${o.id}: ${an(o.type)} ${o.type} option on ${an(spec[0])} ${spec[0]} input`); continue; }
+            const lim = spec[1] || {};
+            for (const k of ['min', 'max', 'default']) {
+                const v = o[k];
+                if (v == null || (kind !== 'INT' && kind !== 'FLOAT')) continue;
+                if (lim.min != null && v < lim.min) problems.push(`option ${o.id}: ${k} ${v} is below what the PC accepts (${lim.min})`);
+                if (lim.max != null && v > lim.max) problems.push(`option ${o.id}: ${k} ${v} is above what the PC accepts (${lim.max})`);
+            }
+            continue;
+        }
         for (const c of o.choices || []) {
             const label = typeof c === 'object' ? c.label : c;
             const sent = o.sets ? Object.fromEntries(Object.entries(o.sets).map(([k, t]) => { const m = /^<choice\.(\w+)>$/.exec(String(t)); return [k, m ? c[m[1]] : t]; }))

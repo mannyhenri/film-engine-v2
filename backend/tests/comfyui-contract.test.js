@@ -155,3 +155,29 @@ test('the take tool offers exactly its pinned choices, option by option', () => 
     const dropped = JSON.parse(JSON.stringify(TAKE)); dropped.options.find(o => o.id === 'model').choices.splice(1, 1);
     assert.notDeepStrictEqual(dropped.options.find(o => o.id === 'model').choices.map(c => c.value).sort(), [...EXPECTED.model].sort());
 });
+
+/*
+ * Number and on/off options (none deployed today, but the contract allows them) are held to the node's own limits:
+ * an option may not let the director pick a number the PC would refuse. Every kind of number option, every bound.
+ */
+test('a number option may only offer what the node accepts: every bound of every number kind is checked', () => {
+    const info = { Steps: { input: { required: { steps: ['INT', { min: 1, max: 100 }], cfg: ['FLOAT', { min: 0, max: 30 }], tiled: ['BOOLEAN', {}] } } } };
+    const graph = { 1: { class_type: 'Steps', inputs: { steps: 20, cfg: 7, tiled: false } } };
+    const opt = (o) => ({ name: 't', options: [{ node: '1', ...o }] });
+    const ok = [
+        { id: 'steps', type: 'int', input: 'steps', min: 1, max: 100, default: 20 },
+        { id: 'cfg', type: 'float', input: 'cfg', min: 0.5, max: 12, default: 7 },
+        { id: 'tiled', type: 'bool', input: 'tiled', default: false },
+    ];
+    for (const o of ok) assert.deepStrictEqual(comfy.liveProblems(opt(o), graph, info), [], `${o.id} within the node`);
+    const bad = [
+        [{ ...ok[0], max: 500 }, /option steps: max 500 is above what the PC accepts \(100\)/],
+        [{ ...ok[0], min: 0 }, /option steps: min 0 is below what the PC accepts \(1\)/],
+        [{ ...ok[0], default: 150 }, /option steps: default 150 is above what the PC accepts \(100\)/],
+        [{ ...ok[1], max: 31 }, /option cfg: max 31 is above what the PC accepts \(30\)/],
+        [{ ...ok[0], type: 'float' }, /option steps: a float option on an INT input/],
+        [{ ...ok[2], type: 'int' }, /option tiled: an int option on a BOOLEAN input/],
+        [{ ...ok[0], input: 'nope' }, /option steps: Steps has no input "nope"/],
+    ];
+    for (const [o, want] of bad) assert.match(comfy.liveProblems(opt(o), graph, info).join('\n'), want, JSON.stringify(o));
+});
