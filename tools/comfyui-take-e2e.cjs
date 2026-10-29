@@ -5,7 +5,7 @@
  * filed on its shot as the next version, at the size the tool promises, with its fps and its sound.
  *
  *   node tools/comfyui-take-e2e.cjs <source video> [--seconds 0.5] [--workflow take_upscale_seedvr2]
- *        [--option model="Faster (SeedVR2 3B)"] [--want 1920x1080]
+ *        [--option model="Faster (SeedVR2 3B)"] [--want 1920x1080] [--keep]
  *
  * The source is cut to --seconds and re-encoded as HEVC, so the H.264 conversion before upload is exercised too.
  * It uses the PC for real: keep the clip short. FILM_COMFYUI_URL picks another PC.
@@ -17,7 +17,9 @@ const { execFileSync } = require('child_process');
 
 const args = process.argv.slice(2);
 const flag = (name, dflt) => { const i = args.indexOf(`--${name}`); return i >= 0 ? args[i + 1] : dflt; };
-const src = args.find(a => !a.startsWith('--') && !args[args.indexOf(a) - 1]?.startsWith('--'));
+// The source is the one argument that is neither a --flag nor the value right after one (by position, not by text).
+const VALUED = ['--seconds', '--workflow', '--option', '--want'];   // --keep takes no value
+const src = args.find((a, i) => !a.startsWith('--') && !(i > 0 && VALUED.includes(args[i - 1])));
 if (!src || !fs.existsSync(src)) { console.error('usage: comfyui-take-e2e.cjs <source video> [--seconds 0.5] [--workflow slug] [--option id=label] [--want WxH]'); process.exit(2); }
 const seconds = Number(flag('seconds', '0.5'));
 const workflow = flag('workflow', 'take_upscale_seedvr2');
@@ -26,6 +28,8 @@ const options = {};
 args.forEach((a, i) => { if (a === '--option') { const [k, ...v] = args[i + 1].split('='); options[k] = v.join('='); } });
 
 const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'fe-take-e2e-'));
+// The throwaway project goes when the check ends, pass or fail; --keep leaves it to look at the result.
+const done = code => { if (!args.includes('--keep')) fs.rmSync(TMP, { recursive: true, force: true }); process.exit(code); };
 process.env.FILM_DATA_DIR = path.join(TMP, 'data');
 const { db, generateId } = require('../backend/db/database');
 require('../backend/db/schema').ensureSchema();
@@ -61,7 +65,7 @@ const probe = f => {
         j = comfy.getJob(job.id);
     }
     const secs = Math.round((Date.now() - t0) / 1000);
-    if (j.status !== 'done') { console.error(`FAIL: ${j.status} after ${secs}s: ${j.error}`); process.exit(1); }
+    if (j.status !== 'done') { console.error(`FAIL: ${j.status} after ${secs}s: ${j.error}`); done(1); }
     const out = probe(j.filed.path);
     const takes = shotLib.listTakes(shotId);
     const checks = [
@@ -74,5 +78,5 @@ const probe = f => {
     ];
     console.log(`back in ${secs}s: ${out.codec} ${out.size} ${out.fps} fps ${out.seconds}s audio=${out.audio} -> ${j.filed.path}`);
     for (const [what, ok] of checks) console.log(`  ${ok ? 'PASS' : 'FAIL'}  ${what}`);
-    process.exit(checks.every(c => c[1]) ? 0 : 1);
-})().catch(e => { console.error('FAIL:', e.message); process.exit(1); });
+    done(checks.every(c => c[1]) ? 0 : 1);
+})().catch(e => { console.error('FAIL:', e.message); done(1); });
