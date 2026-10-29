@@ -181,3 +181,23 @@ test('a number option may only offer what the node accepts: every bound of every
     ];
     for (const [o, want] of bad) assert.match(comfy.liveProblems(opt(o), graph, info).join('\n'), want, JSON.stringify(o));
 });
+
+/*
+ * The fixed values an option's "sets" writes (resize_type: 'scale dimensions', resize_type.crop: 'center') are held
+ * to the PC too: corrupting ANY one of them, in any pinned manifest, is caught (found by running the PC's own
+ * corruptions, crop 'sepia' among them, through Film Engine).
+ */
+test('every fixed value an option sets is one the PC accepts, and any one corrupted is caught', () => {
+    let caught = 0;
+    for (const [slug, [m, g]] of Object.entries(MANIFESTS)) m.options.forEach((o, oi) => {
+        assert.deepStrictEqual(comfy.liveProblems(m, g, INFO), [], `${slug} as deployed`);
+        for (const [k, v] of Object.entries(o.sets || {})) {
+            if (/^<choice\.\w+>$/.test(String(v))) continue;   // templated: corrupted per choice in the test above
+            const bad = JSON.parse(JSON.stringify(m)); bad.options[oi].sets[k] = 'sepia';
+            // Caught as THAT value, not as some other breakage of the option.
+            assert.ok(comfy.liveProblems(bad, g, INFO).some(p => p.startsWith(`option ${o.id}`) && p.includes('"sepia"')), `${slug} ${o.id}: ${k} = 'sepia' caught`);
+            caught++;
+        }
+    });
+    assert.strictEqual(caught, 2, 'resize_type and resize_type.crop');
+});
