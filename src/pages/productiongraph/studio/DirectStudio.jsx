@@ -475,6 +475,8 @@ export default function DirectStudio({ pid, graph, catalog, reload }) {
     // The dialogue recording for this clip, when the director has one (the scene's whole take, say): where this clip starts in it.
     const dialogueFile = (studio.dialogue || {})[optKey] || null;
     const setDialogue = v => setSt({ dialogue: { ...(studio.dialogue || {}), [optKey]: v || undefined } }, { quiet: true });
+    // How the dialogue is handed over (lib/seedance-prompt.js DIALOGUE_FORMS): on a black-screen MP4, or as the sound alone for Seedance 2.5's audio reference.
+    const dialogueAs = studio.dialogueAs === 'audio' ? 'audio' : 'video';
     // The working text Optimize starts from: the prompt as shown when it is the whole unit (one shot, or one clip); for
     // several shots, each shot's own working text (the director's edit of it, else as the controls write it) in order,
     // under its code and time in the sequence.
@@ -504,6 +506,7 @@ export default function DirectStudio({ pid, graph, catalog, reload }) {
             prop_ids: [...new Set(refs.map(r => r.prop_id).filter(Boolean))],
             storyboard_asset_ids: codes.map(id => frameOf(starters[id])).filter(Boolean),
             ...(dialogueFile ? { dialogue_file: { path: dialogueFile.path, from_s: dialogueFile.from_s || 0 } } : {}),
+            dialogue_as: dialogueAs,
         };
     };
     const optimize = async () => {
@@ -594,7 +597,7 @@ export default function DirectStudio({ pid, graph, catalog, reload }) {
                             <button type="button" role="tab" aria-selected={ui.promptTab !== 'optimized'} className={ui.promptTab !== 'optimized' ? 'on' : ''} onClick={() => patchUi({ promptTab: 'work' })}>Working prompt</button>
                             <button type="button" role="tab" aria-selected={ui.promptTab === 'optimized'} className={ui.promptTab === 'optimized' ? 'on' : ''} onClick={() => patchUi({ promptTab: 'optimized' })}>Optimized for Seedance{optCodes.length > 1 ? ` · ${optCodes.map(label).join('+')}` : ''}{optimized ? '' : ' (none yet)'}</button>
                         </div>
-                        {ui.promptTab === 'optimized' && compiled && <DialoguePick d={dialogueFile} onSet={setDialogue} />}
+                        {ui.promptTab === 'optimized' && compiled && <DialoguePick d={dialogueFile} onSet={setDialogue} as={dialogueAs} onAs={v => setSt({ dialogueAs: v }, { quiet: true })} />}
                         {ui.promptTab === 'optimized' && compiled && <OptimizedPrompt o={optimized} busy={busy === 'optimize' || !!optJobId} job={optJob} stale={!!optimized && optimized.from !== promptSha}
                             copied={copied === 'opt'} onCopy={copyOptimized} onRun={optimize} onEdit={text => setSt({ optimized: { ...(studio.optimized || {}), [optKey]: { ...optimized, prompt: text } } }, { quiet: true })} />}
                         {ui.promptTab !== 'optimized' && compiled && hand === null && (
@@ -829,7 +832,11 @@ export default function DirectStudio({ pid, graph, catalog, reload }) {
  * The dialogue for Optimize: the recorded lines of the shots are found by themselves; a recording on disk (the scene's
  * whole take) can be chosen instead, with the second this clip starts at in it. It becomes @Video 1 on a black screen.
  */
-function DialoguePick({ d, onSet }) {
+const DIALOGUE_AS = [
+    { value: 'video', label: 'Video', title: 'On a black-screen MP4 (@Video 1): the hand-over as before' },
+    { value: 'audio', label: 'Audio', title: 'The sound alone, a WAV (@Audio 1): for Seedance 2.5\'s audio reference' },
+];
+function DialoguePick({ d, onSet, as, onAs }) {
     const input = useRef(null);
     const pick = e => {
         const f = e.target.files?.[0]; e.target.value = '';
@@ -846,6 +853,9 @@ function DialoguePick({ d, onSet }) {
         </> : <span className="ds-muted">The shots' recorded lines, where found.</span>}
         {window.__feFiles?.pathFor && <button type="button" className="ds-btn xs" onClick={() => input.current?.click()}>{d ? 'Change…' : 'Choose a recording…'}</button>}
         <input ref={input} type="file" accept="audio/*,video/*" hidden onChange={pick} />
+        <span className="ds-muted" role="radiogroup" aria-label="Hand the dialogue over as">as {DIALOGUE_AS.map(o =>
+            <label key={o.value} title={o.title}><input type="radio" name="ds-dialogue-as" value={o.value} aria-label={`Dialogue as ${o.label.toLowerCase()}`}
+                checked={as === o.value} onChange={() => onAs(o.value)} /> {o.label}</label>)}</span>
     </div>;
 }
 

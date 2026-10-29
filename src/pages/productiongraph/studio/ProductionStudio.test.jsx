@@ -235,6 +235,20 @@ describe('Generate (Direct studio): pick, direct, watch the prompt, check, send'
         } finally { delete window.__feFiles; }
     });
 
+    // Every form the dialogue can be handed over in (lib/seedance-prompt.js DIALOGUE_FORMS) is offered, and Optimize asks for the one picked.
+    it.each(['audio', 'video'])('the dialogue goes to Optimize in the form picked: %s, among every form offered', async (value) => {
+        const { calls } = open();
+        await flush(); await pick('1A'); await wait(600);
+        await click(screen.getByRole('tab', { name: /Optimized for Seedance/ }));
+        const forms = () => within(prompt()).getAllByRole('radio', { name: /dialogue as/i });
+        expect(forms().map(r => r.value).sort()).toEqual(['audio', 'video']);
+        expect(forms().find(r => r.value === 'video').checked).toBe(true);   // the hand-over as before, until another is picked
+        await act(async () => { fireEvent.click(forms().find(r => r.value === value)); }); await flush();
+        expect(forms().find(r => r.value === value).checked).toBe(true);
+        await click(within(prompt()).getByRole('button', { name: 'Optimize with AI' }));
+        expect(calls.filter(c => c.path.endsWith('/seedance-prompt')).pop().body.dialogue_as).toBe(value);
+    });
+
     it('a new read of the graph (a visit, a reload) reads the picked shots\' plates again, so a new storyboard frame is sent', async () => {
         const v = open(); await flush(); await pick('1A'); await wait(600);
         const starterCalls = () => v.calls.filter(c => c.path.includes(enc(A.key)) && c.path.includes('/draft/starter')).length;
