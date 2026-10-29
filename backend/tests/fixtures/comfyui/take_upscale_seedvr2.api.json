@@ -234,7 +234,7 @@
                 "48",
                 0
             ],
-            "temporal_overlap": 0,
+            "temporal_overlap": 8,
             "chunking_mode": "auto"
         },
         "_meta": {
