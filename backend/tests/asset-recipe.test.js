@@ -119,3 +119,29 @@ test('an unknown asset has no recipe; the route answers 404, and a real one carr
 });
 
 test.after(() => { try { fs.rmSync(process.env.FILM_DATA_DIR, { recursive: true, force: true }); } catch (_) {} });
+
+/*
+ * Takes filed from every source (comfyui-shot.js TAKE_SOURCES: the ComfyUI PC, this Mac, a file) keep their input_refs
+ * as an object ({comfyui: {…, from}} or {file: {…}}), not a list. Every one must open in the recipe without an
+ * error, and a take made from another lists that take as what it was made from.
+ */
+test('a take from every source opens in the recipe, and one made from another take lists it', () => {
+    const { TAKE_SOURCES } = require('../lib/comfyui-shot');
+    const base = generateId();
+    db.prepare(`INSERT INTO film_assets (id, project_id, shot_id, asset_type, file_name, file_path, version) VALUES (?, ?, ?, 'video_raw', 'v1.mp4', ?, 1)`).run(base, P, SH, platePath);
+    const refsFor = {
+        pc: { comfyui: { url: 'http://pc', workflow: 'take_upscale_seedvr2', seed: 1, options: {}, from: { asset_id: base, version: 1 } } },
+        mac: { comfyui: { url: 'this Mac', workflow: 'mac:smooth', options: {}, from: { asset_id: base, version: 1 } } },
+        file: { file: { source: 'made elsewhere.mp4' } },
+    };
+    assert.deepEqual(Object.keys(refsFor).sort(), Object.keys(TAKE_SOURCES).sort(), 'every take source is covered');
+    for (const [where, refs] of Object.entries(refsFor)) {
+        const id = generateId();
+        db.prepare(`INSERT INTO film_assets (id, project_id, shot_id, asset_type, file_name, file_path, version, input_refs) VALUES (?, ?, ?, 'video_raw', 'v2.mp4', ?, 2, ?)`)
+            .run(id, P, SH, platePath, JSON.stringify(refs));
+        const r = recipe.assetRecipe(db, id);
+        assert.ok(r, `${where}: the recipe opens`);
+        const from = refs.comfyui?.from?.asset_id;
+        assert.deepEqual(r.references.map(x => x.asset_id), from ? [from] : [], `${where}: made from ${from ? 'the earlier take' : 'nothing on file'}`);
+    }
+});

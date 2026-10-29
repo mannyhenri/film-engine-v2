@@ -122,8 +122,12 @@ function assetRecipe(db, assetId) {
     }
 
     // References the version was made from, with a picture of each where one exists.
+    // Mostly a list; a take (comfyui-shot.js fileTake) keeps an object instead, naming the take it was made from.
+    const rawRefs = parse(a.input_refs, []);
+    const refList = Array.isArray(rawRefs) ? rawRefs
+        : rawRefs && typeof rawRefs === 'object' ? [rawRefs.comfyui?.from?.asset_id].filter(Boolean) : [];
     const refs = [];
-    for (const r of parse(a.input_refs, []) || []) {
+    for (const r of refList) {
         const id = typeof r === 'string' ? r : (r && (r.asset_id || r.id));
         if (!id) continue;
         const row = db.prepare('SELECT id, asset_type, file_name, file_path FROM film_assets WHERE id = ?').get(id);
