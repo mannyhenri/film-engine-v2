@@ -1,5 +1,5 @@
 /**
- * GENERATORS: Production's local AI tools (slow motion, upscale, depth, rotoscope, stems, subtitles).
+ * GENERATORS: Production's local AI tools (slow motion, upscale, depth, rotoscope, stems, subtitles) and Lossless Cut.
  *
  * Each tool is a command-line engine in its own folder under ENGINE_DIR, described by a `generator.json`
  * manifest (name, what it accepts, whether it takes a section or the whole file, its options). This module
@@ -64,9 +64,31 @@ function validateManifest(m, dir) {
     if (!/^[a-z0-9-]+$/.test(String(m.id || ''))) return 'manifest id must be lowercase letters, digits or dashes';
     if (!m.script || !fs.existsSync(path.join(dir, m.script))) return `engine script ${m.script || '(none)'} is missing`;
     if (m.python && !fs.existsSync(path.join(dir, m.python))) return `its Python (${m.python}) is not installed yet`;
-    if (!['section', 'whole'].includes(m.range)) return 'range must be "section" or "whole"';
+    if (!['section', 'whole', 'segments'].includes(m.range)) return 'range must be "section", "whole" or "segments"';
+    if (m.range === 'segments' && !(m.segments && typeof m.segments.flag === 'string' && m.segments.flag.startsWith('--'))) {
+        return 'a "segments" tool needs "segments": { "flag": "--..." }';
+    }
     if (!m.out || !m.out.flag || !['file', 'dir'].includes(m.out.kind)) return 'out needs a flag and kind "file" or "dir"';
     return null;
+}
+
+/**
+ * A "segments" tool (Lossless Cut) takes several pieces of the file at once: [[start, end], ...] in seconds from
+ * the start, as the player counts. Checked here so the engine only ever sees sane numbers: at least one piece,
+ * at most the manifest's max (99), each ending after it starts, none starting past the end (an end past it
+ * means "to the end"). Passed as "--segments 12.000000-30.500000,41.000000-55.000000".
+ */
+function segmentsArg(tool, segments, duration) {
+    const max = Math.min(Number(tool.segments?.max) || 99, 999);
+    if (!Array.isArray(segments) || !segments.length) throw httpError(400, 'add at least one piece (mark In and Out, then Add piece)');
+    if (segments.length > max) throw httpError(400, `${tool.name} takes at most ${max} pieces`);
+    return segments.map((seg, i) => {
+        const [s, e] = Array.isArray(seg) ? seg.map(Number) : [Number(seg?.start), Number(seg?.end)];
+        if (!Number.isFinite(s) || !Number.isFinite(e)) throw httpError(400, `piece ${i + 1} needs a start and an end in seconds`);
+        if (s < 0 || e <= s) throw httpError(400, `piece ${i + 1} must end after it starts`);
+        if (Number.isFinite(duration) && duration > 0 && s >= duration) throw httpError(400, `piece ${i + 1} starts after the end of the file`);
+        return `${s.toFixed(6)}-${e.toFixed(6)}`;
+    }).join(',');
 }
 
 function getTool(id) {
@@ -88,12 +110,13 @@ function pythonFor(tool) {
  * The engine's arguments from the manifest and the user's choices. Unknown options are dropped and values
  * are checked against the manifest, so the page can only ever pass what the tool declared.
  */
-function buildArgs(tool, inputPath, { start, end, options } = {}, outPath, progressPath) {
+function buildArgs(tool, inputPath, { start, end, options, segments, duration } = {}, outPath, progressPath) {
     const args = [path.join(tool.dir, tool.script), inputPath];
     if (tool.range === 'section' && Number.isInteger(start) && Number.isInteger(end)) {
         if (start < 0 || end <= start) throw httpError(400, 'the section must end after it starts');
         args.push('--start', String(start), '--end', String(end));
     }
+    if (tool.range === 'segments') args.push(tool.segments.flag, segmentsArg(tool, segments, duration));
     const chosen = options || {};
     // A setting that applies only to some choices ("when": {"engine": ["ultrasharp"]}) is left out when they are not made:
     // Gigapixel took a Size, Fog took a blur. Judged on what will be sent (the choice made, else its default).
@@ -320,7 +343,7 @@ function getJob(id) { load(); const j = jobs.get(String(id)); if (!j) throw http
 
 function stamp() { return new Date().toISOString().replace(/[-:]/g, '').replace('T', '-').slice(0, 15); }
 
-/** Queue a job: { tool, input_id, start?, end?, options? }. Starts at once if nothing else is running. */
+/** Queue a job: { tool, input_id, start?, end?, segments?, options? }. Starts at once if nothing else is running. */
 function createJob(body) {
     load();
     const tool = getTool(String(body.tool || ''));
@@ -338,9 +361,11 @@ function createJob(body) {
     const outDir = settings.out_dir || path.join(OUT_ROOT(), tool.name);   // the chosen folder, else the tool's default
     const outPath = path.join(outDir, `${base} - ${tool.name}${section} ${stamp()}${tool.out.kind === 'file' ? (tool.out.ext || '') : ''}`);
     const progressPath = path.join(STATE_DIR(), 'progress', `${id}.json`);
-    const args = buildArgs(tool, input.path, { start, end, options: body.options }, outPath, progressPath);   // validates before anything is queued
+    const args = buildArgs(tool, input.path, { start, end, options: body.options, segments: body.segments, duration: input.duration },
+        outPath, progressPath);   // validates before anything is queued
+    const segments = tool.range === 'segments' ? body.segments.map(s => (Array.isArray(s) ? s : [s.start, s.end]).map(Number)) : null;
     const job = { id, tool: tool.id, tool_name: tool.name, input_id: input.id, input_name: input.name,
-        start: section ? start : null, end: section ? end : null, options: body.options || {},
+        start: section ? start : null, end: section ? end : null, segments, options: body.options || {},
         status: 'queued', stage: 'Waiting for the GPU', done: 0, total: 0, outputs: [], error: null,
         created_at: new Date().toISOString(), started_at: null, finished_at: null,
         out_path: outPath, out_kind: tool.out.kind, progress_path: progressPath, log_path: progressPath.replace(/\.json$/, '.log'),
@@ -395,6 +420,23 @@ function readProgress(job) {
         .filter(([, v]) => ['string', 'number', 'boolean'].includes(typeof v)).slice(0, 12));
     const outs = Array.isArray(p.outs) ? p.outs : p.out ? [p.out] : [];
     if (outs.length) job.outputs = outs.map(String);
+    if (Array.isArray(p.pieces)) job.pieces = p.pieces.slice(0, 999).map(cleanPiece).filter(Boolean);
+}
+
+/**
+ * What a multi-piece engine (Lossless Cut) says about each piece it wrote: where it really starts and ends (a
+ * keyframe cut can start earlier than asked), how it was made, and which frames, if any, were re-encoded. Only
+ * these fields, as numbers and short text, reach the page.
+ */
+function cleanPiece(pc) {
+    if (!pc || typeof pc !== 'object') return null;
+    const num = v => (Number.isFinite(Number(v)) ? Number(v) : null);
+    const span = r => (Array.isArray(r) && r.length === 2 && r.every(x => Number.isFinite(Number(x))) ? r.map(Number) : null);
+    return { n: num(pc.n), file: typeof pc.file === 'string' ? pc.file : null,
+        asked_start: num(pc.asked_start), asked_end: num(pc.asked_end), start: num(pc.start), end: num(pc.end),
+        mode: ['copy', 'smart'].includes(pc.mode) ? pc.mode : null,
+        reencoded: Array.isArray(pc.reencoded) ? pc.reencoded.map(span).filter(Boolean).slice(0, 4) : [],
+        note: typeof pc.note === 'string' ? pc.note.slice(0, 300) : '' };
 }
 
 function readTail(file) {

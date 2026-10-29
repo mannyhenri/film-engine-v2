@@ -43,7 +43,8 @@ const fresh = () => { gen._reset(); fs.rmSync(path.join(TMP, 'state'), { recursi
 test('tools come from their manifests; a broken one says why it is not ready', () => {
     const tools = gen.listTools();
     const byId = Object.fromEntries(tools.map(t => [t.id, t]));
-    assert.deepStrictEqual(Object.keys(byId).sort(), ['broken', 'fake-depth', 'fake-image-upscale', 'fake-slowmo', 'fake-upscale']);
+    assert.deepStrictEqual(Object.keys(byId).sort(), ['broken', 'fake-cut', 'fake-depth', 'fake-image-upscale', 'fake-slowmo', 'fake-upscale']);
+    assert.strictEqual(byId['fake-cut'].range, 'segments');
     assert.strictEqual(byId['fake-slowmo'].range, 'section');
     assert.strictEqual(byId['fake-upscale'].range, 'whole');
     assert.match(byId.broken.unavailable, /missing\.py is missing/);
@@ -257,5 +258,114 @@ test('the real AI Image Upscale engine: 4x-UltraSharp to 4K and to 2x, at the si
     }
     assert.ok(levels['0.3'] > levels['0'] * 1.05 && levels['0.8'] > levels['0.3'] * 1.1, `grain did not rise with the setting: ${JSON.stringify(levels)}`);
 });
+
+// ── Segments: several pieces in one job (Lossless Cut) ───────────────────
+
+test('a "segments" manifest must say how its pieces are passed; "section" and "whole" tools are unaffected', () => {
+    const dir = path.join(TMP, 'engines-seg');
+    const tool = (name, m) => {
+        fs.mkdirSync(path.join(dir, name), { recursive: true });
+        fs.writeFileSync(path.join(dir, name, 'run.py'), '');
+        fs.writeFileSync(path.join(dir, name, 'generator.json'), JSON.stringify({ script: 'run.py', accepts: 'video', out: { flag: '--out', kind: 'dir' }, ...m }));
+    };
+    tool('No Flag', { id: 'no-flag', range: 'segments' });
+    tool('Bad Flag', { id: 'bad-flag', range: 'segments', segments: { flag: 'segments' } });
+    tool('Good', { id: 'good', range: 'segments', segments: { flag: '--segments' } });
+    tool('Odd Range', { id: 'odd', range: 'pieces' });
+    const was = process.env.FILM_GENERATORS_DIR;
+    process.env.FILM_GENERATORS_DIR = dir;
+    try {
+        const byId = Object.fromEntries(gen.listTools().map(t => [t.id, t]));
+        assert.match(byId['no-flag'].unavailable, /needs "segments"/);
+        assert.match(byId['bad-flag'].unavailable, /needs "segments"/);
+        assert.strictEqual(byId.good.unavailable, undefined);
+        assert.match(byId.odd.unavailable, /"section", "whole" or "segments"/);
+    } finally { process.env.FILM_GENERATORS_DIR = was; }
+});
+
+test('pieces reach the engine as one checked --segments argument, and only for a segments tool', () => {
+    const cut = gen.getTool('fake-cut'), up = gen.getTool('fake-upscale'), slow = gen.getTool('fake-slowmo');
+    const a = gen.buildArgs(cut, '/in.mov', { segments: [[0, 3.3], [3.3, 6.7], { start: 6.7, end: 10 }], options: { mode: 'smart' }, duration: 10 }, '/out', '/p');
+    assert.deepStrictEqual(a.slice(1), ['/in.mov', '--segments', '0.000000-3.300000,3.300000-6.700000,6.700000-10.000000',
+        '--mode', 'smart', '--all-tracks', '--out', '/out', '--progress', '/p']);
+    assert.ok(!a.includes('--start'), 'a segments tool takes no single section');
+    // an end past the file is allowed (it means "to the end"); the engine clamps it
+    assert.match(gen.buildArgs(cut, '/in.mov', { segments: [[8, 99]], duration: 10 }, '/o', '/p').join(' '), /--segments 8\.000000-99\.000000/);
+    const refused = [
+        [undefined, /at least one piece/], [[], /at least one piece/],
+        [[[0, 1], [1, 2], [2, 3], [3, 4], [4, 5], [5, 6]], /at most 5 pieces/],
+        [[[3, 3]], /piece 1 must end after it starts/], [[[0, 1], [5, 2]], /piece 2 must end after it starts/],
+        [[[-1, 2]], /must end after it starts/], [[['a', 2]], /start and an end in seconds/], [[[1]], /start and an end/],
+        [[[10.5, 12]], /starts after the end of the file/],
+    ];
+    for (const [segments, why] of refused) {
+        assert.throws(() => gen.buildArgs(cut, '/in.mov', { segments, duration: 10 }, '/o', '/p'), why, JSON.stringify(segments));
+    }
+    // other tools never see --segments, whatever the page sends
+    for (const t of [up, slow]) assert.ok(!gen.buildArgs(t, '/in.mov', { segments: [[0, 1]] }, '/o', '/p').includes('--segments'));
+});
+
+test('a segments job returns every piece, in order, with what the engine said about each (and nothing else)', { skip: !haveFfmpeg && 'no ffmpeg' }, async () => {
+    fresh(); delete process.env.FAKE_MODE;
+    const wav = path.join(TMP, 'tone.wav');
+    execFileSync(ff.bin, ['-v', 'error', '-y', '-f', 'lavfi', '-i', 'sine=frequency=440:duration=4', wav]);
+    for (const file of [CLIP, wav]) {   // a video, and a bare audio file (the tool says audio_ok)
+        const input = gen.probeInput(file);
+        const want = [[0, 0.5], [0.5, 1.25], [1.5, 1.9]];
+        const j = gen.createJob({ tool: 'fake-cut', input_id: input.id, segments: want, options: { mode: 'keyframe' } });
+        assert.deepStrictEqual(j.segments, want);
+        await waitFor(() => gen.getJob(j.id).status !== 'running' && gen.getJob(j.id).status !== 'queued');
+        const done = gen.getJob(j.id);
+        assert.strictEqual(done.status, 'done', done.error);
+        assert.strictEqual(done.out_kind, 'dir');
+        assert.deepStrictEqual(done.outputs.map(p => path.basename(p)), ['piece 01.json', 'piece 02.json', 'piece 03.json']);
+        assert.ok(done.outputs.every(p => path.dirname(p) === done.out_path), 'every piece lands in the job\'s own folder');
+        assert.deepStrictEqual(done.outputs.map(p => JSON.parse(fs.readFileSync(p, 'utf8')).segment), want);
+        assert.strictEqual(done.pieces.length, 3);
+        done.pieces.forEach((pc, i) => {
+            assert.deepStrictEqual(Object.keys(pc).sort(), ['asked_end', 'asked_start', 'end', 'file', 'mode', 'n', 'note', 'reencoded', 'start']);
+            assert.strictEqual(pc.file, done.outputs[i]);
+            assert.deepStrictEqual([pc.asked_start, pc.asked_end], want[i]);
+            assert.strictEqual(pc.start, Math.max(0, want[i][0] - 0.5));
+            assert.deepStrictEqual(pc.reencoded, [[want[i][0], want[i][0] + 0.25]], 'a malformed range is dropped');
+            assert.strictEqual(pc.note.length, 300);
+        });
+        assert.deepStrictEqual(gen.publicJob(done).pieces, done.pieces, 'the page sees each piece\'s real start and end');
+    }
+    const input = gen.probeInput(CLIP);
+    assert.throws(() => gen.createJob({ tool: 'fake-cut', input_id: input.id, segments: [[5, 6]] }), /starts after the end of the file/);
+    assert.throws(() => gen.createJob({ tool: 'fake-cut', input_id: input.id }), /at least one piece/);
+});
+
+// The real engine (~/Documents/Resolve Plugins/Lossless Cut), when it is installed: a clip split into pieces through
+// a real job, each piece checked with ffprobe. (Its own matrix test lives beside it: tests/test_losslesscut.py.)
+const REAL_CUT = path.join(os.homedir(), 'Documents', 'Resolve Plugins', 'Lossless Cut');
+test('the real Lossless Cut engine through a job: every piece is the same codec, size and tracks, with nothing re-encoded',
+    { skip: (!haveFfmpeg || !fs.existsSync(path.join(REAL_CUT, 'generator.json'))) && 'engine not installed' }, async () => {
+        fresh();
+        const src = path.join(TMP, 'cut-me.mov');
+        execFileSync(ff.bin, ['-v', 'error', '-y', '-f', 'lavfi', '-i', 'testsrc2=size=640x360:rate=24', '-f', 'lavfi', '-i', 'sine=frequency=440:sample_rate=48000',
+            '-t', '6', '-c:v', 'libx264', '-g', '24', '-keyint_min', '24', '-sc_threshold', '0', '-pix_fmt', 'yuv420p', '-c:a', 'aac', src]);
+        const was = process.env.FILM_GENERATORS_DIR;
+        process.env.FILM_GENERATORS_DIR = path.dirname(REAL_CUT);
+        try {
+            const input = gen.probeInput(src);
+            const j = gen.createJob({ tool: 'losslesscut', input_id: input.id, segments: [[0, 2.5], [2.5, 6]], options: { mode: 'keyframe', all_tracks: true } });
+            await waitFor(() => !['running', 'queued'].includes(gen.getJob(j.id).status), 60000);
+            const done = gen.getJob(j.id);
+            assert.strictEqual(done.status, 'done', done.error);
+            assert.strictEqual(done.outputs.length, 2);
+            const probe = f => JSON.parse(execFileSync('ffprobe', ['-v', 'error', '-of', 'json', '-show_streams', f]).toString()).streams
+                .map(s => [s.codec_type, s.codec_name, s.width || null, s.height || null, s.pix_fmt || s.sample_rate].join(' '));
+            for (const out of done.outputs) {
+                assert.match(path.basename(out), /^cut-me - part 0[12] \(.+\)\.mov$/);
+                assert.deepStrictEqual(probe(out), probe(src));
+            }
+            // a keyframe cut: the split at 2.5 s moves back to the keyframe at 2.0 s, for both pieces, and says so
+            assert.deepStrictEqual(done.pieces.map(p => [p.start, p.end]), [[0, 2], [2, 6]]);
+            assert.ok(done.pieces.every(p => p.mode === 'copy' && p.reencoded.length === 0));
+            assert.match(done.pieces[1].note, /keyframe 0:02\.000 \(asked 0:02\.500\)/);
+        } finally { process.env.FILM_GENERATORS_DIR = was; }
+    });
 
 test.after(() => fs.rmSync(TMP, { recursive: true, force: true }));

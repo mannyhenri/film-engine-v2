@@ -28,7 +28,7 @@ function open() {
         'GET /generators/tools': { tools: TOOLS, engine_dir: '/engines', out_dir: '/Movies/Film Engine Generators' },
         'GET /generators/jobs': () => ({ jobs }),
         'POST /generators/inputs': () => ({ input: INPUT }),
-        'POST /generators/jobs': (b) => { const j = { id: 'j' + (jobs.length + 1), tool: b.tool, tool_name: b.tool, input_name: 'jet.mov', start: b.start ?? null, end: b.end ?? null, status: 'running', stage: 'Inventing frames', done: 3, total: 12, outputs: [], created_at: 'x' }; jobs = [j, ...jobs]; return { job: j }; },
+        'POST /generators/jobs': (b) => { const j = { id: 'j' + (jobs.length + 1), tool: b.tool, tool_name: b.tool, input_name: 'jet.mov', start: b.start ?? null, end: b.end ?? null, segments: b.segments ?? null, status: 'running', stage: 'Inventing frames', done: 3, total: 12, outputs: [], created_at: 'x' }; jobs = [j, ...jobs]; return { job: j }; },
         'POST /generators/jobs/j1/cancel': () => { jobs[jobs.length - 1].status = 'cancelled'; return { job: jobs[0] }; },
     } });
     window.__feFiles = { pathFor: vi.fn(() => '/Movies/jet.mov'), reveal: vi.fn(), pickFolder: vi.fn(async () => '/Volumes/Edit/Slowmo') };
@@ -193,6 +193,100 @@ describe('Production › Generators', () => {
         expect(document.querySelector('.gen-panel').contains(screen.getByRole('status'))).toBe(false);
         const history = screen.getByRole('heading', { name: 'History' }).closest('.gen-jobs');
         expect(document.querySelector('.gen-main').compareDocumentPosition(history) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
+
+    // ── Lossless Cut: several pieces, each its own file ─────────────────────
+    const at = (video, t) => { video.currentTime = t; };
+    const cutTool = async () => {
+        open(); await flush(); await drop();
+        await act(async () => { fireEvent.click(screen.getByRole('radio', { name: /Fake Lossless Cut/ })); });
+        const video = document.querySelector('video');
+        Object.defineProperty(video, 'currentTime', { value: 0, writable: true });
+        return video;
+    };
+    const click = name => act(async () => { fireEvent.click(screen.getByRole('button', { name })); });
+    const listed = () => [...document.querySelectorAll('[data-testid=gen-piece-list] li .ps-mono')].map(n => n.textContent);
+
+    it('a pieces tool collects several In/Out pieces (keys too), sorted, and sends them all in seconds on frames', async () => {
+        const video = await cutTool();
+        expect(screen.getByRole('radio', { name: /Fake Lossless Cut/ }).textContent).toMatch(/Pieces/);
+        expect(screen.queryByTestId('gen-section')).toBeNull();                     // not the one-section control
+        expect(screen.getByRole('button', { name: 'Cut' }).disabled).toBe(true);   // nothing to cut yet
+        at(video, 2.0); await act(async () => { fireEvent.keyDown(window, { key: 'i' }); });      // frame 48
+        at(video, 3.5); await act(async () => { fireEvent.keyDown(window, { key: 'o' }); });      // frame 84, kept
+        expect(screen.getByTestId('gen-marks').textContent).toBe('In 0:02.000 → Out 0:03.542 · Add piece to keep it');
+        await click('Add piece');
+        at(video, 0.5); await click(/Mark In/);
+        at(video, 1.0); await click(/Mark Out/);
+        await click('Add piece');
+        expect(listed()).toEqual(['0:00.500 → 0:01.042', '0:02.000 → 0:03.542']);   // sorted by start
+        await act(async () => { fireEvent.change(screen.getByLabelText('Cut'), { target: { value: 'smart' } }); });
+        await click('Cut 2 pieces'); await flush();
+        expect(lastPost()).toEqual({ tool: 'fake-cut', input_id: 'in1', options: { mode: 'smart', all_tracks: true },
+            segments: [[0.5, 25 / 24], [2, 85 / 24]] });
+        expect(lastPost().start).toBeUndefined();
+    });
+
+    it('Split at playhead cuts the whole file in two, then the piece under the playhead; pieces can be removed', async () => {
+        const video = await cutTool();
+        at(video, 1.5); await click('Split at playhead');
+        expect(listed()).toEqual(['0:00.000 → 0:01.500', '0:01.500 → 0:04.040']);   // INPUT lasts 4.04 s
+        at(video, 3.0); await click('Split at playhead');
+        expect(listed()).toEqual(['0:00.000 → 0:01.500', '0:01.500 → 0:03.000', '0:03.000 → 0:04.040']);
+        await click('Remove piece 2');
+        expect(listed()).toEqual(['0:00.000 → 0:01.500', '0:03.000 → 0:04.040']);
+        at(video, 2.0); await click('Split at playhead');                           // the gap is in no piece
+        expect(screen.getByRole('alert').textContent).toMatch(/not inside a piece/);
+        await click('Clear');
+        expect(screen.queryByTestId('gen-piece-list')).toBeNull();
+        expect(screen.getByRole('button', { name: 'Cut' }).disabled).toBe(true);
+        at(video, 1.5); await click('Split at playhead');
+        await click('Cut 2 pieces'); await flush();
+        expect(lastPost().segments).toEqual([[0, 1.5], [1.5, 4.04]]);
+        expect(screen.getByRole('status').textContent).toMatch(/jet\.mov · 2 pieces/);
+    });
+
+    it('an audio file is cut where it is heard, not on video frames', async () => {
+        const WAV = { id: 'a1', path: '/Music/take.wav', name: 'take.wav', kind: 'audio', fps: null, frames: null, duration: 10 };
+        open();
+        L.fake.api.mockImplementation(async (p, o = {}) => {
+            const m = o.method || 'GET';
+            L.calls.push({ method: m, path: p, body: o.body ? JSON.parse(o.body) : undefined });
+            if (m === 'POST' && p === '/generators/inputs') return { input: WAV };
+            if (p === '/generators/tools') return { tools: TOOLS, engine_dir: '/engines', out_dir: '/Movies' };
+            if (p === '/generators/settings') return { out_dir: null, default_out_dir: '/Movies' };
+            if (m === 'POST' && p === '/generators/jobs') return { job: { id: 'c1', status: 'queued', tool_name: 'x', input_name: 'take.wav', created_at: 'x' } };
+            if (p === '/generators/jobs') return { jobs: [] };
+            throw new Error('no route ' + p);
+        });
+        await flush(); await drop();
+        await act(async () => { fireEvent.click(screen.getByRole('radio', { name: /Fake Lossless Cut/ })); });
+        const audio = document.querySelector('audio');
+        Object.defineProperty(audio, 'currentTime', { value: 1.234567, writable: true });
+        await click(/Mark In/);
+        audio.currentTime = 2.5; await click(/Mark Out/);
+        await click('Add piece');
+        await click('Cut 1 piece'); await flush();
+        expect(lastPost().segments).toEqual([[1.234567, 2.5]]);
+    });
+
+    it('a finished cut lists every piece with where it really starts, and what (if anything) was re-encoded', async () => {
+        open(); jobs = [{ id: 'k1', tool: 'fake-cut', tool_name: 'Lossless Cut', input_name: 'jet.mov', status: 'done', stage: 'done', done: 2, total: 2,
+            segments: [[3.3, 6.7], [7.25, 9]], created_at: 'x', note: '1 of 2 pieces start on an earlier keyframe; each piece lists its real start.',
+            outputs: ['/out/jet - part 01 (00m02s-00m06s).mov', '/out/jet - part 02 (00m07.3s-00m09s).mov'],
+            pieces: [
+                { n: 1, file: '/out/jet - part 01 (00m02s-00m06s).mov', asked_start: 3.3, asked_end: 6.7, start: 2, end: 6.7, mode: 'copy', reencoded: [], note: 'Starts at the keyframe 0:02.000 (asked 0:03.300).' },
+                { n: 2, file: '/out/jet - part 02 (00m07.3s-00m09s).mov', asked_start: 7.25, asked_end: 9, start: 7.25, end: 9, mode: 'smart', reencoded: [[7.25, 8]], note: '' },
+            ] }];
+        await flush();
+        const history = screen.getByRole('heading', { name: 'History' }).closest('.gen-jobs');
+        expect(within(history).getByText('Lossless Cut').closest('li').textContent).toMatch(/jet\.mov · 2 pieces/);
+        const info = screen.getAllByTestId('gen-piece-info').map(n => n.textContent);
+        expect(info).toEqual([
+            '0:02.000 → 0:06.700 · starts on the keyframe at 0:02.000 (asked 0:03.300) · nothing re-encoded',
+            '0:07.250 → 0:09.000 · re-encoded 0:07.250–0:08.000, the rest copied',
+        ]);
+        expect(screen.getAllByRole('button', { name: 'Play' }).length).toBe(2);
     });
 
     it('an image shows as a picture, only image tools can be chosen, and an image result is viewed in place', async () => {

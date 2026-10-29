@@ -9,7 +9,7 @@
  *   GET  /film/generators/settings            where results are saved: { out_dir (null = default), default_out_dir }
  *   PUT  /film/generators/settings            choose it: { out_dir } (a folder; null resets to the default)
  *   GET  /film/generators/jobs                every job, newest first (the history)
- *   POST /film/generators/jobs                queue one: { tool, input_id, start?, end?, options? }
+ *   POST /film/generators/jobs                queue one: { tool, input_id, start?, end?, segments?: [[s, e], ...], options? }
  *   GET  /film/generators/jobs/:id            one job's status and progress
  *   POST /film/generators/jobs/:id/cancel     stop it (the engine and everything it started)
  *   GET  /film/generators/jobs/:id/output/:n  stream a finished output (ranges)

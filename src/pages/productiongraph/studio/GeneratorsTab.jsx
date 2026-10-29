@@ -25,6 +25,20 @@ function timecode(frame, fps) {
     const pad = n => String(n).padStart(2, '0');
     return `${pad(Math.floor(s / 3600))}:${pad(Math.floor(s / 60) % 60)}:${pad(s % 60)}:${pad(frame % f)}`;
 }
+/** Seconds as a player shows them: 0:12.500, or 1:02:03.000 past an hour. */
+export function clock(t) {
+    if (t == null || !Number.isFinite(t)) return '—';
+    const ms = Math.round(t * 1000), h = Math.floor(ms / 3600000), m = Math.floor(ms / 60000) % 60, s = (ms % 60000) / 1000;
+    return `${h ? `${h}:${String(m).padStart(2, '0')}` : m}:${s.toFixed(3).padStart(6, '0')}`;
+}
+/** What a cut piece really is, when it differs from what was asked (a keyframe cut starts earlier) or was re-encoded. */
+function pieceInfo(pc) {
+    const parts = [`${clock(pc.start)} → ${clock(pc.end)}`];
+    if (pc.asked_start != null && Math.abs(pc.start - pc.asked_start) > 0.0015) parts.push(`starts on the keyframe at ${clock(pc.start)} (asked ${clock(pc.asked_start)})`);
+    if (pc.reencoded?.length) parts.push(`re-encoded ${pc.reencoded.map(([a, b]) => `${clock(a)}–${clock(b)}`).join(', ')}, the rest copied`);
+    else if (pc.mode) parts.push('nothing re-encoded');
+    return parts.join(' · ');
+}
 const fname = p => String(p || '').split('/').pop();
 const IMG_OUT = /\.(png|jpe?g|webp|tiff?)$/i;
 const CODECS = { prores: 'ProRes', dnxhd: 'DNxHD', cfhd: 'CineForm', mjpeg: 'Motion JPEG', qtrle: 'Animation' };
@@ -41,6 +55,9 @@ export default function GeneratorsTab() {
     const [outF, setOut] = useState(null);
     const [frame, setFrame] = useState(0);
     const [points, setPoints] = useState([]);   // [{x,y,label}] for click-to-select tools
+    const [pieces, setPieces] = useState([]);   // [{start, end}] in seconds, for a tool that cuts several pieces
+    const [pIn, setPIn] = useState(null);       // the piece being marked (seconds)
+    const [pOut, setPOut] = useState(null);
     const [pointsFrame, setPointsFrame] = useState(null);
     const [over, setOver] = useState(false);
     const [error, setError] = useState('');
@@ -115,6 +132,7 @@ export default function GeneratorsTab() {
                 if (!res.ok) throw new Error(r.error || `HTTP ${res.status}`);
             }
             setInput(r.input); setIn(null); setOut(null); setFrame(0); setPoints([]); setPointsFrame(null); setLoading('wait');
+            setPieces([]); setPIn(null); setPOut(null);
         } catch (err) { setError(err.message); }
         finally { setBusy(false); }
     };
@@ -130,13 +148,37 @@ export default function GeneratorsTab() {
     const markIn = () => { const f = curFrame(); setIn(f); if (outF != null && outF <= f) setOut(null); };
     const markOut = () => { const f = curFrame() + 1; setOut(f); if (inF != null && inF >= f) setIn(null); };   // Out is exclusive: the frame on screen is included
 
+    // Pieces (Lossless Cut) are kept in seconds, so an audio file cuts where it is heard. On a video they land on
+    // frames: In is the frame on screen, Out is just after it (the frame on screen is the piece's last).
+    const fps = input?.kind === 'video' && input.fps ? input.fps : null;
+    const nowAt = () => (fps ? curFrame() / fps : Math.max(0, player.current?.currentTime || 0));
+    const nowOut = () => (fps ? (curFrame() + 1) / fps : Math.max(0, player.current?.currentTime || 0));
+    const markPieceIn = () => { const t = nowAt(); setPIn(t); if (pOut != null && pOut <= t) setPOut(null); };
+    const markPieceOut = () => { const t = nowOut(); setPOut(t); if (pIn != null && pIn >= t) setPIn(null); };
+    const sortPieces = ps => [...ps].sort((a, b) => a.start - b.start || a.end - b.end);
+    const addPiece = () => {
+        if (pIn == null || pOut == null || pOut <= pIn) return;
+        setPieces(ps => sortPieces([...ps, { start: pIn, end: pOut }])); setPIn(null); setPOut(null);
+    };
+    // Split at the playhead: the first split cuts the whole file in two; later ones cut whichever piece holds it.
+    const splitHere = () => {
+        const t = nowAt(), dur = input?.duration || 0;
+        if (!(t > 0 && t < dur)) { setError('Move the playhead inside the file to split there.'); return; }
+        if (!pieces.length) { setError(''); setPieces([{ start: 0, end: t }, { start: t, end: dur }]); return; }
+        const i = pieces.findIndex(p => p.start < t && t < p.end);
+        if (i < 0) { setError('The playhead is not inside a piece.'); return; }
+        setError('');
+        setPieces(sortPieces([...pieces.slice(0, i), { start: pieces[i].start, end: t }, { start: t, end: pieces[i].end }, ...pieces.slice(i + 1)]));
+    };
+
     // I / O like Resolve, when the user isn't typing in a field.
     useEffect(() => {
-        if (tool?.range !== 'section' || !input) return undefined;
+        if (!['section', 'segments'].includes(tool?.range) || !input) return undefined;
+        const seg = tool.range === 'segments';
         const onKey = e => {
             if (/^(INPUT|SELECT|TEXTAREA)$/.test(e.target?.tagName)) return;
-            if (e.key === 'i' || e.key === 'I') { e.preventDefault(); markIn(); }
-            if (e.key === 'o' || e.key === 'O') { e.preventDefault(); markOut(); }
+            if (e.key === 'i' || e.key === 'I') { e.preventDefault(); (seg ? markPieceIn : markIn)(); }
+            if (e.key === 'o' || e.key === 'O') { e.preventDefault(); (seg ? markPieceOut : markOut)(); }
         };
         window.addEventListener('keydown', onKey);
         return () => window.removeEventListener('keydown', onKey);
@@ -156,6 +198,7 @@ export default function GeneratorsTab() {
     };
 
     const section = tool?.range === 'section' && inF != null && outF != null && outF > inF;
+    const segmented = tool?.range === 'segments';
     const generate = async () => {
         if (!tool || !input) return;
         setError(''); setBusy(true);
@@ -168,8 +211,10 @@ export default function GeneratorsTab() {
                 options[pointsOpt.name] = points.map(p => `${p.x.toFixed(4)},${p.y.toFixed(4)},${p.label}`).join(';');
                 options.frame = pointsFrame - (section ? inF : 0);
             }
+            if (segmented && !pieces.length) throw new Error('Add at least one piece: mark In and Out, then Add piece (or Split at playhead).');
             await api('/generators/jobs', { method: 'POST', refresh: false,
-                body: JSON.stringify({ tool: tool.id, input_id: input.id, options, ...(section ? { start: inF, end: outF } : {}) }) });
+                body: JSON.stringify({ tool: tool.id, input_id: input.id, options, ...(section ? { start: inF, end: outF } : {}),
+                    ...(segmented ? { segments: pieces.map(p => [p.start, p.end]) } : {}) }) });
             await loadJobs();
         } catch (err) { setError(err.message); }
         finally { setBusy(false); }
@@ -199,7 +244,7 @@ export default function GeneratorsTab() {
         <div className="gen-now" role="status" aria-live="polite">
             <div className="ps-row">
                 <strong>{current.tool_name}</strong>
-                <span className="ps-muted">{current.input_name}{current.start != null ? ` · frames ${current.start}–${current.end - 1}` : ''}</span>
+                <span className="ps-muted">{current.input_name}{current.start != null ? ` · frames ${current.start}–${current.end - 1}` : ''}{current.segments ? ` · ${current.segments.length} piece${current.segments.length === 1 ? '' : 's'}` : ''}</span>
                 <div style={{ flex: 1 }} />
                 <button type="button" className="ps-btn" onClick={() => cancel(current.id)}>Cancel</button>
             </div>
@@ -275,7 +320,7 @@ export default function GeneratorsTab() {
                                     className={`gen-tool${toolId === t.id ? ' on' : ''}`} disabled={!!t.unavailable || !fits}
                                     title={t.unavailable || (!fits ? `Needs ${t.accepts}` : t.description)} onClick={() => setToolId(t.id)}>
                                     <span className="gen-tool-name">{t.name}</span>
-                                    <span className="gen-tool-desc">{t.unavailable ? `Not ready: ${t.unavailable}` : (t.range === 'section' ? 'Section' : 'Whole file')}</span>
+                                    <span className="gen-tool-desc">{t.unavailable ? `Not ready: ${t.unavailable}` : (t.range === 'section' ? 'Section' : t.range === 'segments' ? 'Pieces' : 'Whole file')}</span>
                                 </button>
                             );
                         })}
@@ -292,6 +337,35 @@ export default function GeneratorsTab() {
                                     <span className="ps-mono" data-testid="gen-section">
                                         {section ? `Section ${timecode(inF, input.fps)} → ${timecode(outF, input.fps)} · ${outF - inF} frames` : inF != null ? `In ${timecode(inF, input.fps)}, now mark Out` : 'Whole clip (mark In and Out to render only a section)'}
                                     </span>
+                                </div>
+                            )}
+                            {segmented && input && (
+                                <div className="gen-pieces" aria-label="Pieces">
+                                    <div className="gen-range">
+                                        <button type="button" className="ps-btn" onClick={markPieceIn} title="Mark In (I)">Mark In <kbd>I</kbd></button>
+                                        <button type="button" className="ps-btn" onClick={markPieceOut} title="Mark Out (O)">Mark Out <kbd>O</kbd></button>
+                                        <button type="button" className="ps-btn" onClick={addPiece} disabled={pIn == null || pOut == null}>Add piece</button>
+                                        <button type="button" className="ps-btn" onClick={splitHere} title="Cut the file (or the piece under the playhead) in two here">Split at playhead</button>
+                                        <button type="button" className="ps-btn" onClick={() => { setPieces([]); setPIn(null); setPOut(null); }}
+                                            disabled={!pieces.length && pIn == null && pOut == null}>Clear</button>
+                                    </div>
+                                    <span className="ps-mono" data-testid="gen-marks">
+                                        {pIn != null && pOut != null ? `In ${clock(pIn)} → Out ${clock(pOut)} · Add piece to keep it`
+                                            : pIn != null ? `In ${clock(pIn)}, now mark Out` : pOut != null ? `Out ${clock(pOut)}, now mark In`
+                                            : pieces.length ? `${pieces.length} piece${pieces.length === 1 ? '' : 's'}: each becomes its own file`
+                                            : 'Mark In and Out and Add piece, or Split at playhead to cut the whole file in two'}
+                                    </span>
+                                    {pieces.length > 0 && (
+                                        <ol className="gen-piece-list" data-testid="gen-piece-list">
+                                            {pieces.map((p, i) => (
+                                                <li key={`${p.start}-${p.end}-${i}`}>
+                                                    <span className="ps-mono">{clock(p.start)} → {clock(p.end)}</span>
+                                                    <span className="ps-muted">{(p.end - p.start).toFixed(2)} s</span>
+                                                    <button type="button" className="ps-link" aria-label={`Remove piece ${i + 1}`} onClick={() => setPieces(ps => ps.filter((_, k) => k !== i))}>Remove</button>
+                                                </li>
+                                            ))}
+                                        </ol>
+                                    )}
                                 </div>
                             )}
                             {pointsOpt && input && (
@@ -315,8 +389,9 @@ export default function GeneratorsTab() {
                             </div>
                             <div className="ps-row">
                                 {/* One job at a time: locked while one is running, so a second click can't start another. */}
-                                <button type="button" className="ps-btn primary" disabled={!input || busy || !!current} onClick={generate}>
-                                    {current ? `Generating… ${pctOf(current)}%` : busy ? 'Starting…' : section ? 'Generate section' : 'Generate'}
+                                <button type="button" className="ps-btn primary" disabled={!input || busy || !!current || (segmented && !pieces.length)} onClick={generate}>
+                                    {current ? `Generating… ${pctOf(current)}%` : busy ? 'Starting…' : section ? 'Generate section'
+                                        : segmented ? (pieces.length ? `Cut ${pieces.length} piece${pieces.length === 1 ? '' : 's'}` : 'Cut') : 'Generate'}
                                 </button>
                                 {!input && <span className="ps-muted">Drop a file first.</span>}
                             </div>
@@ -336,7 +411,7 @@ export default function GeneratorsTab() {
                             <li key={j.id} className={`gen-job ${j.status}`}>
                                 <div className="ps-row">
                                     <strong>{j.tool_name}</strong>
-                                    <span className="ps-muted">{j.input_name}{j.start != null ? ` · frames ${j.start}–${j.end - 1}` : ''}</span>
+                                    <span className="ps-muted">{j.input_name}{j.start != null ? ` · frames ${j.start}–${j.end - 1}` : ''}{j.segments ? ` · ${j.segments.length} piece${j.segments.length === 1 ? '' : 's'}` : ''}</span>
                                     <div style={{ flex: 1 }} />
                                     <span className={`gen-status ${j.status}`}>{j.status === 'running' ? j.stage : j.status}</span>
                                     {active(j) && <button type="button" className="ps-btn" onClick={() => cancel(j.id)}>Cancel</button>}
@@ -350,18 +425,22 @@ export default function GeneratorsTab() {
                                 )}
                                 {j.outputs?.length > 0 && (
                                     <ul className="gen-outs">
-                                        {j.outputs.map((p, n) => (
+                                        {j.outputs.map((p, n) => {
+                                            const pc = (j.pieces || []).find(x => x.file === p);
+                                            return (
                                             <li key={p}>
                                                 <span className="ps-mono" title={p}>{fname(p)}</span>
+                                                {pc && <span className="ps-muted" data-testid="gen-piece-info" title={pc.note || ''}>{pieceInfo(pc)}</span>}
                                                 <span className="ps-muted gen-path">{p.slice(0, p.length - fname(p).length - 1)}</span>
                                                 {window.__feFiles?.reveal && <button type="button" className="ps-link" onClick={() => reveal(p)}>Show in Finder</button>}
-                                                {/\.(mov|mp4|m4v|wav|mp3|m4a|png|jpe?g|webp|tiff?)$/i.test(p) && <button type="button" className="ps-link" onClick={() => setPlaying(playing === `${j.id}:${n}` ? null : `${j.id}:${n}`)}>{playing === `${j.id}:${n}` ? 'Hide' : IMG_OUT.test(p) ? 'View' : 'Play'}</button>}
-                                                {playing === `${j.id}:${n}` && (/\.(wav|mp3|m4a)$/i.test(p)
+                                                {/\.(mov|mp4|m4v|mkv|webm|wav|mp3|m4a|aac|flac|aiff?|ogg|png|jpe?g|webp|tiff?)$/i.test(p) && <button type="button" className="ps-link" onClick={() => setPlaying(playing === `${j.id}:${n}` ? null : `${j.id}:${n}`)}>{playing === `${j.id}:${n}` ? 'Hide' : IMG_OUT.test(p) ? 'View' : 'Play'}</button>}
+                                                {playing === `${j.id}:${n}` && (/\.(wav|mp3|m4a|aac|flac|aiff?|ogg)$/i.test(p)
                                                     ? <audio src={outMedia(j, n)} controls autoPlay />
                                                     : IMG_OUT.test(p) ? <a href={outMedia(j, n)} target="_blank" rel="noreferrer" title="Open at full size"><img className="gen-out-player" src={outMedia(j, n)} alt={fname(p)} /></a>
                                                     : <video className="gen-out-player" src={outMedia(j, n)} controls autoPlay />)}
                                             </li>
-                                        ))}
+                                            );
+                                        })}
                                     </ul>
                                 )}
                             </li>
