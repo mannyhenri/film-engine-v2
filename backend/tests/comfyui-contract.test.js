@@ -81,3 +81,51 @@ test('every choice of every take-tool option reaches the graph as its value, or 
     assert.strictEqual(d['52'].inputs.unet_name, 'seedvr2_7b_int8_convrot.safetensors');
     assert.deepStrictEqual([d['57'].inputs['resize_type.width'], d['57'].inputs['resize_type.height']], [1920, 1080]);
 });
+
+/*
+ * Every choice a manifest offers must be one the PC accepts (its /object_info, pinned here from the live PC):
+ * a model file that exists, a colour method the node knows, a resize mode and a size in range. Checked set-based:
+ * corrupting ANY one choice of ANY option must be caught, except where the PC lists no choices for that input
+ * (a CustomCombo's options live in the workflow itself; the PC's registry test covers those), which is counted.
+ */
+const INFO = read('object_info.json');
+const MANIFESTS = { storyboard_shot_to_video: [MANIFEST, GRAPH], take_upscale_seedvr2: [TAKE, TAKE_GRAPH] };
+const corrupt = (m, oi, ci, field) => {
+    const copy = JSON.parse(JSON.stringify(m));
+    const o = copy.options[oi], c = o.choices[ci];
+    if (field) c[field] = typeof c[field] === 'number' ? 999999 : 'X_INVALID';
+    else if (typeof c === 'object' && 'value' in c) c.value = 'X_INVALID';
+    else if (typeof c === 'object') c.label = 'X_INVALID';
+    else o.choices[ci] = 'X_INVALID';
+    return copy;
+};
+
+test('every choice of every option is one the live PC accepts, and any one corrupted choice is caught', () => {
+    let caught = 0, unguarded = 0;
+    for (const [slug, [m, g]] of Object.entries(MANIFESTS)) {
+        assert.deepStrictEqual(comfy.liveProblems(m, g, INFO), [], `${slug} as deployed`);
+        m.options.forEach((o, oi) => o.choices.forEach((c, ci) => {
+            // A sets option is corrupted in each field its templates read; else the value the graph gets.
+            const fields = o.sets ? [...new Set(Object.values(o.sets).map(t => (/^<choice\.(\w+)>$/.exec(String(t)) || [])[1]).filter(Boolean))] : [null];
+            for (const field of fields) {
+                const problems = comfy.liveProblems(corrupt(m, oi, ci, field), g, INFO);
+                const spec = !o.sets && comfy.inputSpec(INFO, g[String(o.node)].class_type, o.input);
+                if (spec && !comfy.choicesOf(spec)?.length) { assert.deepStrictEqual(problems, [], `${slug} ${o.id}: the PC lists no choices`); unguarded++; continue; }
+                assert.ok(problems.some(p => p.startsWith(`option ${o.id}`)), `${slug} ${o.id} choice ${ci}${field ? ' ' + field : ''}: corruption caught (${problems.join('; ') || 'nothing'})`);
+                caught++;
+            }
+        }));
+    }
+    assert.ok(caught >= 9, `checked ${caught} take-tool corruptions`);   // model 2 + colour 4 + resolution 2x2
+    assert.strictEqual(unguarded, MANIFEST.options.reduce((n, o) => n + o.choices.length, 0), 'only the storyboard CustomCombo choices are left to the PC registry test');
+    // The gate's own corruption, by name.
+    const sepia = JSON.parse(JSON.stringify(TAKE)); sepia.options.find(o => o.id === 'color_correction').choices[0].value = 'sepia_INVALID';
+    assert.match(comfy.liveProblems(sepia, TAKE_GRAPH, INFO).join('\n'), /option color_correction: "sepia_INVALID" is not one the PC accepts/);
+    // A node class the PC does not have is a problem, not a crash.
+    assert.match(comfy.liveProblems(TAKE, TAKE_GRAPH, {}).join('\n'), /option model: the PC has no node UNETLoader/);
+});
+
+test('the PC is asked about each node class by its URL-encoded name (a class may have a space: "Video Slice")', () => {
+    assert.strictEqual(comfy.objectInfoPath('Video Slice'), '/object_info/Video%20Slice');
+    assert.strictEqual(comfy.objectInfoPath('UNETLoader'), '/object_info/UNETLoader');
+});

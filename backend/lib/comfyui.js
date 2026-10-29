@@ -95,6 +95,62 @@ function validate(manifest, graph) {
     return problems;
 }
 
+/*
+ * Checked against the PC itself (/object_info): every choice a manifest offers must be one the node accepts.
+ * The PC describes an input as [[choices], {...}] (older), ["COMBO", {options}] or a dynamic combo
+ * ["COMFY_DYNAMICCOMBO_V3", {options: [{key, inputs}]}] whose keys pick a set of sub-inputs (resize_type.width…).
+ */
+const objectInfoPath = cls => `/object_info/${encodeURIComponent(cls)}`;
+function inputSpec(info, cls, input) {
+    const i = info[cls]?.input;
+    return i ? (i.required || {})[input] || (i.optional || {})[input] || null : null;
+}
+function choicesOf(spec) {
+    if (!Array.isArray(spec)) return null;
+    if (Array.isArray(spec[0])) return spec[0];
+    if (spec[0] === 'COMBO' || /DYNAMICCOMBO/.test(String(spec[0]))) return (spec[1]?.options || []).map(x => (typeof x === 'object' ? x.key : x));
+    return null;
+}
+function fits(spec, v) {
+    const list = choicesOf(spec);
+    if (list) return !list.length || list.includes(v);   // no list on the PC (a CustomCombo): nothing to check against
+    const t = Array.isArray(spec) && spec[0], lim = (Array.isArray(spec) && spec[1]) || {};
+    if (t === 'INT' || t === 'FLOAT') return Number.isFinite(v) && (t !== 'INT' || Number.isInteger(v)) && !(lim.min != null && v < lim.min) && !(lim.max != null && v > lim.max);
+    return true;
+}
+function liveProblems(manifest, graph, info) {
+    const problems = [];
+    for (const o of manifest.options || []) {
+        if (o.type !== 'enum') continue;
+        const cls = graph[String(o.node)]?.class_type;
+        if (!cls) continue;   // validate() reports a missing node
+        if (!info[cls]) { problems.push(`option ${o.id}: the PC has no node ${cls}`); continue; }
+        for (const c of o.choices || []) {
+            const label = typeof c === 'object' ? c.label : c;
+            const sent = o.sets ? Object.fromEntries(Object.entries(o.sets).map(([k, t]) => { const m = /^<choice\.(\w+)>$/.exec(String(t)); return [k, m ? c[m[1]] : t]; }))
+                : { [o.input]: typeof c === 'object' && 'value' in c ? c.value : label };
+            for (const [k, v] of Object.entries(sent)) {
+                const [base, sub] = k.split('.');
+                let spec = inputSpec(info, cls, base);
+                if (sub && spec) {   // a dynamic combo's sub-input, under the key the choice picks for its base
+                    const opt = (spec[1]?.options || []).find(x => x.key === sent[base]);
+                    spec = opt ? ((opt.inputs || {}).required || {})[sub] || ((opt.inputs || {}).optional || {})[sub] || null : null;
+                }
+                if (!spec) problems.push(`option ${o.id} (${label}): ${cls} has no input "${k}"${sub ? ` under "${sent[base]}"` : ''}`);
+                else if (!fits(spec, v)) problems.push(`option ${o.id}: ${JSON.stringify(v)} is not one the PC accepts for ${cls}.${k}`);
+            }
+        }
+    }
+    return problems;
+}
+async function liveInfo(manifest, graph) {
+    const info = {};
+    for (const cls of new Set((manifest.options || []).map(o => graph[String(o.node)]?.class_type).filter(Boolean))) {
+        Object.assign(info, await call(objectInfoPath(cls)).catch(err => { if (err.status === 404) return {}; throw err; }));
+    }
+    return info;
+}
+
 /** Every workflow in the film-engine folder on the PC, with its options and whether it is ready to run. */
 async function listWorkflows() {
     const files = await call(`/userdata?dir=${encodeURIComponent(DIR)}`).catch(err => { if (err.status === 404) return []; throw err; });
@@ -105,6 +161,7 @@ async function listWorkflows() {
             const manifest = await call(userdata(f));
             const graph = await call(userdata(manifest.workflow || `${slug}.api.json`));
             const problems = validate(manifest, graph);
+            if (!problems.length) problems.push(...liveProblems(manifest, graph, await liveInfo(manifest, graph)));
             out.push({ slug, name: manifest.name || slug, kind: manifest.kind || 'video', ready: !problems.length, problems,
                 prompt: !!manifest.prompt, seed: !!manifest.seed,
                 images: (manifest.images || []).map(r => ({ role: r.role || 'reference' })),
@@ -463,5 +520,5 @@ async function cancelJob(id) {
     return publicJob(j);
 }
 
-module.exports = { baseUrl, status, listWorkflows, loadWorkflow, validate, buildPrompt, upload, startJob, getJob, cancelJob, resumeJobs, trackExternal,
+module.exports = { baseUrl, status, listWorkflows, loadWorkflow, validate, liveProblems, inputSpec, choicesOf, objectInfoPath, buildPrompt, upload, startJob, getJob, cancelJob, resumeJobs, trackExternal,
     OUT_ROOT, DEFAULT_URL, _jobs: jobs, _sent: sent };

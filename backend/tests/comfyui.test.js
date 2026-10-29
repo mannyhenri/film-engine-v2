@@ -123,6 +123,14 @@ function fakeComfy({ fail = false } = {}) {
                 const f = decodeURIComponent(u.pathname.slice('/userdata/'.length)).replace('workflows/film-engine/', '');
                 return files[f] ? send(200, files[f]) : send(404, {});
             }
+            // Like the PC, it describes each node class: here every input its graph uses, with no choice list.
+            if (u.pathname.startsWith('/object_info/')) {
+                const cls = decodeURIComponent(u.pathname.slice('/object_info/'.length));
+                const nodes = Object.values(graph()).filter(n => n.class_type === cls);
+                if (!nodes.length) return send(404, {});
+                const required = Object.fromEntries(nodes.flatMap(n => Object.keys(n.inputs || {})).map(k => [k, ['COMBO', { options: [] }]]));
+                return send(200, { [cls]: { input: { required } } });
+            }
             if (u.pathname === '/upload/image') {
                 const name = /filename="([^"]+)"/.exec(body.toString('latin1'))[1];
                 state.uploads.push(name);
