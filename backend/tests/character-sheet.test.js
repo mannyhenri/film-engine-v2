@@ -195,6 +195,9 @@ test('the PDF export is styled, not a screenshot of the dark UI', () => {
     const body = bodyOf('exportCharacterSheet');
     assert.ok(/print|@page|window\.open|iframe/i.test(body),
         'the export does not build a print document');
-    assert.ok(/@media print|@page|background:\s*#fff|color:\s*#000|white/i.test(body),
+    // The styling lives in the shared print renderer the export calls (src/lib/print-sheet.js).
+    assert.ok(/sheetHtml\(/.test(body), 'the export does not use the print renderer');
+    const printed = fs.readFileSync(path.join(__dirname, '../../src/lib/print-sheet.js'), 'utf8');
+    assert.ok(/@page/.test(printed) && /background:\s*#fff/i.test(printed),
         'the export carries no print styling — it would print the dark UI');
 });

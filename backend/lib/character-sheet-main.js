@@ -21,6 +21,16 @@ const { loadGallery } = require('./subject-gallery');
 const GUIDES = path.join(__dirname, '..', 'prompt-guides');
 const MAIN_GUIDE = path.join(GUIDES, 'character-main-picture.md');
 const SHEET_GUIDE = path.join(GUIDES, 'character-sheet.md');
+/*
+ * TWO LIGHTINGS, compared side by side (2026-10-24). The original guides stay word for word ("soft, matte"); the
+ * natural-light copies change only the lighting and skin-finish lines: a 2:1 fill, catchlights, a faint hair
+ * separation and the soft sheen real skin has. Each prompt kind names its lighting.
+ */
+const GUIDE_FOR = Object.freeze({
+    main: MAIN_GUIDE, main_natural: path.join(GUIDES, 'character-main-picture-natural-light.md'),
+    sheet: SHEET_GUIDE, sheet_natural: path.join(GUIDES, 'character-sheet-natural-light.md'),
+});
+const KINDS = Object.keys(GUIDE_FOR);
 
 function fail(status, message) { throw Object.assign(new Error(message), { status }); }
 function parse(s, d) { try { const v = typeof s === 'string' ? JSON.parse(s) : s; return v ?? d; } catch (_) { return d; } }
@@ -120,22 +130,22 @@ function cleanPrompt(text) {
 }
 
 /** Step 1: the main (studio, medium shot) picture prompt, from the description and the stored guide. */
-async function mainPicturePrompt(characterId, { ask = require('./codex-astra').ask } = {}) {
+async function mainPicturePrompt(characterId, { ask = require('./codex-astra').ask, kind = 'main' } = {}) {
     const c = characterOf(characterId);
     const desc = descriptionOf(c);
     if (!desc.trim()) fail(400, 'this character has no description yet: write one on the sheet first');
-    const guide = fs.readFileSync(MAIN_GUIDE, 'utf8');
+    const guide = fs.readFileSync(GUIDE_FOR[kind] || MAIN_GUIDE, 'utf8');
     const q = [guide, '',
         'THIS REQUEST: the character below is already locked and approved, so skip the confirmation bullets (rule 7) and deliver the final face-lock prompt now.',
         'Frame it as a medium shot (waist-up) studio photograph that will be the master picture of this character. Follow every rule above.',
         'Output ONLY the prompt, as one continuous block. No introduction, no notes, no bullets, no heading.',
         '', `CHARACTER: ${c.name}`, desc].join('\n');
     const r = await ask({ prompt: q, images: [] });
-    return { prompt: cleanPrompt(r.text), model: r.model, guide: path.basename(MAIN_GUIDE) };
+    return { prompt: cleanPrompt(r.text), model: r.model, guide: path.basename(GUIDE_FOR[kind] || MAIN_GUIDE) };
 }
 
 /** Step 2: the character sheet prompt, from the studio picture (uploaded now, or one uploaded before) and the guide. */
-async function sheetPrompt(characterId, { data, name, asset_id } = {}, { ask = require('./codex-astra').ask } = {}) {
+async function sheetPrompt(characterId, { data, name, asset_id } = {}, { ask = require('./codex-astra').ask, kind = 'sheet' } = {}) {
     const c = characterOf(characterId);
     let file, portraitId = asset_id || null;
     if (data) { const saved = saveImage(c, data, name, { medium_shot: true, plate_role: 'concept', ref_category: 'face' }, 'reference_image'); file = saved.filePath; portraitId = saved.id; }
@@ -145,7 +155,7 @@ async function sheetPrompt(characterId, { data, name, asset_id } = {}, { ask = r
         file = row.file_path;
     } else fail(400, 'the medium shot studio picture is needed: upload it first');
     if (!file || !fs.existsSync(file)) fail(404, 'the studio picture is missing on disk');
-    const guide = fs.readFileSync(SHEET_GUIDE, 'utf8');
+    const guide = fs.readFileSync(GUIDE_FOR[kind] || SHEET_GUIDE, 'utf8');
     const desc = descriptionOf(c);
     const q = [guide, '',
         `THE ATTACHED IMAGE is the identity reference: the approved studio picture of ${c.name}. Use it for identity: face, hair, skin, build.`,
@@ -154,7 +164,7 @@ async function sheetPrompt(characterId, { data, name, asset_id } = {}, { ask = r
         desc ? `MY WRITTEN NOTES about the character (they override the image where they differ):\n${desc}` : '',
         'Output ONLY the finished prompt, as the template\'s plain paragraphs.'].filter(Boolean).join('\n');
     const r = await ask({ prompt: q, images: [file] });
-    return { prompt: cleanPrompt(r.text), model: r.model, guide: path.basename(SHEET_GUIDE), studio_portrait_id: portraitId };
+    return { prompt: cleanPrompt(r.text), model: r.model, guide: path.basename(GUIDE_FOR[kind] || SHEET_GUIDE), studio_portrait_id: portraitId };
 }
 
 /*
@@ -177,14 +187,15 @@ function promptsOf(characterId) {
 const running = new Set();
 function startPrompt(characterId, kind, body = {}, opts = {}) {
     characterOf(characterId);
-    if (!['main', 'sheet'].includes(kind)) fail(404, 'no such prompt');
+    if (!KINDS.includes(kind)) fail(404, 'no such prompt');
+    const step = kind.startsWith('main') ? 'main' : 'sheet';
     if (running.has(`${characterId}:${kind}`)) fail(409, 'ChatGPT is already writing this prompt');
     promptsOf(characterId);   // sweep first, so this job is not taken for a leftover
     // Check what can be checked now (no description, no picture), so the director hears it at once, not later.
-    if (kind === 'main' && !descriptionOf(characterOf(characterId)).trim()) fail(400, 'this character has no description yet: write one on the sheet first');
-    if (kind === 'sheet' && !body.data && !body.asset_id) fail(400, 'the medium shot studio picture is needed: upload it first');
+    if (step === 'main' && !descriptionOf(characterOf(characterId)).trim()) fail(400, 'this character has no description yet: write one on the sheet first');
+    if (step === 'sheet' && !body.data && !body.asset_id) fail(400, 'the medium shot studio picture is needed: upload it first');
     let pre = body;
-    if (kind === 'sheet' && body.data) {   // keep the picture now, so the job reads it from disk
+    if (step === 'sheet' && body.data) {   // keep the picture now, so the job reads it from disk
         const c = characterOf(characterId);
         const saved = saveImage(c, body.data, body.name, { medium_shot: true, plate_role: 'concept', ref_category: 'face' }, 'reference_image');
         pre = { asset_id: saved.id };
@@ -195,7 +206,7 @@ function startPrompt(characterId, kind, body = {}, opts = {}) {
         .run(characterId, kind, pre.asset_id || null);
     const key = `${characterId}:${kind}`;
     running.add(key);
-    const job = kind === 'main' ? mainPicturePrompt(characterId, opts) : sheetPrompt(characterId, pre, opts);
+    const job = step === 'main' ? mainPicturePrompt(characterId, { ...opts, kind }) : sheetPrompt(characterId, pre, { ...opts, kind });
     const done = job.then(r => db.prepare("UPDATE film_character_sheet_prompts SET status = 'done', prompt = ?, model = ?, finished_at = datetime('now') WHERE character_id = ? AND kind = ?")
         .run(r.prompt, r.model || null, characterId, kind))
         .catch(err => db.prepare("UPDATE film_character_sheet_prompts SET status = 'failed', error = ?, finished_at = datetime('now') WHERE character_id = ? AND kind = ?")

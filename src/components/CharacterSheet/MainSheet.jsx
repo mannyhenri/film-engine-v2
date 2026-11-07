@@ -20,6 +20,12 @@ const readFile = f => new Promise((ok, bad) => { const r = new FileReader(); r.o
 const keep = (id, k) => { try { return localStorage.getItem(`fe-cs-${k}-${id}`) || ''; } catch (_) { return ''; } };
 const utc = s => new Date(/[zZ]|[+-]\d\d:?\d\d$/.test(String(s)) ? s : String(s).replace(' ', 'T') + 'Z').getTime();
 const POLL_MS = 2000;
+/*
+ * TWO LIGHTINGS for every prompt, written together so they can be compared (2026-10-24): the original soft, matte
+ * light, kept exactly, and the natural light (a 2:1 fill, catchlights, a faint hair light, real skin sheen).
+ */
+const LIGHTS = [{ suffix: '', label: 'Soft, matte light (current)' }, { suffix: '_natural', label: 'Natural light (new)' }];
+const KINDS = ['main', 'main_natural', 'sheet', 'sheet_natural'];
 
 function Elapsed({ since }) {
     const [, tick] = useState(0);
@@ -58,12 +64,11 @@ export default function MainSheet({ characterId }) {
     const prompts = sheet?.prompts || {};
     const writing = k => prompts[k]?.status === 'writing';
     useEffect(() => {
-        if (!writing('main') && !writing('sheet')) return undefined;
+        if (!KINDS.some(writing)) return undefined;
         const t = setTimeout(load, POLL_MS);
         return () => clearTimeout(t);
     }); // eslint-disable-line react-hooks/exhaustive-deps
     const textOf = k => prompts[k]?.prompt || (prompts[k] ? '' : keep(characterId, k));
-    const mainPrompt = textOf('main'), sheetPromptText = textOf('sheet');
 
     const run = async (what, fn) => {
         setBusy({ what, since: Date.now() }); setError('');
@@ -71,9 +76,14 @@ export default function MainSheet({ characterId }) {
     };
     const makeMain = id => run('main', async () => setSheet(await api(`/characters/${characterId}/sheet/main`, { method: 'PUT', body: JSON.stringify({ asset_id: id }), refresh: false })));
     // Each starts the job and returns at once; the prompt arrives through the sheet's own read.
-    const start = (kind, body) => run('start-' + kind, async () => {
-        const r = await api(`/characters/${characterId}/sheet/prompt/${kind}`, { method: 'POST', body: JSON.stringify(body || {}), refresh: false });
+    // Both lightings start together; the sheet's natural-light one reads the picture the first one kept.
+    const start = (step, body) => run('start-' + step, async () => {
+        const post = (kind, b) => api(`/characters/${characterId}/sheet/prompt/${kind}`, { method: 'POST', body: JSON.stringify(b || {}), refresh: false });
+        const r = await post(step, body);
         setSheet(s => ({ ...s, prompts: r.prompts }));
+        const assetId = step === 'sheet' ? (body?.asset_id || r.prompts?.sheet?.studio_portrait_id) : undefined;
+        const n = await post(step + '_natural', step === 'sheet' ? { asset_id: assetId } : {});
+        setSheet(s => ({ ...s, prompts: n.prompts }));
         load();
     });
     const writeMain = () => start('main');
@@ -95,9 +105,17 @@ export default function MainSheet({ characterId }) {
 
     if (!sheet) return <div className="msh">{error ? <p className="msh-err" role="alert">{error}</p> : <div className="loading-spinner" />}</div>;
     const c = sheet.character;
-    const waiting = what => (busy && busy.what === 'start-' + what.replace('prompt-', '')) || writing(what.replace('prompt-', ''));
+    const waiting = what => { const k = what.replace('prompt-', ''); return (busy && busy.what === 'start-' + k) || writing(k) || writing(k + '_natural'); };
     const sinceOf = k => (prompts[k]?.started_at ? utc(prompts[k].started_at) : busy?.since || Date.now());
     const failed = k => ['failed', 'interrupted'].includes(prompts[k]?.status) ? prompts[k].error || prompts[k].status : '';
+    // The two lightings of one step, each with its own failure and copy.
+    const lit = (step, label) => <div className="msh-lights">{LIGHTS.map(({ suffix, label: light }) => {
+        const k = step + suffix, text = textOf(k);
+        return <div key={k} className="msh-light">
+            {failed(k) && <p className="msh-err" role="alert">{light}: the last try failed: {failed(k)}</p>}
+            <PromptBox label={`${label} · ${light}`} text={text} copied={copied === k} onCopy={() => copy(k, text)} />
+        </div>;
+    })}</div>;
     return (
         <div className="msh">
             <section className="msh-left" aria-label="Main picture">
@@ -141,24 +159,22 @@ export default function MainSheet({ characterId }) {
                     <h4 className="msh-h">Make the character sheet</h4>
                     <div className="msh-step">
                         <div className="msh-row"><b>1. Main picture prompt</b>
-                            <button type="button" className="btn btn-primary btn-sm" disabled={!!busy || waiting('prompt-main')} onClick={writeMain}>{waiting('prompt-main') ? 'Writing…' : mainPrompt ? 'Write again' : 'Write the prompt'}</button></div>
-                        <p className="text-muted text-sm">ChatGPT writes a medium-shot studio photo prompt from the description. Paste it in your image generator.</p>
-                        {waiting('prompt-main') && <div role="status" className="msh-busy">ChatGPT is writing the main picture prompt… <Elapsed since={sinceOf('main')} /> · you can close the sheet: it shows here when done</div>}
-                        {failed('main') && <p className="msh-err" role="alert">The last try failed: {failed('main')}</p>}
-                        <PromptBox label="Main picture prompt" text={mainPrompt} copied={copied === 'main'} onCopy={() => copy('main', mainPrompt)} />
+                            <button type="button" className="btn btn-primary btn-sm" disabled={!!busy || waiting('prompt-main')} onClick={writeMain}>{waiting('prompt-main') ? 'Writing…' : textOf('main') || textOf('main_natural') ? 'Write again' : 'Write the prompts'}</button></div>
+                        <p className="text-muted text-sm">ChatGPT writes a medium-shot studio photo prompt from the description, in two lightings to compare. Paste one in your image generator.</p>
+                        {waiting('prompt-main') && <div role="status" className="msh-busy">ChatGPT is writing the main picture prompt in both lightings… <Elapsed since={sinceOf('main')} /> · you can close the sheet: it shows here when done</div>}
+                        {lit('main', 'Main picture prompt')}
                     </div>
                     <div className="msh-step">
                         <div className="msh-row"><b>2. Character sheet prompt</b>
                             <button type="button" className="btn btn-primary btn-sm" disabled={!!busy || waiting('prompt-sheet')} onClick={() => portraitInput.current?.click()}>{waiting('prompt-sheet') ? 'Writing…' : 'Choose the medium shot picture…'}</button></div>
-                        <p className="text-muted text-sm">Give it the studio picture you made in step 1: ChatGPT writes the three-panel sheet prompt from it.</p>
+                        <p className="text-muted text-sm">Give it the studio picture you made in step 1: ChatGPT writes the three-panel sheet prompt from it, in both lightings.</p>
                         {sheet.studio_portraits.length > 0 && !busy && !waiting('prompt-sheet') && <div className="msh-row msh-portraits">
                             <span className="text-muted text-sm">Or use one from before:</span>
                             {sheet.studio_portraits.map(p => <button key={p.asset_id} type="button" className="msh-portrait" title="Write the sheet prompt from this picture" onClick={() => writeSheetFrom(p.asset_id)}><img src={src(p.image_url)} alt="studio picture" /></button>)}
                         </div>}
                         <input ref={portraitInput} type="file" accept="image/png,image/jpeg,image/webp" hidden onChange={writeSheet} aria-label="Medium shot studio picture" />
-                        {waiting('prompt-sheet') && <div role="status" className="msh-busy">ChatGPT is writing the character sheet prompt from the picture… <Elapsed since={sinceOf('sheet')} /> · you can close the sheet: it shows here when done</div>}
-                        {failed('sheet') && <p className="msh-err" role="alert">The last try failed: {failed('sheet')}</p>}
-                        <PromptBox label="Character sheet prompt" text={sheetPromptText} copied={copied === 'sheet'} onCopy={() => copy('sheet', sheetPromptText)} />
+                        {waiting('prompt-sheet') && <div role="status" className="msh-busy">ChatGPT is writing the character sheet prompt from the picture, in both lightings… <Elapsed since={sinceOf('sheet')} /> · you can close the sheet: it shows here when done</div>}
+                        {lit('sheet', 'Character sheet prompt')}
                     </div>
                     <div className="msh-step">
                         <div className="msh-row"><b>3. Finished character sheet</b>

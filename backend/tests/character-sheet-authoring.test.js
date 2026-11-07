@@ -165,31 +165,54 @@ test('gender is chosen from the vocabulary casting actually reads', () => {
 
 /* ── the PDF ───────────────────────────────────────────────────────────── */
 
-test('the exported sheet carries every region', () => {
+/*
+ * The export gathers the sheet's data; the page itself is the shared print renderer (src/lib/print-sheet.js,
+ * which also prints the location, prop and storyboard sheets). So these read the PRINTED page, rendered from a
+ * full character, rather than the export's source text.
+ */
+const PRINT = import('data:text/javascript;base64,' + fs.readFileSync(path.join(__dirname, '../../src/lib/print-sheet.js')).toString('base64'));
+async function printedSheet() {
+    const { characterDoc, sheetHtml } = await PRINT;
+    return sheetHtml(characterDoc({ project: 'P', character: { name: 'Maya', age_range: '30s', gender: 'female', build: 'lean', description: 'She runs.' },
+        main: { src: 'data:main', kind: 'sheet' }, variations: [{ src: 'data:v1', kind: 'side' }], palette: [{ hex: '#112233', name: 'Ink' }],
+        wardrobe: [{ src: 'data:w', note: 'Coat' }], references: [{ src: 'data:r' }] }));
+}
+
+test('the exported sheet carries every region', async () => {
     // Set-based over the regions: an export that drops the palette is a sheet
     // somebody hands to a costume designer with the colours missing.
     const body = bodyOf('exportCharacterSheet');
+    assert.ok(/characterDoc\(/.test(body) && /sheetHtml\(/.test(body), 'the export does not print through the shared sheet renderer');
+    for (const [from, field] of [['palette', 'palette'], ['ward', 'wardrobe'], ['refs', 'references'], ['variations', 'variations'], ['main', 'main']]) {
+        assert.ok(new RegExp(`\\b${field}\\b`).test(body) && body.includes(from), `the export hands the printed sheet no ${field}`);
+    }
+    const sheet = await printedSheet();
     for (const region of CS.SHEET_REGIONS) {
         const words = { views: 'Main picture', physical: 'Physical spec', details: 'Description',
             wardrobe: 'Wardrobe', palette: 'Palette', references: 'Concept art' }[region.id];
-        assert.ok(body.includes(words),
+        assert.ok(sheet.includes(words),
             `the PDF has no '${words}' section — the sheet on paper is not the sheet on screen`);
     }
 });
 
-test('the exported sheet puts the main picture on top, the variations below it, then the description', () => {
+test('the exported sheet puts the main picture on top, the variations below it, then the description', async () => {
     // The order the director's sheet draws (MainSheet): the picture every generation uses leads the page.
     const body = bodyOf('exportCharacterSheet');
     assert.ok(body.includes('/sheet`'), 'the export does not read the main picture and its variations');
-    const at = ['class="main"', 'class="vars"', 'Description'].map(w => body.indexOf(w));
+    const sheet = await printedSheet();
+    const at = ['data:main', 'data:v1', '>Description<'].map(w => sheet.indexOf(w));
     assert.ok(at.every(i => i >= 0), `a part is missing from the export: ${at}`);
     assert.deepEqual([...at].sort((x, y) => x - y), at, 'the export is not main, then variations, then description');
 });
 
-test('the PDF does not print flush to the paper edge', () => {
-    const body = bodyOf('exportCharacterSheet');
-    const m = body.match(/@page\s*\{[^}]*margin:\s*([\d.]+)(mm|in|cm)/);
+test('the PDF does not print flush to the paper edge', async () => {
+    const sheet = await printedSheet();
+    const m = sheet.match(/@page\s*\{[^}]*margin:\s*([^;}]+)/);
     assert.ok(m, 'the print document sets no page margin');
-    const mm = m[2] === 'mm' ? Number(m[1]) : m[2] === 'cm' ? Number(m[1]) * 10 : Number(m[1]) * 25.4;
-    assert.ok(mm >= 18, `a ${mm}mm margin runs the content into the edge of the paper`);
+    for (const side of m[1].trim().split(/\s+/)) {
+        const [, n, unit] = side.match(/^([\d.]+)(mm|in|cm)$/) || [];
+        assert.ok(n, `unreadable margin ${side}`);
+        const mm = unit === 'mm' ? Number(n) : unit === 'cm' ? Number(n) * 10 : Number(n) * 25.4;
+        assert.ok(mm >= 18, `a ${mm}mm margin runs the content into the edge of the paper`);
+    }
 });

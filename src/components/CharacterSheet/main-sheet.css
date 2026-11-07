@@ -31,3 +31,7 @@
 .msh-err { color: #e5484d; font-size: 12px; margin: 0; }
 .cs-more { margin-top: 12px; border-top: 1px solid rgba(255,255,255,.08); padding-top: 10px; }
 .cs-more > summary { cursor: pointer; font-size: 12px; color: #9a9aa3; }
+
+/* The two lightings of a prompt, side by side when there is room. */
+.msh-lights { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px; }
+.msh-light { min-width: 0; }

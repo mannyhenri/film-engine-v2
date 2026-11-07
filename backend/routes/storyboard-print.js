@@ -10,7 +10,7 @@ function json(res, status, body) {
 function handleStoryboardPrint(req, res, parts, query = {}) {
     if (req.method !== 'GET') return json(res, 405, { error: 'Storyboard print is read-only' });
     try {
-        const plan = buildStoryboardPrint(db, parts[2], { paper: query.paper || 'letter' });
+        const plan = buildStoryboardPrint(db, parts[2], { paper: query.paper || 'letter', perPage: query.per_page || 4 });
         return plan ? json(res, 200, plan) : json(res, 404, { error: 'Project not found' });
     } catch (error) {
         if (!error.status) throw error;

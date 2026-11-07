@@ -6,6 +6,7 @@ import { useListControls, ListControlsBar, ListNoMatch } from '../../lib/list-co
 import SURFACE from './list-surface.js';
 import { usePageLoader } from '../../lib/usePageLoader.js';
 import ResolutionBadge from '../../components/ResolutionBadge/ResolutionBadge.jsx';
+import StoryboardPrint from '../../components/StoryboardPrint/StoryboardPrint.jsx';
 import { resolutionInfo } from '../../lib/media-resolution.js';
 
 /*
@@ -146,6 +147,7 @@ export default function StoryboardPage() {
                         <button className="btn btn-sm" style={{ padding: '0 6px' }} onClick={() => E.clearAnchor()}
                             title="Put the anchor down — shots go back to generating from their plates">clear</button>
                     </span>
+                    <StoryboardPrint className="btn btn-secondary" />
                     <button className="btn btn-primary" onClick={() => E.generateAllStoryboards()}>Generate All</button>
                     <button className="btn btn-secondary" id="boardLockBtn" onClick={() => E.toggleBoardLock()}
                         title="Lock the board when you are happy with it — nothing that replaces a frame will run until you unlock">Lock board</button>

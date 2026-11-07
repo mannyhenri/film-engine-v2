@@ -985,6 +985,13 @@
             flex-shrink: 0;
         }
         .scene-info { flex: 1; min-width: 0; }
+        /*
+         * The row's controls keep their natural size; the scene title takes what's left. The global form rule
+         * gives every select `width: 100%`, so the Writing status select (GRD-4671) grabbed the whole row and
+         * squeezed the title to one word per line, with the Dialogue button wrapping over it.
+         */
+        .scene-row-header > .btn, .scene-row-header > .badge { flex-shrink: 0; white-space: nowrap; }
+        .scene-row-header > .scene-writing-select { width: auto; flex: 0 0 auto; max-width: 180px; padding: 5px 8px; }
         .scene-info h4 { font-size: 13px; font-weight: 600; }
         .scene-info p { font-size: 11px; color: var(--gl-text-muted); }
         .scene-shots {
@@ -17261,11 +17268,18 @@ THREE.GLTFLoader = GLTFLoader;
         worldConsoleRender();
     }
 
+    /** What Apply sends with it: the framing Previz shows now (shot size by coverage), which the stage alone cannot say. */
+    function worldApplyBody() {
+        let now = {};
+        try { now = worldShotNow() || {}; } catch (_) { now = {}; }
+        return JSON.stringify(now.framing ? { framing: now.framing } : {});
+    }
+
     async function worldApplyDecisions() {
         const shotId = WORLD.shotId, selection = WORLD.selectionRevision;
         if (!WORLD.shotId) return;
         try {
-            await api(`/shots/${shotId}/previs/apply`, { method: 'POST', body: '{}' });
+            await api(`/shots/${shotId}/previs/apply`, { method: 'POST', body: worldApplyBody() });
             setStatus('Applied to the shot — generation now sends it');
         } catch (err) { setStatus('Could not apply: ' + err.message); }
         if (WORLD.shotId === shotId && WORLD.selectionRevision === selection) await worldRefreshBlocking(shotId, selection);
@@ -17297,7 +17311,7 @@ THREE.GLTFLoader = GLTFLoader;
         const decisions = (WORLD.blocking && WORLD.blocking.decisions) || [];
         try {
             if (lock && decisions.some(d => d.state === 'trying')) {
-                await api(`/shots/${shotId}/previs/apply`, { method: 'POST', body: '{}' });
+                await api(`/shots/${shotId}/previs/apply`, { method: 'POST', body: worldApplyBody() });
             }
             await api(`/shots/${shotId}/previs/${lock ? 'lock' : 'unlock'}`,
                 { method: 'POST', body: JSON.stringify({ all: true }) });
@@ -51829,7 +51843,8 @@ document.addEventListener('DOMContentLoaded', () => setTimeout(applyProductionFl
     Array.prototype.forEach.call(els.rail.children, function (b) {
       b.classList.toggle('on', b.dataset.rail === page);
     });
-    var jobs = document.querySelectorAll('#jobsQueueList .job-row, #jobsQueueList .card').length;
+    // Running jobs only: a badge that counts every finished job (113 with nothing running) says nothing.
+    var jobs = document.querySelectorAll('#jobsQueueList [data-job-active="true"]').length;
     var jb = els.rail.querySelector('[data-rail="jobsqueue"]');
     if (jb) {
       var old = jb.querySelector('.b');

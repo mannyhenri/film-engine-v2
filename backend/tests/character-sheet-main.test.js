@@ -192,6 +192,25 @@ test('the prompts are jobs kept per character: started at once, read back from t
     assert.strictEqual(r.status, 404);
 });
 
+test('two lightings: the original soft, matte guide and the natural-light one, each kept as its own prompt', async () => {
+    const seen = {};
+    const ask = kind => async q => { seen[kind] = JSON.stringify(q); return { text: `${kind} prompt`, model: 'm' }; };
+    await S.startPrompt(june, 'main', {}, { ask: ask('main') }).done;
+    await S.startPrompt(june, 'main_natural', {}, { ask: ask('main_natural') }).done;
+    assert.match(seen.main, /zero shine/, 'the original guide is unchanged');
+    assert.match(seen.main_natural, /2:1 ratio/, 'the natural one lights with a fill');
+    assert.doesNotMatch(seen.main_natural, /zero shine/i);
+    const first = S.startPrompt(june, 'sheet', { data: png(), name: 'studio.png' }, { ask: ask('sheet') });
+    await first.done;
+    const portrait = S.sheetOf(june).prompts.sheet.studio_portrait_id;
+    await S.startPrompt(june, 'sheet_natural', { asset_id: portrait }, { ask: ask('sheet_natural') }).done;
+    assert.match(seen.sheet, /matte and velvety/);
+    assert.match(seen.sheet_natural, /soft specular sheen/);
+    const p = S.sheetOf(june).prompts;
+    assert.deepStrictEqual(['main', 'main_natural', 'sheet', 'sheet_natural'].map(k => p[k].prompt), ['main prompt', 'main_natural prompt', 'sheet prompt', 'sheet_natural prompt']);
+    assert.strictEqual(p.sheet_natural.studio_portrait_id, portrait, 'both sheet prompts read the same picture');
+});
+
 test('a prompt still being written when the app stopped reads as interrupted, not as writing forever', () => {
     const fresh = generateId();
     db.prepare('INSERT INTO film_characters (id, project_id, name) VALUES (?, ?, ?)').run(fresh, pid, 'MARA');

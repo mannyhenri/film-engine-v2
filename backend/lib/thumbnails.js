@@ -118,12 +118,25 @@ async function thumbnailFor(sourcePath, requestedWidth) {
  * original.
  */
 function videoKeyframeFor(sourcePath, longEdge) {
-    const edge = Number(longEdge) > 0 ? Number(longEdge) : 1920;
+    return longEdgeJpeg(sourcePath, Number(longEdge) > 0 ? Number(longEdge) : 1920, 'video');
+}
+
+/**
+ * The picture a printed storyboard embeds: the same frame, its long edge
+ * sized for 300 dpi at the size it prints. A 4K original is ~10MB, and a
+ * 40-board print of originals came to ~470MB of page, too large to send at
+ * all. Cached and never throwing, like the video keyframe.
+ */
+function printCopyFor(sourcePath, longEdge) {
+    return Number(longEdge) > 0 ? longEdgeJpeg(sourcePath, Math.round(Number(longEdge)), 'print') : null;
+}
+
+function longEdgeJpeg(sourcePath, edge, use) {
     if (!/\.(png|jpe?g|webp)$/i.test(sourcePath || '')) return null;
     let st;
     try { st = fs.statSync(sourcePath); } catch (_) { return null; }
     const out = path.join(path.dirname(sourcePath), CACHE_DIRNAME,
-        `${path.basename(sourcePath)}.${st.mtimeMs.toFixed(0)}.${st.size}.video${edge}.jpg`);
+        `${path.basename(sourcePath)}.${st.mtimeMs.toFixed(0)}.${st.size}.${use}${edge}.jpg`);
     if (fs.existsSync(out)) return out;
     const bin = resolveFfmpeg();
     if (!bin || !bin.available) return null;
@@ -144,4 +157,4 @@ function videoKeyframeFor(sourcePath, longEdge) {
     }
 }
 
-module.exports = { thumbnailFor, normalizeWidth, WIDTHS, CACHE_DIRNAME, videoKeyframeFor };
+module.exports = { thumbnailFor, normalizeWidth, WIDTHS, CACHE_DIRNAME, videoKeyframeFor, printCopyFor };

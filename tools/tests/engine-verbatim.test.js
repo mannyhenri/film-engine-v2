@@ -47,12 +47,15 @@ const CHANGED = {
         "loadScriptVersion": "Authorized independent scene summaries and notes; screenplay changes stay in the Editor",
         "loadLatestFountain": "Authorized independent scene summaries and notes; screenplay changes stay in the Editor"
     },
+    "src/components/SubjectSheet/engine.js": {
+        "exportSubjectSheet": "printed location and prop sheets redesigned (2026-10-25): built from the sheet's data through the shared print renderer (src/lib/print-sheet.js) instead of copying the on-screen form"
+    },
     "src/components/CharacterSheet/engine.js": {
         "renderCharacterSheet": "authorized expression slots: load captured character/slot data and reject late or superseded sheet reads",
         "characterSheetHtml": "authorized six face expression slots and non-destructive description/appearance consolidation; body plates remain present",
         "generateOfficialViews": "authorized manual ChatGPT handoff: stop the body-view loop on a saved external handoff and retain its captured character identity",
         "generateCharacterImage": "authorized manual ChatGPT handoff: a pending external image is reported as a handoff rather than an already generated image",
-        "exportCharacterSheet": "the director's sheet: the main picture on top, its variations below, then the description (MainSheet), replacing the four official views"
+        "exportCharacterSheet": "the director's sheet: the main picture on top, its variations below, then the description (MainSheet), printed through the shared print renderer (src/lib/print-sheet.js, redesigned 2026-10-25)"
     },
     "src/pages/flows/engine.js": {
         "renderFlowInspector": "Runway removed (2026-10-24): the fan-out provider list offers Higgsfield (signed in) in its place",

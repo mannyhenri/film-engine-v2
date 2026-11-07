@@ -7,6 +7,7 @@
  * Core is reached through the bridge below by the same names (tools/tests/engine-bridge.test.js).
  */
 import { legacy, setLegacy } from '../../lib/legacy.js';
+import { locationDoc, propDoc, sheetHtml } from '../../lib/print-sheet.js';
 
 // Core's functions, each called through the bridge by its own name. One destructuring statement on purpose:
 // a line reading `const esc = …` would be the first definition a backend test finds when it searches the page.
@@ -1061,27 +1062,43 @@ const { SS } = Object.fromEntries(['SS'].map(n => [n, live(n)]));
      */
     function exportSubjectSheet() {
         if (!SS.data) return;
-        const body = document.getElementById('ssBody');
         const w = window.open('', '_blank');
         if (!w) return setStatus('Allow pop-ups to export the sheet.');
-        w.document.write(`<!doctype html><html><head><meta charset="utf-8">
-            <title>${esc(SS.data.name || SS.kind)}</title>
-            <style>
-              @page { size: A4; margin: 16mm; }
-              body { font-family: Georgia, 'Times New Roman', serif; color: #111; }
-              h1 { font-size: 20pt; margin: 0 0 4mm; letter-spacing: .02em; }
-              h4 { font-size: 9pt; letter-spacing: .08em; text-transform: uppercase;
-                   color: #555; margin: 6mm 0 2mm; border-bottom: .3pt solid #bbb; padding-bottom: 1mm; }
-              .ss-what { font-size: 8pt; color: #666; margin: 0 0 2mm; }
-              img { max-width: 46mm; margin: 0 2mm 2mm 0; }
-              .ss-grid { column-count: 2; column-gap: 10mm; }
-              .ss-input, button, .btn-row, label > input, label > select { display: none !important; }
-              .ss-region { break-inside: avoid; }
-            </style></head><body>
-            <h1>${esc(SS.data.name || '')}</h1>${body.innerHTML}</body></html>`);
+        // Built from the sheet's data, not a copy of the on-screen form: the printed sheet (src/lib/print-sheet.js)
+        // shares one production-document design with the character sheet and the storyboard.
+        const picture = v => (v && v.available && v.image_url ? legacy.API_BASE + v.image_url : '');
+        const project = legacy.state && legacy.state.currentProject && legacy.state.currentProject.title;
+        const references = ((SS.data && SS.data.gallery) || []).filter(g => g.image_url).slice(0, 18)
+            .map(g => ({ src: plateSrc(g.image_url, 320), note: g.note || '', sent: g.role === 'reference' }));
+        let doc;
+        if (SS.kind === 'location') {
+            const l = SS.data, sections = SS.parse(l.description_sections, {}), planned = SS.parse(l.plate_plan, []);
+            // The same four slots the sheet draws when no plan was made.
+            const slots = (planned.length ? planned : [{ n: 1, role: 'Master', view: '', caption: 'the establishing plate' },
+                { n: 2, role: 'Reverse', view: 'south', caption: 'the opposite side' }, { n: 3, role: 'Detail', view: 'east', caption: 'a closer read of one part' },
+                { n: 4, role: 'Exterior', view: 'west', caption: 'how it sits in its surroundings' }])
+                .map(sl => ({ src: picture(ssViewFor(sl.view)), label: `${String(sl.n).padStart(2, '0')} · ${sl.role}`, note: sl.caption }));
+            doc = locationDoc({ project, location: l, slots,
+                sections: (SS.sections || []).map(sec => ({ label: sec.label, text: sections[sec.id] || '' })).filter(sec => sec.text.trim()),
+                plan: SS.parse(l.orientation_plan, {}) || {},
+                planImage: l.orientation_plan_image_url ? legacy.API_BASE + l.orientation_plan_image_url : '',
+                scenes: (l.scenes || []).map(sc => { const hour = String(sc.time_of_day || '').toLowerCase();
+                    return { scene_number: sc.scene_number, time_of_day: sc.time_of_day, covered: !hour || !!ssViewFor(hour) }; }),
+                flags: SS.list(l.continuity_flags, l.continuity_notes), references });
+        } else {
+            const p = SS.data, canonical = new Set((SS.propViews || []).map(v => String(v.id).toLowerCase()));
+            doc = propDoc({ project, prop: p, references,
+                views: (SS.propViews || []).map(v => ({ src: picture(ssViewFor(v.id)), label: v.label, note: `${v.angle} · ${v.caption}` })),
+                // Views off the turntable are still pictures of the prop (see psExtraViews).
+                extraViews: (SS.views || []).filter(v => String(v.view || '').trim() && !canonical.has(String(v.view).trim().toLowerCase()))
+                    .map(v => ({ src: picture(v), label: v.view })),
+                materials: SS.materials(p.materials_json, p.materials), states: SS.parse(p.continuity_states, []),
+                constraints: SS.list(p.constraints_json, p.constraints), keywords: SS.list(p.keywords, '') });
+        }
+        // Printed once every picture has loaded, so the sheet never prints with empty frames.
+        w.document.write(sheetHtml(doc).replace('</body>', `<script>window.onload = function(){ setTimeout(function(){ window.print(); }, 300); };<\/script></body>`));
         w.document.close();
         w.focus();
-        setTimeout(() => w.print(), 400);
     }
 
     /*

@@ -7,6 +7,7 @@
  * Core is reached through the bridge below by the same names (tools/tests/engine-bridge.test.js).
  */
 import { legacy } from '../../lib/legacy.js';
+import { characterDoc, sheetHtml } from '../../lib/print-sheet.js';
 import { configureExpressions, expressionSlotsHtml } from './expressions.jsx';
 import { createElement } from 'react';
 import { createRoot } from 'react-dom/client';
@@ -782,9 +783,6 @@ const { state } = Object.fromEntries(['state'].map(n => [n, live(n)]));
         let main = null, variations = [];
         try { const s = await api(`/characters/${c.id}/sheet`); main = s.main; variations = s.variations || []; }
         catch (err) { setStatus('Could not read the main picture: ' + err.message); }
-        const spec = [['Age', c.age_range], ['Gender', c.gender],
-            ['Height', c.height_m ? c.height_m + ' m' : null], ['Build', c.build],
-            ['Hair', c.hair], ['Distinguishing', c.distinguishing]].filter(r => r[1]);
         const ward = SHEET.gallery.filter(i => (i.metadata && i.metadata.ref_category) === 'costume');
         const palette = SHEET.palette || [];
         // Wardrobe has its own section, so it is not repeated in the contact
@@ -794,80 +792,17 @@ const { state } = Object.fromEntries(['state'].map(n => [n, live(n)]));
         const refs = SHEET.gallery.filter(i => !i.sendable && i.image_url && !shown.has(i.image_url)
             && (i.metadata && i.metadata.ref_category) !== 'costume');
 
+        // The printed sheet (src/lib/print-sheet.js): the same production-document design as the location, prop and storyboard prints.
+        const html = sheetHtml(characterDoc({
+            project: state.currentProject && state.currentProject.title, character: c,
+            main: main && { src: csImg(main.image_url), kind: main.kind },
+            variations: variations.map(v => ({ src: plateSrc(v.image_url, 480), kind: v.kind })),
+            palette, wardrobe: ward.map(w => ({ src: w.image_url ? plateSrc(w.image_url, 320) : '', note: w.note })),
+            references: refs.slice(0, 18).map(r => ({ src: plateSrc(r.image_url, 320) })),
+        }));
         win.document.open();
-        win.document.write(`<!doctype html><html><head><meta charset="utf-8">
-        <title>${esc(c.name || 'Character')} — character sheet</title>
-        <style>
-          @page { size: A4 portrait; margin: 20mm 18mm; }
-          * { box-sizing: border-box; }
-          body { font: 12px/1.55 Georgia, 'Times New Roman', serif; color:#111; background:#fff; margin:0; }
-          h1 { font: 600 30px/1.1 Helvetica, Arial, sans-serif; letter-spacing:.14em;
-               text-transform:uppercase; margin:0 0 2px; }
-          .sub { font: 10px/1.4 ui-monospace, Menlo, monospace; letter-spacing:.16em;
-                 text-transform:uppercase; color:#666; margin-bottom:16px; }
-          .rule { border-top:2px solid #111; margin:0 0 18px; }
-          h2 { font: 600 10px/1 ui-monospace, Menlo, monospace; letter-spacing:.2em;
-               text-transform:uppercase; color:#666; margin:22px 0 8px;
-               border-bottom:1px solid #ddd; padding-bottom:5px; }
-          .main { margin:0; }
-          .main img { width:100%; display:block; border:1px solid #ccc; }
-          .main .blank { aspect-ratio:16/9; border:1px dashed #bbb; display:grid; place-items:center; color:#888; }
-          .main figcaption, .vars figcaption { font:9px ui-monospace,Menlo,monospace; letter-spacing:.12em;
-              text-transform:uppercase; color:#666; margin-top:4px; }
-          .vars { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-top:10px; }
-          .vars figure { margin:0; break-inside:avoid; }
-          .vars img { width:100%; aspect-ratio:16/9; object-fit:contain; background:#f3f3f3; border:1px solid #ddd; display:block; }
-          .spec { display:grid; grid-template-columns:repeat(3,1fr); gap:0; border:1px solid #ddd; }
-          .spec div { padding:8px 10px; border-right:1px solid #eee; border-bottom:1px solid #eee; }
-          .spec .k { font:9px ui-monospace,Menlo,monospace; letter-spacing:.16em;
-              text-transform:uppercase; color:#888; }
-          .spec .v { font-size:13px; margin-top:3px; }
-          .prose { max-width:74ch; }
-          .pal { display:flex; gap:10px; }
-          .pal .sw { width:56px; height:40px; border:1px solid #bbb; border-radius:3px; }
-          .pal .cap { font:9px ui-monospace,Menlo,monospace; color:#666; margin-top:4px;
-              text-transform:uppercase; letter-spacing:.1em; }
-          .pal .hex { color:#999; }
-          .ward { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; }
-          .ward figure { margin:0; }
-          .ward img, .ward .blank { width:100%; aspect-ratio:3/4; object-fit:cover;
-              border:1px solid #ccc; display:block; }
-          .ward .blank { border-style:dashed; }
-          .ward figcaption { font:9.5px ui-monospace,Menlo,monospace; color:#555; margin-top:4px; }
-          .refs { display:grid; grid-template-columns:repeat(5,1fr); gap:6px; }
-          .refs img { width:100%; aspect-ratio:4/3; object-fit:cover; border:1px solid #ddd; }
-          .foot { margin-top:26px; padding-top:8px; border-top:1px solid #ddd;
-              font:9px ui-monospace,Menlo,monospace; letter-spacing:.14em;
-              text-transform:uppercase; color:#999; }
-          @media print { .noprint { display:none; } }
-        </style></head><body>
-        <h1>${esc(c.name || 'Character')}</h1>
-        <div class="sub">${esc([state.currentProject && state.currentProject.title,
-            [c.age_range, c.gender].filter(Boolean).join(' · ')].filter(Boolean).join(' — '))}</div>
-        <div class="rule"></div>
-        <h2>Main picture — used for every generation</h2>
-        <figure class="main">${main
-            ? `<img src="${esc(csImg(main.image_url))}"><figcaption>${esc(main.kind || 'sheet')}</figcaption>`
-            : '<div class="blank">No main picture yet</div>'}</figure>
-        ${variations.length ? `<div class="vars">${variations.map(v =>
-            `<figure><img src="${esc(plateSrc(v.image_url, 480))}"><figcaption>${esc(v.kind || 'picture')}</figcaption></figure>`).join('')}</div>` : ''}
-        <h2>Description — from the screenplay</h2>
-        <div class="prose">${c.appearance_prompt ? `<p><b>Appearance.</b> ${esc(c.appearance_prompt)}</p>` : ''}
-            ${c.description ? `<p>${esc(c.description)}</p>` : ''}${!c.appearance_prompt && !c.description ? '—' : ''}</div>
-        ${spec.length ? `<h2>Physical spec</h2><div class="spec">${spec.map(([k, v]) =>
-            `<div><div class="k">${esc(k)}</div><div class="v">${esc(v)}</div></div>`).join('')}</div>` : ''}
-        ${c.personality_notes ? `<h2>Personality</h2><div class="prose">${esc(c.personality_notes)}</div>` : ''}
-        ${palette.length ? `<h2>Palette</h2><div class="pal">${palette.map(p =>
-            `<div><div class="sw" style="background:${esc(p.hex)}"></div>
-             <div class="cap">${esc(p.name || '')}<br><span class="hex">${esc(p.hex)}</span></div></div>`).join('')}</div>` : ''}
-        ${ward.length ? `<h2>Wardrobe &amp; props</h2><div class="ward">${ward.map(w =>
-            `<figure>${w.image_url ? `<img src="${esc(plateSrc(w.image_url, 320))}">` : '<div class="blank"></div>'}
-             <figcaption>${esc(w.note || 'Item')}</figcaption></figure>`).join('')}</div>` : ''}
-        ${refs.length ? `<h2>Concept art &amp; references</h2><div class="refs">${refs.slice(0, 15).map(r =>
-            `<img src="${esc(plateSrc(r.image_url, 320))}">`).join('')}</div>` : ''}
-        <div class="foot">Film Engine · character sheet · ${esc(new Date().toISOString().slice(0, 10))}</div>
-        <script>window.onload = function(){ setTimeout(function(){ window.print(); }, 400); };<\/script>
-        </body></html>`);
+        // Printed once every picture has loaded, so the sheet never prints with empty frames.
+        win.document.write(html.replace('</body>', `<script>window.onload = function(){ setTimeout(function(){ window.print(); }, 300); };<\/script></body>`));
         win.document.close();
         setStatus('Character sheet opened for printing');
     }
