@@ -126,8 +126,11 @@ async function ensureBackend() {
     }
     if (SMOKE || existing || !isLoopbackAPI(API)) API = `http://127.0.0.1:${await freePort()}`;
     else API = `http://127.0.0.1:${new URL(API).port || 3100}`;
-    // System node, not Electron's: better-sqlite3 stays built for it, no electron-rebuild.
-    backend = spawn(process.env.FE_NODE || 'node', [path.join(__dirname, 'backend-runner.cjs')], {
+    // System node, not Electron's: better-sqlite3 stays built for it, no electron-rebuild. The installed app carries that
+    // Node in its Resources (scripts/bundle-node.cjs); from source it is FE_NODE, else the node on PATH.
+    const bundledNode = app.isPackaged ? path.join(process.resourcesPath, 'node', 'node') : null;
+    const nodeBin = process.env.FE_NODE || (bundledNode && require('fs').existsSync(bundledNode) ? bundledNode : 'node');
+    backend = spawn(nodeBin, [path.join(__dirname, 'backend-runner.cjs')], {
         cwd: path.join(__dirname, '..', 'backend'),
         env: { ...process.env, PORT: String(new URL(API).port || 3100), FILM_BACKEND_HOST: '127.0.0.1', FILM_AI_CAPABILITY: AI_CAPABILITY,
             // The smoke run is one client opening every page and several flows within a minute, against its own throwaway

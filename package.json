@@ -18,7 +18,8 @@
     "pretest": "node tools/assemble-page.js",
     "test:ui": "vitest run",
     "postinstall": "node tools/name-dev-electron.js",
-    "icons": "python3 tools/make-mac-icon.py && node tools/name-dev-electron.js"
+    "icons": "python3 tools/make-mac-icon.py && node tools/name-dev-electron.js",
+    "dist:mac": "npm run build && node scripts/bundle-node.cjs && electron-builder --mac dmg --x64"
   },
   "dependencies": {
     "react": "^18.3.1",
@@ -32,9 +33,68 @@
     "concurrently": "^9.1.0",
     "cross-env": "^7.0.3",
     "electron": "^33.2.0",
+    "electron-builder": "^24.13.3",
     "jsdom": "^25.0.1",
     "vite": "^5.4.11",
     "vitest": "^2.1.9",
     "wait-on": "^8.0.1"
+  },
+  "build": {
+    "appId": "com.algofields.filmengine",
+    "productName": "Film Engine",
+    "copyright": "Algofields",
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "asar": false,
+    "npmRebuild": false,
+    "files": [
+      "package.json",
+      "electron/**",
+      "dist/**",
+      "backend/**",
+      "!backend/tests/**",
+      "!**/__pycache__/**",
+      "!backend/**/*.log",
+      "!**/.DS_Store"
+    ],
+    "extraResources": [
+      {
+        "from": "build/node/node",
+        "to": "node/node"
+      },
+      {
+        "from": "backend/node_modules",
+        "to": "app/backend/node_modules",
+        "filter": [
+          "**/*",
+          "!**/test/**",
+          "!**/*.md"
+        ]
+      }
+    ],
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "electron/icon.icns",
+      "category": "public.app-category.video",
+      "identity": null,
+      "hardenedRuntime": false
+    },
+    "dmg": {
+      "title": "Film Engine ${version}",
+      "artifactName": "Film Engine-${version}-${arch}.${ext}"
+    }
+  },
+  "author": {
+    "name": "Manny Henri",
+    "email": "manny@algofields.com"
   }
 }
