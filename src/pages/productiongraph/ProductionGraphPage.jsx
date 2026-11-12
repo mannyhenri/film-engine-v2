@@ -50,12 +50,11 @@ export default function ProductionGraphPage() {
     // the classic graph only: studio.css hides it unless this says "graph", which no tab does any more.
     useLayoutEffect(() => { document.documentElement.dataset.pgView = view; }, [view]);
     useLayoutEffect(() => () => { delete document.documentElement.dataset.pgView; }, []);
-    // What core calls by name (react.json provides): the side panel the flag draws, Flows' way back, the in-between modals.
+    // What core calls by name (react.json provides): the side panel and the in-between modals.
     usePageLoader('pgNode', E.pgNode);
     usePageLoader('pgShots', E.pgShots);
     usePageLoader('pgVisible', E.pgVisible);
     usePageLoader('pgCollapsedOf', E.pgCollapsedOf);
-    usePageLoader('flowBackToGraph', E.flowBackToGraph);
     usePageLoader('ibCloseSetup', E.ibCloseSetup);
     usePageLoader('ibCloseDirect', E.ibCloseDirect);
     usePageLoader('pgEnsureSide', E.pgEnsureSide);

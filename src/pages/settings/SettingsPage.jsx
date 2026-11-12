@@ -5,12 +5,11 @@ import { KeysCard, CapabilityMap, keyTiles, providerConfigBody } from './Provide
 
 /*
  * Settings, as React: one section at a time. The sections a project owns come first (providers, project,
- * delivery, folder); the ones this Mac owns after (keys, backups, you, graph). Same routes, bodies and
+ * delivery, folder); the ones this Mac owns after (keys, backups, you). Same routes, bodies and
  * status lines as the legacy page.
  *
  * Kept for the rest of the app, by id: #settingsStatus and its options (the project list offers exactly these
- * stages), #settingsDeliveryCodec / #settingsDeliveryPreset and their options, #settingsProductionGraph (the
- * graph's applyProductionFlag sets it), and the folder fields core's folder picker writes into
+ * stages), #settingsDeliveryCodec / #settingsDeliveryPreset and their options, and the folder fields core's folder picker writes into
  * (#settingsFolderMoveTo, #settingsProjectsRoot, #settingsBackupDir): those three are read from the field
  * when used, because the picker fills them.
  *
@@ -18,9 +17,9 @@ import { KeysCard, CapabilityMap, keyTiles, providerConfigBody } from './Provide
  * The project card's switch read the older video_draft and treated it as ON when absent, while the delivery
  * card's read draft_video — two controls for one setting, reading two columns.
  */
-export const SETTINGS_SECTIONS = ['providers', 'project', 'delivery', 'folder', 'keys', 'backups', 'you', 'graph'];
+export const SETTINGS_SECTIONS = ['providers', 'project', 'delivery', 'folder', 'keys', 'backups', 'you'];
 const NAV = [['This project', [['providers', 'AI providers and models'], ['project', 'Project'], ['delivery', 'Picture and delivery'], ['folder', 'Where it is saved']]],
-    ['This Mac', [['keys', 'API keys'], ['backups', 'Backups'], ['you', 'You and connection'], ['graph', 'Production graph']]]];
+    ['This Mac', [['keys', 'API keys'], ['backups', 'Backups'], ['you', 'You and connection']]]];
 export const STATUSES = [['concept', 'Concept'], ['script', 'Script'], ['pre-production', 'Pre-Production'], ['storyboard', 'Storyboard'], ['production', 'Production'],
     ['post-production', 'Post-Production'], ['review', 'Review'], ['export', 'Export'], ['complete', 'Complete']];
 export const DELIVERY_PRESET_OPTIONS = [['', 'Custom'], ['theatrical_dcp', 'Theatrical DCP'], ['imax', 'IMAX'], ['streaming_hd', 'Streaming HD'], ['streaming_4k', 'Streaming 4K'],
@@ -380,7 +379,7 @@ export default function SettingsPage() {
     // ── layout ───────────────────────────────────────────────────────
     const projectOnly = new Set(['settingsProjectCard', 'settingsTechnicalCard']);
     const cardClass = (id, sec, extra = '') => 'card set-card' + extra + (sec !== section ? ' set-off' : '') + (projectOnly.has(id) && !hasProject ? ' hidden' : '');
-    const visibleIn = (sec) => ({ providers: true, project: hasProject, delivery: hasProject, folder: true, keys: true, backups: true, you: true, graph: true })[sec];
+    const visibleIn = (sec) => ({ providers: true, project: hasProject, delivery: hasProject, folder: true, keys: true, backups: true, you: true })[sec];
     const setP = (k) => (e) => { const v = e.target.type === 'checkbox' ? e.target.checked : e.target.value; setProj(f => ({ ...f, [k]: v })); };
     const setT = (k) => (e) => { const v = e.target.type === 'checkbox' ? e.target.checked : e.target.value; setTech(t => ({ ...t, [k]: v })); };
     const why = (children) => <details className="set-why"><summary>Why</summary><p className="text-sm text-muted" style={{ marginTop: 6, lineHeight: 1.5 }}>{children}</p></details>;
@@ -585,17 +584,6 @@ export default function SettingsPage() {
                                     the fallback every capability drops to. Until you switch it on, nothing resolves to it, and a capability it is the only provider for says <em>nothing serves this</em>
                                     rather than failing at generation time.</>)}
                                 <p className="text-sm text-muted" style={{ marginTop: 6, lineHeight: 1.5 }} id="gridlightServes">{gridlight.serves}</p>
-                            </div>
-                        </div>
-                        <div className={cardClass('settingsGraphCard', 'graph')} id="settingsGraphCard" data-set-section="graph">
-                            <h3 className="mb-8">Production graph</h3>
-                            <div className="form-group">
-                                <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
-                                    {/* Uncontrolled: the graph's own applyProductionFlag keeps it in step, and saveProductionGraphFlag reads it. */}
-                                    <input type="checkbox" id="settingsProductionGraph" style={{ width: 'auto', margin: 0 }} onChange={() => legacy.saveProductionGraphFlag()} />
-                                    <span>Show Production as one graph</span></label>
-                                {why(<>Shots, sequences, sound and every version on one canvas, with a drawer for each and the cut playing underneath. Off, Production is its separate pages.
-                                    Every old page is still reachable by its address.</>)}
                             </div>
                         </div>
                     </div>

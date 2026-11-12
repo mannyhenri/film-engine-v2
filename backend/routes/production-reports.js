@@ -299,6 +299,31 @@ function handleProductionReports(req, res, urlParts, query) {
         }));
     }
 
+    /*
+     * GET  /film/projects/:id/storyboard-update  — which cards a screenplay update would change, and how. Free; writes nothing.
+     * POST /film/projects/:id/storyboard-update  — { plan_id }: apply exactly the plan that was reviewed (409 if it moved).
+     *
+     * The Screenplay page's Update storyboard. Unlike shots-resync it carries rewritten, added and cut dialogue onto
+     * the cards (lib/storyboard-update.js says how a line finds its card); like it, it never rewrites a description,
+     * never creates or deletes a shot, and generates nothing.
+     */
+    if (urlParts[1] === 'projects' && urlParts[2] && urlParts[3] === 'storyboard-update') {
+        if (!UUID_RE.test(urlParts[2])) return json(res, 400, { error: 'Invalid project ID' });
+        const project = db.prepare('SELECT id FROM film_projects WHERE id = ?').get(urlParts[2]);
+        if (!project) return json(res, 404, { error: 'Project not found' });
+        const { planStoryboardUpdate, applyStoryboardUpdate } = require('../lib/storyboard-update');
+        if (req.method === 'GET') return json(res, 200, planStoryboardUpdate(urlParts[2]));
+        if (req.method !== 'POST') return json(res, 405, { error: 'Method not allowed' });
+        const planId = (req.body || {}).plan_id;
+        if (!planId) return json(res, 400, { error: 'plan_id is required: review the plan (GET) before updating the board.' });
+        try {
+            return json(res, 200, applyStoryboardUpdate(urlParts[2], String(planId)));
+        } catch (err) {
+            if (err.code === 'PLAN_CHANGED') return json(res, 409, { error: err.message, code: err.code, plan: err.plan });
+            throw err;
+        }
+    }
+
     if (urlParts[1] === 'projects' && urlParts[2] && urlParts[3] === 'run-plan') {
         if (!UUID_RE.test(urlParts[2])) return json(res, 400, { error: 'Invalid project ID' });
         if (req.method !== 'GET') return json(res, 405, { error: 'Method not allowed' });

@@ -4,7 +4,6 @@ import ProjectsPage from './projects/index.jsx';
 import DashboardPage from './dashboard/index.jsx';
 import ScreenplayPage from './screenplay/index.jsx';
 import ScenesPage from './scenes/index.jsx';
-import ShotboardPage from './shotboard/index.jsx';
 import MoodboardPage from './moodboard/index.jsx';
 import StoryboardPage from './storyboard/index.jsx';
 import CharactersPage from './characters/index.jsx';
@@ -12,7 +11,6 @@ import LocationsPage from './locations/index.jsx';
 import PropsPage from './props/index.jsx';
 import AssetsPage from './assets/index.jsx';
 import MilestonesPage from './milestones/index.jsx';
-import PlaybackPage from './playback/index.jsx';
 import NotesPage from './notes/index.jsx';
 import RenderhistoryPage from './renderhistory/index.jsx';
 import EditsPage from './edits/index.jsx';
@@ -26,12 +24,8 @@ import MarketingPage from './marketing/index.jsx';
 import ConsistencyPage from './consistency/index.jsx';
 import BudgetPage from './budget/index.jsx';
 import ThreedPage from './threed/index.jsx';
-import VideoshotsPage from './videoshots/index.jsx';
-import MusicPage from './music/index.jsx';
 import ProductiongraphPage from './productiongraph/index.jsx';
-import FlowsPage from './flows/index.jsx';
 import PrevisPage from './previs/index.jsx';
-import PipelinePage from './pipeline/index.jsx';
 import StylebookPage from './stylebook/index.jsx';
 import SettingsPage from './settings/index.jsx';
 import JobsqueuePage from './jobsqueue/index.jsx';
@@ -41,7 +35,6 @@ export const PAGES = [
     { id: 'dashboard', Component: DashboardPage, chunk: null, react: true },
     { id: 'screenplay', Component: ScreenplayPage, chunk: null, react: true },
     { id: 'scenes', Component: ScenesPage, chunk: null, react: true },
-    { id: 'shotboard', Component: ShotboardPage, chunk: null, react: true },
     { id: 'moodboard', Component: MoodboardPage, chunk: null, react: true },
     { id: 'storyboard', Component: StoryboardPage, chunk: null, react: true },
     { id: 'characters', Component: CharactersPage, chunk: null, react: true },
@@ -49,7 +42,6 @@ export const PAGES = [
     { id: 'props', Component: PropsPage, chunk: null, react: true },
     { id: 'assets', Component: AssetsPage, chunk: null, react: true },
     { id: 'milestones', Component: MilestonesPage, chunk: null, react: true },
-    { id: 'playback', Component: PlaybackPage, chunk: null, react: true },
     { id: 'notes', Component: NotesPage, chunk: null, react: true },
     { id: 'renderhistory', Component: RenderhistoryPage, chunk: null, react: true },
     { id: 'edits', Component: EditsPage, chunk: null, react: true },
@@ -63,12 +55,8 @@ export const PAGES = [
     { id: 'consistency', Component: ConsistencyPage, chunk: null, react: true },
     { id: 'budget', Component: BudgetPage, chunk: null, react: true },
     { id: 'threed', Component: ThreedPage, chunk: null, react: true, vendors: ['three'] },
-    { id: 'videoshots', Component: VideoshotsPage, chunk: null, react: true },
-    { id: 'music', Component: MusicPage, chunk: null, react: true },
     { id: 'productiongraph', Component: ProductiongraphPage, chunk: null, react: true },
-    { id: 'flows', Component: FlowsPage, chunk: null, react: true },
     { id: 'previs', Component: PrevisPage, chunk: null, react: true, vendors: ['three'] },
-    { id: 'pipeline', Component: PipelinePage, chunk: null, react: true },
     { id: 'stylebook', Component: StylebookPage, chunk: null, react: true },
     { id: 'settings', Component: SettingsPage, chunk: null, react: true },
     { id: 'jobsqueue', Component: JobsqueuePage, chunk: null, react: true },

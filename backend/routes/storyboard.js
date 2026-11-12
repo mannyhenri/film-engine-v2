@@ -2193,9 +2193,9 @@ async function shotPromptPreview(req, res, shotId, query) {
         conflict: !!application?.conflict,
         application_state: application?.state || 'none',
         staged_notice: staged
-            ? 'This prompt uses the Shot Board, not your staged Previs experiment. Apply the Previs to use it, or generate from the board and leave the experiment untouched.'
+            ? 'This prompt uses the shot card, not your staged Previs experiment. Apply the Previs to use it, or generate from the board and leave the experiment untouched.'
             : application?.card_ahead || application?.conflict
-                ? 'The Shot Board is newer than this Previs. Re-seed Previs before applying it again.' : null,
+                ? 'The shot card is newer than this Previs. Re-seed Previs before applying it again.' : null,
         film_facts: {
             direction: ctx.sceneCard.direction || '',
             lighting: ctx.sceneCard.lighting || null,

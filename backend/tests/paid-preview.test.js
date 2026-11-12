@@ -45,9 +45,8 @@ const UI = fs.readFileSync(path.join(ROOT, '..', 'src', 'index.html'), 'utf8')
  * with no control here fails rather than being quietly exempt.
  */
 const PAID_ACTIONS = [
-    'generateVideoFor', 'generateAllVideos',
+    // Video Shots' and Music & Sound's controls were here; they went with those pages (removed with Production's older pages by the user (2026-11-11)).
     'generateModelFor', 'generateAllModels',
-    'generateAmbientFor',
     'generateSequence', 'refineFrame',
     'generateLocationImage', 'generateCharacterImage', 'generatePropImage',
     'sweepLocationCompass',

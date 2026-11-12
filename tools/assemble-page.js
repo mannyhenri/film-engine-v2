@@ -114,7 +114,7 @@ function assemble() {
         const text = files.map(f => read(`${dir}/${f}`)).join('\n').replace(/^import\b[^\n]*$/gm, '// (import omitted in the test page)')
             /*
              * A component is not a handler. The backend's scans read `function NAME(` and attribute every
-             * api() inside to NAME, so `export default function VideoShotsPage()` would be charged with every
+             * api() inside to NAME, so `export default function StoryboardPage()` would be charged with every
              * request its inner handlers make (a free sequence plan read as an ungated paid button). A
              * module-level, capitalised function is a component: it is written unnamed here, and the scans
              * see the real handlers, each with its own body.

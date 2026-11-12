@@ -74,11 +74,8 @@ const { state } = Object.fromEntries(['state'].map(n => [n, live(n)]));
       'scenes',       // parse it
       'characters',   // cast it
       'consistency',  // lock it  ← the AI-native step people skip and regret
-      'shotboard',    // plan it
       'storyboard',   // see it
-      'videoshots',   // shoot it
-      'music',        // score it
-      'pipeline',     // automate it
+      'productiongraph', // direct and shoot it
       'budget',       // watch the spend
       'exportpage'    // hand off
     ];

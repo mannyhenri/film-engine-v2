@@ -68,8 +68,6 @@ function shapeOf(expr) {
 const PLAN_SHAPED = {
     '/locations/:id/plate/compass/plan': 'a sweep of sides, priced — each side has its own prompt',
     '/sequences/:id/plan': 'a list of segments; each is built from its own two shots',
-    '/sequences/:id/plan?expand=inbetweens': 'the strip, station by station',
-    '/scenes/:id/ambient/brief': 'the facts a bed is written from',
 };
 
 test('every preview URL the page builds is a route shape the server dispatches', () => {

@@ -203,7 +203,7 @@ body.fe-status .main { bottom:calc(var(--fe-gap) + 26px); }
 .card, .glass-card { background:#1d1d20; border:1px solid rgba(255,255,255,.08);
   border-radius:14px; }
 .card:hover { border-color:rgba(255,255,255,.14); }
-.stat-card, .entity-card, .cue-card, .kanban-column, .milestone-node {
+.stat-card, .entity-card, .milestone-node {
   background:#1d1d20 !important; border:1px solid rgba(255,255,255,.08) !important;
   border-radius:12px !important; }
 .entity-card:hover { border-color:rgba(102,144,255,.55) !important; }

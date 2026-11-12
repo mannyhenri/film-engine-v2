@@ -33,6 +33,9 @@ export function legacyHandlers(html) {
     return out;
 }
 
+/** The names of what v2 adds on purpose beside legacy markup (data-v2-added="<name>"); anything else is a difference. */
+export const V2_ADDED = ['list-controls', 'update-storyboard'];
+
 /**
  * What a person sees of a tree, in order: each element's tag, attributes (inline handlers aside: React binds them),
  * style as the browser parses it, and what a field shows; every text node, collapsed as HTML collapses it (spaces,
@@ -48,9 +51,10 @@ export function domWalk(root) {
         return [el.tagName.toLowerCase(), ...attrs, style, field].filter(Boolean).join(' ');
     };
     const visit = (n) => {
-        // What v2 adds on purpose beside legacy markup, named: the bar of a list an engine draws (src/lib/drawn-list.jsx).
+        // What v2 adds on purpose beside legacy markup, named: the bar of a list an engine draws (src/lib/drawn-list.jsx),
+        // and the Screenplay's Update storyboard button (src/components/UpdateStoryboard).
         if (n.nodeType === 1 && n.hasAttribute('data-v2-added')) {
-            if (n.getAttribute('data-v2-added') !== 'list-controls') throw new Error(`unknown data-v2-added="${n.getAttribute('data-v2-added')}"`);
+            if (!V2_ADDED.includes(n.getAttribute('data-v2-added'))) throw new Error(`unknown data-v2-added="${n.getAttribute('data-v2-added')}"`);
             return;
         }
         if (n.nodeType === 1) { out.push('<' + describe(n)); n.childNodes.forEach(visit); out.push('>'); }

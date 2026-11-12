@@ -134,7 +134,10 @@ const NAMED_DIFFERENTLY = {
  * so an empty object is a claim that every field a route accepts can be typed
  * by a person, checked on every run.
  */
-const NOT_BUILT = {};
+const NOT_BUILT = {
+    'scenes.js updateScene': 'delivery_direction: its control was on Music & Sound, removed with Production\'s older pages by the user (2026-11-11); an agent sets it (scene_update)',
+    'shots.js setShotTransition': 'transition_in_type, transition_out_type: their control was on the Shot Board, removed with Production\'s older pages by the user (2026-11-11); an agent sets them',
+};
 
 /** Every update handler in every route, with the text fields it accepts. */
 function updateHandlers() {

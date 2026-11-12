@@ -94,3 +94,7 @@ music-workstation-editor.test.js  — music-making retired (2026-10-14)
 music-workstation-schema.test.js  — music-making retired (2026-10-14)
 scene-score.test.js  — music-making retired (2026-10-14)
 score-instruments.test.js  — music-making retired (2026-10-14)
+
+# Removed with Production's older pages by the user (2026-11-11): every test in these files read a page that is gone.
+editor-transport.test.js  — tests the Playback page's transport (frame step, keys, timecode, marks)
+flow-canvas-reach.test.js  — tests the Flows page's canvas and the graph's Edit flow into it

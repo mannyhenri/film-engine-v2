@@ -7,7 +7,6 @@ import Main from './components/Main/Main.jsx';
 import StatusBar from './components/StatusBar/StatusBar.jsx';
 import ModalHost from './components/modals/ModalHost.jsx';
 import TestModeBadge from './components/TestModeBadge/TestModeBadge.jsx';
-import SyncScreenplay from './components/SyncScreenplay/SyncScreenplay.jsx';
 import { REACT_COMPONENTS } from './components/react-components.js';
 import PageBoundary from './components/PageBoundary.jsx';
 
@@ -21,8 +20,6 @@ export default function App() {
             <StatusBar />
             <ModalHost />
             <PageBoundary name="TestModeBadge"><TestModeBadge /></PageBoundary>
-            {/* The top bar's Sync screenplay button (portaled into the shell's rail once it exists). */}
-            <PageBoundary name="SyncScreenplay"><SyncScreenplay /></PageBoundary>
             <PageBoundary name="WritingStyleWorkbench"><WritingStyleWorkbench /></PageBoundary>
             <PageBoundary name="AskAI"><AskAI /></PageBoundary>
             <PageBoundary name="AIConnections"><AIConnections /></PageBoundary>

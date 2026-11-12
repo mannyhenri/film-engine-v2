@@ -1,6 +1,6 @@
 /*
  * The protect-ratio engine, shared. MOVED VERBATIM from the reference app (film-engine reference),
- * by tools/extract-engine.js: same names, same bodies. The ratios a job ships (its deliverables), offered as the board's and playback's protect frame. Shared by Deliverables, Playback and the Storyboard; ProtectRatios (boot-mounted, no dialogs) puts every name here on window.
+ * by tools/extract-engine.js: same names, same bodies. The ratios a job ships (its deliverables), offered as the board's protect frame. Shared by Deliverables and the Storyboard; ProtectRatios (boot-mounted, no dialogs) puts every name here on window.
  *
  * Kept verbatim on purpose: backend tests read these functions from the page source, so the text they check is
  * the code that runs (tools/tests/engine-verbatim.test.js). Do not reformat it; change it as code, with its tests.
@@ -123,9 +123,9 @@ const { state } = Object.fromEntries(['state'].map(n => [n, live(n)]));
         return [value];
     }
 
-    /** Keep both pickers offering what the job actually ships. */
+    /** Keep the board's picker offering what the job actually ships. */
     function refreshProtectOptions() {
-        for (const id of ['boardProtectRatio', 'pbProtectRatio']) {
+        for (const id of ['boardProtectRatio']) {
             const sel = document.getElementById(id);
             if (!sel) continue;
             const keep = sel.value;

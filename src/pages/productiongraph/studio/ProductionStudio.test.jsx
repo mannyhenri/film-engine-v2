@@ -295,6 +295,14 @@ describe('Generate (Direct studio): pick, direct, watch the prompt, check, send'
         expect(calls.find(c => c.path === `/shots/${A.id}/video/generate`).body).toEqual({ production_draft: { node_key: A.key, revision: 1 } });
     });
 
+    it('a clip made elsewhere comes back as the shot\'s take: Import a clip, filed where a generated one goes', async () => {
+        // Video Shots took these before it was removed (2026-11-11); the hand-over that closes the final review says to come here.
+        const { legacy: { fake } } = open(); await flush(); await pick('1A'); await wait(600);
+        const host = document.querySelector('[data-ds="import-clip"]');
+        expect(host && host.textContent).toContain('Import a clip');
+        expect(fake.mediaUploadControl).toHaveBeenCalledWith('video', 'video', 'shot', A.id, expect.objectContaining({ after: 'loadProductionGraph', label: 'Import a clip' }));
+    });
+
     it('grouping makes a sequence: transitions between shots, one clip or separate, and one clip generates as that sequence', async () => {
         const { calls } = open(); await flush(); await pick('1A'); await pick('1B');
         await click(within(board()).getByRole('button', { name: 'Group 2 shots as a sequence' }));

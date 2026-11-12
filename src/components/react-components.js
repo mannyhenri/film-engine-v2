@@ -7,7 +7,6 @@ import FolderPicker from './FolderPicker/FolderPicker.jsx';
 import Gallery from './Gallery/Gallery.jsx';
 import GraphDialogs from './GraphDialogs/GraphDialogs.jsx';
 import MediaInput from './MediaInput/MediaInput.jsx';
-import MusicDialogs from './MusicDialogs/MusicDialogs.jsx';
 import PageHelpers from './PageHelpers/PageHelpers.jsx';
 import ProtectRatios from './ProtectRatios/ProtectRatios.jsx';
 import SceneDrift from './SceneDrift/SceneDrift.jsx';
@@ -23,7 +22,6 @@ export const REACT_COMPONENTS = [
     { name: 'Gallery', Component: Gallery },
     { name: 'GraphDialogs', Component: GraphDialogs },
     { name: 'MediaInput', Component: MediaInput },
-    { name: 'MusicDialogs', Component: MusicDialogs },
     { name: 'PageHelpers', Component: PageHelpers },
     { name: 'ProtectRatios', Component: ProtectRatios },
     { name: 'SceneDrift', Component: SceneDrift },

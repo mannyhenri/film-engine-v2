@@ -13,13 +13,13 @@ import { usePageLoader } from '../../lib/usePageLoader.js';
  * does not belong here (the conform panel is reached from Export, where the delivery actions are).
  */
 const HOME_PANELS = [
-    { id: 'run-plan', title: 'Run plan', render: p => `${p.total_items} item(s) in ${p.strips.length} strip(s) · ${p.model_switches} model switch(es) · $${(p.projected_cost || 0).toFixed(2)}${p.refused ? ' · REFUSED (over budget)' : ''}`, go: 'pipeline' },
+    { id: 'run-plan', title: 'Run plan', render: p => `${p.total_items} item(s) in ${p.strips.length} strip(s) · ${p.model_switches} model switch(es) · $${(p.projected_cost || 0).toFixed(2)}${p.refused ? ' · REFUSED (over budget)' : ''}`, go: 'productiongraph' },
     { id: 'staleness', title: 'Staleness', render: p => `${p.summary.stale} stale · ${p.summary.fresh} current · ${p.summary.unknown} unknown`, go: 'storyboard' },
     { id: 'dood', title: 'Day out of days', render: p => `${p.characters.length} character(s) · ${p.needs_plate.length} still need a plate`, go: 'characters' },
     { id: 'sides', title: 'Sides', render: p => `${p.speaking} speaking · ${p.non_speaking.length} non-speaking`, go: 'screenplay' },
     { id: 'elements-list', title: 'Elements', render: p => `${p.elements.characters.length} characters · ${p.elements.locations.length} locations · ${p.elements.props.length} props · ${p.undescribed.length} undescribed`, go: 'props' },
     { id: 'breakdown-summary', title: 'Breakdown', render: p => `${p.totals.scenes} scene(s) · ${p.totals.shots} shot(s) · ${p.totals.dialogue_lines} line(s)`, go: 'scenes' },
-    { id: 'setups', title: 'Setups', render: p => `${p.setups.length} setup(s) · ${p.reused_shots} shot(s) reuse another’s conditioning`, go: 'shotboard' },
+    { id: 'setups', title: 'Setups', render: p => `${p.setups.length} setup(s) · ${p.reused_shots} shot(s) reuse another’s conditioning`, go: 'productiongraph' },
     { id: 'board-groups', title: 'Board', render: p => `${p.groups.length} group(s) by ${p.axis}`, go: 'storyboard' },
     { id: 'run-report', title: 'Runs', render: p => `${p.summary.total} run(s) · ${p.summary.failed} failed · $${(p.spend.recorded || 0).toFixed(2)} spent`, go: 'jobsqueue' },
 ];

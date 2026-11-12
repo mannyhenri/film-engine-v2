@@ -1,6 +1,6 @@
 /*
  * The storyboard engine. MOVED VERBATIM from the reference app (film-engine reference),
- * by tools/extract-engine.js: same names, same bodies. What only the Storyboard reaches of core: the anchor, impact and drift notices, frame versions, recompose, re-sync, the background picker, a frame's import, sending and audit, and the board's shared card parts. StoryboardPage.jsx calls them as E.x and puts every one on window while mounted (the HTML core and this engine draw calls them by name), and its own dialogs (background picker, frame versions) reach them that way.
+ * by tools/extract-engine.js: same names, same bodies. What only the Storyboard reaches of core: the anchor, impact and drift notices, frame versions, recompose, the background picker, a frame's import, sending and audit, and the board's shared card parts. StoryboardPage.jsx calls them as E.x and puts every one on window while mounted (the HTML core and this engine draw calls them by name), and its own dialogs (background picker, frame versions) reach them that way.
  *
  * Kept verbatim on purpose: backend tests read these functions from the page source, so the text they check is
  * the code that runs (tools/tests/engine-verbatim.test.js). Do not reformat it; change it as code, with its tests.
@@ -36,7 +36,6 @@ const {
     plateSrc,
     setStatus,
     showModal,
-    showModalHtml,
     streamSSEPost,
 } = Object.fromEntries([
     'annotationFeedbackOn',
@@ -64,7 +63,6 @@ const {
     'plateSrc',
     'setStatus',
     'showModal',
-    'showModalHtml',
     'streamSSEPost',
 ].map(n => [n, (...a) => legacy[n](...a)]));
 const live = (name) => new Proxy({}, {
@@ -89,12 +87,10 @@ const { WORLD, state } = Object.fromEntries(['WORLD', 'state'].map(n => [n, live
     async function loadBoardBanners() {
         const projectAtStart = state.currentProject && state.currentProject.id;
         await loadScreenplayDrift();
-        await loadImpact();
         const host = document.getElementById('boardBanners');
         if (!host) return;
         if (!state.currentProject || state.currentProject.id !== projectAtStart) return;
-        // One strip for both notices now — impactBanner() composes them, so the
-        // board gets a single line rather than two stacked paragraphs.
+        // One strip: impactBanner() composes it (the screenplay notice, the generated-work one removed).
         host.innerHTML = impactBanner();
         /*
          * The per-frame marks read the same two reports, so they are repainted
@@ -482,7 +478,7 @@ const { WORLD, state } = Object.fromEntries(['WORLD', 'state'].map(n => [n, live
                      onclick="editShotCard('${f.shot_id}')">+ ${missing} unset</span>`
             : '';
         const dur = f.duration_ms ? `<span class="tag">${(f.duration_ms / 1000).toFixed(1)}s</span>` : '';
-        return screenplayDriftTag(f) + impactTag(f) + dialogueTag(f) + tags + add + dur + storyboardPrevisTag(f);
+        return screenplayDriftTag(f) + dialogueTag(f) + tags + add + dur + storyboardPrevisTag(f);
     }
 
     /**
@@ -595,21 +591,18 @@ const { WORLD, state } = Object.fromEntries(['WORLD', 'state'].map(n => [n, live
             id: 'drift',
             colour: 'var(--gl-warning,#f59e0b)',
             title: 'Screenplay changed',
-            detail: `${shots} shot${shots === 1 ? '' : 's'} \u00b7 ${where}`,
+            detail: `${shots} shot${shots === 1 ? '' : 's'} \u00b7 ${where} \u00b7 <a href="#/${esc(state.currentProject.id)}/screenplay" style="color:var(--gl-brand-blue,#6690ff);"
+                    title="Update storyboard, on the Screenplay page, shows which cards change before it writes anything">update them from the Screenplay</a>`,
             actions: `
-                <button class="btn btn-primary btn-sm" onclick="previewResync()"
-                        title="Show exactly what a resync would change. Nothing is written until you say so.">Resync\u2026</button>
-                <button class="btn btn-secondary btn-sm" onclick="runShotAudit()"
-                        title="Check every card for subjects that would reach the model as neither picture nor description \u2014 free">Audit</button>
                 <button class="btn btn-ghost btn-sm" onclick="toggleWhy('driftWhy')">why</button>
                 <button class="btn btn-ghost btn-sm" onclick="acceptScreenplayDrift(this)"
                         title="Record these cards as still matching the screenplay \u2014 free">Still matches</button>`,
             why: `${where} changed after ${shots === 1 ? 'this card was' : 'these cards were'} written, so
                 ${shots === 1 ? 'it still describes' : 'they still describe'} the previous version of the story.
-                Nothing is blocked. <strong>Resync</strong> reconciles what can be reconciled without a
-                judgement \u2014 who and what is in each frame, dialogue that still matches word for word \u2014
-                and shows you the plan first. It never rewrites a description and never deletes a shot.
-                Anything needing a decision comes back as a list. The affected frames are marked below.`,
+                Nothing is blocked. <strong>Update storyboard</strong>, on the Screenplay page, carries the new
+                words onto these cards \u2014 rewritten, added and cut lines, who and what is in each frame \u2014
+                and lists every card it will change before it writes anything. It never rewrites a description
+                and never deletes a shot. The affected frames are marked below.`,
         };
     }
 
@@ -645,216 +638,9 @@ const { WORLD, state } = Object.fromEntries(['WORLD', 'state'].map(n => [n, live
             onclick="editShotCard('${f.shot_id}')">script changed</span>`;
     }
 
-    /**
-     * What a change has broken, all the way down the chain.
-     *
-     * Drift covers screenplay → card. This covers everything below it: card →
-     * keyframe → clip → lip-sync → post. The two are separate reports and one
-     * banner, because a director does not care which subsystem noticed.
-     */
-    let IMPACT = { shots: {}, redo_now: 0, waiting: 0 };
-
-    async function loadImpact() {
-        IMPACT = { shots: {}, redo_now: 0, waiting: 0 };
-        if (!state.currentProject) return;
-        try {
-            const res = await api(`/projects/${state.currentProject.id}/impact`);
-            IMPACT.redo_now = res.redo_now || 0;
-            IMPACT.waiting = res.waiting || 0;
-            for (const shot of (res.shots || [])) IMPACT.shots[shot.shot_id] = shot;
-        } catch (_) { /* the board still renders; this is additive */ }
-    }
-
-    /**
-     * The mark on a frame whose downstream work is behind.
-     *
-     * Says the stage and which of the two states it is in, because "redo the
-     * keyframe" and "the clip will need redoing after that" are different
-     * instructions and a single red dot conflates them.
-     */
-    function impactTag(f) {
-        const shot = IMPACT.shots[f.shot_id];
-        if (!shot) return '';
-        // The card's own state is already carried by the drift tag; showing it
-        // twice on the same frame reads as two separate problems.
-        const stages = shot.stages.filter(st => st.stage !== 'scene_card');
-        if (!stages.length) return '';
-        const redo = stages.filter(st => st.state === 'redo');
-        const waiting = stages.filter(st => st.state === 'waiting');
-        const label = redo.length
-            ? `redo ${redo.map(r => esc(r.stage)).join(', ')}`
-            : `${waiting.length} stage(s) waiting`;
-        const why = stages.map(st => `${st.stage}: ${st.why}`).join(' \u00b7 ');
-        const colour = redo.length ? 'var(--gl-danger,#ef4444)' : 'var(--gl-text-muted,#94a3b8)';
-        return `<span class="tag" style="cursor:default;border-color:${colour};color:${colour};"
-            title="${esc(why)}">${label}</span>`;
-    }
-
-    /** The generated-work half of the strip. */
-    function impactNotice() {
-        if (!IMPACT.redo_now && !IMPACT.waiting) return null;
-        const parts = [];
-        if (IMPACT.redo_now) parts.push(`${IMPACT.redo_now} to redo`);
-        if (IMPACT.waiting) parts.push(`${IMPACT.waiting} waiting`);
-        return {
-            id: 'impact',
-            colour: 'var(--gl-danger,#ef4444)',
-            title: 'Generated work behind its inputs',
-            detail: parts.join(' \u00b7 '),
-            actions: `
-                <button class="btn btn-ghost btn-sm" onclick="toggleWhy('impactWhy')">why</button>
-                <button class="btn btn-ghost btn-sm" onclick="acceptAllStale(this)"
-                        title="Record everything as still current for the inputs it has now \u2014 free">Still current</button>`,
-            why: `Do the <em>redo</em> items first \u2014 the waiting ones are only behind because something
-                above them is, and regenerating one now would build on the same old inputs and cost money to
-                produce something still wrong. &ldquo;Behind&rdquo; means the inputs a frame was made from have
-                changed since: a card, a description, the style, or how the engine builds prompts. It does
-                <strong>not</strong> mean the picture is wrong.`,
-        };
-    }
-
-    /** Both notices, one strip, ordered as the work is done. */
+    /** The notice strip: the screenplay notice. */
     function impactBanner() {
-        return noticeStrip([screenplayDriftNotice(), impactNotice()]);
-    }
-
-    /**
-     * RESYNC, PREVIEWED.
-     *
-     * The plan is shown before anything is written, and the apply is a second
-     * deliberate click. That is not ceremony: the last thing in this codebase
-     * that reconciled a screenplay against a board did it on the default path
-     * with no preview, and took sixteen shots, their blocking and their
-     * annotations with it through an ON DELETE CASCADE.
-     */
-    async function previewResync() {
-        if (!state.currentProject) return;
-        showModalHtml('resyncModal', '<h3>Resync</h3><p class="text-sm text-muted">Working out what would change\u2026</p>');
-        let plan;
-        try {
-            plan = await api(`/projects/${state.currentProject.id}/shots-resync`,
-                { method: 'POST', body: JSON.stringify({ apply: false }) });
-        } catch (err) {
-            return showModalHtml('resyncModal',
-                `<h3>Resync</h3><p class="text-sm">Could not build the plan: ${esc(err.message)}</p>
-                 <div class="modal-actions"><button class="btn btn-secondary" onclick="closeModal('resyncModal')">Close</button></div>`);
-        }
-
-        const changes = (plan.plan || []).flatMap(sc => sc.shots.map(sh =>
-            `<li><strong>${esc(sh.shot_code)}</strong> \u2014 ${sh.updates.map(u => esc(u.field)).join(', ')}</li>`)).join('');
-        const asks = (plan.plan || []).flatMap(sc => sc.needs_a_person.map(n =>
-            `<li><strong>${esc(n.shot_code || ('scene ' + sc.scene_number))}</strong> \u2014
-                 ${esc(String(n.kind).replace(/_/g, ' '))}${n.line ? `: <em>${esc(n.line)}</em>` : ''}
-                 <br><span class="text-muted">${esc(n.why)}</span></li>`)).join('');
-
-        showModalHtml('resyncModal', `
-            <h3>Resync \u2014 ${plan.cards_changed} card${plan.cards_changed === 1 ? '' : 's'} would change</h3>
-            <p class="text-sm text-muted" style="line-height:1.55;">
-                Nothing has been written. Resync refreshes only what follows from the screenplay without a
-                judgement. It <strong>never</strong> rewrites a description, and it <strong>never</strong>
-                deletes a shot. Camera, direction note, duration, shot code and the shot itself are untouched.
-            </p>
-            ${changes ? `<h4 class="text-sm" style="margin:14px 0 4px;">Would be reconciled</h4>
-                <ul class="text-sm" style="margin:0;padding-left:20px;line-height:1.7;">${changes}</ul>` : ''}
-            ${asks ? `<h4 class="text-sm" style="margin:14px 0 4px;">Left for you \u2014 ${plan.needs_a_person} item(s)</h4>
-                <ul class="text-sm" style="margin:0;padding-left:20px;line-height:1.7;">${asks}</ul>` : ''}
-            ${!changes && !asks ? '<p class="text-sm">Everything already matches the screenplay.</p>' : ''}
-            <div class="modal-actions">
-                <button class="btn btn-secondary" onclick="closeModal('resyncModal')">Cancel</button>
-                ${changes ? `<button class="btn btn-primary" onclick="applyResync(this)">Resync ${plan.cards_changed} card${plan.cards_changed === 1 ? '' : 's'}</button>` : ''}
-            </div>`);
-    }
-
-    async function applyResync(btn) {
-        if (!state.currentProject) return;
-        if (btn) { btn.disabled = true; btn.textContent = 'Resyncing\u2026'; }
-        try {
-            const r = await api(`/projects/${state.currentProject.id}/shots-resync`,
-                { method: 'POST', body: JSON.stringify({ apply: true }) });
-            closeModal('resyncModal');
-            setStatus(`${r.cards_changed} card(s) reconciled. ${r.needs_a_person} item(s) still need you.`);
-            await loadScreenplayDrift();
-            loadStoryboard();
-        } catch (err) {
-            setStatus('Resync failed: ' + err.message);
-            if (btn) { btn.disabled = false; btn.textContent = 'Retry'; }
-        }
-    }
-
-    /** The pre-flight, on demand. Free, and it spends nothing. */
-    async function runShotAudit() {
-        if (!state.currentProject) return;
-        showModalHtml('auditModal', '<h3>Audit</h3><p class="text-sm text-muted">Checking every card\u2026</p>');
-        let r;
-        try {
-            r = await api(`/projects/${state.currentProject.id}/shot-audit`);
-        } catch (err) {
-            return showModalHtml('auditModal',
-                `<h3>Audit</h3><p class="text-sm">Could not run it: ${esc(err.message)}</p>
-                 <div class="modal-actions"><button class="btn btn-secondary" onclick="closeModal('auditModal')">Close</button></div>`);
-        }
-        const tone = { error: 'var(--gl-danger,#ef4444)', warning: 'var(--gl-warning,#f59e0b)', info: 'var(--gl-text-muted,#94a3b8)' };
-        const rows = (r.findings || []).map(f => `<li style="margin-bottom:8px;">
-            <span class="tag" style="border-color:${tone[f.severity]};color:${tone[f.severity]};">${esc(f.severity)}</span>
-            <strong>${esc(f.shot_code)}</strong> \u2014 ${esc(String(f.type).replace(/_/g, ' '))}${f.subject ? `: ${esc(f.subject)}` : ''}
-            <br><span class="text-sm text-muted">${esc(f.why)}</span>
-            ${f.fix ? `<br><span class="text-sm" style="opacity:.8;">\u2192 ${esc(f.fix)}</span>` : ''}
-        </li>`).join('');
-        showModalHtml('auditModal', `
-            <h3>Audit \u2014 ${r.shots_checked} shot${r.shots_checked === 1 ? '' : 's'}</h3>
-            <p class="text-sm text-muted" style="line-height:1.55;">
-                ${r.counts.error} error \u00b7 ${r.counts.warning} warning \u00b7 ${r.counts.info} note.
-                ${esc(r.note)}
-            </p>
-            ${rows ? `<ul class="text-sm" style="margin:12px 0 0;padding-left:20px;line-height:1.6;">${rows}</ul>`
-                   : '<p class="text-sm">Nothing to report.</p>'}
-            <div class="modal-actions"><button class="btn btn-secondary" onclick="closeModal('auditModal')">Close</button></div>`);
-    }
-
-    /**
-     * "All of this is still the film I want."
-     *
-     * The per-asset accept has existed since fingerprinting shipped and is
-     * unusable at the scale a real project reaches: improvements to how prompts
-     * are built move every fingerprint, so seventy artefacts report behind and
-     * each needs its own click. That is how a report gets dismissed
-     * permanently — and then the real warning is dismissed with it.
-     *
-     * The claim is the director's, not the engine's, so it is one deliberate
-     * act with the consequence stated.
-     */
-    async function acceptAllStale(btn) {
-        if (!state.currentProject) return;
-        /*
-         * BOTH HALVES, CARDS FIRST. The "behind" report is rooted in the shot
-         * cards: a card the screenplay moved on without is the top of every
-         * chain below it. Accepting only the generated work left that root in
-         * place, so the button could be pressed forever and the banner stayed —
-         * which is how this was reported. "All still current" includes the
-         * cards, and says so.
-         */
-        const cards = legacy.DRIFT.scenes.reduce((n, s) => n + s.shots_behind.length, 0);
-        if (!confirm('Record all of this as still current?\n\n'
-            + (cards ? `- ${cards} shot card(s) still match the screenplay as it stands now\n` : '')
-            + '- the generated pictures are still the film you want, for the inputs they have now\n\n'
-            + 'Nothing is regenerated, no card is changed and nothing is spent. '
-            + 'If a subject or a shot card genuinely did change, fix that one instead.')) return;
-
-        const label = btn && btn.textContent;
-        if (btn) { btn.disabled = true; btn.textContent = 'Accepting…'; }
-        try {
-            if (cards) await api(`/projects/${state.currentProject.id}/screenplay-drift/accept`, { method: 'POST', body: '{}' });
-            const r = await api(`/projects/${state.currentProject.id}/staleness/accept`,
-                { method: 'POST', body: JSON.stringify({}) });
-            const kinds = Object.entries(r.by_kind || {}).map(([k, n]) => `${n} ${k.replace(/_/g, ' ')}`);
-            setStatus(`${r.accepted} accepted as current${kinds.length ? ' — ' + kinds.join(', ') : ''}.`
-                + (r.warning ? ' ' + r.warning : ''));
-            loadStoryboard();
-        } catch (err) {
-            setStatus('Could not accept: ' + err.message);
-        } finally {
-            if (btn) { btn.disabled = false; btn.textContent = label || 'This is all still current'; }
-        }
+        return noticeStrip([screenplayDriftNotice()]);
     }
 
     /**
@@ -1367,11 +1153,6 @@ const { WORLD, state } = Object.fromEntries(['WORLD', 'state'].map(n => [n, live
     }
 
     /** Play from this shot, deliberately. */
-    function playFromShot(shotId) {
-        markCurrentShot(shotId);
-        navigateTo('playback');
-    }
-
 export {
     loadBoardBanners,
     storyboardImportButton,
@@ -1400,15 +1181,7 @@ export {
     screenplayDriftNotice,
     acceptScreenplayDrift,
     screenplayDriftTag,
-    IMPACT,
-    loadImpact,
-    impactTag,
-    impactNotice,
     impactBanner,
-    previewResync,
-    applyResync,
-    runShotAudit,
-    acceptAllStale,
     setShotAspect,
     BATCH_CHOICES,
     generateAllStoryboards,
@@ -1425,5 +1198,4 @@ export {
     renderBoardLock,
     toggleBoardLock,
     insertShotAfter,
-    playFromShot,
 };

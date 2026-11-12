@@ -68,7 +68,7 @@
     "dialogue-audition.test.js": [
       {
         "name": "every scope is reachable from the page AND from an agent",
-        "reason": "REACT: finds a control only as legacy onclick text; generateAllVoices is a React button on Video Shots now. Held in full by src/pages/registry-reach.test.jsx, over DIALOGUE_SCOPES imported: the MCP tool per scope, the why_no_ui rule, and the control (legacy onclick, or a React page rendered from its reach.js and the button CLICKED, which must reach the API or core)."
+        "reason": "REACT: finds a control only as legacy onclick text, and the page controls are React. Held in full by src/pages/registry-reach.test.jsx, over DIALOGUE_SCOPES imported: the MCP tool per scope, the why_no_ui rule, and the control (legacy onclick, or a React page rendered from its reach.js and the button CLICKED, which must reach the API or core)."
       }
     ],
     "direct-shot-ui.test.js": [
@@ -87,12 +87,6 @@
       {
         "name": "the canvas accepts dropped files, hashes them in the browser, asks /match, and opens the recipe or offers the upload",
         "reason": "reads film-engine repo file ios/FilmEngine/Web/index.html"
-      }
-    ],
-    "editor-transport.test.js": [
-      {
-        "name": "every transport control exists and is bound to something clickable",
-        "reason": "reads onclick=\"pbX(\" out of the legacy Playback page source; Playback is React (no such text). Held in src/pages/playback/PlaybackControls.test.jsx: every control the reference markup bound, operated on the React page, calls the same engine function with the same arguments"
       }
     ],
     "edits.test.js": [
@@ -165,12 +159,6 @@
         "reason": "reads film-engine repo file docs/plans/film-engine-camera-brief.md"
       }
     ],
-    "flow-canvas-reach.test.js": [
-      {
-        "name": "with the graph on, the Flows page is reachable by address, with no back button when not arriving from the graph",
-        "reason": "reads film-engine repo file ios/FilmEngine/Web/index.html"
-      }
-    ],
     "flow-form.test.js": [
       {
         "name": "the drawer renders the form, every control, and the plan it confirms carries the values",
@@ -181,6 +169,14 @@
       {
         "name": "releasing a wire on empty canvas opens the suggestions; picking one adds the node there, wired",
         "reason": "reads film-engine repo file ios/FilmEngine/Web/index.html"
+      },
+      {
+        "name": "the page's compatibility rule is the server's, over every pair of port types",
+        "reason": "tests the Flows page, removed with Production's older pages by the user (2026-11-11)"
+      },
+      {
+        "name": "the page suggests exactly the server's set for every port type, each with the input it will wire to",
+        "reason": "tests the Flows page, removed with Production's older pages by the user (2026-11-11)"
       }
     ],
     "flow-outputs.test.js": [
@@ -315,6 +311,10 @@
       {
         "name": "a successful location save is not reported as an error",
         "reason": "reads saveLocation's body out of the page script; the locations page is React now. src/pages/subjects-contract.test.jsx runs the React save down its screenplay-updated branch and holds what it calls (loadScreenplayPage) to being defined in core."
+      },
+      {
+        "name": "a station of a strip can be corrected from the page",
+        "reason": "tests the Video Shots (its sequence strip) page, removed with Production's older pages by the user (2026-11-11)"
       }
     ],
     "page-parses.test.js": [
@@ -327,12 +327,32 @@
       {
         "name": "every mark operation has a control bound to something clickable",
         "reason": "reads onclick=\"pbX(\" out of the legacy Playback page source; Playback is React (no such text). Held in src/pages/playback/PlaybackControls.test.jsx: every control the reference markup bound, operated on the React page, calls the same engine function with the same arguments"
+      },
+      {
+        "name": "the page mirrors the resolver, and the two agree on every case",
+        "reason": "tests the Playback page, removed with Production's older pages by the user (2026-11-11)"
+      },
+      {
+        "name": "the surface shows the length, the floor and the cost before spending",
+        "reason": "tests the Playback page, removed with Production's older pages by the user (2026-11-11)"
+      },
+      {
+        "name": "the cost comes from the engine rather than a rate table in the page",
+        "reason": "tests the Playback page, removed with Production's older pages by the user (2026-11-11)"
       }
     ],
     "playback-start.test.js": [
       {
         "name": "there is a way to play from a specific shot deliberately",
         "reason": "reads the legacy template text playFromShot('${f.shot_id}'); the Storyboard is React. src/pages/storyboard/StoryboardPage.test.jsx clicks \u25b6 on a card and checks playFromShot is called with that card's shot."
+      },
+      {
+        "name": "playback starts at the marked shot, not always the first",
+        "reason": "tests the Playback page, removed with Production's older pages by the user (2026-11-11)"
+      },
+      {
+        "name": "an unknown or missing mark falls back to the first shot",
+        "reason": "tests the Playback page, removed with Production's older pages by the user (2026-11-11)"
       }
     ],
     "premiere-scenes.test.js": [
@@ -383,6 +403,10 @@
       {
         "name": "the brief states the constraints that decide the design",
         "reason": "reads film-engine repo file docs/plans/redo-between-frames-brief.md"
+      },
+      {
+        "name": "every claim the brief rests on still holds in the code",
+        "reason": "tests the Video Shots (its sequence strip) page, removed with Production's older pages by the user (2026-11-11)"
       }
     ],
     "redo-between-frames-epic.test.js": [
@@ -401,6 +425,10 @@
       {
         "name": "the epic states the constraints that decide the design",
         "reason": "reads film-engine repo file docs/plans/redo-between-frames-epic.md"
+      },
+      {
+        "name": "every claim the epic rests on still holds in the code",
+        "reason": "tests the Video Shots (its sequence strip) page, removed with Production's older pages by the user (2026-11-11)"
       }
     ],
     "requested-size.test.js": [
@@ -567,6 +595,10 @@
       {
         "name": "desktop and packaged mobile UI compile and stay identical",
         "reason": "reads film-engine repo file ios/FilmEngine/Web/index.html"
+      },
+      {
+        "name": "Post Playback loads and scrubs relative to the saved source in and times the edited cut",
+        "reason": "tests the Playback page, removed with Production's older pages by the user (2026-11-11)"
       }
     ],
     "world-blender-import.test.js": [
@@ -611,6 +643,86 @@
       {
         "name": "the printed script is a shooting script: scene numbers in both margins, eighths on the right",
         "reason": "its regex reads SCRIPT_TIMING where the Screenplay engine reads the core let through the bridge, legacy.SCRIPT_TIMING (the one rewrite tools/tests/engine-verbatim.test.js allows). Kept in backend/tests/screenplay-backend-halves.test.js, verbatim but for accepting that form"
+      }
+    ],
+    "audio-cards.test.js": [
+      {
+        "name": "a library sound renders as a CARD carrying every detail",
+        "reason": "tests the Music & Sound page, removed with Production's older pages by the user (2026-11-11)"
+      },
+      {
+        "name": "the card shows a waveform, and the server can produce one",
+        "reason": "tests the Music & Sound page, removed with Production's older pages by the user (2026-11-11)"
+      }
+    ],
+    "dialogue-delivery.test.js": [
+      {
+        "name": "the player waits the pause the timeline computed",
+        "reason": "tests the Playback page, removed with Production's older pages by the user (2026-11-11)"
+      }
+    ],
+    "dialogue-playback.test.js": [
+      {
+        "name": "playback plays the lines, chained on the end of each",
+        "reason": "tests the Playback page, removed with Production's older pages by the user (2026-11-11)"
+      },
+      {
+        "name": "the dialogue can be turned off, and it applies to the shot you are on",
+        "reason": "tests the Playback page, removed with Production's older pages by the user (2026-11-11)"
+      }
+    ],
+    "inbetween-plan.test.js": [
+      {
+        "name": "W1 \u00b7 the strip is reachable from the page, not only from an agent",
+        "reason": "tests the Video Shots (its sequence strip) page, removed with Production's older pages by the user (2026-11-11)"
+      }
+    ],
+    "music-direction.test.js": [
+      {
+        "name": "playback plays each bed, with a switch, and stops it on pause",
+        "reason": "tests the Playback and Music & Sound page, removed with Production's older pages by the user (2026-11-11)"
+      },
+      {
+        "name": "a bed is seeded once and not restarted at every cut",
+        "reason": "tests the Playback and Music & Sound page, removed with Production's older pages by the user (2026-11-11)"
+      },
+      {
+        "name": "an ambient direction has somewhere to be written",
+        "reason": "tests the Playback and Music & Sound page, removed with Production's older pages by the user (2026-11-11)"
+      }
+    ],
+    "shot-motion.test.js": [
+      {
+        "name": "the page evaluates a track exactly as the library does",
+        "reason": "tests the Playback page, removed with Production's older pages by the user (2026-11-11)"
+      },
+      {
+        "name": "playback applies the track to the still and can be turned off",
+        "reason": "tests the Playback page, removed with Production's older pages by the user (2026-11-11)"
+      },
+      {
+        "name": "the player turns the move off, and never leaves one on the next shot",
+        "reason": "tests the Playback page, removed with Production's older pages by the user (2026-11-11)"
+      }
+    ],
+    "sound-library-files.test.js": [
+      {
+        "name": "every audio kind can appear on the page, and the card shows each fact",
+        "reason": "tests the Music & Sound page, removed with Production's older pages by the user (2026-11-11)"
+      },
+      {
+        "name": "one button generates a sound from a prompt, with a shot for its details",
+        "reason": "tests the Music & Sound page, removed with Production's older pages by the user (2026-11-11)"
+      }
+    ],
+    "video-surfaces.test.js": [
+      {
+        "name": "every tier can be chosen from the route and from the page",
+        "reason": "tests the Video Shots (the clip tier row it opted into) page, removed with Production's older pages by the user (2026-11-11)"
+      },
+      {
+        "name": "the page shows the estimate where the money is spent",
+        "reason": "tests the Video Shots (the clip tier row it opted into) page, removed with Production's older pages by the user (2026-11-11)"
       }
     ]
   }

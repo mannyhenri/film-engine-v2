@@ -28,7 +28,7 @@ function openPage() {
     return { legacy, view };
 }
 
-// The shared walker (src/test/reference.js), with its one named exemption: a list's bar host (data-v2-added).
+// The shared walker (src/test/reference.js), with its named exemptions (V2_ADDED): a list's bar host, the Update storyboard button.
 const walk = domWalk;
 
 describe('Screenplay: the React page is the legacy markup', () => {

@@ -60,7 +60,7 @@ export default function DeliverablesPage() {
         catch (err) { setData({ error: err.message }); return; }
         const packages = res.packages || [];
         legacy.state.deliverableRows = res.deliverables || [];
-        // The board and playback pickers offer what this job ships.
+        // The board's picker offers what this job ships.
         try { legacy.refreshProtectOptions(); } catch { /* pickers may not be on screen */ }
         setData({ profiles: res.profiles || [], packages, rows: legacy.state.deliverableRows });
         setPkg(p => (packages.includes(p) ? p : packages[0] || ''));

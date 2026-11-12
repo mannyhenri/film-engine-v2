@@ -9,7 +9,7 @@
  *
  *   node tools/make-react-page.js <spec.json>
  *   spec: { "id": "music", "component": "MusicPage", "markup": "(optional; else the reference's page)", "engine": "../music/engine.js",
- *           "loader": "loadMusic", "provides": [...], "ownsEngine": true, "about": "one paragraph",
+ *           "loader": "loadNotesPage", "provides": [...], "ownsEngine": true, "about": "one paragraph",
  *           "mount": "(optional) ./canvas-pointer.js", "lists": "(optional) ./lists.jsx" }
  *
  * mount: a module whose default export binds what the legacy code bound at load and is not a declaration (a

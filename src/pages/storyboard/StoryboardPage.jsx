@@ -255,7 +255,6 @@ function FrameCard({ f, project, protect, onUpscale }) {
                     <button className="btn btn-secondary btn-sm" disabled={!f.image_url} onClick={() => onUpscale(f.shot_id)} title="Finish this clean image to 2K or 4K with a cost confirmation">Upscale</button>
                     <Html style={{ display: 'contents' }} html={E.storyboardImportButton(f)} />
                     <button className="btn btn-secondary btn-sm" onClick={() => E.openFrameVersions(f.shot_id)} title={E.frameVersionTitle(f)}>{E.frameVersionLabel(f)}</button>
-                    <button className="btn btn-secondary btn-sm" onClick={() => E.playFromShot(f.shot_id)} title="Watch the cut starting from this shot">&#9654;</button>
                     <button className="btn btn-secondary btn-sm" onClick={() => E.insertShotAfter(f.shot_id)} title="Add a new shot immediately after this one, in the same scene">+ Shot</button>
                 </div>
                 {/* Its own target, so the drift and impact marks are painted in by core when those reports land. */}

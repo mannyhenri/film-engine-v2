@@ -55,7 +55,7 @@ function listBridges(req, res, projectId) {
             ? 'A bridge replaces the tail of one shot and the head of the next. It is deliberately '
               + 'not in the timeline or the exports — trim the two shots as each row says and lay '
               + 'the bridge between them in your editor.'
-            : 'No bridges yet. Mark across a cut in Playback and press Bridge this cut.',
+            : 'No bridges yet.',
     });
 }
 

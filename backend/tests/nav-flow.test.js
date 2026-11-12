@@ -125,11 +125,13 @@ test('you write before you shoot, and shoot before you finish', () => {
     // assertions anchored on them are replaced by the same claim over surfaces
     // that still exist. Deleting them outright would have quietly dropped the
     // half of this test that checks POST comes last.
+    // The shot board and video shots went with Production's older pages (2026-11-11): the board is planned on the
+    // Storyboard and shot in the Production studio, so those stand for them.
     const order = page => GROUP_ORDER.indexOf(phaseOf(page));
-    assert.ok(order('screenplay') < order('shotboard'), 'the screenplay comes after the shot board');
-    assert.ok(order('characters') < order('videoshots'), 'casting comes after shooting');
-    assert.ok(order('videoshots') < order('exportpage'), 'export comes before shooting');
-    assert.ok(order('storyboard') < order('videoshots'), 'the board comes after the footage');
+    assert.ok(order('screenplay') < order('storyboard'), 'the screenplay comes after the board');
+    assert.ok(order('characters') < order('productiongraph'), 'casting comes after shooting');
+    assert.ok(order('productiongraph') < order('exportpage'), 'export comes before shooting');
+    assert.ok(order('storyboard') < order('productiongraph'), 'the board comes after the footage');
 });
 
 test('the always-available pages are the ones with no phase', () => {

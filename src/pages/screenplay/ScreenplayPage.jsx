@@ -3,6 +3,7 @@ import { usePageLoader } from '../../lib/usePageLoader.js';
 import { legacy } from '../../lib/legacy.js';
 import * as E from './engine.js';
 import Lists from './lists.jsx';
+import UpdateStoryboard from '../../components/UpdateStoryboard/UpdateStoryboard.jsx';
 
 /*
  * The Screenplay page, as React. It OWNS the screenplay engine (engine.js): the legacy screenplay chunk and the editor core only this page and its dialogs use, moved. It registers every engine function on window while mounted (the engine and the dialogs draw HTML with inline handlers that call them by name); what core, the dialogs (ScreenplayDialogs) and the Scenes page call by name is in react.json provides.
@@ -58,6 +59,8 @@ export default function ScreenplayPage() {
                 {' '}
                 <div id="scriptVersionSelector" style={{ "marginLeft": "auto" }}></div>
                 {' '}
+                {/* v2: put the latest screenplay changes on the storyboard cards (plan first, then confirm). */}
+                <span data-v2-added="update-storyboard" style={{ display: 'contents' }}><UpdateStoryboard screenplay={E} /></span>
             </div>
             {' '}
             <div className="screenplay-editor-container">

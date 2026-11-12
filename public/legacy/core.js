@@ -110,10 +110,10 @@
     window.state = state;
 
     const GUIDE_PAGE_ORDER = [
-        'dashboard', 'screenplay', 'scenes', 'shotboard', 'storyboard',
-        'characters', 'locations', 'props', 'assets', 'threed', 'videoshots',
-        'music', 'colorgrading', 'milestones', 'notes', 'renderhistory',
-        'continuity', 'consistency', 'budget', 'exportpage', 'pipeline', 'settings',
+        'dashboard', 'screenplay', 'scenes', 'storyboard', 'productiongraph',
+        'characters', 'locations', 'props', 'assets', 'threed',
+        'colorgrading', 'milestones', 'notes', 'renderhistory',
+        'continuity', 'consistency', 'budget', 'exportpage', 'settings',
         'stylebook',
     ];
 
@@ -131,7 +131,7 @@
           'Quick navigation into whatever needs attention'
         ],
         needs: ['A project. Everything else fills in as you work.'],
-        next: ['screenplay', 'shotboard'],
+        next: ['screenplay', 'storyboard'],
         pro: 'StudioBinder / Yamdu project dashboard'
       },
 
@@ -161,25 +161,10 @@
           'The anchor that shots, music cues, and ambient audio attach to'
         ],
         needs: ['A screenplay with properly formatted scene headings (INT./EXT.).'],
-        next: ['shotboard'],
+        next: ['storyboard'],
         pro: 'Script breakdown in StudioBinder / Movie Magic'
       },
 
-      shotboard: {
-        title: 'Shot Board', icon: '&#127919;', group: 'Production', stage: 'plan', order: 4,
-        tooltip: 'Kanban board of every shot, organized by scene, each with a scene card',
-        purpose: 'Your shot list. Break each scene into the individual shots you will actually generate, and describe each one with a scene card — the structured YAML that drives every downstream AI generation.',
-        does: [
-          'Create and order shots within each scene',
-          'Write scene cards: camera, lens, movement, lighting, characters, style',
-          'Drag to reorder; set per-shot in/out transitions',
-          'Track each shot through its production stage'
-        ],
-        needs: ['Scenes extracted from your screenplay.'],
-        next: ['storyboard', 'consistency'],
-        pro: 'StudioBinder shot lists / ShotGrid shot tracking',
-        note: 'The scene card is the most important thing you write in this app. Every image, video, and audio prompt downstream is built from it — vague cards produce vague films.'
-      },
 
       storyboard: {
         title: 'Storyboard', icon: '&#128444;', group: 'Production', stage: 'previs', order: 5,
@@ -192,9 +177,24 @@
           'Regenerate any single shot without disturbing the rest'
         ],
         needs: ['Shots with scene cards. Locked character identities give far better results.'],
-        next: ['videoshots', 'continuity'],
+        next: ['productiongraph', 'continuity'],
         pro: 'Storyboard Pro / Boords / previs department',
         note: 'Cheap to iterate here, expensive to fix later. Get the keyframe right before you spend on video.'
+      },
+
+      productiongraph: {
+        title: 'Production', icon: '&#9672;', group: 'Production', stage: 'produce', order: 6,
+        tooltip: 'Direct, generate and cut the film: one studio for the whole Production phase',
+        purpose: 'Where the storyboard becomes footage. Pick shots, direct acting, camera, dialogue, sound and light on a timeline, watch the prompt rebuild as you direct, check it against the model and generate; then cut the picked shots in order and send the timeline to DaVinci Resolve.',
+        does: [
+          'Generate: shots and sequences directed on a timeline with camera, acting, dialogue and sound tracks',
+          'Cut: the rough edit, footage or not, sent to DaVinci Resolve as a timeline',
+          'Generators: local AI tools on any video (slow motion, upscale, depth, rotoscope, stems, subtitles)'
+        ],
+        needs: ['Storyboard frames. Locked character identities give far better results.'],
+        next: ['edits', 'exportpage'],
+        pro: 'Director, DP and editor in one room',
+        note: 'Credits are shown before anything is sent. Nothing is spent until you confirm.'
       },
 
       acts: {
@@ -207,7 +207,7 @@
           'Read your structure as a whole'
         ],
         needs: ['Scenes.'],
-        next: ['shotboard', 'milestones'],
+        next: ['storyboard', 'milestones'],
         pro: 'Save the Cat / Story structure boards in Celtx'
       },
 
@@ -270,7 +270,7 @@
           'Track exports alongside source media'
         ],
         needs: ['Any generation step. It fills automatically.'],
-        next: ['videoshots', 'exportpage'],
+        next: ['productiongraph', 'exportpage'],
         pro: 'Media asset management (MAM) / ftrack asset tracking'
       },
 
@@ -289,36 +289,6 @@
         pro: 'Maya / Blender asset pipeline'
       },
 
-      videoshots: {
-        title: 'Video Shots', icon: '&#127909;', group: 'Media', stage: 'produce', order: 12,
-        tooltip: 'Generate the actual moving footage per shot, then hand off to your editor',
-        purpose: 'Where your film becomes moving pictures. Each shot generates video from its keyframe and scene card, with camera movement mapped from what you wrote.',
-        does: [
-          'Generate video per shot or in batch, with live progress',
-          'Camera movement control across 18 movement types',
-          'Uses the storyboard keyframe as the starting frame',
-          'Long shots split into sub-clips and stitched back together'
-        ],
-        needs: ['Shots with keyframes. Generate storyboards first.'],
-        next: ['music', 'colorgrading'],
-        pro: 'Principal photography',
-        note: 'This is your shoot day. It is also the most expensive step — check the keyframe and lock identity before you run a batch.'
-      },
-
-      music: {
-        title: 'Music & Sound', icon: '&#127925;', group: 'Media', stage: 'produce', order: 13,
-        tooltip: 'Ambient beds and sound effects per scene or shot, and the music you bring in',
-        purpose: 'The audio half of the film. Generates location ambience and spot effects from what each scene is doing and where it takes place, and holds the music you bring in.',
-        does: [
-          'Ambient beds derived from location and time of day',
-          'Sound effects per shot',
-          'Batch generation, then mix with ducking and loudness normalization'
-        ],
-        needs: ['Scenes. Shots for SFX.'],
-        next: ['exportpage'],
-        pro: 'Sound design + re-recording mixer'
-      },
-
       colorgrading: {
         title: 'Color Grading', icon: '&#127912;', group: 'Media', stage: 'post', order: 15,
         tooltip: 'LUT presets and color correction, plus shot-to-shot color matching',
@@ -329,7 +299,7 @@
           'Runs alongside upscaling and face restoration in post'
         ],
         needs: ['Generated video.'],
-        next: ['exportpage', 'pipeline'],
+        next: ['exportpage', 'productiongraph'],
         pro: 'DaVinci Resolve color suite'
       },
 
@@ -354,7 +324,7 @@
           'Review history per shot'
         ],
         needs: ['Shots, ideally with generated media to react to.'],
-        next: ['shotboard', 'renderhistory'],
+        next: ['storyboard', 'renderhistory'],
         pro: 'Frame.io / ftrack review + dailies notes'
       },
 
@@ -399,7 +369,7 @@
           'Attach reference assets to a profile'
         ],
         needs: ['Characters, locations, or props to lock.'],
-        next: ['storyboard', 'videoshots'],
+        next: ['storyboard', 'productiongraph'],
         pro: 'No traditional equivalent — this is AI-native',
         note: 'Do this BEFORE you generate at volume. Locking identity after a batch means regenerating the batch.'
       },
@@ -450,21 +420,6 @@
         pro: 'Conform / turnover to editorial'
       },
 
-      pipeline: {
-        title: 'Pipeline', icon: '&#9881;', group: 'Delivery', stage: 'produce', order: 23,
-        tooltip: 'Run the whole 9-step production chain automatically, per shot or project-wide',
-        purpose: 'Automation. Runs keyframe → video → voice → lipsync → music → SFX → ambient → post → assembly in dependency order, so you are not clicking through nine screens per shot.',
-        does: [
-          'Run the full chain for a shot, a scene, or the project',
-          'Skips steps that do not apply, such as voice on a shot with no dialogue',
-          'Retries failures with backoff; pause, resume, or cancel a run',
-          'Smart scheduling that groups steps by model to reduce GPU swapping'
-        ],
-        needs: ['Shots with scene cards. Lock identities first, and check your budget.'],
-        next: ['dashboard', 'exportpage'],
-        pro: 'Render farm / pipeline orchestration (Deadline, ftrack)',
-        note: 'The fastest way to spend money in this app. Run one shot end to end and look at it before you run the project.'
-      },
 
       settings: {
         title: 'Settings', icon: '&#9881;', group: 'Delivery', stage: 'orient', order: 24,
@@ -885,30 +840,6 @@
             cards.forEach(h => h.addEventListener('click', () => setTimeout(sync, 0)));
         });
     }
-
-    // ══════════════════════════════════════════════════════════════
-    // API HELPERS
-    // ══════════════════════════════════════════════════════════════
-    // ── Flows canvas ─────────────────────────────────────────────────────
-    //
-    // Hand-rolled SVG rather than a graph library: gridlight.json pins
-    // build.target=single-html and this SPA has no bundler, so a React-based
-    // canvas would mean introducing a build system to ship one page. The
-    // interaction set a media flow actually needs — drag nodes, draw typed
-    // edges, pan/zoom, select, delete — is small enough that the dependency
-    // would cost more than it saves.
-
-    const FLOW = {
-        flow: null,           // { id, name, is_builtin, nodes, edges }
-        types: {},            // node type registry, fetched from the server
-        selected: null,       // node id
-        view: { x: 0, y: 0, k: 1 },
-        drag: null,           // { id, dx, dy } while moving a node
-        link: null,           // { from, port, type } while drawing an edge
-        pan: null,
-        dirty: false,
-        runNodeStatus: {},    // nodeId -> status, painted during a run
-    };
 
     /**
      * WHILE A GENERATION RUNS, THE THING YOU CLICKED SAYS SO.
@@ -1346,10 +1277,12 @@
     }
     // React port: page loaders that live in chunks, declared here so navigateTo's loaders map
     // evaluates before their chunk loads; each chunk's own function declaration fills its name in.
-    var loadProjects, loadDashboard, loadScreenplayPage, loadScenes, loadShotBoard, loadStoryboard, loadCharacters, loadLocations, loadProps, loadAssets, loadMilestones, loadNotesPage, loadRenderPage, loadEditsPage, loadExportPage, loadPipeline, loadFlowsPage, loadProductionGraph, loadMoodBoardPage, loadStyleBook, loadPrevisPage, loadSettings, loadJobsQueuePage, loadBrands, loadDeliverables, loadRights, loadTitles, loadSubtitles, loadMarketing, loadConsistency, loadSpend, loadBudget, loadThreeD, loadVideoShots, loadMusic, loadPlayback;
+    var loadProjects, loadDashboard, loadScreenplayPage, loadScenes, loadStoryboard, loadCharacters, loadLocations, loadProps, loadAssets, loadMilestones, loadNotesPage, loadRenderPage, loadEditsPage, loadExportPage, loadProductionGraph, loadMoodBoardPage, loadStyleBook, loadPrevisPage, loadSettings, loadJobsQueuePage, loadBrands, loadDeliverables, loadRights, loadTitles, loadSubtitles, loadMarketing, loadConsistency, loadSpend, loadBudget, loadThreeD;
 
 
     function navigateTo(page) {
+        // A page that no longer exists (an old bookmark, a remembered route) opens Home.
+        if (!document.getElementById('page-' + page)) page = 'dashboard';
         /*
          * NO FILM OPEN. A page that belongs to a film, opened with none (a phase tab, a rail button, a stale URL),
          * drew an empty film and left no way back to the project list. Only these stand without a project: the
@@ -1385,7 +1318,6 @@
             dashboard: loadDashboard,
             screenplay: loadScreenplayPage,
             scenes: loadScenes,
-            shotboard: loadShotBoard,
             storyboard: loadStoryboard,
             characters: loadCharacters,
             locations: loadLocations,
@@ -1396,8 +1328,6 @@
             renderhistory: loadRenderPage,
             edits: loadEditsPage,
             exportpage: loadExportPage,
-            pipeline: loadPipeline,
-            flows: loadFlowsPage,
             productiongraph: loadProductionGraph,
             moodboard: loadMoodBoardPage,
             stylebook: loadStyleBook,
@@ -1420,11 +1350,6 @@
             consistency: loadConsistency,
             budget: () => { loadSpend(); loadBudget(); },
             threed: loadThreeD,
-            videoshots: loadVideoShots,
-            music: loadMusic,
-            // ==== CLAUDE:START loaders (gaps 3/4/5/7d) ====
-            playback: loadPlayback,
-            // ==== CLAUDE:END ====
         };
         // Remembered so the page can reload itself without a navigation —
         // the data changes underneath us whenever an agent writes through MCP,
@@ -2576,7 +2501,7 @@
             // none, which is what every caller sent before.
             await api(path, { method: 'POST', body: JSON.stringify(body || {}) });
             setStatus(label + ' complete');
-            (reload || loadVideoShots)();
+            if (reload) reload();
         } catch (err) {
             setStatus(label + ' error: ' + err.message);
             if (btn) { btn.disabled = false; btn.textContent = label; }
@@ -3817,11 +3742,8 @@
      * hide the generator -- and it was: every video dialog showed no provider
      * picker at all, because the pickers only rendered beside an editable box.
      */
-    async function confirmPickers(capability, how) {
+    async function confirmPickers(capability) {
         const cap = capability || 'image';
-        // A clip dialog with its own priced tier row ("How good does this one
-        // need to be?") must not draw a second, unpriced one beside it.
-        const ownTiers = !!(how && how.ownTiers);
         CONFIRM_GEN_QUALITY = null;
         CONFIRM_GEN_PROVIDER = null;
         CONFIRM_GEN_MODEL = null;
@@ -3881,7 +3803,7 @@
             'This generation only. Nothing is pinned to the project.', 'confirmGenProviderNote');
 
         const tiers = (opts && opts.tiers) || null;
-        const tierBox = ownTiers ? '' : tiers && tiers.length ? box('Quality for this one',
+        const tierBox = tiers && tiers.length ? box('Quality for this one',
             tiers.map(t => {
                 const f = tierFacts[t.id] || {};
                 return `<button type="button" class="btn btn-secondary btn-sm"
@@ -3901,7 +3823,7 @@
          * change it back afterwards.
          */
         const sizes = (opts && opts.sizes) || null;
-        const sizeBox = ownTiers ? '' : sizes && sizes.length ? box('Size for this one',
+        const sizeBox = sizes && sizes.length ? box('Size for this one',
             `<button type="button" class="btn btn-sm" data-size="" onclick="pickGenSize('')"
                      style="flex:1;min-width:110px;">Project default</button>`
             + sizes.map(z => `<button type="button" class="btn btn-secondary btn-sm"
@@ -4249,67 +4171,7 @@
                 : 'Using the project default. Nothing is pinned to the project.';
         }
     }
-
-
-    /*
-     * The video tier row, and what it costs.
-     *
-     * A tier is a POLICY choice — how cheap, how good, how many attempts are
-     * reasonable — so it belongs beside the Generate button rather than in a
-     * settings page. Picking one re-reads the FREE preview, so the number under
-     * the button is the number that will be charged, including the reference
-     * images and any minimum.
-     */
-    let CONFIRM_GEN_VIDEO_TIER = null;
     let CONFIRM_GEN_PREVIEW_URL = null;
-
-    const VIDEO_TIER_BLURB = {
-        draft: 'Is the blocking right? The cheapest possible answer.',
-        production: 'The shot as it will be cut, with the reference package.',
-        hero: 'The shot the film is judged on. You pick the model.',
-    };
-
-    function videoEstimateHtml(d) {
-        const e = d && d.estimate;
-        // Runway prices in credits; MuAPI and the rest in dollars from the rate book.
-        if (!e || !(e.credits || e.usd)) return '<div class="text-sm" style="opacity:.6;">No estimate available for this model.</div>';
-        const refs = (d.references && d.references.sending) || 0;
-        const dropped = (d.references && d.references.dropped) || [];
-        return `
-          <div style="display:flex;justify-content:space-between;align-items:baseline;">
-            <strong style="font-size:15px;">$${Number(e.usd).toFixed(2)}</strong>
-            <span class="text-sm" style="opacity:.6;">${e.credits ? `${e.credits} credits` : 'rate book'}${
-                e.minimumApplied ? ' &middot; minimum applied' : ''}</span>
-          </div>
-          <div class="text-sm" style="opacity:.7;margin-top:5px;line-height:1.6;">
-            ${(e.lines || []).map(l => `${esc(l.label)} &middot; ${l.credits != null ? l.credits + ' cr' : '$' + Number(l.usd || 0).toFixed(2)}`).join('<br>')}
-          </div>
-          ${refs ? `<div class="text-sm" style="opacity:.6;margin-top:5px;">Sending ${refs} reference${
-                refs === 1 ? '' : 's'}: ${esc((d.references.roles || []).join(', '))}</div>` : ''}
-          ${dropped.length ? `<div class="text-sm" style="color:var(--warning,#b8860b);margin-top:5px;">Not sent: ${
-                esc(dropped.map(x => x.role + (x.subject ? ' ' + x.subject : '')).join(', '))}</div>` : ''}`;
-    }
-
-    function videoTierRow(d) {
-        const ids = ['draft', 'production', 'hero'];
-        const on = CONFIRM_GEN_VIDEO_TIER || d.tier || 'production';
-        return `<div style="margin:10px 0;padding:9px 11px;border-radius:7px;background:rgba(255,255,255,.04);">
-            <div class="text-sm" style="opacity:.7;margin-bottom:6px;">How good does this one need to be?</div>
-            <div style="display:flex;gap:6px;flex-wrap:wrap;">
-              ${ids.map(id => `<button type="button" class="btn ${id === on ? 'btn-primary' : 'btn-secondary'} btn-sm"
-                  data-video-tier="${id}" onclick="pickVideoTier('${id}')"
-                  style="flex:1;min-width:112px;text-transform:capitalize;">${id}</button>`).join('')}
-            </div>
-            <div class="text-sm" style="opacity:.6;margin-top:6px;">${esc(VIDEO_TIER_BLURB[on] || '')}</div>
-            <div id="confirmVideoEstimate" style="margin-top:9px;">${videoEstimateHtml(d)}</div>
-          </div>`;
-    }
-
-    async function pickVideoTier(id) {
-        CONFIRM_GEN_VIDEO_TIER = id;
-        return repreviewVideo();
-    }
-    window.pickVideoTier = pickVideoTier;
 
     /*
      * WHAT THIS MODEL LETS YOU CHOOSE, for this clip only: length, frame,
@@ -4326,7 +4188,6 @@
 
     function videoPreviewUrl() {
         const q = new URLSearchParams();
-        if (CONFIRM_GEN_VIDEO_TIER) q.set('tier', CONFIRM_GEN_VIDEO_TIER);
         if (CONFIRM_GEN_PROVIDER) q.set('video', CONFIRM_GEN_PROVIDER);
         if (CONFIRM_GEN_MODEL) q.set('video_model', CONFIRM_GEN_MODEL);
         if (Object.keys(CONFIRM_GEN_VIDEO_OPTIONS).length) q.set('options', JSON.stringify(CONFIRM_GEN_VIDEO_OPTIONS));
@@ -4335,18 +4196,13 @@
     }
 
     async function repreviewVideo() {
-        const holder = document.getElementById('confirmVideoTierRow');
         const opts = document.getElementById('confirmVideoOptions');
-        if (!CONFIRM_GEN_PREVIEW_URL || (!holder && !opts)) return;
-        if (holder) holder.innerHTML = '<div class="text-sm" style="opacity:.6;">Re-reading what this would cost&hellip;</div>';
+        if (!CONFIRM_GEN_PREVIEW_URL || !opts) return;
         try {
             const d = await api(videoPreviewUrl());
-            if (holder) holder.innerHTML = videoTierRow(d);
-            if (opts) opts.innerHTML = videoOptionsHtml(d.options);
+            opts.innerHTML = videoOptionsHtml(d.options);
         } catch (err) {
-            // A failed re-read must not leave a stale price under the button.
-            if (holder) holder.innerHTML = `<div class="text-sm" style="color:var(--gl-danger,#ef4444);">
-                Could not re-price this: ${esc(err.message)}</div>`;
+            setStatus('Could not re-read this clip\'s options: ' + err.message);
         }
     }
 
@@ -4433,7 +4289,6 @@
         CONFIRM_GEN_EDITED = false;
         CONFIRM_GEN_QUALITY = null;
         CONFIRM_GEN_PROVIDER = null;
-        CONFIRM_GEN_VIDEO_TIER = null;
         CONFIRM_GEN_VIDEO_OPTIONS = {};
         CONFIRM_GEN_PREVIEW_URL = o.previewUrl || null;
         showModal('confirmGenModal');
@@ -4488,7 +4343,7 @@
          * edit against today's prompt: the version's own words are the ones
          * that go, unless somebody changes them back.
          */
-        const pickers = await confirmPickers(o.capability || 'image', { ownTiers: !!o.videoTiers });
+        const pickers = await confirmPickers(o.capability || 'image');
         const promptBox = confirmPromptBox(o.prefill || d.prompt || '', Number(d.ceiling) || 0);
 
         const prompt = d.prompt || '';
@@ -4508,7 +4363,6 @@
           </div>
 
           ${pickers}
-          ${o.videoTiers ? `<div id="confirmVideoTierRow">${videoTierRow(d)}</div>` : ''}
           ${o.capability === 'video' && d.options ? `<div id="confirmVideoOptions">${videoOptionsHtml(d.options)}</div>` : ''}
           ${deliveryLineHtml(d.delivery)}
           ${dialogueAudioRowHtml(d.dialogue_audio)}
@@ -4928,11 +4782,6 @@
             // The full-screen viewer, but only when it is showing THIS shot —
             // veiling someone else's frame is worse than veiling nothing.
             () => (frameViewerShotId() === shotId ? document.getElementById('frameViewerImg') : null),
-            // The shot detail panel.
-            () => {
-                const panel = document.getElementById('shotDetailPanel');
-                return panel ? panel.querySelector('img') : null;
-            },
         ];
 
         const started = Date.now();
@@ -4956,7 +4805,7 @@
             host.appendChild(veil);
             veils.push(veil);
 
-            const card = host.closest('.card') || host.closest('#shotDetailPanel') || host;
+            const card = host.closest('.card') || host;
             card.querySelectorAll('button').forEach(b => {
                 if (b.disabled) return;
                 b.disabled = true; b.style.opacity = '.5';
@@ -4991,11 +4840,6 @@
             }
         };
     }
-
-    // ══════════════════════════════════════════════════════════════
-    // SHOT CARD EDITOR (FILM-068)
-    // ══════════════════════════════════════════════════════════════
-    let shotDetailPanel = null;
 
     /*
      * THE DELIVERY LINE on a video confirmation: the size the project delivers,
@@ -5077,17 +4921,6 @@
     // Gap 3: in-app playback. Gap 4: notes pinned to a moment.
     // Gap 5: circled takes + selects reel. Gap 7d: prompt diff between takes.
 
-    const pb = {
-        timeline: null,
-        notes: [],
-        index: 0,        // which shot is on screen
-        playing: false,
-        raf: null,
-        // Position within the CURRENT shot, ms. The absolute timeline position
-        // is this plus the current entry's start_ms — kept separate because the
-        // <video> element only ever knows about one clip at a time.
-        localMs: 0,
-    };
 
 
     /*
@@ -5214,7 +5047,6 @@
             'Dashboard': 'Central overview showing shot completion progress, status board with production phase indicators, and quick navigation to key sections.',
             'Screenplay': 'Full-featured screenplay editor supporting Fountain markup format with real-time formatting, scene navigation, AI writing assistant, and export to PDF/FDX.',
             'Scenes': 'Scenes extracted from your screenplay, identified by INT./EXT. headings. Each scene has a location, time of day, and associated shots.',
-            'Shot Board': 'Kanban-style board organizing individual shots by scene. Each shot has a scene card (YAML) describing camera, lighting, characters, and style.',
             'Storyboard': 'AI-generated visual keyframes for every shot, created using SDXL-optimized prompts with style locking for visual consistency across scenes.',
             'Acts': 'Narrative structure dividing your project into acts and sequences. Scenes can be assigned to acts for organizational clarity.',
             'Characters': 'Character profiles including visual appearance prompts for AI generation, LoRA/TI tokens for consistent likeness, and voice profile settings.',
@@ -5228,7 +5060,7 @@
             'Continuity': 'Reference board for tracking visual, wardrobe, prop, lighting, color, and framing consistency across shots and scenes.',
             'Budget': 'Cost tracking for GPU renders, API calls, licenses, and storage with spend-vs-limit visualization and forecasting.',
             'Export': 'Export project timelines to professional NLE formats: FCPXML (Final Cut Pro), EDL (universal), Premiere XML, and FDX (Final Draft).',
-            'Pipeline': 'Automated 9-step shot production: keyframe, video, voice, lipsync, music, SFX, ambient, post-production, and assembly.',
+            'Production': 'The studio where the storyboard becomes footage: shots directed on a timeline (camera, acting, dialogue, sound), generated, then cut in order and sent to DaVinci Resolve.',
             'Settings': 'Per-project technical configuration: resolution, frame rate, aspect ratio, color space, and delivery presets.'
         },
         'Film Production': {
@@ -5353,8 +5185,6 @@
     window.addEventListener('hashchange', () => {
         if (ROUTE.writing) return;
         applyRoute();
-        // Left the Flows page by Back: the way back to the graph has been used.
-        if (typeof FLOW !== 'undefined' && state.currentPage !== 'flows') { FLOW.returnTo = null; FLOW.pushed = false; }
     });
     liveConnect();
     

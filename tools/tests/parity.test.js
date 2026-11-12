@@ -29,7 +29,8 @@ const LOADERS = loaderMap(src.app);
 const pageIds = [...new Set([...src.html.matchAll(/id="page-([a-z0-9]+)"/g)].map(m => m[1]))];
 
 // 37 in the original, less the pages the user retired (tools/split-lib.js RETIRED).
-const RETIRED_PAGES = Object.values(require('../split-lib').RETIRED).flatMap(f => f.pages);
+// Pages and screens (retired pages whose ids are ordinary words) alike.
+const RETIRED_PAGES = Object.values(require('../split-lib').RETIRED).flatMap(f => [...f.pages, ...(f.screens || [])]);
 test(`the source registry: ${37 - RETIRED_PAGES.length} pages (37, less ${RETIRED_PAGES.length} retired), each with a loader`, () => {
     assert.strictEqual(pageIds.length, 37 - RETIRED_PAGES.length);
     assert.deepStrictEqual([...pageIds].sort(), Object.keys(LOADERS).sort());

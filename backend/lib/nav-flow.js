@@ -67,13 +67,9 @@ const NAV_FLOW = {
 
     production: {
         label: 'Production',
-        // Music Cues and the Score workstation were retired with music-making on
-        // 2026-10-14; Music & Sound keeps the sound library and the scene beds.
-        // `productiongraph` is the node graph that replaces the eight below it. The
-        // `production_graph` setting decides which the menu shows; every one
-        // stays in the build and reachable by URL until the graph has parity.
-        pages: ['productiongraph', 'shotboard', 'videoshots', 'music', 'playback',
-            'pipeline', 'flows'],
+        // `productiongraph` is the Production studio, the phase's one page: the
+        // older pages were removed by the user (2026-11-11).
+        pages: ['productiongraph'],
     },
 
     post: {

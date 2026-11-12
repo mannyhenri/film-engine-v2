@@ -188,24 +188,31 @@ test('the warning offers a way to FIX it, not only a way to dismiss it', () => {
      * notice whose single affordance is dismissal teaches the reader to
      * dismiss it, and then the real warning goes with the rest.
      *
-     * Resync must also be PREVIEWED. The last thing here that reconciled a
+     * The fix must also be PREVIEWED. The last thing here that reconciled a
      * screenplay against a board did it with no preview and took sixteen
      * shots, their blocking and their annotations through a cascade.
+     *
+     * The fix is Update storyboard on the Screenplay page (the board's Resync
+     * and Audit and the top bar's Sync were retired by the user, 2026-11-11): the board
+     * leads there, and the update plans (a GET, which writes nothing) before it
+     * applies, and applies only with the id of the plan that was shown.
      */
     const html = fs.readFileSync(path.join(__dirname, '..', '..', 'src', 'index.html'), 'utf8');
-    assert.ok(/previewResync\(\)/.test(html), 'no way to resync from the board');
-    assert.ok(/function applyResync\(/.test(html), 'the resync can be previewed and never applied');
-    assert.ok(/runShotAudit\(\)/.test(html), 'no way to audit the cards from the board');
-
-    const preview = html.slice(html.indexOf('async function previewResync'));
-    assert.ok(/apply:\s*false/.test(preview.slice(0, 1200)),
-        'the preview does not ask for a dry run, so opening it would write');
+    assert.ok(html.includes('id="updateStoryboardBtn"'), 'no way to update the board from the Screenplay page');
 
     const strip = html.slice(html.indexOf('function screenplayDriftNotice'),
         html.indexOf('function screenplayDriftNotice') + 2600);
+    const fix = strip.search(/href="#\/\$\{[^}]+\}\/screenplay"/);
+    assert.ok(fix > 0, 'the board does not lead to the Screenplay, where the update is');
     assert.ok(/Still matches/.test(strip), 'the dismiss affordance was lost in the rewrite');
-    assert.ok(strip.indexOf('previewResync') < strip.indexOf('Still matches'),
+    assert.ok(fix < strip.indexOf('Still matches'),
         'dismiss is offered before the fix, which is how a warning trains people to ignore it');
+
+    const routes = fs.readFileSync(path.join(__dirname, '..', 'routes', 'production-reports.js'), 'utf8');
+    const route = routes.slice(routes.indexOf("urlParts[3] === 'storyboard-update'"));
+    assert.ok(/req\.method === 'GET'\) return json\(res, 200, planStoryboardUpdate/.test(route.slice(0, 1200)),
+        'the plan is not a read, so opening it could write');
+    assert.ok(/plan_id is required/.test(route.slice(0, 1500)), 'the update can be applied without a reviewed plan');
 });
 
 test('a first stamp is a baseline, not a change', () => {

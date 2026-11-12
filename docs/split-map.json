@@ -208,55 +208,6 @@
       "vendors": [],
       "mount": null
     },
-    "flows": {
-      "loader": "loadFlowsPage",
-      "replaces": [
-        "NODE_W",
-        "NODE_HEAD",
-        "PORT_ROW",
-        "PORT_R",
-        "nodeHeight",
-        "PORT_COLOR",
-        "portY",
-        "portsCompatibleClient",
-        "loadFlowsPage",
-        "setFlowStatus",
-        "renderFlowPalette",
-        "flowCanvasOpen",
-        "flowCanvasRender",
-        "renderFlowNode",
-        "portPos",
-        "svgPoint",
-        "flowCanvasStartDrag",
-        "flowCanvasStartLink",
-        "flowCanvasEndLink",
-        "flowNextNodeSuggestions",
-        "flowNextNodeMenuHtml",
-        "flowOpenNextNode",
-        "flowNextNodeOutside",
-        "flowCloseNextNode",
-        "flowPickNextNode",
-        "flowCanvasDeleteEdge",
-        "flowCanvasAddNode",
-        "flowCanvasDeleteSelected",
-        "flowCanvasZoom",
-        "flowCanvasFit",
-        "renderFlowInspector",
-        "flowNodeSet",
-        "flowNodeSetConfig",
-        "flowCanvasFromTemplate",
-        "flowCanvasNew",
-        "flowCanvasDuplicate",
-        "flowCanvasSave",
-        "flowCanvasRun",
-        "flowPaintRun",
-        "flowCanvasBackgroundDown"
-      ],
-      "modals": [],
-      "provides": [],
-      "vendors": [],
-      "mount": null
-    },
     "jobsqueue": {
       "loader": "loadJobsQueuePage",
       "replaces": [
@@ -333,36 +284,6 @@
       "vendors": [],
       "mount": null
     },
-    "music": {
-      "loader": "loadMusic",
-      "replaces": [
-        "fmtDuration",
-        "fmtSize",
-        "fmtAge",
-        "drawWaveform",
-        "paintWaveforms",
-        "SOUND_LIB",
-        "SOUND_FILTER",
-        "soundFileCard",
-        "loadSoundLibrary",
-        "renderSoundLibrary",
-        "openSoundGenerator",
-        "soundGenPreview",
-        "runSoundGenerate",
-        "sndPlay",
-        "loadMusic",
-        "saveAmbientDirection",
-        "saveSceneDelivery",
-        "generateAmbientFor"
-      ],
-      "modals": [],
-      "provides": [
-        "soundGenPreview",
-        "runSoundGenerate"
-      ],
-      "vendors": [],
-      "mount": null
-    },
     "notes": {
       "loader": "loadNotesPage",
       "replaces": [
@@ -379,79 +300,6 @@
         "addNoteModal",
         "reviewShotModal"
       ],
-      "provides": [],
-      "vendors": [],
-      "mount": null
-    },
-    "pipeline": {
-      "loader": "loadPipeline",
-      "replaces": [
-        "loadPipeline",
-        "renderPipelineReadiness",
-        "renderPipelineSteps",
-        "runPipelineLive",
-        "runPipelineScope",
-        "PIPE_STEP_ICONS"
-      ],
-      "modals": [],
-      "provides": [],
-      "vendors": [],
-      "mount": null
-    },
-    "playback": {
-      "loader": "loadPlayback",
-      "replaces": [
-        "_pbProtectBound",
-        "bindPlaybackProtect",
-        "renderPlaybackProtect",
-        "playbackStartIndex",
-        "loadPlayback",
-        "renderPlaybackSummary",
-        "pbEntry",
-        "pbAbsoluteMs",
-        "loadShotIntoStage",
-        "renderPlaylist",
-        "renderScrub",
-        "motionTransformAt",
-        "motionCss",
-        "pbMovingTrack",
-        "pbApplyMotion",
-        "pbMotionLabel",
-        "pbMotionToggled",
-        "BED_KINDS",
-        "bedVolume",
-        "bedAt",
-        "pbSyncBeds",
-        "pbBedLabel",
-        "pbRegenerateDialogue",
-        "pbBedsToggled",
-        "updatePlayhead",
-        "msToTc",
-        "pbGoTo",
-        "pbStep",
-        "pbTogglePlay",
-        "pbLastFrame",
-        "pbPlayLine",
-        "pbDialogueToggled",
-        "pbTick",
-        "PB_MARK_FLOOR_S",
-        "pbResolveMarks",
-        "pbMarks",
-        "pbFrameRate",
-        "pbFrameStep",
-        "pbKeydown",
-        "pbRunRepair",
-        "pbMarkIn",
-        "pbMarkOut",
-        "pbClearMarks",
-        "pbRenderMarks",
-        "pbSeekFromClick",
-        "pbSyncAudio",
-        "pbSeekAbsolute",
-        "pbAddNote",
-        "renderNoteList"
-      ],
-      "modals": [],
       "provides": [],
       "vendors": [],
       "mount": null
@@ -836,8 +684,6 @@
         "PG_APPLY_TYPES",
         "pgApplyTargets",
         "pgApplyMenuItem",
-        "pgEditFlow",
-        "flowBackToGraph",
         "pgApplyPickerHtml",
         "pgApplyArmable",
         "pgApplyPlanDescribe",
@@ -972,7 +818,6 @@
         "pgShots",
         "pgVisible",
         "pgCollapsedOf",
-        "flowBackToGraph",
         "ibCloseSetup",
         "ibCloseDirect",
         "pgEnsureSide",
@@ -1427,68 +1272,31 @@
       "vendors": [],
       "mount": null
     },
-    "shotboard": {
-      "loader": "loadShotBoard",
-      "replaces": [
-        "loadShotboardRuntime",
-        "loadShotBoard",
-        "dragShotId",
-        "onShotDragStart",
-        "onShotDragEnd",
-        "onShotDragOver",
-        "onShotColumnOver",
-        "onShotColumnLeave",
-        "onShotColumnDrop",
-        "onShotDrop",
-        "openShotDetail",
-        "closeShotDetail",
-        "loadShotDetailNotes",
-        "addShotDetailNote",
-        "runShotPipeline",
-        "saveShotTransition",
-        "openABCompare",
-        "loadABCompare",
-        "updateABCrossfade",
-        "closeABCompare"
-      ],
-      "modals": [],
-      "provides": [],
-      "vendors": [],
-      "mount": null
-    },
     "storyboard": {
       "loader": "loadStoryboard",
       "replaces": [
         "loadStoryboard",
         "setAnnotationFeedback",
         "renderBoardProtect",
-        "acceptAllStale",
         "acceptScreenplayDrift",
         "ANCHOR",
         "anchorButton",
         "anchorShotId",
-        "applyResync",
         "BACKGROUND_PICKER_VIEWS",
         "clearAnchor",
         "confirmRecompose",
         "dialogueTag",
         "frameVersionLabel",
         "frameVersionTitle",
-        "IMPACT",
         "impactBanner",
-        "impactNotice",
-        "impactTag",
         "importImageAsPng",
         "importStoryboardImage",
         "insertShotAfter",
         "loadBoardBanners",
         "loadBoardLock",
-        "loadImpact",
         "noticeStrip",
         "openFrameVersions",
         "pickBackgroundView",
-        "playFromShot",
-        "previewResync",
         "previsOpenFromBoard",
         "recomposeFrame",
         "renderAnchorChip",
@@ -1496,7 +1304,6 @@
         "renderBackgroundChoices",
         "restoreFrameVersion",
         "runRecompose",
-        "runShotAudit",
         "screenplayDriftNotice",
         "screenplayDriftTag",
         "sendFrameTo",
@@ -1596,33 +1403,6 @@
         "saveTitleCard",
         "deleteTitleCard",
         "TITLE_VOCAB"
-      ],
-      "modals": [],
-      "provides": [],
-      "vendors": [],
-      "mount": null
-    },
-    "videoshots": {
-      "loader": "loadVideoShots",
-      "replaces": [
-        "loadVideoShots",
-        "renderSequencePicker",
-        "toggleSequenceShot",
-        "SEQ",
-        "generateAllVoices",
-        "createSequence",
-        "generateAllVideos",
-        "generateAllVideosRun",
-        "askBackgroundInstruction",
-        "BG_INSTRUCTION",
-        "bgInstructionDone",
-        "generateVideoFor",
-        "lipsyncShot",
-        "pickCoverageRun",
-        "postShot",
-        "replaceBackground",
-        "setClipCoverage",
-        "stitchShot"
       ],
       "modals": [],
       "provides": [],
@@ -1838,13 +1618,6 @@
       ],
       "modals": []
     },
-    "MusicDialogs": {
-      "provides": [],
-      "replaces": [],
-      "modals": [
-        "soundGenModal"
-      ]
-    },
     "PageHelpers": {
       "provides": [
         "jsAttr",
@@ -1968,37 +1741,21 @@
     },
     "VideoPipeline": {
       "provides": [
-        "approveStrip",
         "confirmUpscale",
-        "correctStation",
-        "deleteSequence",
         "generateNativeMultiShot",
-        "generateNextSequenceLeg",
         "generateSequence",
         "generateVoiceForShot",
-        "loadSequences",
-        "openStrip",
-        "previewSequence",
         "stitchSequence",
-        "stripSequence",
         "UPSCALE_DEFAULT_MODEL",
         "upscaleCostLine",
         "upscalePlanHtml"
       ],
       "replaces": [
-        "approveStrip",
         "confirmUpscale",
-        "correctStation",
-        "deleteSequence",
         "generateNativeMultiShot",
-        "generateNextSequenceLeg",
         "generateSequence",
         "generateVoiceForShot",
-        "loadSequences",
-        "openStrip",
-        "previewSequence",
         "stitchSequence",
-        "stripSequence",
         "UPSCALE_DEFAULT_MODEL",
         "upscaleCostLine",
         "upscalePlanHtml"
@@ -2032,13 +1789,6 @@
     "scenes": {
       "loader": [
         "loadScenes"
-      ],
-      "chunk": null,
-      "modals": []
-    },
-    "shotboard": {
-      "loader": [
-        "loadShotBoard"
       ],
       "chunk": null,
       "modals": []
@@ -2088,13 +1838,6 @@
     "milestones": {
       "loader": [
         "loadMilestones"
-      ],
-      "chunk": null,
-      "modals": []
-    },
-    "playback": {
-      "loader": [
-        "loadPlayback"
       ],
       "chunk": null,
       "modals": []
@@ -2191,20 +1934,6 @@
       "chunk": null,
       "modals": []
     },
-    "videoshots": {
-      "loader": [
-        "loadVideoShots"
-      ],
-      "chunk": null,
-      "modals": []
-    },
-    "music": {
-      "loader": [
-        "loadMusic"
-      ],
-      "chunk": null,
-      "modals": []
-    },
     "productiongraph": {
       "loader": [
         "loadProductionGraph"
@@ -2212,23 +1941,9 @@
       "chunk": null,
       "modals": []
     },
-    "flows": {
-      "loader": [
-        "loadFlowsPage"
-      ],
-      "chunk": null,
-      "modals": []
-    },
     "previs": {
       "loader": [
         "loadPrevisPage"
-      ],
-      "chunk": null,
-      "modals": []
-    },
-    "pipeline": {
-      "loader": [
-        "loadPipeline"
       ],
       "chunk": null,
       "modals": []
@@ -2261,7 +1976,6 @@
       "loadDashboard",
       "loadScreenplayPage",
       "loadScenes",
-      "loadShotBoard",
       "loadStoryboard",
       "loadCharacters",
       "loadLocations",
@@ -2272,8 +1986,6 @@
       "loadRenderPage",
       "loadEditsPage",
       "loadExportPage",
-      "loadPipeline",
-      "loadFlowsPage",
       "loadProductionGraph",
       "loadMoodBoardPage",
       "loadStyleBook",
@@ -2289,16 +2001,13 @@
       "loadConsistency",
       "loadSpend",
       "loadBudget",
-      "loadThreeD",
-      "loadVideoShots",
-      "loadMusic",
-      "loadPlayback"
+      "loadThreeD"
     ],
-    "functions": 166,
+    "functions": 163,
     "unreached": 16,
     "sharedByChunks": 0,
     "declaredTwice": [],
     "bootVendors": [],
-    "bytes": 283954
+    "bytes": 274352
   }
 }

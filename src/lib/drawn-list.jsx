@@ -12,7 +12,7 @@ import { useListControls, ListControlsBar, ListNoMatch } from './list-controls.j
  *   filter  an item whose row is not shown gets .list-hidden (display: none);
  *   sort    the shown items are put in the chosen order (moved, never redrawn: their handlers stay theirs);
  *   find    every item stays where it is, and the matches get .list-find-match; Enter steps to the next, and hands
- *           that row to onFind (Playback goes to the shot).
+ *           that row to onFind (the Screenplay goes to the scene).
  *
  * Rows are read from the engine's own state at each draw (rows()), so nothing is fetched. An item is matched to its
  * row by a key when the engine draws one (keys: { row, el }), else by its position in the engine's draw; a draw whose item count is not its

@@ -3156,7 +3156,7 @@ const PRODUCTION_TOOLS = [
     {
         name: 'previs_set',
         handler: handlePrevis, method: 'PUT',
-        description: 'Save staged blocking and director intent for a shot: camera optics/position, subjects, stage, rig, movement, plus director {direction,location_view,lighting,camera_note}. This is exploratory and does NOT change the Shot Board until previs_apply. Preview freely with previs_to_storyboard before committing.',
+        description: 'Save staged blocking and director intent for a shot: camera optics/position, subjects, stage, rig, movement, plus director {direction,location_view,lighting,camera_note}. This is exploratory and does NOT change the shot card until previs_apply. Preview freely with previs_to_storyboard before committing.',
         path: a => `/film/shots/${a.shot_id}/previs`,
         body: a => { const { shot_id, ...rest } = a || {}; return rest; },
         schema: {
@@ -4040,7 +4040,7 @@ const PRODUCTION_TOOLS = [
     {
         name: 'export_resolve_plan',
         handler: handleNLEExport, method: 'GET',
-        description: 'FREE. What the DaVinci Resolve export would hold: the first edit (the cut Playback plays: each shot\u2019s selected clip, or its storyboard frame where there is no footage yet, with dialogue, effects, music and ambience on their own lanes), the media per scene, the shot markers, and anything missing. Nothing is written. Read it before export_resolve.',
+        description: 'FREE. What the DaVinci Resolve export would hold: the first edit (the cut: each shot\u2019s selected clip, or its storyboard frame where there is no footage yet, with dialogue, effects, music and ambience on their own lanes), the media per scene, the shot markers, and anything missing. Nothing is written. Read it before export_resolve.',
         path: a => `/film/projects/${a.project_id}/export/resolve`,
         schema: { project_id: { type: 'string' } }, required: ['project_id'],
     },

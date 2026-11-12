@@ -138,7 +138,7 @@ test('the free preview says how many recorded lines would go, through the real r
 
 test('a person and an agent can both upload the dialogue and switch it on', () => {
     const src = fs.readFileSync(path.join(__dirname, '../../src/index.html'), 'utf8');
-    assert.match(src, /mediaUploadControl\('voice', 'audio', 'shot', s\.id/, 'Upload dialogue on the Video Shots page');
+    // Video Shots offered it too, until that page went (removed with Production's older pages by the user (2026-11-11)).
     assert.match(src, /mediaUploadControl\('voice', 'audio', 'shot', n\.id, \{ after: 'loadProductionGraph'/, 'and in the canvas drawer');
     assert.match(src, /\$\{dialogueAudioRowHtml\(d\.dialogue_audio\)\}/, 'the confirmation offers it');
     assert.match(src, /dlg && dlg\.checked \? \{ use_dialogue_audio: true \}/, 'and sends it when ticked');

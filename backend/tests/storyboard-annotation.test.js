@@ -378,7 +378,8 @@ test('regen is visible from every place it can be pressed', () => {
     const html = fs.readFileSync(INDEX_HTML, 'utf8');
     const fn = html.slice(html.indexOf('function frameBusy(shotId, label)'));
     const body = fn.slice(0, fn.indexOf('\n    }'));
-    for (const surface of ['img-', 'frameViewerImg', 'shotDetailPanel']) {
+    // The Shot Board's detail panel was a third surface; it went with that page (removed with Production's older pages by the user (2026-11-11)).
+    for (const surface of ['img-', 'frameViewerImg']) {
         assert.ok(body.includes(surface), `frameBusy does not mark ${surface}`);
     }
     assert.ok(/offsetParent/.test(body),

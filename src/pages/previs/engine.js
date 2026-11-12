@@ -1569,8 +1569,8 @@ const { AI_PATH, WALK, WORLD, state } = Object.fromEntries(['AI_PATH', 'WALK', '
         trying:     { mark: '○', text: 'trying',        tip: 'Changed here, not on the shot yet — Apply sends it to the scene card.' },
         applied:    { mark: '✓', text: 'applied',       tip: 'On the scene card: generation sends this. Click to lock it.' },
         locked:     { mark: '●', text: 'locked',        tip: 'Locked: generation will send exactly this. Click to unlock.' },
-        card_ahead: { mark: '!', text: 'board changed', tip: 'Changed on the Shot Board after it was applied here.' },
-        conflict:   { mark: '!', text: 'conflict',      tip: 'Changed here AND on the Shot Board since it was applied.' },
+        card_ahead: { mark: '!', text: 'board changed', tip: 'Changed on the shot card after it was applied here.' },
+        conflict:   { mark: '!', text: 'conflict',      tip: 'Changed here AND on the shot card since it was applied.' },
         stale:      { mark: '!', text: 'changed',       tip: 'Locked, then changed. Apply and lock again, or unlock it.' },
     });
 
@@ -1650,7 +1650,7 @@ const { AI_PATH, WALK, WORLD, state } = Object.fromEntries(['AI_PATH', 'WALK', '
         const route = d.state === 'applied' ? 'lock' : (d.state === 'locked' || d.state === 'stale') ? 'unlock' : null;
         if (!route) {
             return setStatus(d.state === 'none' ? `${d.label}: nothing staged to lock yet`
-                : `${d.label}: re-seed from the Shot Board before locking`, d.state !== 'none');
+                : `${d.label}: re-seed from the shot card before locking`, d.state !== 'none');
         }
         try {
             await api(`/shots/${shotId}/previs/${route}`,

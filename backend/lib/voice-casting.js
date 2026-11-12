@@ -84,8 +84,8 @@ const DIALOGUE_SCOPES = Object.freeze([
          * still do it. It simply is not a second paid button next to the first.
          */
         ui: null,
-        why_no_ui: 'Replaced in the UI by generating the shots\' own dialogue, which Playback '
-            + 'speaks — two paid paths for the same lines is paying twice.',
+        why_no_ui: 'Replaced in the UI by generating the shots\' own dialogue (the Production studio) '
+            + '— two paid paths for the same lines is paying twice.',
         spends: true,
         before_breakdown: true,
     },
@@ -107,7 +107,9 @@ const DIALOGUE_SCOPES = Object.freeze([
         when: 'Production, once the cast is settled.',
         route: 'POST /film/projects/:id/voice/batch',
         tool: 'node_gen_voice',
-        ui: 'generateAllVoices(',
+        ui: null,
+        why_no_ui: 'Its button was Video Shots\' Generate all voices, which went with Production\'s older pages '
+            + '(2026-11-11). The Production studio generates each shot\'s dialogue; an agent can still do the whole film.',
         spends: true,
         before_breakdown: false,
     },

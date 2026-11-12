@@ -11,7 +11,8 @@
  * to say so, and the warning could not be cleared by doing what it asked.
  *
  * Set-based over WARNINGS: every banner the storyboard can show, the report it
- * is drawn from, and the action its own button sends. Each action must leave
+ * is drawn from, and the action its own button sends. (Since 2026-11-11 the
+ * board shows only the drift notice; the impact report is held for its tools.) Each action must leave
  * its report empty; the "all still current" action must leave EVERY report
  * empty, because that is what it says.
  */
@@ -45,10 +46,13 @@ const WARNINGS = Object.freeze({
         button: 'acceptScreenplayDrift',
         route: '/screenplay-drift/accept',
     },
+    // The "Generated work behind its inputs" notice and its Still current button were removed from the board
+    // by the user (2026-11-11, tools/split-lib.js RETIRED boardImpact). The report and its accept stay (the
+    // impact_report and staleness_accept tools), so they are still held here; the board no longer shows them.
     impact: {
         report: async pid => { const r = (await callTool('impact_report', { project_id: pid })).body; return r.redo_now + r.waiting; },
-        banner: "title: 'Generated work behind its inputs'",
-        button: 'acceptAllStale',
+        banner: null,
+        button: null,
         route: '/staleness/accept',
     },
 });
@@ -102,13 +106,10 @@ test('every warning is cleared by the action its own button sends', async () => 
     }
 });
 
-test('"This is all still current" clears EVERY warning in one act', async () => {
+test('accepting the drift, then the staleness, clears EVERY report', async () => {
+    // The board's "This is all still current" button sent these two in this order; it went with the notice it sat
+    // on (RETIRED boardImpact), and the two accepts remain the way to clear both reports.
     const f = driftedFilm(2);
-    // What the page's button sends, in the order it sends it.
-    const body = PAGE.slice(PAGE.indexOf('async function acceptAllStale('), PAGE.indexOf('\n    }\n', PAGE.indexOf('async function acceptAllStale(')));
-    const order = Object.values(WARNINGS).map(w => ({ w, at: body.indexOf(w.route) }));
-    for (const { w, at } of order) assert.ok(at > 0, `the "all still current" button never sends ${w.route}`);
-    assert.ok(order[0].at < order[1].at, 'the drift must be answered before the staleness, or the cards stay the root of the report');
     await callTool('screenplay_drift_accept', { project_id: f.pid });
     await callTool('staleness_accept', { project_id: f.pid });
     for (const [name, w] of Object.entries(WARNINGS)) assert.strictEqual(await w.report(f.pid), 0, `${name} is still up`);
@@ -135,7 +136,10 @@ test('accepting says it is a claim, and changes nothing but the record', async (
 });
 
 test('the page offers each warning its own button, and names what it answers', () => {
+    assert.ok(!PAGE.includes("title: 'Generated work behind its inputs'"), 'the removed generated-work notice is back on the board');
+    assert.ok(!/onclick="acceptAllStale\(/.test(PAGE), 'the removed Still current button is back on the board');
     for (const [name, w] of Object.entries(WARNINGS)) {
+        if (!w.banner) continue; // not shown on the board
         const at = PAGE.indexOf(w.banner);
         assert.ok(at > 0, `${name}: the notice is gone`);
         // To the end of the notice object, which is where its actions live.
@@ -151,12 +155,15 @@ test('a warning offers a way to FIX it before a way to dismiss it', () => {
      * this board used to end in a single button that meant "ignore me", and a
      * notice whose only affordance is dismissal teaches the reader to dismiss
      * it — after which the warning that matters is dismissed along with the
-     * rest. Drift can now be RESYNCED, and the resync is offered first.
+     * rest. Drift is fixed by Update storyboard on the Screenplay page (the
+     * board's own Resync was retired by the user, 2026-11-11), and the way
+     * there is offered first.
      */
     const at = PAGE.indexOf("title: 'Screenplay changed'");
     assert.ok(at > 0, 'the drift notice is gone');
     const region = PAGE.slice(at, at + 2600);
-    assert.ok(/previewResync\(\)/.test(region), 'drift can still only be dismissed, never fixed');
-    assert.ok(region.indexOf('previewResync') < region.indexOf('acceptScreenplayDrift'),
-        'dismissal is offered before the fix');
+    const fix = region.search(/href="#\/\$\{[^}]+\}\/screenplay"/);
+    assert.ok(fix > 0, 'drift can still only be dismissed, never fixed: the notice does not lead to the Screenplay');
+    assert.ok(fix < region.indexOf('acceptScreenplayDrift'), 'dismissal is offered before the fix');
+    assert.ok(PAGE.includes('id="updateStoryboardBtn"'), 'the Screenplay page has no Update storyboard to lead to');
 });

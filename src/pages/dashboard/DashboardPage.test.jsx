@@ -79,7 +79,7 @@ describe('Home', () => {
         expect(panel('Runs').querySelector('p').className).toBe('text-sm text-muted');
         fireEvent.click(within(panel('Setups')).getByText('Open'));
         fireEvent.click(panel('Staleness'));
-        expect(fake.navigateTo.mock.calls.map(c => c[0])).toEqual(['shotboard', 'storyboard']);
+        expect(fake.navigateTo.mock.calls.map(c => c[0])).toEqual(['productiongraph', 'storyboard']);
     });
 
     it('every empty block says so; Running still offers the queue', async () => {

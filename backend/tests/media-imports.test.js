@@ -465,10 +465,7 @@ test('every imported media slot is returned by the project surface that renders 
     assert.deepStrictEqual([...returned].sort(), [...new Set(expected)].sort(),
         'an upload can succeed but remain invisible because the page lists generation jobs instead of assets');
 
-    const videoUi = UI.slice(UI.indexOf('async function loadVideoShots()'), UI.indexOf('async function generateVideoFor'));
-    const musicUi = UI.slice(UI.indexOf('async function loadMusic()'), UI.indexOf('function generateScoreFor'));
-    assert.match(videoUi, /videoData\.assets/, 'Video Shots ignores imported asset rows');
-    assert.match(musicUi, /jobData\.assets/, 'Music & Sound ignores imported asset rows');
+    // Video Shots and Music & Sound listed these rows; both pages went (removed with Production's older pages by the user (2026-11-11)). The routes above still return them.
 });
 
 test('an uploaded MKV keeps an MKV filename instead of being mislabeled WebM', () => {

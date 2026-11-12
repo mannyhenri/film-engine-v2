@@ -30,7 +30,8 @@ test('the retired list is read (this runs over something), and each feature says
 test('every retired name was a declaration of the original, and is not one any more as the reference is read', () => {
     const raw = fs.readFileSync(path.join(ROOT, 'reference/fb8c770/src/index.html'), 'utf8');
     const app = readSource(path.join(ROOT, 'reference/fb8c770/src/index.html')).app;
-    const declared = (code, n) => new RegExp(`(?:function\\s+|(?:const|let|var)\\s+)${n.replace(/\$/g, '\\$')}\\b`).test(code);
+    // A name declared alone, or as one of several in one statement (`const NODE_W = 200, NODE_HEAD = 34`).
+    const declared = (code, n) => { const x = n.replace(/\$/g, '\\$'); return new RegExp(`(?:function\\s+|(?:const|let|var)\\s+)${x}\\b|(?:const|let|var)\\s+[^;\\n]*?,\\s*${x}\\s*=`).test(code); };
     const bad = [];
     for (const n of NAMES) {
         if (!declared(raw, n)) bad.push(`${n}: not declared in the original, so retiring it says nothing`);

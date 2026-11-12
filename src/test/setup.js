@@ -40,7 +40,6 @@ export function installLegacy({ routes = {}, project = { id: 'p1' } } = {}) {
         openProject: vi.fn(),
         // As core builds it: a label + hidden file input addressed by capability (the test reads the call).
         mediaUploadControl: vi.fn((capability, media, scope, id, o = {}) => `<label class="btn btn-secondary btn-sm">${o.label || 'Upload'}<input type="file" data-import-target="${capability}-media"></label>`),
-        loadSequences: vi.fn(),
         generateVoiceForShot: vi.fn(), 
         
         downloadExport: vi.fn(),
@@ -63,7 +62,7 @@ export function installLegacy({ routes = {}, project = { id: 'p1' } } = {}) {
         CONFIRM_GEN: {}, CONFIRM_GEN_EDITED: false, CONFIRM_GEN_FINAL_PROMPT: '', SHOT_CARD: {}, guideTab: 'overview', loadStoryboard: vi.fn(), closeProductionGuide: vi.fn(), getNavGuideEntries: vi.fn(() => []), openProductionGuide: vi.fn(), renderGuideList: vi.fn(), renderGuideNextLinks: vi.fn(),
         loadProjects: vi.fn(async () => {}), previewProjectFolder: vi.fn(), loadScenes: vi.fn(async () => {}),
         csImg: (url) => `http://api.test${url}`, renderSubjectSheet: vi.fn(),
-        PRODUCTION_GRAPH_ON: false, flowBackToGraph: vi.fn(),
+        
         regenerateStoryboard: vi.fn(),
         FRAME_VIEWER: { frames: [] }, BOARD_ANCHOR: null, MARKUP: { cache: {} },
         markupPaintAll: vi.fn(), generateAllStoryboards: vi.fn(), toggleBoardLock: vi.fn(),
@@ -77,14 +76,14 @@ export function installLegacy({ routes = {}, project = { id: 'p1' } } = {}) {
         renderBoardLock: vi.fn(), streamSSE: vi.fn(),
         markupToolbar: (id) => `<span class="markup-tools">markup ${id}</span>`,
         paintProjectType: vi.fn(), setStatusDot: vi.fn(), confirmProjectDelete: vi.fn(async () => true), backToProjectList: vi.fn(), openFolderPicker: vi.fn(),
-        saveProductionGraphFlag: vi.fn(), feStore: { set: vi.fn(), remove: vi.fn(), get: vi.fn() }, checkHealth: vi.fn(), DEFAULT_API_BASE: 'http://default.test', APP_AUTHOR: null,
+        feStore: { set: vi.fn(), remove: vi.fn(), get: vi.fn() }, checkHealth: vi.fn(), DEFAULT_API_BASE: 'http://default.test', APP_AUTHOR: null,
         money: (n) => '$' + (Number(n) || 0).toFixed(2), usd: (n) => '$' + (Number(n) || 0).toFixed(3),
-        pb: { timeline: null, notes: [], index: 0, playing: false, raf: null, localMs: 0 },
+        
         PG: { graph: null, byKey: new Map(), sel: null, zoom: 0.9, pan: { x: 0, y: 0 }, scene: 'all', busy: new Map(), drawerCache: {},
             play: { index: 0, playing: false, t0: 0, timer: null, stills: true, audio: true }, fitted: false, menuFor: null,
             running: new Map(), pollTimer: null, behindOnly: false, queue: null, queueOpen: false, picked: new Set(), add: null, selBeforeClick: null },
         IB: { setup: null, span: null, sel: 0, rangeEdit: null, price: null },
-        pgRenderSide: vi.fn(), FLOW: {}, confirmUpscale: vi.fn(), generateNativeMultiShot: vi.fn(), generateSequence: vi.fn(),
+        pgRenderSide: vi.fn(), confirmUpscale: vi.fn(), generateNativeMultiShot: vi.fn(), generateSequence: vi.fn(),
         jsAttr: (v) => JSON.stringify(String(v)).replace(/"/g, '&quot;'), markCurrentShot: vi.fn(), showModalHtml: vi.fn(), uploadCapabilityMedia: vi.fn(), setAnchor: vi.fn(), stitchSequence: vi.fn(),
         mediaUrl: (p) => (p ? 'http://api.test' + (p.startsWith('/') ? p : '/film/' + p) : ''),
         
@@ -94,7 +93,7 @@ export function installLegacy({ routes = {}, project = { id: 'p1' } } = {}) {
         _shotAction: vi.fn(), clearModal: vi.fn(), getModalData: vi.fn(() => ({})),
         previsAspect: vi.fn(() => 16 / 9), WALK: { on: false, from: null, moved: false }, WORLD: { overlays: null, lens: 35, mode: 'keep', pinned: null, world: null },
         renderTitlePageCard: vi.fn(),
-        loadVideoShots: vi.fn(), CONFIRM_GEN_VIDEO_TIER: null,
+        
     };
     const missing = LEGACY_GLOBALS.filter(n => !(n in fake));
     if (missing.length) throw new Error('the test fake lacks ' + missing.join(', ') + ' (src/test/setup.js)');
@@ -140,6 +139,6 @@ export const BOARD_ENGINE_FAKES = () => ({
     generateAllStoryboards: vi.fn(), toggleBoardLock: vi.fn(), renderBoardLock: vi.fn(), setAnchor: vi.fn(),
     anchorButton: (f) => `<button class="anchor-btn">anchor ${f.shot_code}</button>`,
     storyboardImportButton: (f) => `<label><input data-import-target="storyboard-image" data-shot="${f.shot_id}"></label>`, openFrameVersions: vi.fn(),
-    frameVersionTitle: () => 'versions title', frameVersionLabel: (f) => `v${f.asset_version || 1}`, playFromShot: vi.fn(), insertShotAfter: vi.fn(),
+    frameVersionTitle: () => 'versions title', frameVersionLabel: (f) => `v${f.asset_version || 1}`, insertShotAfter: vi.fn(),
     storyboardFacetTags: (f) => `<span class="facet">facets ${f.shot_code}</span>`,
 });

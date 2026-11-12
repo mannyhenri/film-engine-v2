@@ -44,6 +44,22 @@ const flush = () => new Promise(r => setImmediate(r));
  * to the list and says why.
  */
 const PROJECTLESS = ['projects', 'settings', 'stylebook', 'brand', 'jobsqueue'];
+/*
+ * A page that no longer exists (Production's older pages, removed by the user on 2026-11-11, reached by an old
+ * bookmark or a remembered route) opens Home rather than an empty screen.
+ */
+test('a page that no longer exists opens Home', async () => {
+    for (const page of ['shotboard', 'videoshots', 'music', 'playback', 'pipeline', 'flows']) {
+        assert.ok(!LOADERS[page], `${page} is a page the router still knows`);
+        const ctx = sandbox();
+        ctx.document.getElementById = (id) => (id === 'page-' + page ? null : { classList: { add() {}, remove() {}, contains: () => false } });
+        ctx.navigateTo(page);
+        ctx.pending.forEach(p => p.go());
+        await flush();
+        assert.strictEqual(ctx.state.currentPage, 'dashboard', page);
+        assert.ok(ctx.calls.includes('loadDashboard()'), `${page}: ${ctx.calls.join(',')}`);
+    }
+});
 
 test('no project open: every page that belongs to a film lands on the project list and says why; the rest open', async () => {
     const bad = [];

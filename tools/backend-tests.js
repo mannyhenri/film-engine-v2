@@ -34,7 +34,8 @@ function run(f) {
         p.on('close', (code) => {
             log.end(() => {
                 const text = fs.readFileSync(path.join(OUT, f + '.log'), 'utf8');
-                const n = (k) => +((text.match(new RegExp(`ℹ ${k} (\\d+)`)) || [0, 0])[1]);
+                // "ℹ pass N" on a terminal, "# pass N" when the output is piped (TAP).
+                const n = (k) => +((text.match(new RegExp(`^(?:ℹ|#) ${k} (\\d+)`, 'm')) || [0, 0])[1]);
                 resolve({ f, ok: code === 0, pass: n('pass'), fail: n('fail'), skipped: (skips[f] || []).length });
             });
         });

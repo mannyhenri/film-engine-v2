@@ -82,13 +82,10 @@ const WANTED = [
     ['Write & Design', ['screenplay', 'scenes', 'notes', 'moodboard',
         'characters', 'locations', 'props', 'threed']],
     ['Plan',           ['storyboard', 'deliverables', 'previs', 'consistency', 'milestones', 'budget']],
-    // `productiongraph` was asked for later (design_handoff_production_graph):
-    // the eight pages as one graph. The `production_graph` setting decides which
-    // the menu SHOWS; every page stays in exactly one group either way.
-    // Music Cues and the Score workstation went with music-making (2026-10-14);
-    // Music & Sound stays.
-    ['Production',     ['productiongraph', 'shotboard', 'videoshots', 'music', 'playback',
-        'pipeline', 'flows']],
+    // `productiongraph` was asked for later (design_handoff_production_graph), and
+    // became the phase's one page when the user removed the older pages
+    // (2026-11-11): Shot Board, Video Shots, Music & Sound, Playback, Pipeline, Flows.
+    ['Production',     ['productiongraph']],
     // `edits` was asked for later: "where do I place this edit so we can see it
     // in Film Engine, and compose a score for it" — the cut comes home first.
     ['Post',           ['edits', 'exportpage', 'titles', 'subtitles', 'rights', 'marketing', 'assets',

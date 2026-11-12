@@ -338,11 +338,247 @@ const RETIRED = {
                 'Off, Production is its separate pages.\n                            Every old page is still reachable by its address.'],
         ],
     },
+    resync: {
+        why: 'Resync on the Storyboard removed by the user on 2026-11-11, with the Sync button the top bar carried (a v2 '
+            + 'component): neither carried a rewritten, added or cut line onto its card, so the board kept the old words. '
+            + 'The Screenplay page\'s Update storyboard (src/components/UpdateStoryboard) replaces both: it plans for free '
+            + 'which cards change and how, and writes only that plan once confirmed. The Audit beside Resync stays.',
+        pages: [],
+        modals: [],
+        names: ['previewResync', 'applyResync'],
+        text: [
+            // The drift strip points at the Screenplay, where the update now lives, instead of offering Resync.
+            ['app', "detail: `${shots} shot${shots === 1 ? '' : 's'} \\u00b7 ${where}`,\n            actions: `\n"
+                + '                <button class="btn btn-primary btn-sm" onclick="previewResync()"\n'
+                + '                        title="Show exactly what a resync would change. Nothing is written until you say so.">Resync\\u2026</button>\n',
+            "detail: `${shots} shot${shots === 1 ? '' : 's'} \\u00b7 ${where} \\u00b7 <a href=\"#/${esc(state.currentProject.id)}/screenplay\" style=\"color:var(--gl-brand-blue,#6690ff);\"\n"
+                + '                    title="Update storyboard, on the Screenplay page, shows which cards change before it writes anything">update them from the Screenplay</a>`,\n'
+                + '            actions: `\n'],
+            ['app', 'Nothing is blocked. <strong>Resync</strong> reconciles what can be reconciled without a\n'
+                + '                judgement \\u2014 who and what is in each frame, dialogue that still matches word for word \\u2014\n'
+                + '                and shows you the plan first. It never rewrites a description and never deletes a shot.\n'
+                + '                Anything needing a decision comes back as a list. The affected frames are marked below.`,',
+            'Nothing is blocked. <strong>Update storyboard</strong>, on the Screenplay page, carries the new\n'
+                + '                words onto these cards \\u2014 rewritten, added and cut lines, who and what is in each frame \\u2014\n'
+                + '                and lists every card it will change before it writes anything. It never rewrites a description\n'
+                + '                and never deletes a shot. The affected frames are marked below.`,'],
+        ],
+    },
+    boardAudit: {
+        why: 'The Audit button on the Storyboard\'s "Screenplay changed" notice removed by the user on 2026-11-11, after '
+            + 'Resync went: the last action left on that warning besides why and Still matches. The report it opened '
+            + '(GET /projects/:id/shot-audit, the shot_audit MCP tool) stays, and the run plan still checks it.',
+        pages: [],
+        modals: [],
+        names: ['runShotAudit'],
+        text: [
+            ['app', '                <button class="btn btn-secondary btn-sm" onclick="runShotAudit()"\n'
+                + '                        title="Check every card for subjects that would reach the model as neither picture nor description \\u2014 free">Audit</button>\n',
+            ''],
+        ],
+    },
+    boardImpact: {
+        why: 'The "Generated work behind its inputs" notice on the Storyboard, its Still current button and the per-frame '
+            + 'redo/waiting marks, removed by the user on 2026-11-11. The impact report itself stays (GET /projects/:id/impact, '
+            + 'the impact_report MCP tool, and the states Production reads).',
+        pages: [],
+        modals: [],
+        names: ['IMPACT', 'loadImpact', 'impactTag', 'impactNotice', 'acceptAllStale'],
+        text: [
+            ['app', '        await loadImpact();\n', ''],
+            ['app', '        // One strip for both notices now \u2014 impactBanner() composes them, so the\n'
+                + '        // board gets a single line rather than two stacked paragraphs.\n',
+            '        // One strip: impactBanner() composes it (the screenplay notice, the generated-work one removed).\n'],
+            ['app', '    /** Both notices, one strip, ordered as the work is done. */\n    function impactBanner() {\n'
+                + '        return noticeStrip([screenplayDriftNotice(), impactNotice()]);\n',
+            '    /** The notice strip: the screenplay notice. */\n    function impactBanner() {\n'
+                + '        return noticeStrip([screenplayDriftNotice()]);\n'],
+            ['app', 'return screenplayDriftTag(f) + impactTag(f) + dialogueTag(f)', 'return screenplayDriftTag(f) + dialogueTag(f)'],
+        ],
+    },
+    classicProduction: {
+        why: 'Production\'s older layout, removed by the user on 2026-11-11: the "Production graph" setting that chose between '
+            + 'the Production studio and its six separate pages (Shot Board, Video Shots, Music & Sound, Playback, Pipeline, Flows), '
+            + 'then the six pages themselves and everything only they used ("no traces of it if unused"). A fresh sandbox opened '
+            + 'the older pages and read as an old version of the app. Production is the studio alone; the backend routes the '
+            + 'studio, the graph and the MCP tools still use stay.',
+        pages: [],
+        // Page ids that are also ordinary words (music, playback, pipeline, flows): `pages` would cut every `music` key and
+        // 'music' item in the app (the sound library's capability, the served folders). So their markup and sidebar
+        // buttons are cut as screens, and the lists and maps that name them as pages by the `text` edits below.
+        screens: ['shotboard', 'videoshots', 'music', 'playback', 'pipeline', 'flows'],
+        modals: ['soundGenModal'],
+        // Styles for classes only these pages drew (each checked against what stays): a rule naming only these goes,
+        // a selector list loses just them.
+        cssClasses: [
+            'kanban-column',
+            'btn-warning', 'fbody', 'fedge', 'flow-canvas', 'flow-canvas-wrap', 'flow-inspector', 'flow-node-btn',
+            'flow-palette', 'flow-status', 'flow-toolbar', 'flow-workspace', 'fnode', 'fport', 'fportlabel', 'fsub',
+            'ftitle', 'kanban-board', 'kanban-card', 'kanban-column-header', 'pb-columns', 'pb-gap', 'pb-gap-title',
+            'pb-note-box', 'pb-note-item', 'pb-note-list', 'pb-note-marker', 'pb-note-markers', 'pb-note-tc',
+            'pb-playhead', 'pb-playlist', 'pb-playlist-item', 'pb-scrub', 'pb-scrub-fill', 'pb-scrub-wrap', 'pb-sep',
+            'pb-shot-tick', 'pb-shot-ticks', 'pb-stage', 'pb-still', 'pb-timecode', 'pb-transport', 'pb-video',
+            'shot-code', 'shot-meta', 'snd-cat', 'snd-facts', 'snd-meta', 'snd-origin', 'snd-play', 'snd-tile',
+            'snd-warn', 'snd-wave',
+        ],
+        names: [
+            'saveProductionGraphFlag', 'playFromShot', 'shotDetailPanel', 'videoTierRow', 'pickVideoTier', 'VIDEO_TIER_BLURB',
+            'CONFIRM_GEN_VIDEO_TIER', 'videoEstimateHtml', 'loadSequences', 'stripSequence', 'openStrip',
+            'correctStation', 'approveStrip', 'previewSequence', 'generateNextSequenceLeg', 'deleteSequence', 'PG_OLD_PAGES', 'PRODUCTION_GRAPH_ON', 'FLOW', 'pgEditFlow',
+            'flowBackToGraph', 'loadShotboardRuntime', 'loadShotBoard', 'dragShotId', 'onShotDragStart',
+            'onShotDragEnd', 'onShotDragOver', 'onShotColumnOver', 'onShotColumnLeave', 'onShotColumnDrop',
+            'onShotDrop', 'openShotDetail', 'closeShotDetail', 'loadShotDetailNotes', 'addShotDetailNote',
+            'runShotPipeline', 'saveShotTransition', 'openABCompare', 'loadABCompare', 'updateABCrossfade',
+            'closeABCompare', 'loadVideoShots', 'renderSequencePicker', 'toggleSequenceShot', 'SEQ',
+            'generateAllVoices', 'createSequence', 'generateAllVideos', 'generateAllVideosRun',
+            'askBackgroundInstruction', 'BG_INSTRUCTION', 'bgInstructionDone', 'generateVideoFor', 'lipsyncShot',
+            'pickCoverageRun', 'postShot', 'replaceBackground', 'setClipCoverage', 'stitchShot', 'fmtDuration',
+            'fmtSize', 'fmtAge', 'drawWaveform', 'paintWaveforms', 'SOUND_LIB', 'SOUND_FILTER', 'soundFileCard',
+            'loadSoundLibrary', 'renderSoundLibrary', 'openSoundGenerator', 'soundGenPreview', 'runSoundGenerate',
+            'sndPlay', 'loadMusic', 'saveAmbientDirection', 'saveSceneDelivery', 'generateAmbientFor',
+            '_pbProtectBound', 'bindPlaybackProtect', 'renderPlaybackProtect', 'playbackStartIndex', 'loadPlayback',
+            'renderPlaybackSummary', 'pbEntry', 'pbAbsoluteMs', 'loadShotIntoStage', 'renderPlaylist', 'renderScrub',
+            'motionTransformAt', 'motionCss', 'pbMovingTrack', 'pbApplyMotion', 'pbMotionLabel', 'pbMotionToggled',
+            'BED_KINDS', 'bedVolume', 'bedAt', 'pbSyncBeds', 'pbBedLabel', 'pbRegenerateDialogue', 'pbBedsToggled',
+            'updatePlayhead', 'msToTc', 'pbGoTo', 'pbStep', 'pbTogglePlay', 'pbLastFrame', 'pbPlayLine',
+            'pbDialogueToggled', 'pbTick', 'PB_MARK_FLOOR_S', 'pbResolveMarks', 'pbMarks', 'pbFrameRate',
+            'pbFrameStep', 'pbKeydown', 'pbRunRepair', 'pbMarkIn', 'pbMarkOut', 'pbClearMarks', 'pbRenderMarks',
+            'pbSeekFromClick', 'pbSyncAudio', 'pbSeekAbsolute', 'pbAddNote', 'renderNoteList', 'loadPipeline',
+            'renderPipelineReadiness', 'renderPipelineSteps', 'runPipelineLive', 'runPipelineScope',
+            'PIPE_STEP_ICONS', 'NODE_W', 'NODE_HEAD', 'PORT_ROW', 'PORT_R', 'nodeHeight', 'PORT_COLOR', 'portY',
+            'portsCompatibleClient', 'loadFlowsPage', 'setFlowStatus', 'renderFlowPalette', 'flowCanvasOpen',
+            'flowCanvasRender', 'renderFlowNode', 'portPos', 'svgPoint', 'flowCanvasStartDrag',
+            'flowCanvasStartLink', 'flowCanvasEndLink', 'flowNextNodeSuggestions', 'flowNextNodeMenuHtml',
+            'flowOpenNextNode', 'flowNextNodeOutside', 'flowCloseNextNode', 'flowPickNextNode',
+            'flowCanvasDeleteEdge', 'flowCanvasAddNode', 'flowCanvasDeleteSelected', 'flowCanvasZoom',
+            'flowCanvasFit', 'renderFlowInspector', 'flowNodeSet', 'flowNodeSetConfig', 'flowCanvasFromTemplate',
+            'flowCanvasNew', 'flowCanvasDuplicate', 'flowCanvasSave', 'flowCanvasRun', 'flowPaintRun',
+            'flowCanvasBackgroundDown',
+        ],
+        text: [
+            // Always the studio.
+            ['productionGraph', ' * Behind the `production_graph` setting. Off, the phase is its eight pages.\n',
+                ' * Always on: the older separate pages and the setting that chose them were removed (2026-11-11).\n'],
+            ['productionGraph', '    try {\n        const r = await api(\'/settings\');\n'
+                + '        PRODUCTION_GRAPH_ON = !!(r && r.settings && r.settings.production_graph);\n'
+                + '    } catch (_) { /* a settings read that fails leaves the classic pages, which is the safe side */ }\n', ''],
+            ['productionGraph', '    const toggle = document.getElementById(\'settingsProductionGraph\');\n'
+                + '    if (toggle) toggle.checked = PRODUCTION_GRAPH_ON;\n', ''],
+            // A page that no longer exists (an old bookmark, a remembered route, a link left somewhere) opens Home.
+            ['app', '    function navigateTo(page) {\n',
+                '    function navigateTo(page) {\n'
+                + '        // A page that no longer exists (an old bookmark, a remembered route) opens Home.\n'
+                + '        if (!document.getElementById(\'page-\' + page)) page = \'dashboard\';\n'],
+            // The router's loaders, the guide's entries, the shell's Production group and the graph's menu rule.
+            ...['shotboard: loadShotBoard', 'pipeline: loadPipeline', 'flows: loadFlowsPage', 'videoshots: loadVideoShots', 'music: loadMusic']
+                .map(l => ['app', `            ${l},\n`, '']),
+            ['app', '            // ==== CLAUDE:START loaders (gaps 3/4/5/7d) ====\n            playback: loadPlayback,\n            // ==== CLAUDE:END ====\n', ''],
+            ...['shotboard', 'videoshots', 'music', 'pipeline'].map(p => ['app', new RegExp(`\n      ${p}: \\{\n[\\s\\S]*?\n      \\},\n`), '\n']),
+            ['shell', "pages:['productiongraph','shotboard','videoshots','music','musiccues','musicws','playback','pipeline','flows'] }", "pages:['productiongraph'] }"],
+            ['productionGraph', '    document.querySelectorAll(\'.nav-item[data-page]\').forEach(b => {\n'
+                + '        const p = b.dataset.page;\n'
+                + '        const hide = (p === \'productiongraph\' && !PRODUCTION_GRAPH_ON) || (PRODUCTION_GRAPH_ON && PG_OLD_PAGES.includes(p));\n'
+                + '        if (hide) b.dataset.flagHidden = \'1\'; else delete b.dataset.flagHidden;\n'
+                + '    });\n', ''],
+            ['productionGraph', '    const on = PRODUCTION_GRAPH_ON && state.currentProject;\n', '    const on = state.currentProject;\n'],
+            // Leaving the Flows page by Back no longer has anything to reset.
+            ['app', "        // Left the Flows page by Back: the way back to the graph has been used.\n"
+                + "        if (typeof FLOW !== 'undefined' && state.currentPage !== 'flows') { FLOW.returnTo = null; FLOW.pushed = false; }\n", ''],
+            // The graph's Edit flow buttons opened the Flows page: gone with it (Apply flow stays).
+            ['productionGraph', "Cancel run</button>` : ''}${\n               it.flow_id ? `<button class=\"pg-sbtn\" onclick=\"event.stopPropagation();pgEditFlow('${esc(it.flow_id)}')\" title=\"Open this flow on the Flows canvas\">Edit flow</button>` : ''}`", "Cancel run</button>` : ''}`"],
+            ['productionGraph', "</button>\n        <button class=\"pg-sbtn\" onclick=\"pgEditFlow('${esc(f.id)}')\" title=\"Open this flow on the Flows canvas\">Edit flow</button></div>`", "</button></div>`"],
+            ['productionGraph', "    const edit = f.flow_id ? ` <button class=\"pg-sbtn\" onclick=\"pgEditFlow('${esc(f.flow_id)}')\" title=\"Change the flow itself on the Flows canvas instead of filling it in\">Edit flow</button>` : '';\n    return `<h3 style=\"margin-top:0;\">${esc(f.flow_name || 'Flow')}${edit}</h3>", "    return `<h3 style=\"margin-top:0;\">${esc(f.flow_name || 'Flow')}</h3>"],
+            ['productionGraph', "    const edit = n.flow_id ? `<button class=\"${compact ? 'pg-sbtn' : 'btn btn-secondary btn-sm'}\" onclick=\"pgEditFlow('${esc(n.flow_id)}')\"\n        title=\"Open the flow that made this on the Flows canvas\">${compact ? 'Edit' : 'Edit flow'}</button>` : '';\n    if (!pickable && !edit) return '';", "    if (!pickable) return '';"],
+            ['productionGraph', "    if (compact) return btn + edit;", "    if (compact) return btn;"],
+            ['productionGraph', "Cancel run</button>` : ''}${edit}</div>`;", "Cancel run</button>` : ''}</div>`;"],
+            ['productionGraph', "    const edit = f.flow && f.flow.id ? `<div class=\"pg-btnrow\"><button class=\"btn btn-secondary btn-sm\" onclick=\"pgEditFlow('${esc(f.flow.id)}')\"\n        title=\"Open this flow on the Flows canvas\">Edit flow</button></div>` : '';\n    return `<div class=\"pg-kicker\"><span>Made by a flow</span></div><div class=\"pg-list\">${rows.join('')}</div>${edit}", "    return `<div class=\"pg-kicker\"><span>Made by a flow</span></div><div class=\"pg-list\">${rows.join('')}</div>"],
+            // What the six pages left running in core: the Flows canvas's pointer listeners, Playback's keys, Video Shots as
+            // the default refresh of a shot action, the Shot Board's detail panel as a busy surface, Playback's protect picker.
+            ['app', /\n    \/\/ Canvas-level pointer handling: pan on background drag, move on node drag\.\n[\s\S]*?if \(svg\) svg\.classList\.remove\('panning'\);\n    \}\);\n/, '\n'],
+            ['app', "    window.addEventListener('keydown', pbKeydown);\n", ''],
+            ['app', '            (reload || loadVideoShots)();\n', '            if (reload) reload();\n'],
+            ['app', "            // The shot detail panel.\n            () => {\n                const panel = document.getElementById('shotDetailPanel');\n                return panel ? panel.querySelector('img') : null;\n            },\n", ''],
+            ['app', "host.closest('.card') || host.closest('#shotDetailPanel') || host", "host.closest('.card') || host"],
+            ['app', "    /** Keep both pickers offering what the job actually ships. */\n    function refreshProtectOptions() {\n        for (const id of ['boardProtectRatio', 'pbProtectRatio']) {\n",
+                "    /** Keep the board's picker offering what the job actually ships. */\n    function refreshProtectOptions() {\n        for (const id of ['boardProtectRatio']) {\n"],
+            // Playback's player state (`pb` is also a local name elsewhere, so it is cut here rather than retired by name).
+            ['app', /\n    const pb = \{\n        timeline: null,[\s\S]*?\n        localMs: 0,\n    \};\n/, '\n'],
+            // Words that sent people to the removed pages.
+            ['app', "tip: 'Changed on the Shot Board after it was applied here.' }", "tip: 'Changed on the shot card after it was applied here.' }"],
+            ['app', "tip: 'Changed here AND on the Shot Board since it was applied.' }", "tip: 'Changed here AND on the shot card since it was applied.' }"],
+            ['app', "re-seed from the Shot Board before locking", "re-seed from the shot card before locking"],
+            ['app', "                + '. It plays in Playback now.'\n", ""],
+            ['app', "     * THE UPSCALE CONFIRMATION, shared by the Video Shots button and the\n     * production canvas.", "     * THE UPSCALE CONFIRMATION, for the production canvas."],
+            ['app', "title=\"Generate the dialogue for this scene's shots, then hear it in Playback. Spends one generation per line; lines already spoken are reused.\"", "title=\"Generate the dialogue for this scene's shots. Spends one generation per line; lines already spoken are reused.\""],
+            // The clip confirmation's priced tier row: only Video Shots opted into it (videoTiers).
+            ['app', "    window.pickVideoTier = pickVideoTier;\n", ""],
+            ['app', "        if (CONFIRM_GEN_VIDEO_TIER) q.set('tier', CONFIRM_GEN_VIDEO_TIER);\n", ""],
+            ['app', "        const holder = document.getElementById('confirmVideoTierRow');\n        const opts = document.getElementById('confirmVideoOptions');\n        if (!CONFIRM_GEN_PREVIEW_URL || (!holder && !opts)) return;\n        if (holder) holder.innerHTML = '<div class=\"text-sm\" style=\"opacity:.6;\">Re-reading what this would cost&hellip;</div>';\n        try {\n            const d = await api(videoPreviewUrl());\n            if (holder) holder.innerHTML = videoTierRow(d);\n            if (opts) opts.innerHTML = videoOptionsHtml(d.options);\n        } catch (err) {\n            // A failed re-read must not leave a stale price under the button.\n            if (holder) holder.innerHTML = `<div class=\"text-sm\" style=\"color:var(--gl-danger,#ef4444);\">\n                Could not re-price this: ${esc(err.message)}</div>`;\n        }\n", "        const opts = document.getElementById('confirmVideoOptions');\n        if (!CONFIRM_GEN_PREVIEW_URL || !opts) return;\n        try {\n            const d = await api(videoPreviewUrl());\n            opts.innerHTML = videoOptionsHtml(d.options);\n        } catch (err) {\n            setStatus('Could not re-read this clip\\'s options: ' + err.message);\n        }\n"],
+            ['app', "        CONFIRM_GEN_VIDEO_TIER = null;\n        CONFIRM_GEN_VIDEO_OPTIONS = {};\n", "        CONFIRM_GEN_VIDEO_OPTIONS = {};\n"],
+            ['app', "        const pickers = await confirmPickers(o.capability || 'image', { ownTiers: !!o.videoTiers });", "        const pickers = await confirmPickers(o.capability || 'image');"],
+            ['app', "          ${o.videoTiers ? `<div id=\"confirmVideoTierRow\">${videoTierRow(d)}</div>` : ''}\n", ""],
+            ['app', "    async function confirmPickers(capability, how) {\n        const cap = capability || 'image';\n        // A clip dialog with its own priced tier row (\"How good does this one\n        // need to be?\") must not draw a second, unpriced one beside it.\n        const ownTiers = !!(how && how.ownTiers);\n", "    async function confirmPickers(capability) {\n        const cap = capability || 'image';\n"],
+            ['app', "        const tierBox = ownTiers ? '' : tiers && tiers.length ? box('Quality for this one',", "        const tierBox = tiers && tiers.length ? box('Quality for this one',"],
+            ['app', "        const sizeBox = ownTiers ? '' : sizes && sizes.length ? box('Size for this one',", "        const sizeBox = sizes && sizes.length ? box('Size for this one',"],
+            // The glossary's entries for the pages, and the style sheet's heading for the Shot Board's rules.
+            ['styles', "        /* ══════════════════════════════════════════════════════════\n           KANBAN (Shot Board)\n           ══════════════════════════════════════════════════════════ */\n", ""],
+            ['app', "            'Shot Board': 'Kanban-style board organizing individual shots by scene. Each shot has a scene card (YAML) describing camera, lighting, characters, and style.',\n", ""],
+            ['app', "            'Pipeline': 'Automated 9-step shot production: keyframe, video, voice, lipsync, music, SFX, ambient, post-production, and assembly.',\n", "            'Production': 'The studio where the storyboard becomes footage: shots directed on a timeline (camera, acting, dialogue, sound), generated, then cut in order and sent to DaVinci Resolve.',\n"],
+            // A joined sequence no longer refreshes a Video Shots page.
+            ['app', "            loadSequences();\n            if (typeof loadVideoShots === 'function') loadVideoShots();\n", ''],
+            // The sequence list (loadSequences) was drawn into Video Shots only, with its strip, preview, next-leg and delete
+            // actions: gone with it. The graph's sequence drawer keeps generating, stitching and upscaling.
+            ['app', "/generate-native', {\n                        method: 'POST', body: JSON.stringify(choices || {}),\n                    });\n"
+                + "                    setStatus('Done.');\n                    if (typeof loadSequences === 'function') loadSequences();\n",
+            "/generate-native', {\n                        method: 'POST', body: JSON.stringify(choices || {}),\n                    });\n"
+                + "                    setStatus('Done.');\n"],
+            ['app', /(note: 'Each segment travels between two frames you have already approved\.',[\s\S]*?setStatus\('Done\.'\);\n)                    if \(typeof loadSequences === 'function'\) loadSequences\(\);\n/, '$1'],
+            // The guide lists the studio, not the older pages, and its next steps point at live pages.
+            ['app', "        'dashboard', 'screenplay', 'scenes', 'shotboard', 'storyboard',\n"
+                + "        'characters', 'locations', 'props', 'assets', 'threed', 'videoshots',\n"
+                + "        'music', 'musiccues', 'colorgrading', 'milestones', 'notes', 'renderhistory',\n"
+                + "        'continuity', 'consistency', 'budget', 'exportpage', 'pipeline', 'settings',\n",
+            "        'dashboard', 'screenplay', 'scenes', 'storyboard', 'productiongraph',\n"
+                + "        'characters', 'locations', 'props', 'assets', 'threed',\n"
+                + "        'colorgrading', 'milestones', 'notes', 'renderhistory',\n"
+                + "        'continuity', 'consistency', 'budget', 'exportpage', 'settings',\n"],
+            ['app', "next: ['screenplay', 'shotboard']", "next: ['screenplay', 'storyboard']"],
+            ['app', "next: ['shotboard']", "next: ['storyboard']"],
+            ['app', "next: ['videoshots', 'continuity']", "next: ['productiongraph', 'continuity']"],
+            ['app', "next: ['shotboard', 'milestones']", "next: ['storyboard', 'milestones']"],
+            ['app', "next: ['videoshots', 'exportpage']", "next: ['productiongraph', 'exportpage']"],
+            ['app', "next: ['exportpage', 'pipeline']", "next: ['exportpage', 'productiongraph']"],
+            ['app', "next: ['shotboard', 'renderhistory']", "next: ['storyboard', 'renderhistory']"],
+            ['app', "next: ['storyboard', 'videoshots']", "next: ['storyboard', 'productiongraph']"],
+            ['app', '\n      acts: {\n',
+                '\n      productiongraph: {\n'
+                + "        title: 'Production', icon: '&#9672;', group: 'Production', stage: 'produce', order: 6,\n"
+                + "        tooltip: 'Direct, generate and cut the film: one studio for the whole Production phase',\n"
+                + "        purpose: 'Where the storyboard becomes footage. Pick shots, direct acting, camera, dialogue, sound and light on a timeline, watch the prompt rebuild as you direct, check it against the model and generate; then cut the picked shots in order and send the timeline to DaVinci Resolve.',\n"
+                + '        does: [\n'
+                + "          'Generate: shots and sequences directed on a timeline with camera, acting, dialogue and sound tracks',\n"
+                + "          'Cut: the rough edit, footage or not, sent to DaVinci Resolve as a timeline',\n"
+                + "          'Generators: local AI tools on any video (slow motion, upscale, depth, rotoscope, stems, subtitles)'\n"
+                + '        ],\n'
+                + "        needs: ['Storyboard frames. Locked character identities give far better results.'],\n"
+                + "        next: ['edits', 'exportpage'],\n"
+                + "        pro: 'Director, DP and editor in one room',\n"
+                + "        note: 'Credits are shown before anything is sent. Nothing is spent until you confirm.'\n"
+                + '      },\n\n      acts: {\n'],
+            // The first-open tour walks the studio where it walked the older pages.
+            ['app', "      'shotboard',    // plan it\n      'storyboard',   // see it\n      'videoshots',   // shoot it\n"
+                + "      'music',        // score it\n      'pipeline',     // automate it\n",
+            "      'storyboard',   // see it\n      'productiongraph', // direct and shoot it\n"],
+        ],
+    },
 };
 
 const RETIRED_PAGES = new Set(Object.values(RETIRED).flatMap(f => f.pages));
 const RETIRED_NAMES = new Set(Object.values(RETIRED).flatMap(f => f.names));
 const RETIRED_MODALS = new Set(Object.values(RETIRED).flatMap(f => f.modals));
+// Retired pages whose ids are ordinary words: only their markup and sidebar buttons are cut by id (retireHtml); the
+// feature's `text` edits cut the lists and maps that name them as pages.
+const RETIRED_SCREENS = new Set(Object.values(RETIRED).flatMap(f => f.screens || []));
 
 /** Cut spans [start, end) out of a string, last first (spans never overlap). */
 function cutSpans(text, spans) {
@@ -422,7 +658,7 @@ function elementEnd(html, at) {
 function retireHtml(html) {
     const spans = [];
     const elementAt = (at) => [html.lastIndexOf('\n', at), elementEnd(html, at)];
-    for (const p of RETIRED_PAGES) {
+    for (const p of [...RETIRED_PAGES, ...RETIRED_SCREENS]) {
         const page = html.indexOf(`<div class="page" id="page-${p}">`);
         if (page < 0) throw new Error(`retired page ${p} is not in the source`);
         spans.push(elementAt(page));
@@ -442,9 +678,12 @@ function retireHtml(html) {
 function retireText(src) {
     for (const f of Object.values(RETIRED)) {
         for (const [part, before, after] of f.text || []) {
-            const n = typeof before === 'string' ? src[part].split(before).length - 1 : (src[part].match(new RegExp(before.source, 'g')) || []).length;
+            const count = (text) => (typeof before === 'string' ? text.split(before).length - 1 : (text.match(new RegExp(before.source, 'g')) || []).length);
+            // `styles` is the list of <style> blocks: the edit must match once across all of them.
+            const n = part === 'styles' ? src.styles.reduce((k, st) => k + count(st.css), 0) : count(src[part]);
             if (n !== 1) throw new Error(`retired text in ${part} matched ${n} times (expected once): ${String(before).slice(0, 80)}`);
-            src[part] = src[part].replace(before, after);
+            if (part === 'styles') src.styles = src.styles.map(st => (count(st.css) ? { ...st, css: st.css.replace(before, after) } : st));
+            else src[part] = src[part].replace(before, after);
         }
     }
     return src;
@@ -480,6 +719,14 @@ function retireCss(css) {
                     else { out += css.slice(at, i + 1) + inner.text + '}'; at = j; }
                 } else if (!/^\s*@/.test(prelude) && onlyRetired(prelude)) {
                     out += css.slice(at, Math.max(at, lineStart - 1)); at = j;
+                } else if (!/^\s*@/.test(prelude) && !/\/\*/.test(prelude)) {
+                    // A list that names retired classes beside kept ones loses just those selectors.
+                    const parts = prelude.split(',');
+                    const keep = parts.filter(sel => ![...sel.matchAll(/\.([\w-]+)/g)].some(m => retiredClass(m[1])));
+                    if (keep.length && keep.length < parts.length) {
+                        const lead = prelude.match(/^\s*/)[0], tail = prelude.match(/\s*$/)[0];
+                        out += css.slice(at, p) + lead + keep.map(x => x.trim()).join(', ') + tail; at = i;
+                    }
                 }
                 i = j; continue;
             }

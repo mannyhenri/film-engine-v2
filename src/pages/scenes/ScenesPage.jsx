@@ -182,7 +182,7 @@ export default function ScenesPage() {
                                 </div>
                                 {lines
                                     ? <button className="btn btn-sm" onClick={stop(() => E.generateSceneDialogue(s.id, lines))}
-                                        title="Generate the dialogue for this scene's shots, then hear it in Playback. Spends one generation per line; lines already spoken are reused.">&#127908; Dialogue &middot; {lines}</button>
+                                        title="Generate the dialogue for this scene's shots. Spends one generation per line; lines already spoken are reused.">&#127908; Dialogue &middot; {lines}</button>
                                     : <button className="btn btn-sm" disabled style={{ opacity: 0.45, cursor: 'not-allowed' }} title="This scene has no dialogue">&#127908; Dialogue &middot; 0</button>}
                                 {s.status === 'written' && <button className="btn btn-sm" onClick={stop(() => breakdownScene(s.id))} title="Generate shots for this scene">&#9881; Break Down</button>}
                                 {behind && <span className="badge" style={warn} title={`${behind.shots_behind.length} shot card(s) here were written from an earlier draft of this scene`}>script changed</span>}

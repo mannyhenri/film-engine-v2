@@ -97,7 +97,8 @@ test('the card button row is declared once, not per page', () => {
     // of them reaches for the same class. The moment a page writes its own
     // inline row instead, it opts out of the wrap and the bug comes back on
     // that page only — which is how it looked like a Characters problem.
-    const uses = HTML.match(/class="card-actions"/g) || [];
+    // The entity pages are React now: the row is className there, class in the HTML core draws.
+    const uses = HTML.match(/class(?:Name)?="card-actions"/g) || [];
     assert.ok(uses.length >= 3,
         `expected the shared row class on every entity page, found ${uses.length}`);
 

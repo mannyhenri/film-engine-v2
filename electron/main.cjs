@@ -361,22 +361,6 @@ async function smoke(win) {
         }
     }
     /*
-     * The music engine (src/pages/music/engine.js) draws Music & Sound: the sound library's count and each scene's
-     * row. Viewing only: nothing is generated, saved or played.
-     */
-    if (project && PAGES.includes('music')) {
-        current = 'music page';
-        const before = errors.length;
-        await js(`navigateTo('music')`);
-        let got = false;
-        for (let t = 0; t < 40 && !got; t++) {
-            got = await js(`(document.getElementById('soundLibCount').textContent.trim().length > 0) && document.getElementById('musicGrid').children.length > 0`).catch(() => false);
-            if (!got) await new Promise(r => setTimeout(r, 250));
-        }
-        const ok = got && errors.length === before;
-        report.push({ id: 'music page', ok, want: 'music page', active: ok ? 'music page (library, scene rows)' : `drawn=${got} errors=${errors.length - before}` });
-    }
-    /*
      * The 3D stage engine (src/pages/previs/engine.js) draws both 3D pages React renders: the World Engine console on
      * Previs (its view and shot rail), and the models page, with three.js loaded first (react.json vendors). Viewing
      * only: no world is generated and nothing is saved.
@@ -440,16 +424,22 @@ async function smoke(win) {
         report.push({ id: 'deeplink→' + deep, ok, chunk: chunked, active: st.active, want: 'page-' + deep });
     }
     if (process.env.FE_SMOKE_SHAPES) require('fs').writeFileSync(process.env.FE_SMOKE_SHAPES, JSON.stringify(shapes, null, 1));
-    // The top bar's Sync screenplay: present in the rail, and its dialog compares (a dry run) when pressed.
+    // The Screenplay's Update storyboard: on the page, and pressing it saves the editor into the version it holds (as
+    // the autosave does) and shows the free plan. Never confirmed here: the board is not written.
     if (project && !process.env.FE_SMOKE_URL && !process.env.FE_SMOKE_PAGES) {
-        current = 'sync';
+        current = 'update storyboard';
         const before = errors.length;
-        const there = await js(`!!document.querySelector('.fe-top .fe-rail #syncScreenplayBtn')`);
-        await js(`document.getElementById('syncScreenplayBtn').click(); true`);
+        await js(`navigateTo('screenplay')`);
+        let there = false;
+        for (let t = 0; t < 40 && !there; t++) {
+            there = await js(`!!document.querySelector('#page-screenplay.active #updateStoryboardBtn') && !!document.getElementById('screenplayEditor')`).catch(() => false);
+            if (!there) await new Promise(r => setTimeout(r, 250));
+        }
+        await js(`document.getElementById('updateStoryboardBtn').click(); true`);
         let shown = '';
         for (let t = 0; t < 40; t++) {
-            shown = await js(`(() => { const m = document.getElementById('syncScreenplayModal'); return m && m.classList.contains('open') ? m.querySelector('.modal-body').textContent : ''; })()`);
-            if (/Descriptions are never rewritten|Could not compare/.test(shown)) break;
+            shown = await js(`(() => { const m = document.getElementById('updateStoryboardModal'); return m && m.classList.contains('open') ? m.querySelector('.modal-body').textContent : ''; })()`);
+            if (/Nothing is written until you confirm|already matches the screenplay|Could not/.test(shown)) break;
             await new Promise(r => setTimeout(r, 250));
         }
         /*
@@ -458,19 +448,19 @@ async function smoke(win) {
          * modal is open nothing may drag (desktop.css); the × closes it; dragging is back once it is closed.
          */
         const region = `(() => { const r = (el, p) => getComputedStyle(el, p).getPropertyValue('-webkit-app-region').trim();
-            return { bar: r(document.querySelector('.fe-top')), strip: r(document.documentElement, '::before'), overlay: r(document.getElementById('syncScreenplayModal')) }; })()`;
+            return { bar: r(document.querySelector('.fe-top')), strip: r(document.documentElement, '::before'), overlay: r(document.getElementById('updateStoryboardModal')) }; })()`;
         const mac = await js(`document.documentElement.classList.contains('fe-desktop-mac')`);
         await js(`document.documentElement.classList.add('fe-desktop-mac'); true`);
         const open = await js(region);
-        await js(`document.querySelector('#syncScreenplayModal .modal-close').click(); true`);
-        const closedByX = await js(`!document.getElementById('syncScreenplayModal').classList.contains('open')`);
+        await js(`document.querySelector('#updateStoryboardModal .modal-close').click(); true`);
+        const closedByX = await js(`!document.getElementById('updateStoryboardModal').classList.contains('open')`);
         const after = await js(region);
         if (!mac) await js(`document.documentElement.classList.remove('fe-desktop-mac'); true`);
         const closable = open.bar === 'no-drag' && open.strip === 'no-drag' && open.overlay === 'no-drag' && closedByX && after.bar === 'drag' && after.strip === 'drag';
         report.push({ id: 'modal closes by ×', ok: closable, want: 'modal closes by ×', active: closable ? 'modal closes by ×' : `open=${JSON.stringify(open)} closedByX=${closedByX} after=${JSON.stringify(after)}` });
-        await js(`closeModal('syncScreenplayModal'); true`);
-        const ok = there && /Descriptions are never rewritten/.test(shown) && errors.length === before;
-        report.push({ id: 'sync screenplay', ok, want: 'sync screenplay', active: ok ? 'sync screenplay' : `inRail=${there} dialog=${shown.slice(0, 80)}` });
+        await js(`closeModal('updateStoryboardModal'); true`);
+        const ok = there && /Nothing is written until you confirm|already matches the screenplay/.test(shown) && errors.length === before;
+        report.push({ id: 'update storyboard', ok, want: 'update storyboard', active: ok ? 'update storyboard' : `onPage=${there} dialog=${shown.slice(0, 80)}` });
     }
     /*
      * Switching project from inside one: the user's report, "we open a storyboard/production for a project, go into
@@ -601,28 +591,6 @@ async function smoke(win) {
         }
         const ok = !results.length && errors.length === before;
         report.push({ id: 'subject sheets', ok, want: 'subject sheets', active: ok ? 'subject sheets' : `${results.join(' | ')} errors=${errors.length - before}` });
-    }
-    /*
-     * Flows (React page, the graph chunk's engine moved verbatim): opened in a project, its node palette draws one
-     * button for every node type the server serves (in the four kinds the palette groups), with no console error.
-     */
-    if (project && !process.env.FE_SMOKE_URL && !process.env.FE_SMOKE_PAGES) {
-        current = 'flows';
-        const before = errors.length;
-        await js(`openProject(${JSON.stringify(project)}, 'flows').then(() => true)`);
-        let st = null;
-        for (let t = 0; t < 40; t++) {
-            st = await js(`(async () => {
-                const types = await api('/flows/node-types');
-                const want = Object.values(types).filter(d => ['input', 'generator', 'transform', 'output'].includes(d.kind)).length;
-                return { want, drawn: document.querySelectorAll('#flowPalette .flow-node-btn').length, active: document.querySelector('.page.active')?.id };
-            })()`).catch(e => ({ error: e.message }));
-            if (st && st.want && st.drawn === st.want) break;
-            await new Promise(r => setTimeout(r, 250));
-        }
-        const ok = !!st && !st.error && st.want > 0 && st.drawn === st.want && st.active === 'page-flows' && errors.length === before;
-        report.push({ id: 'flows palette', ok, want: 'flows palette', active: ok ? 'flows palette' : JSON.stringify(st) + ` errors=${errors.length - before}` });
-        await js(`backToProjectList(); true`);
     }
     // What the page opens: print previews stay in the app, API files download, other sites leave.
     if (!process.env.FE_SMOKE_URL && !process.env.FE_SMOKE_PAGES) {

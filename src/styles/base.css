@@ -997,48 +997,6 @@
         .scene-row.expanded .scene-expand { transform: rotate(90deg); }
         .scene-expand { transition: transform 0.2s; color: var(--gl-text-muted); font-size: 11px; }
 
-        /* ══════════════════════════════════════════════════════════
-           KANBAN (Shot Board)
-           ══════════════════════════════════════════════════════════ */
-        .kanban-board {
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 12px;
-            min-height: 300px;
-        }
-        .kanban-column {
-            background: rgba(255,255,255,0.02);
-            border: 1px solid var(--gl-border-subtle);
-            border-radius: var(--gl-radius-lg);
-            padding: 12px;
-            min-height: 200px;
-        }
-        .kanban-column-header {
-            font-size: 11px; font-weight: 600;
-            text-transform: uppercase; letter-spacing: 1px;
-            color: var(--gl-text-muted);
-            margin-bottom: 10px;
-            display: flex; justify-content: space-between; align-items: center;
-        }
-        .kanban-column-header .count {
-            background: rgba(255,255,255,0.06);
-            padding: 1px 6px; border-radius: 4px; font-size: 10px;
-        }
-        .kanban-card {
-            background: var(--gl-bg-surface);
-            border: 1px solid var(--gl-border-subtle);
-            border-radius: var(--gl-radius-md);
-            padding: 10px;
-            margin-bottom: 8px;
-            transition: var(--gl-transition-slow);
-            cursor: default;
-        }
-        .kanban-card:hover { border-color: rgba(233,30,99,0.2); }
-        .kanban-card .shot-code {
-            font-size: 11px; font-weight: 700; color: var(--gl-brand-pink);
-            margin-bottom: 4px;
-        }
-        .kanban-card .shot-meta { font-size: 10px; color: var(--gl-text-muted); }
 
         /* ══════════════════════════════════════════════════════════
            CHARACTER / LOCATION / PROP CARDS
@@ -1491,9 +1449,6 @@
             grid-template-columns:minmax(0,1fr) 300px; gap:30px;
         }
         .ls-footer > .ss-col { display:flex; flex-direction:column; gap:20px; }
-        .snd-warn { font-family:'JetBrains Mono',ui-monospace,monospace; font-size:9.5px;
-            color:#f0a828; margin-top:4px; letter-spacing:0.04em; }
-        .kanban-column.drop-target { outline:2px dashed rgba(129,140,248,0.7); outline-offset:-4px; }
         .board-ratio { position:absolute; inset:0; margin:auto; max-width:100%; max-height:100%;
             pointer-events:none; border:2px solid rgba(129,140,248,0.85); border-radius:2px; }
         .board-ratio.project { border-style:solid; border-color:rgba(232,232,234,0.35); }
@@ -1520,21 +1475,9 @@
            stands on a subject sheet, so the two read as the same furniture. */
         .snd-card { border:1px solid var(--gl-border,rgba(255,255,255,.08)); border-radius:8px;
                     overflow:hidden; background:rgba(255,255,255,.02); }
-        .snd-tile { position:relative; height:62px; display:flex; align-items:center;
-                    justify-content:center; background:rgba(0,0,0,.25); }
-        .snd-wave { width:100%; height:100%; display:block; color:var(--gl-accent,#818cf8); opacity:.85; }
         /* ── Music workstation (MUS-007) ─────────────────────────────── */
         /* The details sit under the lane and stay put while the timeline scrolls,
            except the roll, which must keep the ruler's own x-axis. */
-        .snd-play { position:absolute; inset:0; margin:auto; width:30px; height:30px; border-radius:50%;
-                    border:0; cursor:pointer; background:rgba(0,0,0,.55); color:#fff; font-size:12px;
-                    line-height:1; display:flex; align-items:center; justify-content:center; }
-        .snd-play:hover { background:rgba(0,0,0,.75); }
-        .snd-meta { padding:7px 9px 5px; display:flex; flex-direction:column; gap:2px; min-width:0; }
-        .snd-meta strong { font-size:12px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-        .snd-cat { font-size:9px; letter-spacing:.08em; text-transform:uppercase; opacity:.55; }
-        .snd-facts, .snd-origin { font-size:10px; opacity:.5; overflow:hidden;
-                                  text-overflow:ellipsis; white-space:nowrap; }
         .ss-cue:last-of-type { border-bottom:0; }
         .ps-turntable { padding:26px 32px 8px; display:flex; flex-direction:column; gap:20px; }
         .ps-grid > .ss-col:first-child {
@@ -4332,29 +4275,6 @@
         }
 
         /* ==== CLAUDE:START editorial styles (gaps 3/4/5/7d) ==== */
-        .pb-stage {
-            /* Cap the height: at full window width a 16:9 stage is ~730px tall
-               and pushes the transport and note form below the fold, which
-               makes the player look broken until you scroll.
-
-               `width: 100%` plus `max-height` DEFEATED the aspect-ratio beside
-               it: the height clamped, the width did not, and a stage declaring
-               16:9 rendered 3.18:1 — so every still played letterboxed inside a
-               box far wider than the film. Harmless while nothing moved; fatal
-               once something does, because the visible region is the stage, so
-               a move would have been watched through a wide slot with the top
-               and bottom of the frame outside it. Deriving the width from the
-               capped height instead makes the stage the FRAME, at the project's
-               own shape rather than a hardcoded 16:9. */
-            --pb-stage-h: 52vh;
-            position: relative; aspect-ratio: var(--pb-aspect, 1.7778);
-            width: min(100%, calc(var(--pb-stage-h) * var(--pb-aspect, 1.7778)));
-            max-height: var(--pb-stage-h); margin: 0 auto;
-            background: #000; border: 1px solid var(--gl-border);
-            border-radius: 6px; overflow: hidden;
-            display: flex; align-items: center; justify-content: center;
-        }
-        .pb-video { width: 100%; height: 100%; object-fit: contain; background: #000; }
         /*
           The still is the PICTURE's box, not the stage's.
           
@@ -4371,91 +4291,31 @@
           clips what travels outside. A shot with no move renders identically —
           the same contained rect, in the same place.
         */
-        .pb-still {
-            width: 100%; height: 100%;
-            background-size: contain; background-repeat: no-repeat; background-position: center;
-            /* The stage is now the frame's own shape, so a contained picture
-               fills it exactly and a translate of 25% is a quarter of the
-               FRAME. `contain` rather than a stretch so a stray asset of
-               another shape letterboxes instead of distorting. */
-            transform-origin: 50% 50%;
-            will-change: transform;
-        }
-        .pb-gap {
-            position: absolute; inset: 0; display: flex;
-            align-items: center; justify-content: center; text-align: center;
-            background: repeating-linear-gradient(45deg, #14141a, #14141a 10px, #1b1b22 10px, #1b1b22 20px);
-        }
-        .pb-gap-title { font-size: 13px; font-weight: 600; margin-bottom: 4px; }
 
         /* Everything left of this changes what you HEAR; everything right of it
            changes what EXISTS. The redo shipped in the middle of the switches
            in the same grey and was asked about by the person who asked for it. */
-        .pb-sep {
-            width: 1px; height: 18px; margin: 0 4px;
-            background: var(--gl-border, #2a2a30); display: inline-block;
-        }
-        .btn-warning {
-            border-color: #5a4720; color: #d9a441;
-        }
-        .btn-warning:hover { background: rgba(217, 164, 65, 0.10); }
-        .pb-scrub-wrap { margin-top: 12px; }
-        .pb-scrub {
-            position: relative; height: 30px; cursor: pointer;
-            background: var(--gl-bg-elevated, #16161c);
-            border: 1px solid var(--gl-border); border-radius: 4px; overflow: hidden;
-        }
-        .pb-scrub-fill {
-            position: absolute; left: 0; top: 0; bottom: 0; width: 0;
-            background: rgba(90, 140, 255, 0.25); pointer-events: none;
-        }
-        .pb-shot-ticks, .pb-note-markers { position: absolute; inset: 0; pointer-events: none; }
-        .pb-shot-tick {
-            position: absolute; top: 0; bottom: 0; width: 1px;
-            background: var(--gl-border);
-        }
-        .pb-note-marker {
-            position: absolute; top: 3px; width: 3px; height: 12px;
-            border-radius: 2px; background: #f5a524; pointer-events: auto; cursor: pointer;
-        }
-        .pb-note-marker.critical, .pb-note-marker.high { background: #f5595a; }
-        .pb-playhead {
-            position: absolute; top: 0; bottom: 0; width: 2px;
-            background: #fff; pointer-events: none;
-        }
-        .pb-transport { display: flex; gap: 6px; }
-        .pb-timecode { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
 
-        .pb-columns, .sel-columns {
+        .sel-columns {
             display: grid; grid-template-columns: minmax(220px, 1fr) 2fr;
             gap: 16px; margin-top: 16px;
         }
         @media (max-width: 900px) {
-            .pb-columns, .sel-columns { grid-template-columns: 1fr; }
+            .sel-columns { grid-template-columns: 1fr; }
         }
-        .pb-playlist, .pb-note-list, .sel-shot-list, .sel-take-list {
+        .sel-shot-list, .sel-take-list {
             max-height: 340px; overflow-y: auto;
             border: 1px solid var(--gl-border); border-radius: 4px;
         }
-        .pb-playlist-item, .sel-shot-item {
+        .sel-shot-item {
             padding: 8px 10px; cursor: pointer; font-size: 12px;
             border-bottom: 1px solid var(--gl-border);
             display: flex; justify-content: space-between; gap: 8px;
         }
-        .pb-playlist-item:hover, .sel-shot-item:hover { background: rgba(255,255,255,0.03); }
-        .pb-playlist-item.active, .sel-shot-item.active { background: rgba(90,140,255,0.15); }
-        .pb-playlist-item.missing { opacity: 0.55; }
-        .pb-note-box, .sel-diff-box {
+        .sel-shot-item:hover { background: rgba(255,255,255,0.03); }
+        .sel-shot-item.active { background: rgba(90,140,255,0.15); }
+        .sel-diff-box {
             border: 1px solid var(--gl-border); border-radius: 4px; padding: 12px;
-        }
-        .pb-note-item {
-            padding: 8px 10px; border-bottom: 1px solid var(--gl-border);
-            font-size: 12px; cursor: pointer;
-        }
-        .pb-note-item:hover { background: rgba(255,255,255,0.03); }
-        .pb-note-tc {
-            font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-            color: var(--gl-text-muted); margin-right: 6px;
         }
 
         .sel-coverage-bar {
@@ -4483,36 +4343,7 @@
         .nav-group-pinned { border-bottom:1px solid var(--border); padding-bottom:8px; margin-bottom:12px; }
 
         /* ── Flows canvas ─────────────────────────────────────────── */
-        .flow-workspace { display: grid; grid-template-columns: 190px 1fr 260px; gap: 12px; height: calc(100vh - 190px); min-height: 460px; }
-        .flow-palette, .flow-inspector { background: var(--panel, #1a1a1f); border: 1px solid var(--border, #2c2c34); border-radius: 8px; padding: 10px; overflow-y: auto; }
-        .flow-palette h4 { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; opacity: .6; margin: 10px 0 6px; }
-        .flow-palette h4:first-child { margin-top: 0; }
-        .flow-node-btn { display: block; width: 100%; text-align: left; background: var(--panel-2, #232329); border: 1px solid var(--border, #2c2c34); color: inherit; border-radius: 6px; padding: 6px 8px; margin-bottom: 4px; cursor: grab; font-size: 12px; }
-        .flow-node-btn:hover { border-color: var(--accent, #f5c451); }
-        .flow-canvas-wrap { position: relative; background: var(--panel, #1a1a1f); border: 1px solid var(--border, #2c2c34); border-radius: 8px; overflow: hidden; }
-        .flow-canvas { width: 100%; height: 100%; display: block; cursor: grab; }
-        .flow-canvas.panning { cursor: grabbing; }
-        .flow-toolbar { position: absolute; left: 12px; bottom: 12px; display: flex; gap: 6px; align-items: center; background: rgba(20,20,24,.92); border: 1px solid var(--border, #2c2c34); border-radius: 8px; padding: 6px 10px; }
-        .flow-toolbar .btn-sm { padding: 2px 8px; font-size: 12px; }
-        .flow-status { font-size: 12px; opacity: .75; margin-left: 6px; }
-        .fnode rect.fbody { fill: #232329; stroke: #3a3a44; stroke-width: 1.5; rx: 8; }
-        .fnode.selected rect.fbody { stroke: #f5c451; stroke-width: 2.5; }
-        .fnode text.ftitle { fill: #eee; font-size: 12px; font-weight: 600; }
-        .fnode text.fsub { fill: #8a8a96; font-size: 10px; }
-        .fnode .fport { stroke: #1a1a1f; stroke-width: 1.5; cursor: crosshair; }
-        .fnode .fport:hover { r: 7; }
-        .fnode text.fportlabel { fill: #9a9aa6; font-size: 9px; }
-        .fedge { fill: none; stroke: #6c6cff; stroke-width: 2; }
-        .fedge.audio { stroke: #57c98a; } .fedge.video { stroke: #e2c15a; }
-        .fedge.text  { stroke: #8a8aff; } .fedge.image { stroke: #c07ce0; }
-        .fedge:hover { stroke-width: 3.5; }
         .fedge-ghost { fill: none; stroke: #f5c451; stroke-width: 2; stroke-dasharray: 5 4; pointer-events: none; }
-        .fnode.status-running rect.fbody { stroke: #f5c451; }
-        .fnode.status-complete rect.fbody { stroke: #57c98a; }
-        .fnode.status-failed rect.fbody { stroke: #e05c5c; }
-        .fnode.status-skipped rect.fbody { stroke-dasharray: 4 3; }
-        .flow-inspector label { display: block; font-size: 11px; opacity: .7; margin: 8px 0 3px; }
-        .flow-inspector input, .flow-inspector select, .flow-inspector textarea { width: 100%; box-sizing: border-box; font-size: 12px; }
     
 /* The tier cards stack: label, then what it is for, then what it resolves to.
    .btn is an inline-flex ROW, so without this the three lines lay out as three

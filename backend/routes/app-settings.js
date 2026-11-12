@@ -198,14 +198,9 @@ const SETTINGS = {
         default: false,
     },
     /*
-     * THE PRODUCTION GRAPH. One page replaces the eight production pages; off,
-     * the phase is exactly as it was. The eight stay reachable by URL either
-     * way until the graph has proved parity, so turning it on removes nothing.
+     * THE PRODUCTION GRAPH setting (production_graph) is gone: Production is always the studio, and the older
+     * separate pages it chose between were removed by the user (2026-11-11). A stored value is ignored on read.
      */
-    production_graph: {
-        description: 'Show Production as one node graph (shots, sequences, sound and versions) instead of its eight separate pages.',
-        default: false,
-    },
     /*
      * THE PREVIS CONSOLE AS ONE SCREEN. The same console and the same regions,
      * laid out so nothing scrolls: the camera view as large as the window

@@ -49,7 +49,6 @@ const MASTER = 'world_engine';
  * quietly excuse the next world flag that forgets its region.
  */
 const NOT_WORLD = {
-    production_graph: 'gates the Production phase (one graph vs eight pages) — held by tests/production-graph.test.js',
     previs_console: 'lays the SAME console regions out as one screen — a layout, not a region — held by tests/previs-decisions.test.js',
     backup_projects: 'whether a scheduled backup also writes each project as JSON — not a screen at all — held by tests/backup-folder.test.js',
     generation_test_mode: 'Higgsfield requests are saved instead of sent — a mode of the generation path, not a screen — held by tests/higgsfield-mcp.test.js',

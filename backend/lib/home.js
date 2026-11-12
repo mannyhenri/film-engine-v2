@@ -15,10 +15,10 @@
 
 const PHASES = [
     { id: 'write', label: 'Write', page: 'screenplay' },
-    { id: 'plan', label: 'Plan', page: 'shotboard' },
+    { id: 'plan', label: 'Plan', page: 'storyboard' },
     { id: 'look', label: 'Look', page: 'storyboard' },
-    { id: 'make', label: 'Make', page: 'pipeline' },
-    { id: 'edit', label: 'Edit', page: 'playback' },
+    { id: 'make', label: 'Make', page: 'productiongraph' },
+    { id: 'edit', label: 'Edit', page: 'productiongraph' },
     { id: 'deliver', label: 'Deliver', page: 'exportpage' },
 ];
 
@@ -159,7 +159,7 @@ function buildNeeds(db, projectId, shots, scenes) {
 
     const behind = safe(() => require('./screenplay-drift').drift(projectId)
         .reduce((n, s) => n + s.shots_behind.length, 0), 0);
-    push(behind, `${behind} shot card${behind === 1 ? '' : 's'} behind the screenplay`, 'shotboard', 'write');
+    push(behind, `${behind} shot card${behind === 1 ? '' : 's'} behind the screenplay`, 'screenplay', 'write');
 
     return items;
 }

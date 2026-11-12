@@ -1,6 +1,6 @@
 /*
  * The media input engine, shared. MOVED VERBATIM from the reference app (film-engine reference),
- * by tools/extract-engine.js: same names, same bodies. How any page takes a picture or a file in: the upload control and its size limits, the iPhone camera (shoot a plate, capture media), and a plate's thumbnail URL. Shared by the subject sheets, Characters/Locations/Props, Consistency, the mood board, Marketing, Music, Previs, the Production graph, Video Shots and others; MediaInput (boot-mounted, no dialogs) puts every name here on window.
+ * by tools/extract-engine.js: same names, same bodies. How any page takes a picture or a file in: the upload control and its size limits, the iPhone camera (shoot a plate, capture media), and a plate's thumbnail URL. Shared by the subject sheets, Characters/Locations/Props, Consistency, the mood board, Marketing, Previs, the Production graph and others; MediaInput (boot-mounted, no dialogs) puts every name here on window.
  *
  * Kept verbatim on purpose: backend tests read these functions from the page source, so the text they check is
  * the code that runs (tools/tests/engine-verbatim.test.js). Do not reformat it; change it as code, with its tests.
@@ -529,7 +529,6 @@ const { state } = Object.fromEntries(['state'].map(n => [n, live(n)]));
              */
             setStatus(`${file.name} uploaded as ${res.asset_type}`
                 + (res.duration_ms ? ` (${(res.duration_ms / 1000).toFixed(1)}s)` : '')
-                + '. It plays in Playback now.'
                 + (capability === 'video' && shotId
                     ? ' If this one clip covers several shots, say so with “Covers…” on the card.' : ''));
             if (capability === 'video' && shotId) window.__lastUploadedClip = res.asset_id;

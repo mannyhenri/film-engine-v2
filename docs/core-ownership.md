@@ -6,13 +6,13 @@ by name and errs toward more reach, which only keeps more in core.
 
 | category | declarations |
 |---|---|
-| (a) one owner, and every core caller moves with it: can move into that owner's engine | 1 |
+| (a) one owner, and every core caller moves with it: can move into that owner's engine | 3 |
 | (a2) as (a), but a caller that stays NAMES it (onclick, window[name]): moves if the owner provides it | 0 |
 | (e) one owner, but a caller that stays in core calls it in code: held in core until that caller moves | 1 |
-| (b) two or more owners: stays core, or a shared module | 14 |
+| (b) two or more owners: stays core, or a shared module | 12 |
 | (c) reached by nobody this can see: dead, or reached only by a name built at run time | 21 |
-| (d) load-time core (startup statements, shell.js, production-graph.js and what they reach) | 202 |
-| total | 239 |
+| (d) load-time core (startup statements, shell.js, production-graph.js and what they reach) | 194 |
+| total | 231 |
 
 Measured as one owner (`GROUPS` in the tool): component:ScreenplayDialogs as page:screenplay (the Screenplay's seven dialogs: their handlers call the screenplay engine, and the component imports from it).
 
@@ -22,6 +22,14 @@ Measured as one owner (`GROUPS` in the tool): component:ScreenplayDialogs as pag
 
 `mwTime`
 
+### page:exportpage (1)
+
+`downloadExport`
+
+### page:previs (1)
+
+`_shotAction`
+
 ## (b) By owner set
 
 Which owners share what. Two owners that are one feature (a page and its own dialogs component) can move
@@ -29,18 +37,16 @@ their shared declarations together into one engine; the rest stays core or becom
 
 | owners | declarations |
 |---|---|
-| component:CompositeWorkbench + component:DepthWorkbench + lib:previz-workspace + page:playback + page:previs + page:productiongraph | 1 |
+| component:CompositeWorkbench + component:DepthWorkbench + lib:previz-workspace + page:previs + page:productiongraph | 1 |
+| component:Gallery + page:budget + page:productiongraph + page:projects + page:settings + page:storyboard | 1 |
 | component:SceneDrift + page:scenes + page:storyboard | 1 |
-| component:VideoPipeline + page:budget + page:playback + page:productiongraph | 1 |
+| component:VideoPipeline + page:budget + page:productiongraph | 1 |
 | lib:previz-workspace + page:previs + page:storyboard | 1 |
 | page:dashboard + page:productiongraph + page:storyboard | 1 |
 | page:edits + page:settings | 1 |
 | page:exportpage + page:projects | 1 |
-| page:exportpage + page:videoshots | 1 |
-| page:music + page:previs + page:videoshots | 1 |
-| page:pipeline + page:previs + page:storyboard + page:videoshots | 1 |
-| page:playback + page:previs | 1 |
 | page:previs + page:screenplay | 1 |
+| page:previs + page:storyboard | 1 |
 | page:projects + page:settings | 1 |
 | page:screenplay + page:settings | 1 |
 
@@ -48,19 +54,17 @@ their shared declarations together into one engine; the rest stays core or becom
 
 | declaration | owners |
 |---|---|
-| `_shotAction` | page:music, page:previs, page:videoshots |
 | `AI_PATH` | page:previs, page:screenplay |
 | `APP_AUTHOR` | page:screenplay, page:settings |
 | `confirmProjectDelete` | page:projects, page:settings |
-| `downloadExport` | page:exportpage, page:videoshots |
 | `DRIFT` | component:SceneDrift, page:scenes, page:storyboard |
 | `fmtBytes` | page:edits, page:settings |
 | `importBundle` | page:exportpage, page:projects |
-| `mediaUrl` | component:CompositeWorkbench, component:DepthWorkbench, lib:previz-workspace, page:playback, page:previs, page:productiongraph |
+| `mediaUrl` | component:CompositeWorkbench, component:DepthWorkbench, lib:previz-workspace, page:previs, page:productiongraph |
+| `money` | component:Gallery, page:budget, page:productiongraph, page:projects, page:settings, page:storyboard |
 | `openFrameViewer` | page:dashboard, page:productiongraph, page:storyboard |
-| `pb` | page:playback, page:previs |
-| `streamSSEPost` | page:pipeline, page:previs, page:storyboard, page:videoshots |
-| `usd` | component:VideoPipeline, page:budget, page:playback, page:productiongraph |
+| `streamSSEPost` | page:previs, page:storyboard |
+| `usd` | component:VideoPipeline, page:budget, page:productiongraph |
 | `WORLD` | lib:previz-workspace, page:previs, page:storyboard |
 
 ## (e) One owner, held in core
@@ -95,7 +99,7 @@ Reached in the original, taken over by React (3):
 
 ## (d) Load-time core
 
-Split by `tools/load-time.js` (held by `tools/tests/load-time.test.js`). 202 declarations:
+Split by `tools/load-time.js` (held by `tools/tests/load-time.test.js`). 194 declarations:
 
 ### Runs at load (66): must stay in a classic script
 
@@ -104,22 +108,20 @@ Top-level statements and initialisers that call something, IIFE bodies, every fu
 
 `AFTER_WRITE`, `API`, `API_BASE`, `BOARD_ANCHOR`, `CONFIRM_GEN_PROMPT`, `DEFAULT_API_BASE`, `GENERATION_ORIGIN`, `GEN_BUSY_FREE`, `GEN_BUSY_URL`, `GUIDE_PAGE_ORDER`, `LIVE`, `MODAL_STACK`, `MODAL_Z_BASE`, `PROJECT_LIST`, `PROMPT_PART_LABEL`, `SECTION_GUIDE`, `SHOT_CARD`, `STATUS_STARTED`, `STATUS_TIMER`, `addCollapseAllControls`, `api`, `applyGuideTooltips`, `applySectionGuideTooltips`, `auditSectionGuide`, `beginGenerationBusy`, `blockingPanel`, `cameraNoteCount`, `cardCollapseKey`, `checkHealth`, `cueExtensionOf`, `defaultApiBase`, `directingFallbacks`, `directingPanel`, `editShotCard`, `enhancePageGuideButtons`, `esc`, `escapeHtml`, `feStore`, `fillBlockingPanel`, `fillDirectingPanel`, `fillLocationViews`, `getNavGuideEntries`, `initCollapsibleCards`, `initCollapsibleNav`, `initProductionGuide`, `liveConnect`, `markCurrentShot`, `navGroupMembers`, `previewShotPrompt`, `readCollapsedNav`, `readCollapsedSet`, `refreshAfterWrite`, `renderBlockingChoices`, `restackModals`, `sel`, `setNavGroupCollapsed`, `setStatus`, `shotCardFill`, `shotCardStyleFill`, `shotCardStyleSay`, `shotCardVocab`, `showModal`, `spendsOnThisCall`, `state`, `validateSectionGuide`, `writeCollapsedNav`
 
-### Only reachable from load-time code (136): can move once its entry reaches it another way
+### Only reachable from load-time code (128): can move once its entry reaches it another way
 
 Each entry is reached by something that runs later; what it pulls in moves with it unless reached otherwise.
 
 | entry | how | from | also reached through it |
 |---|---|---|---|
 | `locationViewChanged` | by name | `renderBlockingChoices` | `SS`, `addLocationView`, `regeneratePlate` |
-| `money` | by name | `SECTION_GUIDE` |  |
 | `_origShowModal` | callback | core.js at load |  |
 | `PLATE_CAMERA_AFTER` | callback | core.js at load |  |
 | `renderGlossary` | callback | core.js at load | `GLOSSARY` |
 | `backToProjectList` | listener | shell.js at load |  |
 | `closeModal` | listener | core.js at load |  |
-| `FLOW` | listener | core.js at load |  |
 | `flushAfterWrite` | listener | core.js at load |  |
-| `frameViewerStep` | listener | core.js at load | `CONFIRM_GEN_IGNORE_STAGED`, `FRAME_VIEWER`, `MARKUP_KINDS`, `annotationFeedbackOn`, `confirmExtras`, `confirmGeneration`, `confirmRefine`, `directShot`, `frameBusy`, `frameSrc`, `frameViewerPaint`, `frameViewerShotId`, `markupArm`, `markupClear`, `markupCommit`, `markupDown`, `markupDraw`, `markupFeedBadge`, `markupImageRect`, `markupLoad`, `markupMove`, `markupOnPicture`, `markupPaint`, `markupPaintAll`, `markupPaintFeedBadge`, `markupPoint`, `markupShape`, `markupToolbar`, `markupUndo`, `markupUp`, `refineFrame`, `regenerateStoryboard`, `shotDetailPanel`, `storyboardDialogueHtml` |
+| `frameViewerStep` | listener | core.js at load | `CONFIRM_GEN_IGNORE_STAGED`, `FRAME_VIEWER`, `MARKUP_KINDS`, `annotationFeedbackOn`, `confirmExtras`, `confirmGeneration`, `confirmRefine`, `directShot`, `frameBusy`, `frameSrc`, `frameViewerPaint`, `frameViewerShotId`, `markupArm`, `markupClear`, `markupCommit`, `markupDown`, `markupDraw`, `markupFeedBadge`, `markupImageRect`, `markupLoad`, `markupMove`, `markupOnPicture`, `markupPaint`, `markupPaintAll`, `markupPaintFeedBadge`, `markupPoint`, `markupShape`, `markupToolbar`, `markupUndo`, `markupUp`, `refineFrame`, `regenerateStoryboard`, `storyboardDialogueHtml` |
 | `liveRefresh` | listener | core.js at load |  |
 | `markupDisarm` | listener | core.js at load | `MARKUP` |
 | `navigateTo` | listener | shell.js at load | `applyNavFlow`, `revealNavGroupFor` |
@@ -136,10 +138,9 @@ Each entry is reached by something that runs later; what it pulls in moves with 
 | `exploreAngles` | reference | core.js at load | `CONFIRM_GEN`, `CONFIRM_GEN_CAP`, `CONFIRM_GEN_DEFAULT`, `CONFIRM_GEN_EDITED`, `CONFIRM_GEN_FINAL_PROMPT`, `CONFIRM_GEN_OPTS`, `CONFIRM_GEN_PROVIDER`, `CONFIRM_GEN_QUALITY`, `CONFIRM_GEN_SIZE`, `confirmChoices`, `confirmGenArm`, `confirmGenEditedPrompt`, `confirmGenPromptEdited`, `confirmPaidImage`, `confirmPickers`, `confirmPromptBox`, `deliveryLineHtml`, `dialogueAudioRowHtml`, `genOptionsHtml`, `paintGenModels`, `paintGenOptions`, `pickGenModel`, `pickGenQuality`, `pickGenSize`, `pickGenerator` |
 | `openAngleSheet` | reference | core.js at load | `ANGLE_POLL`, `openPlateViewer`, `showModalHtml` |
 | `pickAngle` | reference | core.js at load |  |
-| `pickVideoTier` | reference | core.js at load | `CONFIRM_GEN_MODEL`, `CONFIRM_GEN_PREVIEW_URL`, `CONFIRM_GEN_VIDEO_TIER`, `VIDEO_TIER_BLURB`, `repreviewVideo`, `videoEstimateHtml`, `videoOptionsHtml`, `videoPreviewUrl`, `videoTierRow` |
 | `renderTitlePageCard` | reference | core.js at load |  |
 | `setGenOption` | reference | core.js at load | `CONFIRM_GEN_OPTIONS` |
-| `setVideoOption` | reference | core.js at load | `CONFIRM_GEN_VIDEO_OPTIONS`, `VIDEO_REPREVIEW_TIMER` |
+| `setVideoOption` | reference | core.js at load | `CONFIRM_GEN_MODEL`, `CONFIRM_GEN_PREVIEW_URL`, `CONFIRM_GEN_VIDEO_OPTIONS`, `VIDEO_REPREVIEW_TIMER`, `repreviewVideo`, `videoOptionsHtml`, `videoPreviewUrl` |
 | `shotCardStyleEdited` | reference | core.js at load |  |
 | `shotCardStyleNone` | reference | core.js at load |  |
 | `shotCardStyleUseFilm` | reference | core.js at load |  |

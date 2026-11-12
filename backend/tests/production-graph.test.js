@@ -357,20 +357,24 @@ test('a cue\'s free preview is a GET that spends nothing and shows the text it w
 
 // ── The page ───────────────────────────────────────────────────────────────
 
-test('the page exists behind the flag, and every drawer action names a route that dispatches', () => {
+test('the page is always Production, and every drawer action names a route that dispatches', () => {
     const html = fs.readFileSync(path.join(__dirname, '..', '..', 'src', 'index.html'), 'utf8');
     assert.ok(/id="page-productiongraph"/.test(html), 'no production page');
     assert.ok(/data-page="productiongraph"/.test(html), 'no nav entry');
-    const { SETTINGS } = require('../routes/app-settings');
-    assert.strictEqual(SETTINGS.production_graph && SETTINGS.production_graph.default, false, 'the graph must default off');
     assert.ok(/productiongraph:\s*loadProductionGraph/.test(html), 'the page has no loader');
-    // The flag GATES something: which set of pages the menu shows. A flag that
-    // is stored and read by nothing is the shape this codebase keeps paying for.
-    const apply = html.slice(html.indexOf('async function applyProductionFlag'), html.indexOf('async function saveProductionGraphFlag'));
-    assert.match(apply, /production_graph/, 'the page never reads the setting');
-    assert.match(apply, /p === 'productiongraph' && !PRODUCTION_GRAPH_ON/, 'the graph is not hidden when the flag is off');
-    assert.match(apply, /PRODUCTION_GRAPH_ON && PG_OLD_PAGES\.includes\(p\)/, 'the old pages are not hidden when it is on');
-    assert.match(html, /b\.dataset\.fePhase === id && !b\.dataset\.flagHidden/, 'the menu ignores the flag');
+    /*
+     * The older layout was removed by the user (2026-11-11): no setting chooses between the studio and the
+     * separate pages, and the six pages themselves are gone (Shot Board, Video Shots, Music & Sound, Playback,
+     * Pipeline, Flows), with the flag that hid them. A setting stored and read by nothing is the shape this codebase
+     * keeps paying for, so the setting is gone too; an address naming a page that no longer exists opens Home.
+     */
+    const { SETTINGS } = require('../routes/app-settings');
+    assert.strictEqual(SETTINGS.production_graph, undefined, 'the Production graph setting came back');
+    assert.ok(!/PRODUCTION_GRAPH_ON|PG_OLD_PAGES|saveProductionGraphFlag|settingsProductionGraph/.test(html), 'the older layout\'s switch is back');
+    for (const p of ['shotboard', 'videoshots', 'music', 'playback', 'pipeline', 'flows']) {
+        assert.ok(!new RegExp(`id="page-${p}"|data-page="${p}"|\\b${p}:\\s*load`).test(html), `the ${p} page is back`);
+    }
+    assert.match(html, /if \(!document\.getElementById\('page-' \+ page\)\) page = 'dashboard';/, 'an address naming a removed page opens an empty screen');
     // Every drawer — the five the design draws.
     for (const fn of ['pgDrawerShot', 'pgDrawerSequence', 'pgDrawerSound', 'pgDrawerVersion', 'pgDrawerLink']) {
         assert.ok(new RegExp(`function ${fn}\\(`).test(html), `${fn} is missing`);

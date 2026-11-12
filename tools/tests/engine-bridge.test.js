@@ -42,7 +42,7 @@ function freeIdentifiers(code) {
 }
 
 test('there are engine modules to check (this runs over something)', () => {
-    assert.ok(MODULES.includes('src/pages/playback/player.js'), `found only: ${MODULES.join(', ')}`);
+    assert.ok(MODULES.includes('src/pages/productiongraph/engine.js'), `found only: ${MODULES.join(', ')}`);
 });
 
 for (const file of MODULES) {

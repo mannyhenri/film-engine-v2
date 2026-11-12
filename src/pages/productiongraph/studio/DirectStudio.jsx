@@ -459,7 +459,7 @@ export default function DirectStudio({ pid, graph, catalog, reload }) {
             await reload();
         } catch (err) {
             // Closing the final review is the end of a hand-over, not a failure: say where the take goes back in.
-            if (err.code === 'FINAL_REQUEST_CANCELLED') legacy.setStatus(`Generate it on Higgsfield with the prompt and assets from the review, then import the clip on Video Shots: it becomes this shot's take.`);
+            if (err.code === 'FINAL_REQUEST_CANCELLED') legacy.setStatus(`Generate it on Higgsfield with the prompt and assets from the review, then bring the clip back with Import a clip, under Generate: it becomes this shot's take.`);
             else legacy.setStatus('Not sent: ' + err.message);
         }
         finally { setBusy(''); }
@@ -795,6 +795,10 @@ export default function DirectStudio({ pid, graph, catalog, reload }) {
                                 {busy === 'send' ? 'Preparing…' : hasErr ? 'Fix the red item to generate' : `${one ? 'Generate the sequence' : 'Generate ' + label(promptCodes[0])} · ${costText}`}
                             </button>}
                         <p className="ds-muted">{one ? 'One request.' : grouped ? `One of ${scope.length} separate requests.` : ''} Credits shown before anything is sent. Nothing is sent yet: the final review hands you the exact prompt and assets to generate in Higgsfield's own app.</p>
+                        {/* The take made in Higgsfield's own app (or anywhere) comes back here: it is filed where a generated clip goes. */}
+                        {promptCodes.length === 1 && <div className="ds-row" data-ds="import-clip"
+                            dangerouslySetInnerHTML={{ __html: legacy.mediaUploadControl('video', 'video', 'shot', promptCodes[0], { after: 'loadProductionGraph', label: 'Import a clip',
+                                title: `A clip made in Higgsfield's own app (or anywhere) for ${label(promptCodes[0])}: it becomes this shot's take` }) }} />}
                         <details className="ds-more">
                             <summary>Shape, references and every model</summary>
                             <div className="ds-row">

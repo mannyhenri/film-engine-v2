@@ -837,9 +837,9 @@ function toVideo(req, res, shotId) {
         conflict: appliedState.conflict,
         application_state: appliedState.state,
         staged_notice: staged
-            ? 'This video preview includes staged Previs intent. Apply it before generating from the Shot Board.'
+            ? 'This video preview includes staged Previs intent. Apply it before generating from the shot card.'
             : appliedState.card_ahead || appliedState.conflict
-                ? 'The Shot Board changed after this Previs was applied. Re-seed Previs before applying again.' : null,
+                ? 'The shot card changed after this Previs was applied. Re-seed Previs before applying again.' : null,
         film_facts: {
             direction: ctx.sceneCard.direction || '',
             location_view: ctx.sceneCard.location_view || '',
@@ -1003,7 +1003,7 @@ function applyBlockingToCard(req, res, shotId) {
     const application = applicationState(shotId);
     if (application.card_ahead || application.conflict) {
         return json(res, 409, {
-            error: 'The Shot Board changed after this Previs was applied', code: 'CARD_AHEAD',
+            error: 'The shot card changed after this Previs was applied', code: 'CARD_AHEAD',
             detail: 'Re-seed Previs from the card before applying again so the newer board direction is not overwritten.',
             application,
         });
@@ -1143,9 +1143,9 @@ function toStoryboard(req, res, shotId) {
             conflict: appliedState.conflict,
             application_state: appliedState.state,
             staged_notice: staged
-                ? 'Previewing staged Previs intent. It is not applied to the Shot Board until you choose Apply to card.'
+                ? 'Previewing staged Previs intent. It is not applied to the shot card until you choose Apply to card.'
                 : appliedState.card_ahead || appliedState.conflict
-                    ? 'The Shot Board changed after this Previs was applied. Re-seed Previs before applying again.' : null,
+                    ? 'The shot card changed after this Previs was applied. Re-seed Previs before applying again.' : null,
             film_facts: {
                 direction: ctx.sceneCard.direction || '',
                 location_view: ctx.sceneCard.location_view || '',

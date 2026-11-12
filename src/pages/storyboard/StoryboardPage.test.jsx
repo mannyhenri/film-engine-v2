@@ -126,8 +126,10 @@ describe('Storyboard', () => {
         const a = cardOf('a');
         const click = (name) => fireEvent.click([...a.querySelectorAll('button')].find(b => b.textContent.trim() === name));
         expect(screen.queryByRole('button', { name: '4 angles' })).toBeNull();
-        const expected = { Direct: 'directShot', Regen: 'regenerateStoryboard', Refine: 'refineFrame', v1: 'openFrameVersions', '▶': 'playFromShot', '+ Shot': 'insertShotAfter' };
+        const expected = { Direct: 'directShot', Regen: 'regenerateStoryboard', Refine: 'refineFrame', v1: 'openFrameVersions', '+ Shot': 'insertShotAfter' };
         for (const [name, fn] of Object.entries(expected)) { click(name); expect(fake[fn], fn).toHaveBeenCalledWith('a'); }
+        // Playback was one of Production's older pages, removed with them: no card plays the cut from itself any more.
+        expect([...a.querySelectorAll('button')].some(b => b.textContent.trim() === '▶')).toBe(false);
         expect([...cardOf('b').querySelectorAll('button')].some(b => b.textContent.trim() === 'Generate')).toBe(true); // no frame yet
         fireEvent.click(document.getElementById('img-a'));
         expect(fake.openFrameViewer).toHaveBeenCalledWith('a');

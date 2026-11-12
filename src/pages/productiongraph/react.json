@@ -1,12 +1,11 @@
 {
-  "about": "This page is React (src/pages/productiongraph/ProductionGraphPage.jsx). The engine that draws the graph is src/pages/productiongraph/engine.js: public/legacy/production-graph.js moved verbatim (same names, same bodies), so the backend checks that read or execute pg*/ib* functions keep testing the code that runs. Kept in core: the feature flag and its boot (PRODUCTION_GRAPH_ON, PG_OLD_PAGES, applyProductionFlag, saveProductionGraphFlag, the DOMContentLoaded listener), the side panel the flag draws (pgRenderSide), and the state objects PG and IB that inline handlers read. The page registers every engine function on window at mount; what core calls by name is in provides.",
+  "about": "This page is React (src/pages/productiongraph/ProductionGraphPage.jsx). The engine that draws the graph is src/pages/productiongraph/engine.js: public/legacy/production-graph.js moved verbatim (same names, same bodies), so the backend checks that read or execute pg*/ib* functions keep testing the code that runs. Kept in core: its boot (applyProductionFlag, the DOMContentLoaded listener), the side panel (pgRenderSide), and the state objects PG and IB that inline handlers read. The page registers every engine function on window at mount; what core calls by name is in provides.",
   "loader": "loadProductionGraph",
   "provides": [
     "pgNode",
     "pgShots",
     "pgVisible",
     "pgCollapsedOf",
-    "flowBackToGraph",
     "ibCloseSetup",
     "ibCloseDirect",
     "pgEnsureSide",
@@ -102,8 +101,6 @@
     "PG_APPLY_TYPES",
     "pgApplyTargets",
     "pgApplyMenuItem",
-    "pgEditFlow",
-    "flowBackToGraph",
     "pgApplyPickerHtml",
     "pgApplyArmable",
     "pgApplyPlanDescribe",

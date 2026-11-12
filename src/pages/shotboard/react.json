@@ -1,6 +1,0 @@
-{
-  "about": "This page is React (src/pages/shotboard/ShotBoardPage.jsx). tools/split-map.js stops generating it, drops the legacy functions below, and fails if anything left still calls them. regenerateStoryboard stays in core (the board, the viewer and the Production graph share it) and is reached through src/lib/legacy.js.",
-  "loader": "loadShotBoard",
-  "replaces": ["loadShotboardRuntime", "loadShotBoard", "dragShotId", "onShotDragStart", "onShotDragEnd", "onShotDragOver", "onShotColumnOver", "onShotColumnLeave", "onShotColumnDrop", "onShotDrop", "openShotDetail", "closeShotDetail", "loadShotDetailNotes", "addShotDetailNote", "runShotPipeline", "saveShotTransition", "openABCompare", "loadABCompare", "updateABCrossfade", "closeABCompare"],
-  "modals": []
-}

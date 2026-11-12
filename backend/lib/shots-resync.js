@@ -316,4 +316,4 @@ function resyncShots(projectId, opts) {
     };
 }
 
-module.exports = { resyncShots };
+module.exports = { resyncShots, sceneFromScreenplay };

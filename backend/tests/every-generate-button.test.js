@@ -47,8 +47,6 @@ const SPENDS = /\.generate\s*\(|callImageGen|generatePlate\(|callThreeD\(|runStr
  */
 const FREE_ENDPOINTS = {
     stitchSequence: 'joins finished clips with the bundled ffmpeg; no provider is called',
-    approveStrip: 'records an approval fingerprint',
-    createSequence: 'writes a plan row; planning is deliberately free',
     pgCreateSequence: 'the production graph\'s empty sequence node — a plan row, shots wired in afterwards',
     importThreeDModel: 'uploads bytes the director already has',
     /*
@@ -159,7 +157,8 @@ test('the denominator is discovered, and it is much larger than a list', () => {
      * functions that unambiguously post to a generator.
      */
     const found = generatingFunctions();
-    const ANCHORS = ['regeneratePlate', 'generateVideoFor', 'orbitRefsheet', 'refineFrame'];
+    // generateVideoFor was an anchor; it went with Video Shots (removed with Production's older pages by the user (2026-11-11)).
+    const ANCHORS = ['regeneratePlate', 'generateSequence', 'orbitRefsheet', 'refineFrame'];
     const missed = ANCHORS.filter(a => !found.has(a));
     assert.deepStrictEqual(missed, [],
         `the scan no longer sees ${missed.join(', ')} — it is broken, and a scan that finds too `

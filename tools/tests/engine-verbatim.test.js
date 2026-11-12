@@ -26,12 +26,7 @@ const ROOT = path.join(__dirname, '..', '..');
  */
 const CHANGED = {
     "src/components/VideoPipeline/engine.js": {
-        "loadSequences": "Runway removed (2026-10-24): no Runway multi-shot button; the upload hint names Higgsfield",
-        "previewSequence": "Runway removed (2026-10-24): the native multi-shot line no longer names Runway",
         "generateNativeMultiShot": "Runway removed (2026-10-24): the recipe is the local gateway's"
-    },
-    "src/pages/videoshots/engine.js": {
-        "replaceBackground": "Runway removed (2026-10-24): background replacement runs on Higgsfield, which bills the clip handed in"
     },
     "src/pages/screenplay/engine.js": {
         "onEditorKeydown": "Preserve the live writer-focus shortcut and Escape exit before typewriter input",
@@ -56,11 +51,6 @@ const CHANGED = {
         "generateOfficialViews": "authorized manual ChatGPT handoff: stop the body-view loop on a saved external handoff and retain its captured character identity",
         "generateCharacterImage": "authorized manual ChatGPT handoff: a pending external image is reported as a handoff rather than an already generated image",
         "exportCharacterSheet": "the director's sheet: the main picture on top, its variations below, then the description (MainSheet), printed through the shared print renderer (src/lib/print-sheet.js, redesigned 2026-10-25)"
-    },
-    "src/pages/flows/engine.js": {
-        "renderFlowInspector": "Runway removed (2026-10-24): the fan-out provider list offers Higgsfield (signed in) in its place",
-        "flowPaintRun": "user-approved staged request review: paused provider chains visibly require a fresh review after the previous result is saved",
-        "flowCanvasRun": "user-approved exact final review: every flow run and budget override prepares all provider requests before the original POST; unsupported planners fail closed"
     },
     "src/pages/storyboard/engine.js": {
         "generateAllStoryboards": "user-approved exact final review: POST streaming sends the complete ordered approval list only after every batch item has been reviewed",
@@ -159,10 +149,6 @@ const CHANGED = {
     "src/components/MediaInput/engine.js": {
         "uploadLimitFor": "music-making retired by the user (2026-10-14, tools/split-lib.js RETIRED): no score session takes a batch of stems, so `stems` is not a file-carrying path (mirrors backend/lib/body-limit.js)"
     },
-    "src/pages/music/engine.js": {
-        "loadMusic": "music-making retired by the user (2026-10-14, tools/split-lib.js RETIRED): each scene shows its ambient bed (generate or upload) and the music brought in for it (upload only); no score row, score direction or cue sheet",
-        "runSoundGenerate": "music-making retired by the user (2026-10-14, tools/split-lib.js RETIRED): the sound dialog has no Score kind, so the capability is the kind itself"
-    }
 };
 // New exported helpers are declared separately; a reference declaration is never waived here.
 const ADDED = {
@@ -259,7 +245,7 @@ function undoRewrites(text) {
 }
 
 test('there are engines to check, and the reference was read (this runs over something)', () => {
-    assert.ok(ENGINES.includes('src/pages/playback/player.js') && ENGINES.includes('src/pages/productiongraph/engine.js'), ENGINES.join(', '));
+    assert.ok(ENGINES.includes('src/pages/screenplay/engine.js') && ENGINES.includes('src/pages/productiongraph/engine.js'), ENGINES.join(', '));
     assert.ok(REFERENCE.size > 1000, `only ${REFERENCE.size} reference declarations`);
 });
 

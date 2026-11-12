@@ -166,8 +166,14 @@ test('the counts distinguish work to do from work to wait for', () => {
     assert.strictEqual(report.waiting, 1);
 });
 
-test('the board shows the impact where the frames are', () => {
+test('the board no longer shows the impact; Production still reads it', () => {
+    /*
+     * The "Generated work behind its inputs" notice and the per-frame redo/waiting marks were removed from the
+     * Storyboard by the user (2026-11-11, tools/split-lib.js RETIRED boardImpact). The report is unchanged and still
+     * read by the Production graph's impact states.
+     */
     const html = fs.readFileSync(path.join(__dirname, '..', '..', 'src', 'index.html'), 'utf8');
-    assert.ok(/loadImpact\(\)/.test(html), 'the board never asks what a change has broken');
-    assert.ok(/function impactTag\(/.test(html), 'no per-frame mark, so the report points nowhere');
+    assert.ok(!/loadImpact\(\)/.test(html), 'the board asks for the impact report again');
+    assert.ok(!/function impactTag\(/.test(html), 'the per-frame impact mark is back');
+    assert.ok(/PG_IMPACT_LOOK/.test(html), 'nothing reads the impact states any more');
 });

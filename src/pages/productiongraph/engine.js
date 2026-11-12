@@ -7,9 +7,8 @@
  * Kept verbatim on purpose: eleven backend test files read and execute these functions from the page source, so
  * the text they check is the code that runs. Do not reformat it; change it as code, with its tests.
  *
- * What stays in core (public/legacy/production-graph.js): the feature flag and its boot (PRODUCTION_GRAPH_ON,
- * PG_OLD_PAGES, applyProductionFlag, saveProductionGraphFlag, the DOMContentLoaded listener), the side panel that
- * flag draws (pgRenderSide), and the graph's two state objects PG and IB, which inline handlers and the side panel
+ * What stays in core (public/legacy/production-graph.js): its boot (applyProductionFlag, the DOMContentLoaded listener),
+ * the side panel (pgRenderSide), and the graph's two state objects PG and IB, which inline handlers and the side panel
  * read as globals. The page registers every function here on window at mount (pages mount before the legacy
  * scripts run), so core and the HTML this engine draws call them by name, as they always did.
  *
@@ -80,12 +79,7 @@ const live = (name) => new Proxy({}, {
 });
 // Core's objects, as live proxies. Declared in one destructuring statement on purpose: a line reading
 // `const state = …` would be the first definition a backend test finds when it searches the page for one.
-const { FLOW, IB, PG, state } = Object.fromEntries(['FLOW', 'IB', 'PG', 'state'].map(n => [n, live(n)]));
-
-// (PRODUCTION_GRAPH_ON: kept in core, public/legacy/production-graph.js)
-
-
-// (PG_OLD_PAGES: kept in core, public/legacy/production-graph.js)
+const { IB, PG, state } = Object.fromEntries(['IB', 'PG', 'state'].map(n => [n, live(n)]));
 
 const PG_PORT_COLOR = { depth:'#68c9df', image: '#c07ce0', video: '#e2c15a', audio: '#57c98a', scene: '#8a8aff', plates: '#56c8d8', alpha: '#f3a968' };
 const PG_JOINS = [
@@ -99,9 +93,6 @@ const PG_KIND = { sfx: { label: 'Sound effect', cue: 'sfx', gen: 'gen.sfx', cap:
 
 
 // (applyProductionFlag: kept in core, public/legacy/production-graph.js)
-
-
-// (saveProductionGraphFlag: kept in core, public/legacy/production-graph.js)
 
 
 // ── Loading ───────────────────────────────────────────────────────────────
@@ -1333,8 +1324,7 @@ function pgQueueHtml(q, open, labelOf) {
         // A flow run (FOG-007): a paused one opens its shot, where the variations are picked; a live one can be cancelled.
         const flowAct = it.kind === 'flow_run'
             ? `${b === 'paused' && it.key ? `<button class="pg-sbtn primary" onclick="event.stopPropagation();pgQueueGo('${esc(it.key)}')" title="Open the shot: its variations are in the drawer">Pick</button>` : ''}${
-               it.cancel ? `<button class="pg-sbtn" onclick="event.stopPropagation();pgFlowCancelRun('${esc(it.run_id)}')" title="Stops before its next node; anything it made stays on the shot">Cancel run</button>` : ''}${
-               it.flow_id ? `<button class="pg-sbtn" onclick="event.stopPropagation();pgEditFlow('${esc(it.flow_id)}')" title="Open this flow on the Flows canvas">Edit flow</button>` : ''}`
+               it.cancel ? `<button class="pg-sbtn" onclick="event.stopPropagation();pgFlowCancelRun('${esc(it.run_id)}')" title="Stops before its next node; anything it made stays on the shot">Cancel run</button>` : ''}`
             : null;
         const act = flowAct !== null ? flowAct : b === 'awaiting_collection' ? `<button class="pg-sbtn" onclick="event.stopPropagation();pgQueueCollect('${esc(it.job_id)}')">Collect</button>`
             : (b === 'failed' && it.key ? `<button class="pg-sbtn" onclick="event.stopPropagation();pgQueueRerun('${esc(it.key)}')">Re-run</button>`
@@ -1565,36 +1555,10 @@ function pgApplyMenuItem(n, pickedCount) {
 }
 
 /** The picker: the project's and the library's flows, then every ready-made template. */
-/**
- * "Edit flow" from the graph (FOG-011). The Flows page is out of the menu while
- * the graph is on, so every surface that names a flow opens the canvas on that
- * flow. A history entry is pushed for the graph first — the router only ever
- * replaces — so the browser's Back returns to it, and the Flows page offers its
- * own Back to the graph.
- */
-function pgEditFlow(flowId) {
-    if (!flowId) return;
-    if (typeof closeModal === 'function') closeModal('pgApplyModal');
-    FLOW.editId = flowId;
-    FLOW.returnTo = state.currentPage || 'productiongraph';
-    FLOW.pushed = false;
-    if (history.pushState) { history.pushState(null, '', location.hash); FLOW.pushed = true; }
-    navigateTo('flows');
-}
-function flowBackToGraph() {
-    const to = FLOW.returnTo || 'productiongraph';
-    const pushed = FLOW.pushed;
-    FLOW.returnTo = null; FLOW.pushed = false;
-    const b = document.getElementById('flowBackToGraph');
-    if (b) b.hidden = true;
-    if (pushed && history.back) history.back();
-    else navigateTo(to);
-}
 function pgApplyPickerHtml(flows, templates, targets) {
     const n = (targets || []).length;
     const flowRows = (flows || []).map(f => `<div style="display:flex;gap:4px;align-items:center;margin:3px 0;"><button class="pg-sbtn" style="flex:1;text-align:left;"
-        onclick="pgApplyChoose('flow','${esc(f.id)}')"><b>${esc(f.name)}</b> <span class="text-muted text-sm">${esc(f.scope || '')}${f.node_count ? ' · ' + Number(f.node_count) + ' nodes' : ''}</span></button>
-        <button class="pg-sbtn" onclick="pgEditFlow('${esc(f.id)}')" title="Open this flow on the Flows canvas">Edit flow</button></div>`).join('');
+        onclick="pgApplyChoose('flow','${esc(f.id)}')"><b>${esc(f.name)}</b> <span class="text-muted text-sm">${esc(f.scope || '')}${f.node_count ? ' · ' + Number(f.node_count) + ' nodes' : ''}</span></button></div>`).join('');
     const tplRows = (templates || []).map(t => `<button class="pg-sbtn" style="display:block;width:100%;text-align:left;margin:3px 0;"
         onclick="pgApplyChoose('template','${esc(t.id)}')"><b>${esc(t.name)}</b> <span class="text-muted text-sm">${esc(t.description || '')}</span></button>`).join('');
     return `<h3 style="margin-top:0;">Apply a flow</h3>
@@ -1700,8 +1664,7 @@ function pgFlowFormHtml(form) {
     };
     const fields = (f.fields || []).map(field).join('');
     const notes = (f.not_fillable || []).map(n => `<p class="text-sm text-muted">${esc(n.label)}: ${esc(n.why)}</p>`).join('');
-    const edit = f.flow_id ? ` <button class="pg-sbtn" onclick="pgEditFlow('${esc(f.flow_id)}')" title="Change the flow itself on the Flows canvas instead of filling it in">Edit flow</button>` : '';
-    return `<h3 style="margin-top:0;">${esc(f.flow_name || 'Flow')}${edit}</h3>
+    return `<h3 style="margin-top:0;">${esc(f.flow_name || 'Flow')}</h3>
         <p class="text-sm text-muted">Fill in the flow's inputs. The next screen shows what each shot binds and what it costs; nothing runs until you confirm.</p>
         ${fields}${notes}
         <div style="text-align:right;margin-top:12px;">
@@ -2132,14 +2095,12 @@ function pgFlowFramesHtml(n) {
 function pgFlowPickControls(n, compact) {
     if (!n || n.source !== 'flow') return '';
     const pickable = n.awaiting_pick && n.run_id && n.branch;
-    const edit = n.flow_id ? `<button class="${compact ? 'pg-sbtn' : 'btn btn-secondary btn-sm'}" onclick="pgEditFlow('${esc(n.flow_id)}')"
-        title="Open the flow that made this on the Flows canvas">${compact ? 'Edit' : 'Edit flow'}</button>` : '';
-    if (!pickable && !edit) return '';
+    if (!pickable) return '';
     const btn = pickable ? `<button class="${compact ? 'pg-sbtn primary' : 'btn btn-primary btn-sm'}" onclick="pgFlowPick('${esc(n.run_id)}','${esc(n.branch)}')"
         title="Make this the shot's version and finish the paused run from here — nothing is generated again">Pick${compact ? '' : ' this one'}</button>` : '';
-    if (compact) return btn + edit;
+    if (compact) return btn;
     return `<div class="pg-btnrow" style="margin-top:6px;">${btn}
-        ${pickable ? `<button class="btn btn-secondary btn-sm" onclick="pgFlowCancelRun('${esc(n.run_id)}')">Cancel run</button>` : ''}${edit}</div>`;
+        ${pickable ? `<button class="btn btn-secondary btn-sm" onclick="pgFlowCancelRun('${esc(n.run_id)}')">Cancel run</button>` : ''}</div>`;
 }
 
 /** Pick a paused run's variation through the existing select route; it resumes the run. */
@@ -2681,9 +2642,7 @@ function pgRecipeFlowHtml(f) {
     if (f.run) rows.push(row('Run', `${esc(String(f.run.id).slice(0, 8))} · ${esc(f.run.status)}${f.branch && f.branch !== 'root' ? ' · ' + esc(f.branch) : ''}`));
     if (f.apply) rows.push(row('Apply', `${esc(String(f.apply.id).slice(0, 8))} · ${esc(f.apply.status || '')}`));
     const missing = (f.unknown || []).map(x => x.replace(/_/g, ' '));
-    const edit = f.flow && f.flow.id ? `<div class="pg-btnrow"><button class="btn btn-secondary btn-sm" onclick="pgEditFlow('${esc(f.flow.id)}')"
-        title="Open this flow on the Flows canvas">Edit flow</button></div>` : '';
-    return `<div class="pg-kicker"><span>Made by a flow</span></div><div class="pg-list">${rows.join('')}</div>${edit}
+    return `<div class="pg-kicker"><span>Made by a flow</span></div><div class="pg-list">${rows.join('')}</div>
         ${missing.length ? `<div class="pg-note">Not found for this flow output: ${esc(missing.join(', '))}</div>` : ''}`;
 }
 
@@ -3619,8 +3578,6 @@ export {
     PG_APPLY_TYPES,
     pgApplyTargets,
     pgApplyMenuItem,
-    pgEditFlow,
-    flowBackToGraph,
     pgApplyPickerHtml,
     pgApplyArmable,
     pgApplyPlanDescribe,

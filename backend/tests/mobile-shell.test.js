@@ -144,8 +144,9 @@ test('the entity grid does not force a sideways scroll', () => {
 });
 
 /* ── the phone-good pages stay reachable ──────────────────────────────── */
-const PHONE_GOOD = ['storyboard', 'playback', 'notes', 'characters', 'locations',
-    'props', 'stylebook', 'jobsqueue', 'moodboard', 'dashboard', 'shotboard'];
+// Playback and the Shot Board were on this list; both went with Production's older pages (removed with Production's older pages by the user (2026-11-11)).
+const PHONE_GOOD = ['storyboard', 'notes', 'characters', 'locations',
+    'props', 'stylebook', 'jobsqueue', 'moodboard', 'dashboard'];
 
 test('every page the assessment called phone-good is reachable from the drawer', () => {
     for (const page of PHONE_GOOD) {

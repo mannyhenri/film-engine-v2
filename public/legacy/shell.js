@@ -20,7 +20,7 @@
     { id:'plan',       label:'Plan',           blurb:'Board it, block it, and know what it costs.',
       pages:['storyboard','deliverables','previs','consistency','milestones','budget'] },
     { id:'production', label:'Production',     blurb:'Run the pipeline: picture, voice, score.',
-      pages:['productiongraph','shotboard','videoshots','music','playback','pipeline','flows'] },
+      pages:['productiongraph'] },
     { id:'post',       label:'Post',           blurb:'Export it, and keep the files straight.',
       pages:['edits','exportpage','titles','subtitles','rights','marketing','assets','jobsqueue','renderhistory'] }
   ];

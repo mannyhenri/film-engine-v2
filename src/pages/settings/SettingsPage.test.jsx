@@ -263,17 +263,17 @@ describe('Settings: the page', () => {
         expect(status).toContain('Could not save: locked');
     });
 
-    it('the production graph switch is core\'s (uncontrolled, saved by saveProductionGraphFlag)', async () => {
-        const { fake } = await openPage();
-        fireEvent.click(byId('settingsProductionGraph'));
-        expect(fake.saveProductionGraphFlag).toHaveBeenCalled();
+    it('has no Production graph switch: Production is always the studio (the older layout was removed)', async () => {
+        await openPage();
+        expect(byId('settingsProductionGraph')).toBeNull();
+        expect(document.querySelector('[data-set-go="graph"], [data-set-section="graph"]')).toBeNull();
     });
 
     it('the static page carries the ids and options other code reads', () => {
         installLegacy();
         render(<SettingsPage />);
         expect([...byId('settingsStatus').options].map(o => o.value)).toEqual(STATUSES.map(s => s[0])); // the project list's stages
-        for (const id of ['settingsDeliveryCodec', 'settingsDeliveryPreset', 'settingsProductionGraph', 'settingsFolderMoveTo', 'settingsProjectsRoot', 'settingsBackupDir', 'settingsStylePreset']) {
+        for (const id of ['settingsDeliveryCodec', 'settingsDeliveryPreset', 'settingsFolderMoveTo', 'settingsProjectsRoot', 'settingsBackupDir', 'settingsStylePreset']) {
             expect(byId(id), id).toBeTruthy();
         }
     });
