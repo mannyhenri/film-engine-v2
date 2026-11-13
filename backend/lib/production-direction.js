@@ -48,6 +48,11 @@ function getDirection(db, projectId) {
                 sfx_cues: Array.isArray(card.sfx_cues) ? card.sfx_cues : [],
                 end_state: card.end_state || '',
                 duration_s: Number(card.duration_seconds) || Math.round((Number(r.duration_ms) || 0) / 1000) || 0,
+                // Carried so the studio prompt can state them: the shot's props (named, since no plate is
+                // guaranteed), how the environment moves (no picture carries motion), and which location view.
+                props: Array.isArray(card.props) ? card.props.map(p => typeof p === 'string' ? p : String((p && (p.name || p.prop || p.description)) || '')).map(s => s.trim()).filter(Boolean) : [],
+                environment_motion: String(card.environment_motion || '').trim(),
+                location_view: String(card.location_view || '').trim(),
             },
             // When the direction was last saved, so Generate can tell whether a Previz Apply is newer (newer wins).
             direction: d ? d.data : null, revision: d ? d.revision : 0, updated_at: d ? d.updated_at : null,
@@ -59,7 +64,8 @@ function getDirection(db, projectId) {
         .map(c => ({ id: c.id, name: c.name, age: ageOf(c) }));
     const scenes = {};
     for (const s of db.prepare("SELECT id, scene_number, int_ext, location, time_of_day FROM film_scenes WHERE project_id = ? AND status != 'removed'").all(projectId)) {
-        const loc = db.prepare('SELECT name, reference_prompt, lighting_default, atmosphere_notes, sound_notes FROM film_locations WHERE project_id = ? AND name = ?').get(projectId, s.location);
+        // Case-insensitive, like the rest of the app: a scene heading "The Diner" must still find the location "THE DINER".
+        const loc = db.prepare('SELECT name, reference_prompt, lighting_default, atmosphere_notes, sound_notes FROM film_locations WHERE project_id = ? AND name = ? COLLATE NOCASE').get(projectId, s.location);
         scenes[s.id] = { number: s.scene_number, heading: [s.int_ext, s.location].filter(Boolean).join('. '), time_of_day: s.time_of_day || '',
             setting: (loc && loc.reference_prompt) || '', light: (loc && loc.lighting_default) || '', atmosphere: (loc && loc.atmosphere_notes) || '',
             sound: (loc && loc.sound_notes) || '' };
@@ -68,7 +74,10 @@ function getDirection(db, projectId) {
     const ref_owners = Object.fromEntries(db.prepare(`SELECT a.id, c.name FROM film_assets a JOIN film_characters c ON c.id = a.character_id
         WHERE c.project_id = ?`).all(projectId).map(r => [r.id, r.name]));
     const studio = saved.get('studio');
-    return { shots, cast, scenes, ref_owners, studio: studio ? studio.data : null, studio_revision: studio ? studio.revision : 0 };
+    // The project look, so the studio can carry it into the prompt (a trimmable line); mood-board style
+    // images carry it in the paid path, but the working/Seedance prompt had no access to it before.
+    const proj = db.prepare('SELECT style_preset FROM film_projects WHERE id = ?').get(projectId);
+    return { shots, cast, scenes, ref_owners, style_preset: (proj && proj.style_preset) || '', studio: studio ? studio.data : null, studio_revision: studio ? studio.revision : 0 };
 }
 
 function save(db, projectId, owner, data, expected) {

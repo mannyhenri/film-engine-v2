@@ -224,7 +224,7 @@ export default function DirectStudio({ pid, graph, catalog, reload }) {
 
     const prevTrans = !one && grouped && promptCodes[0] && scope.indexOf(promptCodes[0]) > 0 ? (S[scope[scope.indexOf(promptCodes[0]) - 1]].transOut || 'continuous') : null;
     const compiled = ready && promptCodes.length ? compile({ codes: promptCodes, shots: S, one, bracket: studio.bracket, nameOf, refOf, ageOf, flash, labelOf: label,
-        setting: [...new Set(promptCodes.map(sceneOf))].map(settingOf).filter(Boolean).join(' '), amb, music: studio.music, prevTrans }) : null;
+        setting: [...new Set(promptCodes.map(sceneOf))].map(settingOf).filter(Boolean).join(' '), look: info?.style_preset || '', amb, music: studio.music, prevTrans }) : null;
     const compiledText = compileText(compiled);
     /*
      * The director's own text, kept per shot or sequence (it was one text for whatever was picked, so another shot showed
@@ -481,7 +481,7 @@ export default function DirectStudio({ pid, graph, catalog, reload }) {
     // several shots, each shot's own working text (the director's edit of it, else as the controls write it) in order,
     // under its code and time in the sequence.
     const shotText = id => (studio.hands || {})['shot:' + id]?.text ?? compileText(compile({ codes: [id], shots: S, one: false, bracket: studio.bracket, nameOf, refOf, ageOf,
-        flash: null, labelOf: label, setting: settingOf(sceneOf(id)) || '', amb, music: studio.music, prevTrans: null }));
+        flash: null, labelOf: label, setting: settingOf(sceneOf(id)) || '', look: info?.style_preset || '', amb, music: studio.music, prevTrans: null }));
     const optText = optCodes.length > 1 && !(one && optCodes.join() === promptCodes.join())
         ? optCodes.map(id => `SHOT ${label(id)} (${fmt(offsets[id])}–${fmt(offsets[id] + S[id].dur)}, ${S[id].dur}s${scope.indexOf(id) < scope.length - 1 && grouped ? `; then: ${S[id].transOut || 'continuous'}` : ''})\n${shotText(id)}`).join('\n\n')
         : finalText;

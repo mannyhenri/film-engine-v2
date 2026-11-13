@@ -175,7 +175,30 @@ const MOVE_WORDS = [[/push.?in|dolly.?in/i, 'dolly-in'], [/pull.?(back|out)|doll
     [/drone|aerial/i, 'drone-in'], [/hand.?held/i, 'handheld'], [/steadicam|glide/i, 'track'], [/rack/i, 'rack'], [/dutch/i, 'dutch'], [/drift|float/i, 'drift'], [/static|lock|still|hold/i, 'static']];
 export function moveOf(text) { for (const [re, id] of MOVE_WORDS) if (re.test(String(text || ''))) return id; return null; }
 
-const firstSentence = (t) => { const s = String(t || '').trim(); const m = /^(.+?[.!?])(\s|$)/.exec(s); return (m ? m[1] : s).slice(0, 260); };
+/*
+ * The shot's action for the opening frame. The card's `direction` is ADDED on
+ * top of the screenplay `description`, never used instead of it: before, a shot
+ * with any direction lost its whole description (so 1F's folded page — the point
+ * of the shot — never reached the prompt), and only the first sentence survived,
+ * capped at 260 chars. Now both are carried, trimmed to a generous allowance at
+ * a sentence boundary so the subject is never dropped.
+ */
+const OPENING_MAX = 600;
+function trimClause(text, max) {
+    const t = String(text || '').trim();
+    if (t.length <= max) return t;
+    const cut = t.slice(0, max);
+    const dot = Math.max(cut.lastIndexOf('. '), cut.lastIndexOf('! '), cut.lastIndexOf('? '));
+    if (dot > max * 0.5) return cut.slice(0, dot + 1).trim();
+    const sp = cut.lastIndexOf(' ');
+    return (sp > 0 ? cut.slice(0, sp) : cut).trim() + '…';
+}
+function shotOpening(card = {}) {
+    const desc = String(card.description || card.action || '').trim();
+    const dir = String(card.direction || '').trim();
+    const combined = dir && dir !== desc ? (desc ? desc + ' ' + dir : dir) : desc;
+    return trimClause(combined, OPENING_MAX);
+}
 
 export function blankMove(type, start, end, o = {}) { return { id: nid('m'), type, start, end, speed: 'slow', subj: '', ends: '', from: '', to: '', curve: 'ease', ...o }; }
 
@@ -202,8 +225,14 @@ export function seedShot(card = {}, fallbackSeconds = 5, canon = (n) => String(n
     const moves = mv ? [blankMove(mv, 0, dur, mv === 'static' ? { speed: 'steady' } : {})] : [];
     const sfx = (card.sfx_cues || []).map(c => typeof c === 'string' ? c : (c && (c.description || c.sound || c.cue)) || '').filter(Boolean)
         .map((text, i) => ({ id: nid('f'), t: half(Math.min(dur - 0.5, 0.5 + i * 2)), text }));
-    return { v: 1, dur, cardDur: dur, cam: camState, inh: { ...camState }, start: firstSentence(card.direction || card.description), end: String(card.end_state || ''),
-        lines, moves, perf: {}, sfx, lit: String(card.lighting?.notes || ''), tech: '', cuts: [], transOut: 'continuous' };
+    // Everyone the card bills, keyed, so a character who never speaks is still named and tagged in the prompt.
+    const cast = [...new Set((card.characters || []).map(c => canon(String(c))).filter(Boolean))];
+    // The shot's props (named, since no plate is guaranteed to carry them) and how the environment moves
+    // (which no still can carry) — both dropped before, so a prop that was the subject of the shot never reached it.
+    const props = (card.props || []).map(p => typeof p === 'string' ? p : String((p && (p.name || p.prop || p.description)) || '')).map(s => s.trim()).filter(Boolean);
+    const env = String(card.environment_motion || '').trim();
+    return { v: 1, dur, cardDur: dur, cam: camState, inh: { ...camState }, start: shotOpening(card), end: String(card.end_state || ''),
+        cast, props, env, lines, moves, perf: {}, sfx, lit: String(card.lighting?.notes || ''), tech: '', cuts: [], transOut: 'continuous' };
 }
 
 /* ---------- what Previz decided (lib/previs-direction.js) ---------- */
@@ -341,6 +370,8 @@ export function compileShot(s, ctx) {
             }
             const lit = (s.tech ? s.tech + ' lighting. ' : '') + (s.lit || '');
             if (lit.trim()) items.push({ t: -1, cls: 'lit', x: 'Light: ' + lit.trim() });
+            if ((s.props || []).length) items.push({ t: -0.9, cls: 'act', x: 'In shot: ' + s.props.join(', ') + '.' });
+            if (s.env) items.push({ t: -0.8, cls: 'act', x: 'Throughout: ' + s.env.replace(/[.\s]+$/, '') + '.' });
         }
         for (const m of s.moves) if (m.start >= t0 && m.start < t1) items.push({ t: m.start, cls: 'cam', x: movePhrase(m, off) });
         for (const b of acts) if (b.t >= t0 && b.t < t1 && String(b.text).trim()) items.push({ t: b.t, cls: 'act', x: String(b.text).trim().replace(/[.;,]?$/, '.') });
@@ -374,7 +405,7 @@ const TRANS_WORDS = { continuous: 'Continuous, no cut: the camera carries straig
  *          setting, amb, music, prevTrans (transition into codes[0] when generated separately) }.
  */
 export function compile(ctx) {
-    const { codes, shots, one, bracket, nameOf, refOf, ageOf, setting, amb, music, prevTrans, flash, labelOf } = ctx;
+    const { codes, shots, one, bracket, nameOf, refOf, ageOf, setting, look, amb, music, prevTrans, flash, labelOf } = ctx;
     if (!codes.length) return null;
     const paras = [];
     let off = 0;
@@ -384,12 +415,16 @@ export function compile(ctx) {
         paras.push(...compileShot(s, { bracket, nameOf, flash, off: one ? off : 0, first: i === 0, code: id }));
         off += s.dur;
     });
+    // Speakers and performers first (they drive the beats), then anyone else the card bills: a silent
+    // character on the card is named in the preamble and tagged to their reference, not left out.
     const chars = [];
-    for (const id of codes) for (const k of [...shots[id].lines.map(l => l.ch), ...Object.keys(shots[id].perf || {})]) if (k && !chars.includes(k)) chars.push(k);
+    for (const id of codes) for (const k of [...shots[id].lines.map(l => l.ch), ...Object.keys(shots[id].perf || {}), ...(shots[id].cast || [])]) if (k && !chars.includes(k)) chars.push(k);
     const who = chars.map(k => nameOf(k) + (refOf(k) ? ` (${refOf(k)})` : '')).join(' and ');
     const ages = chars.map(k => ageOf(k) ? `${nameOf(k)} ${ageOf(k)}` : '').filter(Boolean).join(', ');
     const cont = !one && prevTrans === 'continuous' ? ' Continues from the previous shot; its last frame is this first frame.' : '';
-    const pre = (who ? who + ', exactly as in their reference images' + (ages ? '; ' + ages : '') + '. ' : '') + (setting ? setting.trim().replace(/[^.]$/, m => m + '.') + ' ' : '') + (one && codes.length > 1 ? 'One clip, in the order below.' : '') + cont;
+    // The project look, trimmed short: the style images carry it in full, so a sentence of it here is enough.
+    const lookTxt = look ? 'Style: ' + trimClause(String(look), 240) : '';
+    const pre = (who ? who + ', exactly as in their reference images' + (ages ? '; ' + ages : '') + '. ' : '') + (setting ? setting.trim().replace(/[^.]$/, m => m + '.') + ' ' : '') + (lookTxt ? lookTxt.replace(/[^.]$/, m => m + '.') + ' ' : '') + (one && codes.length > 1 ? 'One clip, in the order below.' : '') + cont;
     const post = [];
     if (amb?.on && amb.text) post.push(bracket ? '<' + amb.text + ', under everything>' : 'Throughout: ' + amb.text + '.');
     post.push(music?.on ? (bracket ? '(' + (music.text || 'score') + ')' : 'Music: ' + (music.text || 'score') + '.') : 'No music.');

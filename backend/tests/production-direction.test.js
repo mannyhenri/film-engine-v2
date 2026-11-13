@@ -21,15 +21,21 @@ const { db } = require('../db/database');
 const dir = require('../lib/production-direction');
 const { handleProductionStudio } = require('../routes/production-studio');
 
-const P = crypto.randomUUID(), OTHER = crypto.randomUUID(), SC = crypto.randomUUID(), SH = crypto.randomUUID(), SH2 = crypto.randomUUID();
+const P = crypto.randomUUID(), OTHER = crypto.randomUUID(), SC = crypto.randomUUID(), SC_LC = crypto.randomUUID(), SH = crypto.randomUUID(), SH2 = crypto.randomUUID();
 const CARD = { shot_code: '1D', description: 'The word lands.', direction: 'Ray stops.', notes: 'Ray, late forties, turns the cup.',
     dialogue: [{ character: 'JUNE', line: 'Dad.' }, { character: 'RAY MERCER', line: "I didn't have your other number." }],
     characters: ['RAY MERCER', 'JUNE'], camera: { lens: '40mm anamorphic', movement: 'pan-right', shot_type: 'close-up' },
-    lighting: { notes: 'Half his face in the window light.', type: 'golden-hour' }, duration_seconds: 15 };
+    lighting: { notes: 'Half his face in the window light.', type: 'golden-hour' },
+    props: ['SALT SHAKER', { name: 'FOLDED PAGE' }], environment_motion: 'Steam drifts across the window.', location_view: 'east',
+    duration_seconds: 15 };
+const LOOK = 'Muted teal-and-amber palette, soft anamorphic bloom, 1970s film grain.';
 
 test.before(() => {
     for (const id of [P, OTHER]) db.prepare("INSERT INTO film_projects (id, title) VALUES (?, ?)").run(id, 'Direction ' + id.slice(0, 4));
+    db.prepare('UPDATE film_projects SET style_preset = ? WHERE id = ?').run(LOOK, P);
     db.prepare("INSERT INTO film_scenes (id, project_id, scene_number, int_ext, location, time_of_day) VALUES (?, ?, 1, 'INT', 'THE DINER', 'LATE AFTERNOON')").run(SC, P);
+    // Same location, scene heading in a different case: the lookup must still find it.
+    db.prepare("INSERT INTO film_scenes (id, project_id, scene_number, int_ext, location, time_of_day) VALUES (?, ?, 2, 'INT', 'the diner', 'NIGHT')").run(SC_LC, P);
     db.prepare("INSERT INTO film_locations (id, project_id, name, lighting_default, sound_notes) VALUES (?, ?, 'THE DINER', 'golden hour', 'room tone, gulls')").run(crypto.randomUUID(), P);
     db.prepare('INSERT INTO film_shots (id, scene_id, shot_code, scene_card_yaml, duration_ms) VALUES (?, ?, ?, ?, ?)').run(SH, SC, '1D', JSON.stringify(CARD), 15000);
     db.prepare('INSERT INTO film_shots (id, scene_id, shot_code, scene_card_yaml, duration_ms) VALUES (?, ?, ?, ?, ?)').run(SH2, SC, '1E', '', 5000);
@@ -51,6 +57,22 @@ test('the read hands back every shot card as written, the cast with ages, and ea
     assert.deepStrictEqual(r.cast.map(x => [x.name, x.age]).sort(), [['JUNE', '20s'], ['RAY MERCER', '57']]);
     assert.deepStrictEqual(r.ref_owners, { 'ray-sheet': 'RAY MERCER' });
     assert.deepStrictEqual(r.scenes[SC], { number: 1, heading: 'INT. THE DINER', time_of_day: 'LATE AFTERNOON', setting: '', light: 'golden hour', atmosphere: '', sound: 'room tone, gulls' });
+});
+
+test('the read carries the props, the environment motion, the location view and the project look', () => {
+    const r = dir.getDirection(db, P);
+    const c = r.shots[SH].card;
+    assert.deepStrictEqual(c.props, ['SALT SHAKER', 'FOLDED PAGE'], 'props named (strings or {name}), so a plate-less prop still reaches the prompt');
+    assert.strictEqual(c.environment_motion, 'Steam drifts across the window.');
+    assert.strictEqual(c.location_view, 'east');
+    assert.strictEqual(r.style_preset, LOOK, 'the project look is carried so the studio prompt can state it');
+});
+
+test('the location lookup is case-insensitive, like the rest of the app', () => {
+    const r = dir.getDirection(db, P);
+    // The scene heading is "the diner"; the location is stored as "THE DINER". It must still resolve.
+    assert.strictEqual(r.scenes[SC_LC].light, 'golden hour');
+    assert.strictEqual(r.scenes[SC_LC].sound, 'room tone, gulls');
 });
 
 test('a saved direction comes back exactly, revisions count up, a stale one is refused, the card is untouched', () => {
